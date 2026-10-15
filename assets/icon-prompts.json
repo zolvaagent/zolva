@@ -1,0 +1,19 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "high",
+    "background": "opaque",
+    "aspect_ratio": "1:1",
+    "output_format": "png"
+  },
+  "style": "A single glossy 3D icon for a premium fintech app, in the style of Aave's app icons: soft clay-like 3D render, smooth rounded forms, soft diffused studio light from the top left, gentle lavender (#9896ff to #e5e5ff) as the main color with small warm yellow (#ffc42c) accents and crisp white highlights. Centered with generous empty space around it, isolated on a plain, perfectly flat pure white (#ffffff) background that touches every edge of the image. No text, no letters, no numbers, no ground shadow, no background plate, no border.",
+  "icons": {
+    "app": "Subject: an app icon tile, a rounded square in deep ink color #252228, holding a smooth glowing lavender ribbon that flows in a stylized S-like curve, like a trend line turning into a spark.",
+    "momentum": "Subject: a small chunky rocket launching upward along a curved rising trail, yellow body with lavender fins and a soft lavender exhaust puff.",
+    "mean-reversion": "Subject: a glossy pendulum ball on a thin rod swinging back toward the center, with a soft curved motion arc behind it showing it returning to the middle.",
+    "backtest": "Subject: a round clock face with a thick curved arrow wrapped around it pointing counter-clockwise, meaning rewind or replay the past.",
+    "agent": "Subject: a friendly small rounded robot head with a dark glass visor that shows a tiny glowing lavender upward line chart.",
+    "leaderboard": "Subject: a rounded trophy cup with a small yellow star floating above it."
+  },
+  "note": "gpt-image-2 rejects background=transparent; icons are generated on white and cut out by scripts/cutout-icons.py."
+}

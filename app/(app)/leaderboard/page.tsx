@@ -1,0 +1,26 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+import { Leaderboard } from "@/components/app/Leaderboard";
+import { listAgents } from "@/lib/data/agents";
+
+export const metadata: Metadata = { title: "Leaderboard" };
+export const dynamic = "force-dynamic";
+
+export default async function LeaderboardPage() {
+  const agents = (await listAgents()).filter((agent) => agent.status === "active");
+  return (
+    <div className="container page">
+      <div className="page__head">
+        <div>
+          <h1 className="page__title">Leaderboard</h1>
+          <p className="page__lead">Every running agent, ranked on its live paper trading since launch, next to what holding the same stocks would have made.</p>
+        </div>
+        <Link className="button button--primary" href="/forge">
+          Build your agent
+        </Link>
+      </div>
+      <Leaderboard agents={agents} />
+    </div>
+  );
+}

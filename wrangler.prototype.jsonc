@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Static deploy of the design prototype (prototype/), separate from the real
+  // app so it can be shared for review without touching the "pitwise" Worker.
+  //   npx wrangler deploy -c wrangler.prototype.jsonc
+  "name": "pitwise-prototype",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./prototype",
+    "not_found_handling": "single-page-application"
+  }
+}

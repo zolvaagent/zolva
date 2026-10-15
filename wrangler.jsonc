@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pitwise",
+  // Wraps .open-next/worker.js to add the hourly cron trigger.
+  "main": "custom-worker.ts",
+  "compatibility_date": "2026-10-01",
+
+  // nodejs_compat is required: viem (wallet sign-in) and node:crypto (sessions)
+  // fail on the Worker without it.
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  "services": [
+    { "binding": "WORKER_SELF_REFERENCE", "service": "pitwise" }
+  ],
+
+  // Worker logs in the Cloudflare dashboard, including cron runs.
+  "observability": { "enabled": true },
+
+  // Minute 5 of every hour: the previous hour's prices are final by then.
+  // Supabase pg_cron calls the same route as a backup (see docs/tasks.md).
+  "triggers": { "crons": ["5 * * * *"] }
+
+  // Secrets are never set here. Locally they live in .dev.vars (see
+  // .dev.vars.example); on Cloudflare: npx wrangler secret put <NAME>
+}

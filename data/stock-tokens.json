@@ -1,0 +1,212 @@
+{
+  "chainId": 4663,
+  "network": "robinhood",
+  "source": "GeckoTerminal API, snapshot 2026-10-15",
+  "note": "Candidate list. Every address must be checked against Robinhood official Stock Token list before launch: same-name clones exist (e.g. fake NVDA 0x1076f47f9632D726cF0FF93Ad1616C45Cbb8B94D).",
+  "quoteToken": {
+    "symbol": "USDG",
+    "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+  },
+  "tokens": [
+    {
+      "symbol": "META",
+      "address": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35",
+      "pricePool": "0x5875d407a42965b0e768c8925cea290e06fa50603ef34fc99eb92a1050e6ae36",
+      "poolLiquidityUsd": 3512840,
+      "volume24hUsd": 1380691,
+      "poolCreated": "2026-07-11",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "NVDA",
+      "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec",
+      "pricePool": "0xd4eb21209c4d6093f80b5b84f5c45cc093ea14a3",
+      "poolLiquidityUsd": 2831688,
+      "volume24hUsd": 9705069,
+      "poolCreated": "2026-07-21",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "SPY",
+      "address": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c",
+      "pricePool": "0xfe2a80bb5618fd14984b92ca6d45bf5ba67443ddb1435e28b2e48df2fc1526cd",
+      "poolLiquidityUsd": 3020160,
+      "volume24hUsd": 1045160,
+      "poolCreated": "2026-07-14",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "USO",
+      "address": "0xa30fa36db767ad9ed3f7a60fc79526fb4d56d344",
+      "pricePool": "0x02175608f1b5e6b5ed221ccfdc7be197d111d915",
+      "poolLiquidityUsd": 2368471,
+      "volume24hUsd": 1037708,
+      "poolCreated": "2026-07-17",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "CRCL",
+      "address": "0xdf0992e440dd0be65bd8439b609d6d4366bf1cb5",
+      "pricePool": "0x654e4143e82a5824445ade0824351c2a9acd95a8",
+      "poolLiquidityUsd": 2305517,
+      "volume24hUsd": 2747264,
+      "poolCreated": "2026-08-14",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "GLD",
+      "address": "0xc9a981fee1f9dec688bb123ccdecc63d0debfc4e",
+      "pricePool": "0xba2f1ed4ceb2169d538d1e614d847e83c5a55913",
+      "poolLiquidityUsd": 1503521,
+      "volume24hUsd": 2639775,
+      "poolCreated": "2026-08-26",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "MSTR",
+      "address": "0xec262a75e413fafd0df80480274532c79d42da09",
+      "pricePool": "0x319bac87e616a89e241c10aeb8afd4892a852cdd8b373cd9765ecddc40b87cfe",
+      "poolLiquidityUsd": 1342395,
+      "volume24hUsd": 3215561,
+      "poolCreated": "2026-08-25",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "SPCX",
+      "address": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea",
+      "pricePool": "0xc61284332117c3fb23a2a56cceffd07f7af60029",
+      "poolLiquidityUsd": 1323405,
+      "volume24hUsd": 7302063,
+      "poolCreated": "2026-07-23",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "QQQ",
+      "address": "0xd5f3879160bc7c32ebb4dc785f8a4f505888de68",
+      "pricePool": "0xd60a5d14db690b7afad71f76b108071d7175597d",
+      "poolLiquidityUsd": 1060487,
+      "volume24hUsd": 1234071,
+      "poolCreated": "2026-08-27",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "AMC",
+      "address": "0x05a3d1cd21d0c88145e82600e62e7e496e0f222b",
+      "pricePool": "0x7499938c352d5b5b8f0c648722aca5ee964ef9b85c3a3041f1ec379726291d9d",
+      "poolLiquidityUsd": 1249252,
+      "volume24hUsd": 173344,
+      "poolCreated": "2026-09-03",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "BABA",
+      "address": "0xad25ac6c84d497db898fa1e8387bf6af3532a1c4",
+      "pricePool": "0xfe709115a71c7f9c007f2ac9cb932071ff3b3117865122134e2c1bd96719734c",
+      "poolLiquidityUsd": 976397,
+      "volume24hUsd": 2316555,
+      "poolCreated": "2026-10-14",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "RDDT",
+      "address": "0x05b37fb53a299a1b874a619e1c4c404d52c36f4c",
+      "pricePool": "0xa8744e76aed23b05f0126335e7bd38f7935d19fe",
+      "poolLiquidityUsd": 858762,
+      "volume24hUsd": 390713,
+      "poolCreated": "2026-07-10",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "TSLA",
+      "address": "0x322f0929c4625ed5bad873c95208d54e1c003b2d",
+      "pricePool": "0x8517f8071ae5b831b738052f12125e8e3d6c158b78728aa44ce3b25e5104d32e",
+      "poolLiquidityUsd": 852302,
+      "volume24hUsd": 350215,
+      "poolCreated": "2026-07-05",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "GOOGL",
+      "address": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3",
+      "pricePool": "0x34d0dc122cf9a8eb296fc5e0d3a233625d7d19b7",
+      "poolLiquidityUsd": 786302,
+      "volume24hUsd": 2815079,
+      "poolCreated": "2026-07-10",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "PLTR",
+      "address": "0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a",
+      "pricePool": "0xee430ee1003e1985e1828a01b9a20dad67ad4302994fe2abb4a173de4ac54623",
+      "poolLiquidityUsd": 652605,
+      "volume24hUsd": 247706,
+      "poolCreated": "2026-07-11",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "AMZN",
+      "address": "0x12f190a9f9d7d37a250758b26824b97ce941bf54",
+      "pricePool": "0x8ac92da74ab5f3b1d024dc1943ad7e15dc4179ef",
+      "poolLiquidityUsd": 512691,
+      "volume24hUsd": 450044,
+      "poolCreated": "2026-07-21",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "AAPL",
+      "address": "0xaf3d76f1834a1d425780943c99ea8a608f8a93f9",
+      "pricePool": "0xaae0d815ee56e4092a5e5c2911e676fea50b2d6d",
+      "poolLiquidityUsd": 366076,
+      "volume24hUsd": 895547,
+      "poolCreated": "2026-07-27",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "MU",
+      "address": "0xff080c8ce2e5feadaca0da81314ae59d232d4afd",
+      "pricePool": "0xd057b1bc54917855bbee58ead58647f47cab35e5",
+      "poolLiquidityUsd": 363840,
+      "volume24hUsd": 1043858,
+      "poolCreated": "2026-08-03",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "TSM",
+      "address": "0x58ffe4a942d3885baa22d7520691f611ef09e7aa",
+      "pricePool": "0x0ba5d53d2f6255f334b7c8ead4f56b6aef5af3402c5e4d11180afd38c6b85fb1",
+      "poolLiquidityUsd": 313351,
+      "volume24hUsd": 921805,
+      "poolCreated": "2026-08-03",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    },
+    {
+      "symbol": "GME",
+      "address": "0x1b0e319c6a659f002271b69db8a7df2f911c153e",
+      "pricePool": "0xe2b46c905e12ab8e2f864e4821a4325884c1b126",
+      "poolLiquidityUsd": 145012,
+      "volume24hUsd": 1401312,
+      "poolCreated": "2026-07-23",
+      "verifiedOfficial": false,
+      "quotedIn": "USDG"
+    }
+  ]
+}
