@@ -53,7 +53,7 @@ export function SiteHeader() {
         <nav className="container nav__bar" aria-label="Main">
           <Link className="brand" href="/">
             <img className="brand__mark" src="/img/icons/app.png" alt="" width={28} height={28} />
-            Sita
+            Zolva
           </Link>
           <ul className="nav__links">
             {LINKS.map((link) => (
@@ -124,7 +124,7 @@ export function SiteFooter() {
           <div className="footer__brand">
             <Link className="brand" href="/">
               <img className="brand__mark" src="/img/icons/app.png" alt="" width={28} height={28} />
-              Sita
+              Zolva
             </Link>
             <p>No code trading agents for tokenized US stocks on Robinhood Chain.</p>
             <span className="footer__status">
@@ -154,12 +154,12 @@ export function SiteFooter() {
         </div>
 
         <div className="footer__bottom">
-          <span>© 2026 Sita. Paper trading only. Nothing here is investment advice.</span>
+          <span>© 2026 Zolva. Paper trading only. Nothing here is investment advice.</span>
           <span>Not available to US persons or residents of sanctioned countries.</span>
         </div>
       </div>
       <div className="footer__wordmark" aria-hidden="true">
-        Sita
+        Zolva
       </div>
     </footer>
   );

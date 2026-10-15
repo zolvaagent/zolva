@@ -8,7 +8,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Phase 0 data check: GeckoTerminal works ([phase-0-findings.md](phase-0-findings.md))
 - [x] Candidate token list: 20 stock tokens ([data/stock-tokens.json](../data/stock-tokens.json))
 - [x] Name: Pitwise; target users: non-US crypto-native retail
-- [x] Renamed brand to **Sita** (prototype + app). Folder/package/Worker names still `pitwise`
+- [x] Brand: Pitwise → Sita → **Zolva** (2026-10-15; final rename done in app, prototype and docs). Folder/package/Worker names still `pitwise`
 - [x] Write MVP plan + Phase 1 build plan
 - [x] Approve MVP plan (stack: Supabase + pg_cron, hourly prices only)
 - [x] Clickable prototype with real prices: `prototype/` (landing, Forge + backtest, agent page, leaderboard, legal, 404). Preview: `pitwise-prototype` in `D:\Claude\.claude\launch.json`
@@ -19,20 +19,21 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Restyled prototype in aave.com's design language (2026-10-15): Inter, ink #252228, lavender accent, hairlines, 24px cards, pill buttons, expo-out motion, word-by-word headlines, odometer stats, HTML phone mockups, dark strategy cards, growth chart. Tokens taken from Aave's real CSS via the Wayback Machine (aave.com is blocked on this network)
 - [x] 6 3D icons with gpt-image-2 (high, ~$0.77; one extra call failed because gpt-image-2 rejects transparent backgrounds). Prompts in `assets/icon-prompts.json`, script `scripts/generate-icons.mjs`; white cut out locally by `scripts/cutout-icons.py`; originals in `assets/icons-original/`
 - [x] Agent page: prototype switch "Just now / 7 days ago / 30 days ago" for your own agent; empty states use 3D icons and explain why (e.g. biggest 24h rise vs the 3% rule); decision log shows the latest holds when there are no trades; holdings show a cash bar; charts use a fading fill
-- [x] Landing round 3: Aave-style glows (hero lavender glow + dot grid, inset dark panels with purple glow), "Sita Forge" showcase with an HTML browser mockup of the app, 20-stock market grid with 7-day sparklines, scrolling decision feed, bigger spacing (160px sections, 96px hero, 56px headings), glowing CTA panel
+- [x] Landing round 3: Aave-style glows (hero lavender glow + dot grid, inset dark panels with purple glow), "Zolva Forge" showcase with an HTML browser mockup of the app, 20-stock market grid with 7-day sparklines, scrolling decision feed, bigger spacing (160px sections, 96px hero, 56px headings), glowing CTA panel
 - [x] Prototype: "Go to app" CTA → Privy-style login (Google, email + 6 digit code, wallet: MetaMask/Rabby/Coinbase/WalletConnect), simulated. Email/Google users get an embedded wallet
 - [x] Prototype: app shell (sidebar on desktop, top bar + bottom tab bar on phones) for Dashboard, Forge, Leaderboard and agent pages; landing keeps the marketing header
 - [x] Prototype: dashboard `#/app` (greeting, paper balance, running agent, all-time return, agent cards, latest decisions, account + wallet card, top agents). Launch requires login first
 - [x] Closing CTA redesigned: light lavender glow panel, copy + "Go to app" on the left, fanned stack of live cards (backtest, leaderboard rank, running agent) on the right
-- [x] Footer redesigned (Aave style): "Stay updated" email row, Product / Strategies / Legal columns, "Prices updated hourly" status, giant gradient "Sita" wordmark
+- [x] Footer redesigned (Aave style): "Stay updated" email row, Product / Strategies / Legal columns, "Prices updated hourly" status, giant gradient "Zolva" wordmark
 - [ ] Newsletter form is front-end only (validation + toast); needs an email provider before launch
 - [ ] Prototype limitation: agents are stored per browser, not per login (switching accounts keeps them)
 - [x] Decided: Privy for login (2026-10-15), replacing viem SIWE in 1.4
 - [ ] Check Privy pricing for monthly active users before launch
 - [ ] Design feedback on the restyled prototype
 - [ ] Port the Aave-style tokens + components into the Next app (`app/globals.css`, switch Geist to Inter)
-- [ ] Check Sita domain and X handle availability (e.g. `sita.trade`, `getsita.xyz`, `@sita_agent`)
-- [ ] Decide whether to rename folder, package and Workers from `pitwise` to `sita`
+- [ ] **Buy `zolva.xyz`** (and maybe `zolvaagent.com`) and claim the X handle before announcing; then point the domain at the Worker
+- [ ] Decide whether to rename folder, package and Workers from `pitwise` to `zolva` (only worth it with the custom domain)
+- [ ] New Zolva logo: the current mark is an "S" path to a star (from the Sita name)
 - [x] Verify 20 token addresses against Robinhood's official Stock Token list (2026-10-15): all 20 match active assets in `GET https://api.robinhood.com/rhj/assets` (194 tokens on chain 4663). `tokens.verified_official` set (migration `verify_official_tokens`); market pages show a verified note. Tokens carry a small `currentMultiplier` (ERC-8056 corporate actions, up to 1.0027), so a token price can sit slightly above the share price
 - [ ] Confirm excluded-countries list (US + likely UK, CA, CH, AE)
 
@@ -57,7 +58,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [ ] Product decision still open: strategies lose to buy and hold in every window tested so far
 - [x] Multiple agents per user (2026-10-15): DB trigger caps active agents at 5 paper / 1 live per owner (tested: 6th and resume-at-limit blocked, rolled back). Prototype: launch shows "agent N of 5", blocks at 5, no auto-pause; "My agent" nav replaced by Dashboard; leaderboard lists all your running agents
 - [x] 1.4 Production app (2026-10-15): wallet sign in (SIWE, signed httpOnly cookie, nonce replay blocked), geo-block US/CU/IR/KP/SY at sign in and launch, terms stored, Forge with presets + rule builder (custom strategies: price/SMA/high/low/change/z-score/RSI, ALL/ANY, take profit, max hold), backtest card, up to 5 running agents
-- [x] 1.5 Dashboard, agent page (equity vs holding, trades, decisions, pause/resume), leaderboard; 5 house agents "by Sita" seeded (`npm run seed:house`). Landing shows real backtests labelled as backtests
+- [x] 1.5 Dashboard, agent page (equity vs holding, trades, decisions, pause/resume), leaderboard; 5 house agents "by Zolva" seeded (`npm run seed:house`). Landing shows real backtests labelled as backtests
 - [x] Local E2E on next dev: 12/12 checks pass (auth, replay, invalid rules, launch, 6th agent refused, pause/resume, stranger refused). 64 tests, tsc, eslint clean
 - [x] Worker runtime check (wrangler dev): every route 200/404 as expected, cron handler runs ingest + agents. Fixed a 500 on all routes by upgrading OpenNext 1.20.11 → 1.20.12 (Next 16.4 added `preview-props.json`)
 - [x] Hourly schedule: Cloudflare cron (minute 5, `custom-worker.ts`) + pg_cron backup (minute 7, set by the deploy script via `configure_hourly_tick`). Tick is idempotent, so two callers are safe
@@ -78,13 +79,13 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
   - Proven on production: tick from the Worker re-read a deleted GME candle from chain with the identical value. RPC URL is a Worker secret (`ROBINHOOD_RPC_URL`), never logged
 - [ ] AMC's old pool was against a spam-looking "MEME" token (501 pools, most empty). Worth a manual check of AMC's token itself before launch
 
-- [x] Sita Lab research agents (2026-10-15): 10 extra paper agents under two lab owners (`LAB_WALLETS`, each capped at 5 like any user), labelled "by Sita", not on the landing page. Experiment A: NVDA/TSLA/AAPL with momentum, mean reversion, breakout, RSI dip and trend filter side by side. Experiment B: Big Tech RSI dip (vs the Big Tech Momentum house agent), Gold & Oil momentum, Crypto stocks dip, Asia trend filter, Growth breakout. RSI dip and trend filter rules were calmed for trade count (14h RSI traded ~45 times a month, a +1% trend rule 55-80) before launch, not tuned for return. All 15 Sita agents lost to buy and hold in the last three 30 day backtests
+- [x] Zolva Lab research agents (2026-10-15): 10 extra paper agents under two lab owners (`LAB_WALLETS`, each capped at 5 like any user), labelled "by Zolva", not on the landing page. Experiment A: NVDA/TSLA/AAPL with momentum, mean reversion, breakout, RSI dip and trend filter side by side. Experiment B: Big Tech RSI dip (vs the Big Tech Momentum house agent), Gold & Oil momentum, Crypto stocks dip, Asia trend filter, Growth breakout. RSI dip and trend filter rules were calmed for trade count (14h RSI traded ~45 times a month, a +1% trend rule 55-80) before launch, not tuned for return. All 15 Zolva agents lost to buy and hold in the last three 30 day backtests
 - [ ] Review the lab after 2-4 weeks of live data: which strategy (if any) beats holding per basket, trade counts, drawdowns. Decide what to keep as presets
 
 - [x] Markets pages (2026-10-15, version 6d249037): `/markets` lists all 20 stocks (price, 1h/24h/7d change, 7 day sparkline, agents trading it, build button; All/Top gainers/Top losers tabs, search; cards on phones; extra columns only from 1200px). `/markets/[symbol]` has a 24h/7d/30d chart, stats (30d change, 7d high/low, typical hourly move), the agents trading it, token and pool links and the "not yet verified" notice. "US market open/closed" badge on both. Added to the app sidebar, phone tab bar (now 4 items), site header and footer. Stats in `lib/markets.ts` with 6 tests
 - [ ] Add `http://localhost:3000` to Privy allowed origins (only production is listed, so the Privy iframe is blocked in local dev)
 
-- [x] Activity report `/activity` (2026-10-15, version c5543c87): last 24h totals (agent checks, buys/sells, paper volume, most traded), then an hour-by-hour log of the last 48 hours with every trade, its price, amount and the agent's own reason; quiet hours collapse into one line; filters All / By Sita / Community. One SQL call (`agent_activity` RPC, server-only). In the sidebar, phone tab bar (5 items) and footer. Logic in `lib/activity.ts` with 4 tests
+- [x] Activity report `/activity` (2026-10-15, version c5543c87): last 24h totals (agent checks, buys/sells, paper volume, most traded), then an hour-by-hour log of the last 48 hours with every trade, its price, amount and the agent's own reason; quiet hours collapse into one line; filters All / By Zolva / Community. One SQL call (`agent_activity` RPC, server-only). In the sidebar, phone tab bar (5 items) and footer. Logic in `lib/activity.ts` with 4 tests
 
 ## Phase 2: Backtest in the Forge
 - [ ] 30-day backtest panel (same engine), equity chart, warn on tokens with short history

@@ -30,7 +30,7 @@ export function hasInjectedWallet(): boolean {
 export async function signInWithWallet(): Promise<string> {
   const ethereum = window.ethereum;
   if (!ethereum) {
-    throw new WalletError("No wallet found in this browser. Install MetaMask, Rabby or Coinbase Wallet, or open Sita in your wallet's browser.");
+    throw new WalletError("No wallet found in this browser. Install MetaMask, Rabby or Coinbase Wallet, or open Zolva in your wallet's browser.");
   }
 
   try {
@@ -44,7 +44,7 @@ export async function signInWithWallet(): Promise<string> {
       uri: window.location.origin,
       nonce,
       version: "1",
-      statement: "Sign in to Sita. This is free and does not send a transaction.",
+      statement: "Sign in to Zolva. This is free and does not send a transaction.",
       expirationTime: new Date(Date.now() + 10 * 60 * 1000),
     });
     const signature = await ethereum.request({ method: "personal_sign", params: [message, account] });

@@ -127,7 +127,7 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
                     <span>
                       <strong>{agent.name}</strong>
                       <span className="market-name">
-                        {STRATEGY_NAMES[agent.strategy]} · {agent.isHouse ? "by Sita" : shortAddress(agent.owner)}
+                        {STRATEGY_NAMES[agent.strategy]} · {agent.isHouse ? "by Zolva" : shortAddress(agent.owner)}
                       </span>
                     </span>
                     <span style={{ textAlign: "right" }}>
@@ -156,7 +156,7 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
             </h2>
             <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>
               <p className="muted">
-                Sita reads {row.symbol} once an hour from its deepest USDG pool on Robinhood Chain. Agents decide on exactly these prices. They track the real stock closely during US trading hours and can drift when Nasdaq is closed.
+                Zolva reads {row.symbol} once an hour from its deepest USDG pool on Robinhood Chain. Agents decide on exactly these prices. They track the real stock closely during US trading hours and can drift when Nasdaq is closed.
               </p>
               <a className="text-link" href={`${EXPLORER_URL}/token/${row.address}`} target="_blank" rel="noopener noreferrer">
                 Token contract {shortAddress(row.address)} <i className="ph ph-arrow-up-right" />

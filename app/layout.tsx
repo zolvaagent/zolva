@@ -11,10 +11,10 @@ import "./globals.css";
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], axes: ["opsz"] });
 
 export const metadata: Metadata = {
-  title: { default: "Sita", template: "%s · Sita" },
+  title: { default: "Zolva", template: "%s · Zolva" },
   description: "Build a trading agent for tokenized US stocks on Robinhood Chain. See how it would have traded the last 30 days before you launch it.",
   icons: { icon: "/img/icons/app.png", apple: "/img/icons/app.png" },
-  openGraph: { title: "Sita", description: "No code trading agents for tokenized US stocks on Robinhood Chain." },
+  openGraph: { title: "Zolva", description: "No code trading agents for tokenized US stocks on Robinhood Chain." },
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

@@ -1,4 +1,4 @@
-/* Sita prototype. Visual language follows aave.com (2026): white canvas, ink
+/* Zolva prototype. Visual language follows aave.com (2026): white canvas, ink
    #252228, hairline borders, lavender accent, Inter, 24px cards, pill buttons,
    expo-out motion (cubic-bezier(.19,1,.22,1)), 150ms micro / 600ms entrances. */
 
@@ -2497,7 +2497,7 @@ main:focus {
   }
 }
 
-/* Browser window mockup of the Sita app (dark UI), fading at the bottom */
+/* Browser window mockup of the Zolva app (dark UI), fading at the bottom */
 .browser {
   position: relative;
   width: 100%;

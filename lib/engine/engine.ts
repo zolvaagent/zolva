@@ -1,5 +1,5 @@
 /**
- * The Sita trading engine.
+ * The Zolva trading engine.
  *
  * `runHour` is the single source of truth for one agent's decision in one
  * hour: the live tick calls it once per hour, and `simulate` (backtests) calls

@@ -12,8 +12,8 @@ import { secretsMatch } from "@/lib/secrets";
  * No session table; tampering with the address breaks the signature.
  */
 
-export const SESSION_COOKIE = "sita_session";
-export const NONCE_COOKIE = "sita_nonce";
+export const SESSION_COOKIE = "zolva_session";
+export const NONCE_COOKIE = "zolva_nonce";
 const SESSION_DAYS = 7;
 
 function sign(payload: string): string {

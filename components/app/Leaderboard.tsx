@@ -94,7 +94,7 @@ export function Leaderboard({ agents }: { agents: AgentSummary[] }) {
                         <Link href={`/agents/${agent.id}`}>{agent.name}</Link>
                         {agent.isHouse && (
                           <span className="pill" style={{ marginLeft: 6 }}>
-                            by Sita
+                            by Zolva
                           </span>
                         )}
                         <div className="muted mono" style={{ fontSize: 12, lineHeight: "16px" }}>

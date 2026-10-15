@@ -9,7 +9,7 @@ import { dateAt, price, STRATEGY_NAMES, usd } from "@/lib/format";
 
 const FILTERS = [
   ["all", "All agents"],
-  ["house", "By Sita"],
+  ["house", "By Zolva"],
   ["community", "Community"],
 ] as const;
 
@@ -42,7 +42,7 @@ function TradeRow({ trade }: { trade: ActivityTrade }) {
       <div className="activity-trade__body">
         <p className="activity-trade__line">
           <Link href={`/agents/${trade.agentId}`}>{trade.agentName}</Link>
-          {trade.isHouse && <span className="pill">by Sita</span>}{" "}
+          {trade.isHouse && <span className="pill">by Zolva</span>}{" "}
           <span className={trade.side === "buy" ? "gain" : "loss"}>{trade.side === "buy" ? "bought" : "sold"}</span>{" "}
           <Link href={`/markets/${trade.symbol}`}>
             <strong>{trade.symbol}</strong>

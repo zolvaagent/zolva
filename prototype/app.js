@@ -1,11 +1,11 @@
-// Sita prototype: hash router + pages. No build step, no packages.
+// Zolva prototype: hash router + pages. No build step, no packages.
 // Sample agents are computed live by engine.js on real hourly prices, so every
 // number on screen is a real calculation, only the agents themselves are invented.
 (function () {
   "use strict";
 
   const DATA = window.PITWISE_DATA;
-  const Engine = window.SitaEngine;
+  const Engine = window.ZolvaEngine;
   const HOUR_MS = 3600 * 1000;
   const LAST_INDEX = DATA.hours - 1;
   const BACKTEST_HOURS = 30 * 24;
@@ -362,7 +362,7 @@
       </div>
 
       <div class="container">
-        <section class="stats-band" aria-label="Sita in numbers">
+        <section class="stats-band" aria-label="Zolva in numbers">
           <div class="stat-big"><span class="stat-big__label">Stock tokens</span><span class="stat-big__value">${odometerHtml(String(DATA.tokens.length))}</span></div>
           <div class="stat-big"><span class="stat-big__label">Agents running</span><span class="stat-big__value">${odometerHtml(String(all.filter((row) => row.agent.status === "active").length))}</span></div>
           <div class="stat-big"><span class="stat-big__label">Decisions explained</span><span class="stat-big__value">${odometerHtml(decisionsLogged.toLocaleString("en-US"))}</span></div>
@@ -373,7 +373,7 @@
       <section class="panel-dark">
         <div class="container">
           <div class="showcase">
-            <span class="showcase__label reveal"><img src="img/icons/app.png" alt="" width="32" height="32" />Sita Forge</span>
+            <span class="showcase__label reveal"><img src="img/icons/app.png" alt="" width="32" height="32" />Zolva Forge</span>
             <h2 class="showcase__title words">A <span class="highlight">trading desk</span> in your browser</h2>
             <p class="showcase__lead reveal">Shape an agent, replay its last 30 days and launch it. Every number below is calculated from real Robinhood Chain prices.</p>
             <div class="hero__actions reveal">
@@ -543,7 +543,7 @@
               ["How often does my agent trade?", "It checks prices at the top of every hour and only trades when its rule triggers. Many hours end in a hold, and that is normal."],
               ["Why compare with holding?", "Because it is the easiest alternative. If an agent cannot beat simply buying the same stocks and waiting, you should know before you trust it."],
               ["Can I change my agent later?", "Agents are locked once launched so their track record stays honest. Pause it and build a new one with different settings."],
-              ["Who can use Sita?", "Anyone outside the United States and other restricted countries. Stock tokens are not offered to US persons."],
+              ["Who can use Zolva?", "Anyone outside the United States and other restricted countries. Stock tokens are not offered to US persons."],
             ]
               .map(([question, answer]) => `<details><summary>${question}<i class="ph ph-plus"></i></summary><p>${answer}</p></details>`)
               .join("")}
@@ -614,7 +614,7 @@
     return `<span class="ticker-avatar" style="background:${palette[hash % palette.length]}">${symbol.slice(0, 4)}</span>`;
   }
 
-  /** Dark browser window showing the Sita app, Aave Pro style. */
+  /** Dark browser window showing the Zolva app, Aave Pro style. */
   function browserHtml(ranked) {
     const rows = ranked
       .slice(0, 7)
@@ -636,12 +636,12 @@
       <div class="browser reveal" aria-hidden="true">
         <div class="browser__bar">
           <div class="browser__dots"><span></span><span></span><span></span></div>
-          <div class="browser__url">sita / leaderboard</div>
+          <div class="browser__url">zolva / leaderboard</div>
           <div></div>
         </div>
         <div class="browser__body">
           <aside class="browser__side">
-            <div class="browser__brand"><img src="img/icons/app.png" alt="" />Sita</div>
+            <div class="browser__brand"><img src="img/icons/app.png" alt="" />Zolva</div>
             ${nav("squares-four", "Dashboard")}
             ${nav("robot", "My agent")}
             <div class="browser__group">Explore</div>
@@ -1037,7 +1037,7 @@
       <form class="modal__body" method="dialog" id="launch-form" novalidate>
         <img class="modal__icon" src="img/icons/app.png" alt="" width="56" height="56" />
         <h2 class="modal__title" id="launch-title">Launch ${escapeHtml(forge.name.trim())}</h2>
-        <p class="muted">${currentUser().walletKind === "embedded" ? "Your Sita wallet signs the launch for you. It is free and moves no funds." : "Your wallet will ask you to sign a message. It is free, uses no gas and moves no funds."}</p>
+        <p class="muted">${currentUser().walletKind === "embedded" ? "Your Zolva wallet signs the launch for you. It is free and moves no funds." : "Your wallet will ask you to sign a message. It is free, uses no gas and moves no funds."}</p>
         ${atLimit ? `<div class="verdict"><i class="ph ph-warning-circle loss"></i><span>You already run ${MAX_ACTIVE_AGENTS} agents, the most at once. Pause one in your dashboard to launch another.</span></div>` : `<div class="verdict"><i class="ph ph-robot"></i><span>This will be agent ${activeAgentCount() + 1} of ${MAX_ACTIVE_AGENTS} running. Each starts with its own virtual capital.</span></div>`}
         <label class="check"><input type="checkbox" name="terms" required /><span>I accept the <a href="#/terms" target="_blank">terms</a> and understand this is paper trading with virtual money.</span></label>
         <label class="check"><input type="checkbox" name="residence" required /><span>I am not a US person and not resident in a restricted country.</span></label>
@@ -1448,8 +1448,8 @@
           <p>Draft for the prototype. Final wording needs legal review before launch.</p>
           ${
             terms
-              ? `<h2>Paper trading only</h2><p>Agents trade virtual money. Nothing on Sita is investment advice, and backtests do not predict future results.</p>
-                 <h2>Who may use Sita</h2><p>Sita is not available to US persons or to residents of countries where stock tokens are restricted.</p>
+              ? `<h2>Paper trading only</h2><p>Agents trade virtual money. Nothing on Zolva is investment advice, and backtests do not predict future results.</p>
+                 <h2>Who may use Zolva</h2><p>Zolva is not available to US persons or to residents of countries where stock tokens are restricted.</p>
                  <h2>Public agents</h2><p>Agent names, settings, trades and results are public and shown on the leaderboard.</p>`
               : `<h2>What we store</h2><p>Your wallet address, the country your sign in came from, and the agents you create.</p>
                  <h2>What we never store</h2><p>Private keys, seed phrases or any wallet balance. Signing in never moves funds.</p>`
@@ -1734,7 +1734,7 @@
         <div class="container page">
           <div class="card"><div class="empty" style="padding:var(--space-800) var(--space-300)">
             <img src="img/icons/app.png" alt="" width="88" height="88" />
-            <h1 class="page__title">Log in to Sita</h1>
+            <h1 class="page__title">Log in to Zolva</h1>
             <p>Use Google, your email or a wallet. Your dashboard keeps your agents, their results and your account in one place.</p>
             <button class="button button--primary button--large" type="button" data-action="login">Log in or sign up</button>
           </div></div>
@@ -1856,7 +1856,7 @@
                 <span class="account__text"><strong>${escapeHtml(userLabel(user))}</strong><span>${user.method === "google" ? "Google" : user.method === "email" ? "Email" : WALLETS.find((item) => item.id === user.walletKind)?.name || "Wallet"} login</span></span>
               </div>
               <div class="wallet-box">
-                <div class="growth__row" style="border:0;padding:0"><span class="muted">${user.walletKind === "embedded" ? "Sita wallet (by Privy)" : "Connected wallet"}</span><span class="pill pill--accent">Robinhood Chain</span></div>
+                <div class="growth__row" style="border:0;padding:0"><span class="muted">${user.walletKind === "embedded" ? "Zolva wallet (by Privy)" : "Connected wallet"}</span><span class="pill pill--accent">Robinhood Chain</span></div>
                 <div class="wallet-box__address mono">${shortAddress(user.wallet)}<button class="privy__icon-button" type="button" data-action="copy-wallet" aria-label="Copy wallet address"><i class="ph ph-copy"></i></button></div>
                 <p class="muted" style="font-size:12px;line-height:16px">Paper trading needs no funds. This wallet will hold real stock tokens once live trading opens.</p>
               </div>
@@ -1907,7 +1907,7 @@
       if (link.dataset.nav === route.name) link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     });
-    document.title = { home: "Sita", app: "Dashboard · Sita", forge: "Forge · Sita", leaderboard: "Leaderboard · Sita", "404": "Not found · Sita" }[route.name] || "Sita";
+    document.title = { home: "Zolva", app: "Dashboard · Zolva", forge: "Forge · Zolva", leaderboard: "Leaderboard · Zolva", "404": "Not found · Zolva" }[route.name] || "Zolva";
     route.bind?.();
     bindCharts();
     splitWords();
