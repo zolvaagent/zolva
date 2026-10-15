@@ -93,7 +93,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 ## Found during prototype / setup
 - [ ] `npm audit`: 9 high warnings, all in build tools (glob, braces via OpenNext/ESLint); production deps report 0. Recheck on next OpenNext update
 - [x] Git initialised (2026-10-15), first commit d945fbe, `.gitattributes` keeps LF, secrets scan clean
-- [ ] **Decide the commit identity (anonymity) and GitHub account, then push to a private repo**
+- [x] Code on GitHub (2026-10-15): private repo https://github.com/zolvaagent/zolva under a separate brand account. Every commit is authored as `Zolva <343081122+zolvaagent@users.noreply.github.com>` (repo-only git config, history rewritten before the first push, personal name/email scan clean). This folder uses the `gh` credential helper of the active `gh` account, so `zolvaagent` must be active to push
 - [ ] GeckoTerminal free tier rate-limits after ~10 quick calls; backfill must be throttled (one call every ~7s)
 - [ ] Neither strategy beat holding over the last 30 days: decide positioning before building
 
