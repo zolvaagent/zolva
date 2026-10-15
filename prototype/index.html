@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sita</title>
+    <meta
+      name="description"
+      content="Build a trading agent for tokenized US stocks on Robinhood Chain. See how it would have traded the last 30 days before you launch it."
+    />
+    <meta property="og:title" content="Sita" />
+    <meta property="og:description" content="No code trading agents for tokenized US stocks on Robinhood Chain." />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/png" href="img/icons/app.png" />
+    <link rel="apple-touch-icon" href="img/icons/app.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="prototype-banner" role="note">
+      Prototype with sample agents. Prices are real hourly Robinhood Chain data up to <span id="data-date"></span>.
+    </div>
+
+    <header class="nav">
+      <nav class="container nav__bar" aria-label="Main">
+        <a class="brand" href="#/"><img class="brand__mark" src="img/icons/app.png" alt="" width="28" height="28" />Sita</a>
+        <ul class="nav__links">
+          <li><a class="nav__link" href="#/leaderboard" data-nav="leaderboard">Leaderboard</a></li>
+          <li><a class="nav__link" href="#/forge" data-nav="forge">Forge</a></li>
+          <li><a class="nav__link" href="#/app" data-nav="app">Dashboard</a></li>
+        </ul>
+        <div class="nav__actions">
+          <span id="wallet-slot"></span>
+          <button class="nav__menu-button" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="menu-overlay">
+            <span class="nav__menu-line"></span>
+            <span class="nav__menu-line"></span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <div class="menu-overlay" id="menu-overlay">
+      <a href="#/">Home</a>
+      <a href="#/leaderboard">Leaderboard</a>
+      <a href="#/forge">Forge</a>
+      <a href="#/app">Dashboard</a>
+    </div>
+
+    <!-- App shell: shown on app pages only (body.is-app) -->
+    <aside class="app-side" aria-label="App">
+      <a class="brand" href="#/"><img class="brand__mark" src="img/icons/app.png" alt="" width="28" height="28" />Sita</a>
+      <nav class="app-side__nav">
+        <a class="app-link" href="#/app" data-nav="app"><i class="ph ph-squares-four"></i>Dashboard</a>
+        <span class="app-side__group">Explore</span>
+        <a class="app-link" href="#/forge" data-nav="forge"><i class="ph ph-sliders-horizontal"></i>Forge</a>
+        <a class="app-link" href="#/leaderboard" data-nav="leaderboard"><i class="ph ph-trophy"></i>Leaderboard</a>
+        <span class="app-side__group">Sita</span>
+        <a class="app-link" href="#/"><i class="ph ph-house"></i>Home</a>
+        <a class="app-link" href="#/terms"><i class="ph ph-file-text"></i>Terms</a>
+      </nav>
+      <div class="app-side__account" id="account-slot"></div>
+    </aside>
+
+    <header class="app-topbar">
+      <a class="brand" href="#/app"><img class="brand__mark" src="img/icons/app.png" alt="" width="28" height="28" />Sita</a>
+      <span id="topbar-account"></span>
+    </header>
+
+    <main id="main" tabindex="-1"></main>
+
+    <nav class="app-tabbar" aria-label="App">
+      <a href="#/app" data-nav="app"><i class="ph ph-squares-four"></i>Dashboard</a>
+      <a href="#/forge" data-nav="forge"><i class="ph ph-sliders-horizontal"></i>Forge</a>
+      <a href="#/leaderboard" data-nav="leaderboard"><i class="ph ph-trophy"></i>Leaderboard</a>
+    </nav>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer__news">
+          <div>
+            <h2 class="footer__news-title">Stay updated</h2>
+            <p>New strategies, live trading news and the best agents of the week. One email a month.</p>
+          </div>
+          <form class="footer__form" id="newsletter-form" novalidate>
+            <label class="sr-only" for="newsletter-email">Email address</label>
+            <input class="input" id="newsletter-email" type="email" placeholder="your@email.com" autocomplete="email" />
+            <button class="button button--primary" type="submit">Notify me</button>
+            <span class="field-error" id="newsletter-error" hidden>Enter a valid email address.</span>
+          </form>
+        </div>
+
+        <div class="footer__grid">
+          <div class="footer__brand">
+            <a class="brand" href="#/"><img class="brand__mark" src="img/icons/app.png" alt="" width="28" height="28" />Sita</a>
+            <p>No code trading agents for tokenized US stocks on Robinhood Chain.</p>
+            <span class="footer__status"><span class="pulse"></span>Prices updated hourly</span>
+          </div>
+          <div class="footer__col">
+            <h3>Product</h3>
+            <a href="#/app">Dashboard</a>
+            <a href="#/forge">Forge</a>
+            <a href="#/leaderboard">Leaderboard</a>
+          </div>
+          <div class="footer__col">
+            <h3>Strategies</h3>
+            <a href="#/forge" data-strategy-link="momentum">Momentum</a>
+            <a href="#/forge" data-strategy-link="mean_reversion">Mean reversion</a>
+            <a href="#/leaderboard">Top agents</a>
+          </div>
+          <div class="footer__col">
+            <h3>Legal</h3>
+            <a href="#/terms">Terms</a>
+            <a href="#/privacy">Privacy</a>
+          </div>
+        </div>
+
+        <div class="footer__bottom">
+          <span>© 2026 Sita. Paper trading only. Nothing here is investment advice.</span>
+          <span>Not available to US persons or residents of restricted countries.</span>
+        </div>
+      </div>
+      <div class="footer__wordmark" aria-hidden="true">Sita</div>
+    </footer>
+
+    <dialog class="modal" id="launch-modal" aria-labelledby="launch-title"></dialog>
+    <dialog class="modal modal--privy" id="login-modal" aria-labelledby="login-title"></dialog>
+    <div class="toast" role="status" aria-live="polite"></div>
+
+    <script src="data.js"></script>
+    <script src="engine.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

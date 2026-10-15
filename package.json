@@ -1,0 +1,48 @@
+{
+  "name": "pitwise",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "vitest run",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "deploy:prototype": "wrangler deploy -c wrangler.prototype.jsonc",
+    "backfill": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/backfill-candles.mts",
+    "backtest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/backtest.mts",
+    "seed:house": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/seed-house-agents.mts",
+    "deploy:prod": "node scripts/deploy-production.mjs"
+  },
+  "dependencies": {
+    "@privy-io/node": "^0.35.0",
+    "@privy-io/react-auth": "^3.49.0",
+    "@supabase/supabase-js": "^2.117.3",
+    "next": "^16.4.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "server-only": "^0.0.1",
+    "viem": "^2.57.7"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "^1.20.12",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.4",
+    "wrangler": "^4.151.0"
+  },
+  "overrides": {
+    "permissionless": {
+      "ox": "$ox"
+    }
+  }
+}
