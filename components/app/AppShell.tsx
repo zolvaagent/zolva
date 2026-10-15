@@ -11,6 +11,7 @@ const NAV = [
   { href: "/markets", label: "Markets", icon: "chart-line-up" },
   { href: "/forge", label: "Forge", icon: "sliders-horizontal" },
   { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
+  { href: "/activity", label: "Activity", icon: "pulse" },
 ];
 
 function isCurrent(pathname: string, href: string) {

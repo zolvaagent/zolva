@@ -164,7 +164,13 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
               <a className="text-link" href={poolUrl} target="_blank" rel="noopener noreferrer">
                 Price pool on GeckoTerminal <i className="ph ph-arrow-up-right" />
               </a>
-              {!row.verifiedOfficial && <p className="note">This token address is not yet checked against Robinhood&apos;s official Stock Token list.</p>}
+              {row.verifiedOfficial ? (
+                <p className="note">
+                  <i className="ph ph-seal-check" aria-hidden="true" /> This address is on Robinhood&apos;s official Stock Token list.
+                </p>
+              ) : (
+                <p className="note">This token address is not yet checked against Robinhood&apos;s official Stock Token list.</p>
+              )}
             </div>
           </div>
         </div>

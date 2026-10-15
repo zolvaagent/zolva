@@ -15,7 +15,7 @@
       "poolLiquidityUsd": 3512840,
       "volume24hUsd": 1380691,
       "poolCreated": "2026-07-11",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -25,7 +25,7 @@
       "poolLiquidityUsd": 2831688,
       "volume24hUsd": 9705069,
       "poolCreated": "2026-07-21",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -35,7 +35,7 @@
       "poolLiquidityUsd": 3020160,
       "volume24hUsd": 1045160,
       "poolCreated": "2026-07-14",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -45,7 +45,7 @@
       "poolLiquidityUsd": 2368471,
       "volume24hUsd": 1037708,
       "poolCreated": "2026-07-17",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -55,7 +55,7 @@
       "poolLiquidityUsd": 2305517,
       "volume24hUsd": 2747264,
       "poolCreated": "2026-08-14",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -65,7 +65,7 @@
       "poolLiquidityUsd": 1503521,
       "volume24hUsd": 2639775,
       "poolCreated": "2026-08-26",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -75,7 +75,7 @@
       "poolLiquidityUsd": 1342395,
       "volume24hUsd": 3215561,
       "poolCreated": "2026-08-25",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -85,7 +85,7 @@
       "poolLiquidityUsd": 1323405,
       "volume24hUsd": 7302063,
       "poolCreated": "2026-07-23",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -95,7 +95,7 @@
       "poolLiquidityUsd": 1060487,
       "volume24hUsd": 1234071,
       "poolCreated": "2026-08-27",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -105,7 +105,7 @@
       "poolLiquidityUsd": 1249252,
       "volume24hUsd": 173344,
       "poolCreated": "2026-09-03",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -115,7 +115,7 @@
       "poolLiquidityUsd": 976397,
       "volume24hUsd": 2316555,
       "poolCreated": "2026-10-14",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -125,7 +125,7 @@
       "poolLiquidityUsd": 858762,
       "volume24hUsd": 390713,
       "poolCreated": "2026-07-10",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -135,7 +135,7 @@
       "poolLiquidityUsd": 852302,
       "volume24hUsd": 350215,
       "poolCreated": "2026-07-05",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -145,7 +145,7 @@
       "poolLiquidityUsd": 786302,
       "volume24hUsd": 2815079,
       "poolCreated": "2026-07-10",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -155,7 +155,7 @@
       "poolLiquidityUsd": 652605,
       "volume24hUsd": 247706,
       "poolCreated": "2026-07-11",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -165,7 +165,7 @@
       "poolLiquidityUsd": 512691,
       "volume24hUsd": 450044,
       "poolCreated": "2026-07-21",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -175,7 +175,7 @@
       "poolLiquidityUsd": 366076,
       "volume24hUsd": 895547,
       "poolCreated": "2026-07-27",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -185,7 +185,7 @@
       "poolLiquidityUsd": 363840,
       "volume24hUsd": 1043858,
       "poolCreated": "2026-08-03",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -195,7 +195,7 @@
       "poolLiquidityUsd": 313351,
       "volume24hUsd": 921805,
       "poolCreated": "2026-08-03",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     },
     {
@@ -205,7 +205,7 @@
       "poolLiquidityUsd": 145012,
       "volume24hUsd": 1401312,
       "poolCreated": "2026-07-23",
-      "verifiedOfficial": false,
+      "verifiedOfficial": true,
       "quotedIn": "USDG"
     }
   ]

@@ -33,7 +33,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [ ] Port the Aave-style tokens + components into the Next app (`app/globals.css`, switch Geist to Inter)
 - [ ] Check Sita domain and X handle availability (e.g. `sita.trade`, `getsita.xyz`, `@sita_agent`)
 - [ ] Decide whether to rename folder, package and Workers from `pitwise` to `sita`
-- [ ] Verify 20 token addresses against Robinhood's official Stock Token list
+- [x] Verify 20 token addresses against Robinhood's official Stock Token list (2026-10-15): all 20 match active assets in `GET https://api.robinhood.com/rhj/assets` (194 tokens on chain 4663). `tokens.verified_official` set (migration `verify_official_tokens`); market pages show a verified note. Tokens carry a small `currentMultiplier` (ERC-8056 corporate actions, up to 1.0027), so a token price can sit slightly above the share price
 - [ ] Confirm excluded-countries list (US + likely UK, CA, CH, AE)
 
 ## Phase 1: Paper-trading MVP
@@ -84,12 +84,15 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Markets pages (2026-10-15, version 6d249037): `/markets` lists all 20 stocks (price, 1h/24h/7d change, 7 day sparkline, agents trading it, build button; All/Top gainers/Top losers tabs, search; cards on phones; extra columns only from 1200px). `/markets/[symbol]` has a 24h/7d/30d chart, stats (30d change, 7d high/low, typical hourly move), the agents trading it, token and pool links and the "not yet verified" notice. "US market open/closed" badge on both. Added to the app sidebar, phone tab bar (now 4 items), site header and footer. Stats in `lib/markets.ts` with 6 tests
 - [ ] Add `http://localhost:3000` to Privy allowed origins (only production is listed, so the Privy iframe is blocked in local dev)
 
+- [x] Activity report `/activity` (2026-10-15, version c5543c87): last 24h totals (agent checks, buys/sells, paper volume, most traded), then an hour-by-hour log of the last 48 hours with every trade, its price, amount and the agent's own reason; quiet hours collapse into one line; filters All / By Sita / Community. One SQL call (`agent_activity` RPC, server-only). In the sidebar, phone tab bar (5 items) and footer. Logic in `lib/activity.ts` with 4 tests
+
 ## Phase 2: Backtest in the Forge
 - [ ] 30-day backtest panel (same engine), equity chart, warn on tokens with short history
 
 ## Found during prototype / setup
 - [ ] `npm audit`: 9 high warnings, all in build tools (glob, braces via OpenNext/ESLint); production deps report 0. Recheck on next OpenNext update
-- [ ] Not a git repo yet: `git init` + first commit when you're ready
+- [x] Git initialised (2026-10-15), first commit d945fbe, `.gitattributes` keeps LF, secrets scan clean
+- [ ] **Decide the commit identity (anonymity) and GitHub account, then push to a private repo**
 - [ ] GeckoTerminal free tier rate-limits after ~10 quick calls; backfill must be throttled (one call every ~7s)
 - [ ] Neither strategy beat holding over the last 30 days: decide positioning before building
 
