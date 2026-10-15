@@ -138,6 +138,7 @@ export function SiteFooter() {
             <Link href="/markets">Markets</Link>
             <Link href="/forge">Forge</Link>
             <Link href="/leaderboard">Leaderboard</Link>
+            <Link href="/activity">Activity</Link>
           </div>
           <div className="footer__col">
             <h3>Strategies</h3>
