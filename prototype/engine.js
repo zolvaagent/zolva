@@ -1,4 +1,4 @@
-// Sita paper-trading engine (prototype).
+// Zolva paper-trading engine (prototype).
 //
 // Runs one agent over hourly closes and returns its equity curve, trades and
 // decision log. The real app will run this same logic once per hour on the
@@ -422,5 +422,5 @@
     validateRules,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  else root.SitaEngine = api;
+  else root.ZolvaEngine = api;
 })(typeof window !== "undefined" ? window : globalThis);

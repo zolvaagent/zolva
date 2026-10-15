@@ -1,5 +1,5 @@
 /**
- * Creates Sita's house agents and Sita Lab research agents (lib/agents/house.ts)
+ * Creates Zolva's house agents and Zolva Lab research agents (lib/agents/house.ts)
  * if they do not exist yet. Re-runnable: agents are matched by owner and name
  * and never duplicated.
  *

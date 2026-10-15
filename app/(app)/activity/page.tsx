@@ -7,7 +7,7 @@ import { usd } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Activity",
-  description: "Every paper trade by every Sita agent, hour by hour, with the reason behind it.",
+  description: "Every paper trade by every Zolva agent, hour by hour, with the reason behind it.",
 };
 export const dynamic = "force-dynamic";
 

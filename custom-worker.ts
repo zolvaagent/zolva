@@ -16,7 +16,7 @@ const worker: ExportedHandler<CloudflareEnv> = {
   fetch: handler.fetch,
 
   async scheduled(controller, env, ctx) {
-    const request = new Request("https://sita.internal/api/cron/tick", {
+    const request = new Request("https://zolva.internal/api/cron/tick", {
       method: "POST",
       headers: { "x-cron-secret": env.CRON_SECRET },
     });

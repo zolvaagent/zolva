@@ -1,6 +1,6 @@
-# Sita: MVP plan
+# Zolva: MVP plan
 
-> Brand renamed from Pitwise to **Sita** (from **S**uper **I**ntelligence **T**rading **A**gent) on 2026-10-15. The expansion stays internal; the UI never claims "super intelligence". Folder, package and Worker names still say `pitwise`.
+> Brand: **Zolva** (2026-10-15). First Pitwise, then Sita ("Super Intelligence Trading Agent"), renamed again because Sita reads as a woman's name in Indonesia and clashes with SITA, the aviation IT brand. Zolva is an invented word (sounds like *solve*), gender neutral, and zolva.xyz looked free. Folder, package and Worker names still say `pitwise`.
 
 **One line:** no-code AI trading agents for tokenized US stocks on Robinhood Chain. You can backtest an agent before it goes live.
 
@@ -152,7 +152,7 @@ Real trading is a confirmed goal. Nothing below is built in the MVP, but the MVP
 
 | Option | How | Trade-off |
 |---|---|---|
-| **A. Privy embedded wallet + scoped server signer** (recommended to evaluate first) | The user grants Sita a revocable signer on their Privy wallet, limited by policy: only the swap router, only allowlisted stock tokens + USDG, max size per trade and per day | Fits the Privy login already chosen; check what Privy's policies can enforce and what it costs |
+| **A. Privy embedded wallet + scoped server signer** (recommended to evaluate first) | The user grants Zolva a revocable signer on their Privy wallet, limited by policy: only the swap router, only allowlisted stock tokens + USDG, max size per trade and per day | Fits the Privy login already chosen; check what Privy's policies can enforce and what it costs |
 | B. Smart account with session keys (ERC-4337) | The user's smart account gives a session key the same limits on-chain | Limits enforced on-chain; more moving parts |
 | C. Per-user vault contract | The user deposits USDG; our executor may only swap inside the vault | Simple rules, but we write and must audit a contract that holds user funds |
 
@@ -195,7 +195,7 @@ The MVP is **$0/month**: Supabase free, Cloudflare free, GeckoTerminal free.
 - Login: **Privy, confirmed 2026-10-15.** "Go to app" opens Privy (Google, email code, or wallet). Email and Google users get a Privy embedded wallet, which is also the basis for scoped signers in live trading (8b). Replaces the viem-only SIWE planned for session 1.4. Accepted tradeoffs: vendor lock-in for accounts and embedded wallets, and per-active-user pricing (check before launch).
 - Design language: follows aave.com (2026-10-15): Inter, white canvas, ink #252228, lavender #9896ff accent, expo-out motion. The approved reference is `prototype/` (live at pitwise-prototype.hoodguard.workers.dev). Overrides the Inter ban and no-gradient-text rules of the landing page skill at the user's request.
 
-- Name: **Sita** (2026-10-15, replaced Pitwise). No crypto or trading conflict found. SITA is also a large aviation IT brand (plus waste and measurement firms), so SEO is harder; their trademarks cover other classes. Domain and X handle not checked yet.
+- Name: **Zolva** (2026-10-15), replacing Sita (a common woman's name in Indonesia; SITA is also a big aviation IT brand) and earlier Pitwise. Invented word, no meaning to defend, pairs as "Zolva Agent". zolva.xyz and zolvaagent.com had no DNS on 2026-10-15 (not yet bought; confirm at a registrar). GitHub `zolva` is taken, so the org/user will need a variant.
 - Chain: Robinhood Chain (4663). Assets: tokenized stocks only.
 - Edge: backtest-before-launch + public leaderboard.
 - Paper trading first, **real trading later** (confirmed 2026-10-15; design constraints in section 8b). No token.

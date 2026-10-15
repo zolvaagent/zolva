@@ -1,5 +1,5 @@
 /**
- * One command production deploy of Sita to Cloudflare Workers.
+ * One command production deploy of Zolva to Cloudflare Workers.
  *
  *   npm run deploy:prod
  *
@@ -64,7 +64,7 @@ async function main() {
   run("npx", ["opennextjs-cloudflare", "build"]);
   run("npx", ["opennextjs-cloudflare", "deploy"]);
 
-  const secretsFile = join(tmpdir(), `sita-secrets-${Date.now()}.json`);
+  const secretsFile = join(tmpdir(), `zolva-secrets-${Date.now()}.json`);
   writeFileSync(
     secretsFile,
     JSON.stringify({

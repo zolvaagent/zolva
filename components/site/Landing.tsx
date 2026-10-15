@@ -24,7 +24,7 @@ const FAQ = [
   ["Can I make my own strategy?", "Yes. Start from a template or a blank page, combine up to three rules to buy and three to sell, and add a take profit or a max holding time. No code."],
   ["Why compare with holding?", "Because it is the easiest alternative. If an agent cannot beat simply buying the same stocks and waiting, you should know before you trust it."],
   ["How many agents can I run?", "Up to five at once, each with its own virtual capital. Agents are locked once launched so their track record stays honest. Pause one to launch another."],
-  ["Who can use Sita?", "Anyone outside the United States and sanctioned countries. Stock tokens are not offered to US persons."],
+  ["Who can use Zolva?", "Anyone outside the United States and sanctioned countries. Stock tokens are not offered to US persons."],
 ];
 
 export function Landing({ market, backtests, agents, feed }: Props) {
@@ -63,7 +63,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
       </div>
 
       <div className="container">
-        <section className="stats-band" aria-label="Sita in numbers">
+        <section className="stats-band" aria-label="Zolva in numbers">
           <Stat label="Stock tokens" value={String(market.tokens.length)} />
           <Stat label="Agents running" value={String(running.length)} />
           <Stat label="Decisions explained" value={decisionsExplained.toLocaleString("en-US")} />
@@ -76,7 +76,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
           <div className="showcase">
             <span className="showcase__label reveal">
               <img src="/img/icons/app.png" alt="" width={32} height={32} />
-              Sita Forge
+              Zolva Forge
             </span>
             <Words className="showcase__title" text="A" highlight="trading desk" />
             <p className="showcase__lead reveal">Shape an agent, replay its last 30 days and launch it. Every number below comes from real Robinhood Chain prices.</p>
@@ -493,14 +493,14 @@ function Browser({ agents }: { agents: AgentSummary[] }) {
           <span />
           <span />
         </div>
-        <div className="browser__url">sita / leaderboard</div>
+        <div className="browser__url">zolva / leaderboard</div>
         <div />
       </div>
       <div className="browser__body">
         <aside className="browser__side">
           <div className="browser__brand">
             <img src="/img/icons/app.png" alt="" />
-            Sita
+            Zolva
           </div>
           {nav("squares-four", "Dashboard")}
           <div className="browser__group">Explore</div>
@@ -555,7 +555,7 @@ function Browser({ agents }: { agents: AgentSummary[] }) {
                     </td>
                     <td className="hide-sm">
                       {STRATEGY_NAMES[agent.strategy]}
-                      <span className="sub">{agent.isHouse ? "by Sita" : shortAddress(agent.owner)}</span>
+                      <span className="sub">{agent.isHouse ? "by Zolva" : shortAddress(agent.owner)}</span>
                     </td>
                     <td className={tone(agent.returnPct)}>
                       {percent(agent.returnPct)}
@@ -695,7 +695,7 @@ export function LeaderTable({ agents }: { agents: AgentSummary[] }) {
                 <Link href={`/agents/${agent.id}`}>{agent.name}</Link>
                 {agent.isHouse && (
                   <span className="pill" style={{ marginLeft: 6 }}>
-                    by Sita
+                    by Zolva
                   </span>
                 )}
               </td>

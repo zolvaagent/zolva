@@ -18,7 +18,7 @@ export default async function DashboardPage() {
         <div className="card">
           <div className="empty" style={{ padding: "var(--space-800) var(--space-300)" }}>
             <img src="/img/icons/app.png" alt="" width={88} height={88} />
-            <h1 className="page__title">Log in to Sita</h1>
+            <h1 className="page__title">Log in to Zolva</h1>
             <p>Use your wallet to sign in. Your dashboard keeps your agents, their results and your account in one place.</p>
             <LoginPrompt />
           </div>

@@ -38,7 +38,7 @@ export function AppSidebar() {
     <aside className="app-side" aria-label="App">
       <Link className="brand" href="/">
         <img className="brand__mark" src="/img/icons/app.png" alt="" width={28} height={28} />
-        Sita
+        Zolva
       </Link>
       <nav className="app-side__nav">
         {NAV.map((item, i) => (
@@ -50,7 +50,7 @@ export function AppSidebar() {
             </Link>
           </span>
         ))}
-        <span className="app-side__group">Sita</span>
+        <span className="app-side__group">Zolva</span>
         <Link className="app-link" href="/">
           <i className="ph ph-house" />
           Home
@@ -89,7 +89,7 @@ export function AppTopbar() {
     <header className="app-topbar">
       <Link className="brand" href="/app">
         <img className="brand__mark" src="/img/icons/app.png" alt="" width={28} height={28} />
-        Sita
+        Zolva
       </Link>
       {address ? (
         <Link className="avatar-button" href="/app" aria-label="Open your dashboard">

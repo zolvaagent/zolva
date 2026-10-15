@@ -9,7 +9,7 @@ export type ActivityTrade = {
   ts: number;
   agentId: string;
   agentName: string;
-  /** Run by Sita (house or lab agent) rather than a user. */
+  /** Run by Zolva (house or lab agent) rather than a user. */
   isHouse: boolean;
   strategy: string;
   symbol: string;

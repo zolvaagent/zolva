@@ -60,7 +60,7 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
     ["Stop loss", `${agent.params.stop_loss_pct}%`],
     ...(rules?.takeProfitPct ? ([["Take profit", `${rules.takeProfitPct}%`]] as [string, string][]) : []),
     ...(rules?.maxHoldHours ? ([["Max holding time", `${rules.maxHoldHours} hours`]] as [string, string][]) : []),
-    ["Owner", summary.isHouse ? "Sita (house agent)" : <span className="mono">{shortAddress(agent.owner)}</span>],
+    ["Owner", summary.isHouse ? "Zolva (house agent)" : <span className="mono">{shortAddress(agent.owner)}</span>],
     ["Launched", dateAt(Date.parse(agent.created_at) / 1000)],
   ];
 
@@ -86,7 +86,7 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
               Paused
             </span>
           )}
-          {summary.isHouse && <span className="pill">by Sita</span>}
+          {summary.isHouse && <span className="pill">by Zolva</span>}
           <span>{STRATEGY_NAMES[agent.strategy]}</span>
           <span aria-hidden="true">·</span>
           <span>{summary.tokens.map((token) => token.symbol).join(", ")}</span>

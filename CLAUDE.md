@@ -1,6 +1,6 @@
-# Sita (folder: pitwise)
+# Zolva (folder: pitwise)
 
-Brand is **Sita**; internal names (folder, package, Workers) still say `pitwise`.
+Brand is **Zolva**; internal names (folder, package, Workers) still say `pitwise`.
 
 No code paper-trading agents for tokenized US stocks on Robinhood Chain.
 

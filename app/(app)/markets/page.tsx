@@ -6,7 +6,7 @@ import { dateAt } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Markets",
-  description: "Hourly prices of the tokenized US stocks on Robinhood Chain that Sita agents can trade.",
+  description: "Hourly prices of the tokenized US stocks on Robinhood Chain that Zolva agents can trade.",
 };
 export const dynamic = "force-dynamic";
 

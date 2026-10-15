@@ -1,7 +1,7 @@
 /**
- * Sita's own "house" agents: real paper agents run by Sita from launch day,
+ * Zolva's own "house" agents: real paper agents run by Zolva from launch day,
  * so the leaderboard has live track records before users arrive. They are
- * labelled "by Sita" everywhere. Configs are also used for the landing page
+ * labelled "by Zolva" everywhere. Configs are also used for the landing page
  * backtests, so what visitors see matches what actually runs.
  */
 import { RULE_TEMPLATES, type Rules } from "../engine/rules.ts";
@@ -11,14 +11,14 @@ import type { StrategyKey } from "../engine/strategies.ts";
 export const HOUSE_WALLET = "0x5174000000000000000000000000000000000000";
 
 /**
- * Owners of the "Sita Lab" research agents. Like HOUSE_WALLET, nobody can
+ * Owners of the "Zolva Lab" research agents. Like HOUSE_WALLET, nobody can
  * sign for them. Two owners because every owner may run at most 5 agents.
  */
 export const LAB_WALLETS = ["0x5174000000000000000000000000000000000001", "0x5174000000000000000000000000000000000002"] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
 
-/** Whether an agent is run by Sita (house or lab), so the UI labels it "by Sita". */
+/** Whether an agent is run by Zolva (house or lab), so the UI labels it "by Zolva". */
 export const isHouseOwner = (owner: string) => HOUSE_OWNERS.has(owner);
 
 export type HouseAgent = {
@@ -69,7 +69,7 @@ const TREND_FILTER: Rules = {
 };
 
 /**
- * Sita Lab: paper agents that exist to collect data on which strategies work.
+ * Zolva Lab: paper agents that exist to collect data on which strategies work.
  * The first owner runs five strategies on the same three stocks, a fair
  * side by side test; the second tries other baskets. Not on the landing page.
  */
