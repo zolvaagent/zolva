@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getMarket, latestCandleTime } from "@/lib/data/market";
+import { parseAiLimit, type AiLimit } from "@/lib/ai/limits";
 import { aiModel } from "@/lib/ai/models";
 import { PROMPT_MAX_LENGTH } from "@/lib/ai/strategy-writer";
 import { parseRules, rulesLookback, type Rules } from "@/lib/engine/rules";
@@ -19,6 +20,10 @@ export type CreateAgentInput = {
   acceptTerms: unknown;
   /** OpenRouter model id for the AI co-pilot, or empty for rules only. */
   aiModel?: unknown;
+  /** Required with aiModel: the most the co-pilot may spend on this agent, in USD. */
+  aiLimitUsd?: unknown;
+  /** Required with aiModel: how many days the AI limit lasts (see AI_EXPIRY_DAYS). */
+  aiExpiryDays?: unknown;
   /** Custom strategies made in prompt mode: the user's own words, read by the co-pilot. */
   strategyPrompt?: unknown;
 };
@@ -53,6 +58,12 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   // Only models from our list; whether credits cover it is checked every hour.
   const aiModelId = typeof input.aiModel === "string" && input.aiModel ? input.aiModel : null;
   if (aiModelId && !aiModel(aiModelId)) throw new AgentInputError("Pick an AI model from the list, or turn the co-pilot off.");
+  let aiLimit: AiLimit | null = null;
+  if (aiModelId) {
+    const parsed = parseAiLimit(input.aiLimitUsd, input.aiExpiryDays);
+    if (!parsed.ok) throw new AgentInputError(parsed.error);
+    aiLimit = parsed.value;
+  }
 
   const capital = Number(input.capital);
   const maxPositionPct = Number(input.maxPositionPct);
@@ -92,6 +103,8 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
       status: "active",
       mode: "paper",
       ai_model: aiModelId,
+      ai_limit_micro: aiLimit?.limitMicro ?? null,
+      ai_limit_expires_at: aiLimit?.expiresAt ?? null,
       strategy_prompt: strategyPrompt,
       last_run_ts: new Date((market.startTs + lastIndex * 3600) * 1000).toISOString(),
     })
@@ -107,6 +120,21 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
 
   await db.from("wallets").update({ terms_accepted_at: new Date().toISOString() }).eq("address", owner).is("terms_accepted_at", null);
   return { id: data.id };
+}
+
+/** Change one of the owner's AI budgets: a new total limit and a new expiry counted from now. */
+export async function setAgentAiLimit(db: SupabaseClient, owner: string, id: string, limitUsd: unknown, expiryDays: unknown): Promise<void> {
+  const parsed = parseAiLimit(limitUsd, expiryDays);
+  if (!parsed.ok) throw new AgentInputError(parsed.error);
+  const { data, error } = await db
+    .from("agents")
+    .update({ ai_limit_micro: parsed.value.limitMicro, ai_limit_expires_at: parsed.value.expiresAt })
+    .eq("id", id)
+    .eq("owner", owner)
+    .not("ai_model", "is", null)
+    .select("id");
+  if (error) throw new Error(`Updating the agent failed: ${error.message}`);
+  if (!data.length) throw new AgentInputError("This agent has no AI co-pilot.");
 }
 
 /** Show one of the owner's agents on the leaderboard and other public lists, or take it off. */

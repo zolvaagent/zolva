@@ -8,7 +8,9 @@ import { LineChart } from "@/components/ui/LineChart";
 import { Select, type SelectOption } from "@/components/ui/Select";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { PromptWriter, type CustomMode, type Generated } from "@/components/app/PromptWriter";
-import { AiCopilotPicker, type CreditsView } from "@/components/app/AiCopilot";
+import { AiCopilotPicker, type CreditsView, type LimitDraft } from "@/components/app/AiCopilot";
+import { DEFAULT_EXPIRY_DAYS, parseAiLimit, suggestedLimitUsd } from "@/lib/ai/limits";
+import { aiModel } from "@/lib/ai/models";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
@@ -57,6 +59,16 @@ export function Studio({
   const [stopLossPct, setStopLossPct] = useState(8);
   const [showErrors, setShowErrors] = useState(false);
   const [aiModelId, setAiModelId] = useState<string | null>(null);
+  const [aiLimit, setAiLimit] = useState<LimitDraft>({ usd: "", days: DEFAULT_EXPIRY_DAYS });
+  // Until the user types a limit, it follows the suggestion for the chosen model.
+  const [aiLimitTouched, setAiLimitTouched] = useState(false);
+  const parsedAiLimit = aiModelId ? parseAiLimit(aiLimit.usd, aiLimit.days) : null;
+  const aiLimitError = parsedAiLimit && !parsedAiLimit.ok ? parsedAiLimit.error : null;
+  const chooseAiModel = (id: string | null) => {
+    setAiModelId(id);
+    const model = aiModel(id);
+    if (model && !aiLimitTouched) setAiLimit((current) => ({ ...current, usd: suggestedLimitUsd(model).toFixed(2) }));
+  };
   const [customMode, setCustomMode] = useState<CustomMode>("rules");
   const [generated, setGenerated] = useState<Generated | null>(null);
   // Credits shown in the Studio, lowered locally after each strategy writer call.
@@ -87,8 +99,9 @@ export function Studio({
 
   const openLaunch = () => {
     setShowErrors(true);
-    if (!name.trim() || !symbols.length || ruleErrors.length) {
-      document.getElementById(!name.trim() ? "agent-name" : !symbols.length ? "token-grid" : "rule-builder")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!name.trim() || !symbols.length || ruleErrors.length || aiLimitError) {
+      const target = !name.trim() ? "agent-name" : !symbols.length ? "token-grid" : ruleErrors.length ? "rule-builder" : "ai-label";
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     const show = () => {
@@ -118,6 +131,8 @@ export function Studio({
         stopLossPct,
         acceptTerms: true,
         aiModel: aiModelId,
+        aiLimitUsd: aiModelId ? Number(aiLimit.usd) : undefined,
+        aiExpiryDays: aiModelId ? aiLimit.days : undefined,
         // Only a prompt that actually produced these rules is kept.
         strategyPrompt: strategy === "custom" && customMode === "prompt" ? generated?.prompt : undefined,
       }),
@@ -209,7 +224,17 @@ export function Studio({
           )}
           {strategy === "custom" && <RuleBuilder rules={rules} onChange={setRules} errors={showErrors ? ruleErrors : []} />}
 
-          <AiCopilotPicker value={aiModelId} onChange={setAiModelId} credits={liveCredits} />
+          <AiCopilotPicker
+            value={aiModelId}
+            onChange={chooseAiModel}
+            credits={liveCredits}
+            limit={aiLimit}
+            onLimitChange={(next) => {
+              setAiLimitTouched(true);
+              setAiLimit(next);
+            }}
+            limitError={showErrors ? aiLimitError : null}
+          />
 
           <div className="form-section">
             <div className="form-section__label">

@@ -7,7 +7,13 @@ import { useRef, useState } from "react";
 import { useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
 import type { AgentDetail } from "@/lib/data/agents";
-import { aiModel } from "@/lib/ai/models";
+import {
+  AiLimitFields,
+  type CreditsView,
+  type LimitDraft,
+} from "@/components/app/AiCopilot";
+import { DEFAULT_EXPIRY_DAYS, parseAiLimit } from "@/lib/ai/limits";
+import { aiModel, formatCredits } from "@/lib/ai/models";
 import type { Decision } from "@/lib/engine/engine";
 import { describeCondition, type Rules } from "@/lib/engine/rules";
 import {
@@ -34,6 +40,8 @@ export type Preview = {
 type Props = {
   detail: AgentDetail;
   isOwner: boolean;
+  /** The owner's AI credits (only loaded for the owner). */
+  credits: CreditsView;
   /** Latest close per token address. */
   prices: Record<string, number>;
   /** Same settings over the last 30 days, shown while the agent has no history yet. */
@@ -46,6 +54,7 @@ const RANGES = { "7d": 7 * 24, "30d": 30 * 24, all: Infinity } as const;
 export function AgentView({
   detail,
   isOwner,
+  credits,
   prices,
   preview,
   symbols,
@@ -59,6 +68,48 @@ export function AgentView({
   const pauseRef = useRef<HTMLDialogElement>(null);
   const liveRef = useRef<HTMLDialogElement>(null);
   const publishRef = useRef<HTMLDialogElement>(null);
+  const limitRef = useRef<HTMLDialogElement>(null);
+  const limitUsd =
+    agent.ai_limit_micro === null
+      ? null
+      : Number(agent.ai_limit_micro) / 1_000_000;
+  const limitExpires = agent.ai_limit_expires_at
+    ? Date.parse(agent.ai_limit_expires_at)
+    : null;
+  const limitState =
+    detail.aiLimitExpired
+      ? "Expired"
+      : limitUsd !== null && detail.aiSpentUsd >= limitUsd
+        ? "Limit reached"
+        : null;
+  const [limitDraft, setLimitDraft] = useState<LimitDraft>({
+    usd: (limitUsd ?? 0.5).toFixed(2),
+    days: DEFAULT_EXPIRY_DAYS,
+  });
+  const [limitError, setLimitError] = useState<string | null>(null);
+
+  const saveLimit = async () => {
+    const parsed = parseAiLimit(limitDraft.usd, limitDraft.days);
+    if (!parsed.ok) return setLimitError(parsed.error);
+    setBusy(true);
+    const response = await fetch(`/api/agents/${agent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        aiLimitUsd: Number(limitDraft.usd),
+        aiExpiryDays: limitDraft.days,
+      }),
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    setBusy(false);
+    if (!response.ok)
+      return setLimitError(body.error ?? "Updating failed. Please try again.");
+    limitRef.current?.close();
+    toast("AI limit updated");
+    router.refresh();
+  };
   const isPublished = agent.published_at !== null;
   const isActive = agent.status === "active";
   const minutesToNextRun = 60 - new Date().getUTCMinutes();
@@ -120,6 +171,40 @@ export function AgentView({
   const settings: [string, React.ReactNode][] = [
     ["Strategy", STRATEGY_NAMES[agent.strategy]],
     ["AI co-pilot", aiModel(agent.ai_model)?.label ?? "Off"],
+    ...(agent.ai_model
+      ? ([
+          [
+            "AI budget",
+            <span key="budget" className="ai-budget">
+              <span>
+                {formatCredits(detail.aiSpentUsd)} of{" "}
+                {limitUsd === null ? "no limit" : formatCredits(limitUsd)}
+                {limitExpires !== null && (
+                  <span className="muted">
+                    {" "}
+                    · until {dateAt(limitExpires / 1000)}
+                  </span>
+                )}
+              </span>
+              {limitState && (
+                <span className="pill pill--warn">{limitState}</span>
+              )}
+              {isOwner && (
+                <button
+                  className="text-link"
+                  type="button"
+                  onClick={() => {
+                    setLimitError(null);
+                    limitRef.current?.showModal();
+                  }}
+                >
+                  Edit
+                </button>
+              )}
+            </span>,
+          ],
+        ] as [string, React.ReactNode][])
+      : []),
     ["Stocks", summary.tokens.map((token) => token.symbol).join(", ")],
     ["Starting capital", usd(summary.startCapital)],
     ["Max per stock", `${agent.params.max_position_pct}%`],
@@ -304,6 +389,56 @@ export function AgentView({
     </dialog>
   );
 
+  // Changing the budget sets a new total limit and a new end date counted from today.
+  const limitDialog = agent.ai_model && (
+    <dialog
+      ref={limitRef}
+      className="modal"
+      aria-labelledby="limit-title"
+      onClick={(event) => {
+        if (event.target === limitRef.current) limitRef.current?.close();
+      }}
+    >
+      <div className="modal__body">
+        <span className="choice__glyph" aria-hidden="true">
+          <i className="ph ph-coins" />
+        </span>
+        <h2 className="modal__title" id="limit-title">
+          AI limit for {agent.name}
+        </h2>
+        <p className="muted" style={{ fontSize: 14, lineHeight: "20px" }}>
+          Spent so far: {formatCredits(detail.aiSpentUsd)}. The new limit counts
+          everything spent since launch, and the period starts today.
+        </p>
+        <AiLimitFields
+          value={limitDraft}
+          onChange={setLimitDraft}
+          modelId={agent.ai_model}
+          credits={credits}
+          error={limitError}
+        />
+        <div className="modal__actions">
+          <button
+            className="button button--ghost"
+            type="button"
+            onClick={() => limitRef.current?.close()}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={saveLimit}
+            disabled={busy}
+          >
+            {busy ? "Saving…" : "Save limit"}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+
   const publishDialog = (
     <dialog
       ref={publishRef}
@@ -477,6 +612,7 @@ export function AgentView({
         {isOwner && pauseDialog}
         {isOwner && liveDialog}
         {isOwner && publishDialog}
+        {isOwner && limitDialog}
         <div className="agent-layout">
           <div className="stack">
             <div className="card">
@@ -574,6 +710,7 @@ export function AgentView({
       {isOwner && pauseDialog}
       {isOwner && liveDialog}
       {isOwner && publishDialog}
+      {isOwner && limitDialog}
       <div className="agent-layout">
         <div className="stack">
           <div className="card stack">

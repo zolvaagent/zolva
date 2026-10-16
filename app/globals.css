@@ -5230,3 +5230,66 @@ main:focus {
   border-color: var(--color-border);
   transform: none;
 }
+
+/* AI budget fields under the co-pilot model (Studio and the agent page). */
+.ai-limit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-75);
+}
+
+.ai-limit__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-100);
+}
+
+.ai-limit__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  min-width: 0;
+}
+
+.ai-limit__label {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.ai-limit__money {
+  position: relative;
+  display: block;
+}
+
+.ai-limit__money > span {
+  position: absolute;
+  left: var(--space-200);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.ai-limit__money .input {
+  height: 44px;
+  padding-left: 30px;
+  border-radius: var(--radius-xl);
+}
+
+.ai-limit .select {
+  width: 100%;
+  height: 44px;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+/* AI budget value in the agent settings card. */
+.ai-budget {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-75);
+}

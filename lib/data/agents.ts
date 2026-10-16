@@ -167,7 +167,11 @@ export async function recentTrades(db: SupabaseClient, limit = 14): Promise<Deci
 }
 
 export type AgentDetail = {
-  agent: AgentRow & { owner: string; name: string; status: "active" | "paused"; created_at: string; ai_model: string | null; published_at: string | null };
+  agent: AgentRow & { owner: string; name: string; status: "active" | "paused"; created_at: string; ai_model: string | null; published_at: string | null; ai_limit_micro: number | null; ai_limit_expires_at: string | null };
+  /** What the AI co-pilot has spent on this agent so far, USD. */
+  aiSpentUsd: number;
+  /** The AI limit end date has passed (computed on the server, at request time). */
+  aiLimitExpired: boolean;
   summary: AgentSummary;
   runs: RunPoint[];
   trades: { ts: number; token: string; symbol: string; side: "buy" | "sell"; quantity: number; price: number; costUsd: number; reason: string }[];
@@ -179,25 +183,28 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db
     .from("agents")
-    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at")
+    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, ai_limit_micro, ai_limit_expires_at")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);
   if (!agent) return null;
 
-  const [stats, runs, trades, positions, symbols] = await Promise.all([
+  const [stats, runs, trades, positions, symbols, usage] = await Promise.all([
     db.from("agent_stats").select(STATS_COLUMNS).eq("id", id).single(),
     db.from("agent_runs").select("ts, equity, hold_equity, cash, decisions").eq("agent_id", id).order("ts", { ascending: false }).limit(720),
     db.from("trades").select("ts, token_address, side, quantity, price, cost_usd, reason").eq("agent_id", id).order("ts", { ascending: false }).limit(50),
     db.from("positions").select("token_address, quantity, avg_entry_price, opened_at").eq("agent_id", id),
     tokenSymbols(db),
+    db.from("ai_usage").select("cost_micro").eq("agent_id", id),
   ]);
-  for (const result of [stats, runs, trades, positions]) if (result.error) throw new Error(result.error.message);
+  for (const result of [stats, runs, trades, positions, usage]) if (result.error) throw new Error(result.error.message);
 
   const [summary] = await toSummaries(db, [stats.data as StatsRow]);
   return {
     agent: agent as AgentDetail["agent"],
     summary,
+    aiSpentUsd: (usage.data ?? []).reduce((sum, row) => sum + Number(row.cost_micro), 0) / 1_000_000,
+    aiLimitExpired: agent.ai_limit_expires_at !== null && Date.parse(agent.ai_limit_expires_at) <= Date.now(),
     runs: (runs.data ?? [])
       .map((run) => ({ ts: Date.parse(run.ts) / 1000, equity: Number(run.equity), holdEquity: Number(run.hold_equity ?? run.equity), cash: Number(run.cash), decisions: run.decisions as Decision[] }))
       .reverse(),

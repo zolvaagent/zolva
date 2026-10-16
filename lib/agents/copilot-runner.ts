@@ -53,9 +53,19 @@ export async function withCopilot(
   const usable = isLite(model.id) ? free + paid : paid;
   if (usable < toMicro(maxCallCostUsd(model))) return { writes, note: "co-pilot skipped: not enough AI credits" };
 
-  const { data: claimed, error: claimError } = await db.rpc("ai_claim", { p_agent_id: agent.id, p_owner: agent.owner, p_ts: last.ts, p_model: model.id });
+  // Claims the hour and checks the owner's AI limit and its expiry in one database call.
+  const { data: claim, error: claimError } = await db.rpc("ai_claim_review", {
+    p_agent_id: agent.id,
+    p_owner: agent.owner,
+    p_ts: last.ts,
+    p_model: model.id,
+    p_max_cost_micro: toMicro(maxCallCostUsd(model)),
+  });
+  if (claimError) return { writes, note: `co-pilot skipped: ${claimError.message}` };
+  if (claim === "limit") return { writes, note: "co-pilot skipped: the agent's AI limit is reached" };
+  if (claim === "expired") return { writes, note: "co-pilot skipped: the agent's AI limit has expired" };
   // Another tick is reviewing (or reviewed) this hour: let the rules write it, the first write wins.
-  if (claimError || !claimed) return { writes, note: "co-pilot skipped: hour already claimed" };
+  if (claim !== "ok") return { writes, note: "co-pilot skipped: hour already claimed" };
 
   // State before the newest hour: the previous planned hour, or what is stored.
   const before = writes.length > 1 ? writes[writes.length - 2] : null;
