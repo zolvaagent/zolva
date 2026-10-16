@@ -24,7 +24,8 @@ function age(createdAt: number): string {
   return days <= 0 ? "today" : days === 1 ? "1 day ago" : `${days} days ago`;
 }
 
-export function Leaderboard({ agents }: { agents: AgentSummary[] }) {
+/** `viewer` is the signed-in address, so their own agents get a "Your agent" label. */
+export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[]; viewer?: string | null }) {
   const [sort, setSort] = useState<(typeof SORTS)[number][0]>("return");
   const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("all");
 
@@ -88,13 +89,18 @@ export function Leaderboard({ agents }: { agents: AgentSummary[] }) {
                 </thead>
                 <tbody>
                   {rows.map((agent, i) => (
-                    <tr key={agent.id}>
+                    <tr key={agent.id} className={agent.owner === viewer ? "leaderboard__mine" : undefined}>
                       <td className="rank">{i + 1}</td>
                       <td>
                         <Link href={`/agents/${agent.id}`}>{agent.name}</Link>
                         {agent.isHouse && (
                           <span className="pill" style={{ marginLeft: 6 }}>
                             by Zolva
+                          </span>
+                        )}
+                        {agent.owner === viewer && (
+                          <span className="pill pill--accent" style={{ marginLeft: 6 }}>
+                            Your agent
                           </span>
                         )}
                         <div className="muted mono" style={{ fontSize: 12, lineHeight: "16px" }}>

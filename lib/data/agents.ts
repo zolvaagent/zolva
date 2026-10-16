@@ -28,6 +28,8 @@ export type AgentSummary = {
   runs: number;
   createdAt: number;
   lastTs: number | null;
+  /** On the leaderboard and other public lists. House agents always are. */
+  published: boolean;
 };
 
 let symbolCache: Map<string, string> | null = null;
@@ -55,6 +57,7 @@ type StatsRow = {
   trades: number;
   created_at: string;
   last_ts: string | null;
+  published_at: string | null;
 };
 
 async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentSummary[]> {
@@ -81,15 +84,21 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
       runs: Number(row.runs),
       createdAt: Date.parse(row.created_at) / 1000,
       lastTs: row.last_ts ? Date.parse(row.last_ts) / 1000 : null,
+      published: row.published_at !== null,
     };
   });
 }
 
-const STATS_COLUMNS = "id, owner, name, strategy, status, token_addresses, start_capital, equity, hold_equity, runs, max_drawdown, trades, created_at, last_ts";
+const STATS_COLUMNS = "id, owner, name, strategy, status, token_addresses, start_capital, equity, hold_equity, runs, max_drawdown, trades, created_at, last_ts, published_at";
 
-/** Every paper agent (active and paused), newest first. */
+/** Every published paper agent (active and paused), newest first. Private agents only show to their owner. */
 export async function listAgents(db: SupabaseClient): Promise<AgentSummary[]> {
-  const { data, error } = await db.from("agent_stats").select(STATS_COLUMNS).eq("mode", "paper").order("created_at", { ascending: false });
+  const { data, error } = await db
+    .from("agent_stats")
+    .select(STATS_COLUMNS)
+    .eq("mode", "paper")
+    .not("published_at", "is", null)
+    .order("created_at", { ascending: false });
   if (error) throw new Error(`Loading agents failed: ${error.message}`);
   return toSummaries(db, data as StatsRow[]);
 }
@@ -119,10 +128,15 @@ export async function equityCurves(db: SupabaseClient, agentIds: string[], hours
 
 export type DecisionEvent = Decision & { ts: number; agentId: string; agentName: string; symbol: string };
 
-/** The latest buys and sells across all agents, newest first. */
+/** The latest buys and sells across published agents, newest first. */
 export async function recentTrades(db: SupabaseClient, limit = 14): Promise<DecisionEvent[]> {
   const [{ data, error }, symbols] = await Promise.all([
-    db.from("trades").select("agent_id, ts, token_address, side, reason, price, agents(name)").order("ts", { ascending: false }).limit(limit),
+    db
+      .from("trades")
+      .select("agent_id, ts, token_address, side, reason, price, agents!inner(name, published_at)")
+      .not("agents.published_at", "is", null)
+      .order("ts", { ascending: false })
+      .limit(limit),
     tokenSymbols(db),
   ]);
   if (error) throw new Error(`Loading trades failed: ${error.message}`);
@@ -153,7 +167,7 @@ export async function recentTrades(db: SupabaseClient, limit = 14): Promise<Deci
 }
 
 export type AgentDetail = {
-  agent: AgentRow & { owner: string; name: string; status: "active" | "paused"; created_at: string; ai_model: string | null };
+  agent: AgentRow & { owner: string; name: string; status: "active" | "paused"; created_at: string; ai_model: string | null; published_at: string | null };
   summary: AgentSummary;
   runs: RunPoint[];
   trades: { ts: number; token: string; symbol: string; side: "buy" | "sell"; quantity: number; price: number; costUsd: number; reason: string }[];
@@ -165,7 +179,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db
     .from("agents")
-    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model")
+    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);

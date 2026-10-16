@@ -52,6 +52,7 @@ async function main() {
       startPrices[address] = Number(candle!.close);
     }
     const { error: insertError } = await db.from("agents").insert({
+      published_at: new Date().toISOString(),
       owner: config.owner,
       name: config.name,
       strategy: config.strategy,

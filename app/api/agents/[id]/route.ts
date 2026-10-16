@@ -1,19 +1,20 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { AgentInputError, setAgentStatus } from "@/lib/agents/create";
+import { AgentInputError, setAgentPublished, setAgentStatus } from "@/lib/agents/create";
 import { getSessionAddress } from "@/lib/auth/session";
 import { db } from "@/lib/supabase";
 
-/** Pause or resume one of your agents: { "status": "active" | "paused" }. */
+/** Change one of your agents: { "status": "active" | "paused" } to pause or resume, { "published": boolean } to show it publicly. */
 export async function PATCH(request: NextRequest, context: RouteContext<"/api/agents/[id]">) {
   const client = db();
   const owner = await getSessionAddress();
   if (!owner) return NextResponse.json({ error: "Please log in first." }, { status: 401 });
 
   const { id } = await context.params;
-  const body = (await request.json().catch(() => null)) as { status?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { status?: unknown; published?: unknown } | null;
   try {
-    await setAgentStatus(client, owner, id, body?.status);
+    if (body && "published" in body) await setAgentPublished(client, owner, id, body.published);
+    else await setAgentStatus(client, owner, id, body?.status);
     return NextResponse.json({ ok: true });
   } catch (cause) {
     if (cause instanceof AgentInputError) return NextResponse.json({ error: cause.message }, { status: 400 });

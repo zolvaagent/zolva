@@ -128,7 +128,7 @@ export function Studio({
       return;
     }
     launchRef.current?.close();
-    toast("Agent launched. Its first decision comes at the top of the hour.");
+    toast("Agent launched. It stays private until you publish it to the leaderboard.");
     router.push(`/agents/${body.id}`);
     router.refresh();
   };
