@@ -4611,8 +4611,12 @@ main:focus {
 }
 
 /* Stocks / Crypto switch above the markets table. */
-.asset-tabs {
-  margin-bottom: var(--space-200);
+/* Several tab groups side by side on the left of a filter row. */
+.filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-100);
 }
 
 .asset-tabs .tab {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import type { MarketRow } from "@/lib/data/markets";
@@ -38,17 +38,24 @@ const ASSETS = [
 
 export function Markets({ rows }: { rows: MarketRow[] }) {
   const [asset, setAsset] = useState<(typeof ASSETS)[number][0]>("stocks");
+  // Sits in the same row as the stock filters, so the page has one toolbar.
+  const assetTabs = (
+    <div className="tabs asset-tabs" role="tablist" aria-label="Market">
+      {ASSETS.map(([key, label]) => (
+        <button key={key} className="tab" role="tab" type="button" aria-selected={asset === key} onClick={() => setAsset(key)}>
+          {label}
+          {key === "crypto" && <span className="pill pill--accent">Soon</span>}
+        </button>
+      ))}
+    </div>
+  );
+  if (asset === "stocks") return <StockMarkets rows={rows} leading={assetTabs} />;
   return (
     <>
-      <div className="tabs asset-tabs" role="tablist" aria-label="Market">
-        {ASSETS.map(([key, label]) => (
-          <button key={key} className="tab" role="tab" type="button" aria-selected={asset === key} onClick={() => setAsset(key)}>
-            {label}
-            {key === "crypto" && <span className="pill pill--accent">Soon</span>}
-          </button>
-        ))}
+      <div className="filter-row">
+        <div className="filter-group">{assetTabs}</div>
       </div>
-      {asset === "stocks" ? <StockMarkets rows={rows} /> : <CryptoSoon />}
+      <CryptoSoon />
     </>
   );
 }
@@ -70,7 +77,7 @@ function CryptoSoon() {
   );
 }
 
-function StockMarkets({ rows }: { rows: MarketRow[] }) {
+function StockMarkets({ rows, leading }: { rows: MarketRow[]; leading: ReactNode }) {
   const [view, setView] = useState<View>("all");
   const [query, setQuery] = useState("");
 
@@ -86,12 +93,15 @@ function StockMarkets({ rows }: { rows: MarketRow[] }) {
   return (
     <>
       <div className="filter-row">
-        <div className="tabs" role="tablist" aria-label="Show">
-          {VIEWS.map(([key, label]) => (
-            <button key={key} className="tab" role="tab" type="button" aria-selected={view === key} onClick={() => setView(key)}>
-              {label}
-            </button>
-          ))}
+        <div className="filter-group">
+          {leading}
+          <div className="tabs" role="tablist" aria-label="Show">
+            {VIEWS.map(([key, label]) => (
+              <button key={key} className="tab" role="tab" type="button" aria-selected={view === key} onClick={() => setView(key)}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <label className="market-search">
           <i className="ph ph-magnifying-glass" aria-hidden="true" />
