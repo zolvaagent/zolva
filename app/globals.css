@@ -1586,6 +1586,8 @@ main:focus {
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2xl);
   background: #fff;
+  /* Textareas default to a monospace font; every field uses the app font. */
+  font-family: inherit;
   font-size: 16px;
   line-height: 24px;
   transition: border-color var(--duration-micro) var(--ease-out-expo), box-shadow var(--duration-micro) var(--ease-out-expo);
