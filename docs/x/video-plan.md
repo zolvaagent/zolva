@@ -65,6 +65,17 @@ Notes: 720p is the model's maximum, so the clips are upscaled in the 1080p cut; 
 atmospheric shots. The 1080 x 1350 feed version frames the 16:9 clips with the brand background
 rather than cropping them.
 
+## Generated clips (2026-10-16)
+
+| File | Prediction | Result |
+|---|---|---|
+| `video/clips/clip1-grok-6s-720p.mp4` | xgzd14bewsrmy0d18fcbfxmrfr | Use. Orb in a room of charts, blinks at 3 s, charts reflect in the pupil |
+| `video/clips/clip2-grok-6s-720p.mp4` | mchnxa6n8xrmr0d18fcrkf9dwr (retry) | Use. Night desk, the chart rises, the orb follows it and blinks. A faint dark logo shape sits on the monitor bezel: zoom about 10% in the edit so the bezel is cropped out |
+| `video/clips/clip2-grok-6s-720p-try1-apple-logo.mp4` | hs3xfv0nmxrmy0d18fbsr722m8 | Rejected: the monitor was an iMac with a visible Apple logo |
+
+Start frame for both: `video/clips/start-orb-1280x720.png` (logo on the brand dark background).
+Spend: 3 clips x 6.04 s x $0.05 = about **$0.91** of the approved $1.20. No more generation without a new yes.
+
 ## What I need from you before recording
 
 1. Option B chosen; say yes to the $0.60 (max $1.20) Grok cost above to generate the 2 clips.
