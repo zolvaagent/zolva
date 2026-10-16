@@ -112,6 +112,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Dashboard agent cards show Private / On leaderboard (2026-10-16)
 - [x] Footer GitHub link to github.com/zolvaagent/zolva (2026-10-16). Social accounts live in lib/social.ts
 - [ ] Make the GitHub repo public (owner does this; the footer link 404s for visitors until then)
+- [x] X profile kit (2026-10-16): handles, bios, fields, slogans and wording rules in docs/x/profile.md; banner assets/x/x-profile-header-1500x500.png (rendered free from banner.html); 3 tweet drafts in docs/x/tweets.md
 - [ ] Create the Zolva X account, then set its href in lib/social.ts (the footer already shows the X icon as coming soon)
 - [x] Loading skeletons (2026-10-16): loading.tsx for dashboard, leaderboard, agent, markets, market, activity and studio, built from components/ui/Skeleton.tsx on the real layout grids, so the page does not jump; screen reader status line, pulse off with reduced motion
 - [ ] Show the strategy prompt on the agent page
