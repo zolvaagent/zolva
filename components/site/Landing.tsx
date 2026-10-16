@@ -703,7 +703,7 @@ export function LeaderTable({ agents }: { agents: AgentSummary[] }) {
             <tr key={agent.id}>
               <td className="rank">{i + 1}</td>
               <td>
-                <Link href={`/agents/${agent.id}`}>{agent.name}</Link>
+                <Link className="row-link" href={`/agents/${agent.id}`}>{agent.name}</Link>
                 {agent.isHouse && (
                   <span className="pill" style={{ marginLeft: 6 }}>
                     by Zolva

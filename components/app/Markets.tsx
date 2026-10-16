@@ -150,7 +150,7 @@ function StockMarkets({ rows, leading }: { rows: MarketRow[]; leading: ReactNode
                   {visible.map((row) => (
                     <tr key={row.address}>
                       <td>
-                        <Link className="agent-cell" href={`/markets/${row.symbol}`}>
+                        <Link className="agent-cell row-link" href={`/markets/${row.symbol}`}>
                           <TickerAvatar symbol={row.symbol} />
                           <span>
                             <strong>{row.symbol}</strong>

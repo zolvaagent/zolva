@@ -2228,7 +2228,23 @@ main:focus {
 }
 
 .table--clickable tbody tr {
+  position: relative;
   cursor: pointer;
+}
+
+/* Stretched link: the main link of a row covers the whole row, so a click
+   anywhere opens it while it stays one real link (new tab, keyboard, screen
+   readers). Other links and buttons in the row sit above it. */
+.table--clickable .row-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+.table--clickable tbody tr a:not(.row-link),
+.table--clickable tbody tr button {
+  position: relative;
+  z-index: 1;
 }
 
 .table--clickable tbody tr:hover {
