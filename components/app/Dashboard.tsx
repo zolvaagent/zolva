@@ -91,17 +91,23 @@ export function Dashboard({ address, agents, curves, latest, top, credits }: Pro
                 <Link key={agent.id} className="agent-card" href={`/agents/${agent.id}`}>
                   <div className="agent-card__head">
                     <img src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`} alt="" width={44} height={44} />
-                    {agent.status === "active" ? (
-                      <span className="pill pill--running">
-                        <span className="pulse" />
-                        Running
+                    <span className="agent-card__pills">
+                      {agent.status === "active" ? (
+                        <span className="pill pill--running">
+                          <span className="pulse" />
+                          Running
+                        </span>
+                      ) : (
+                        <span className="pill pill--paused">
+                          <i className="ph ph-pause" />
+                          Paused
+                        </span>
+                      )}
+                      <span className="pill">
+                        <i className={`ph ${agent.published ? "ph-globe-simple" : "ph-lock-simple"}`} aria-hidden="true" />
+                        {agent.published ? "On leaderboard" : "Private"}
                       </span>
-                    ) : (
-                      <span className="pill pill--paused">
-                        <i className="ph ph-pause" />
-                        Paused
-                      </span>
-                    )}
+                    </span>
                   </div>
                   <div>
                     <h3 className="card__title">{agent.name}</h3>

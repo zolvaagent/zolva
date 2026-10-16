@@ -5113,3 +5113,76 @@ main:focus {
 .leaderboard__mine td {
   background: var(--color-purple-8);
 }
+
+/* Status and visibility pills on a dashboard agent card. */
+.agent-card__pills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-50);
+}
+
+/* ==========================================================================
+   Loading skeletons (components/ui/Skeleton.tsx and each route loading.tsx)
+   ========================================================================== */
+
+.skeleton {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  border-radius: var(--radius-md);
+  background: var(--color-border-strong);
+  animation: skeleton-pulse 1.6s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+}
+
+.skeleton-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-100);
+}
+
+.skeleton-table {
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--space-75);
+  padding-bottom: var(--space-75);
+}
+
+.skeleton-table__row {
+  display: grid;
+  align-items: center;
+  gap: var(--space-200);
+  padding: var(--space-200) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.skeleton-table__row:last-child {
+  border-bottom: 0;
+}
+
+/* Phones: keep the first three columns so rows stay readable. */
+@media (max-width: 640px) {
+  .skeleton-table__row > :nth-child(n + 4) {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
