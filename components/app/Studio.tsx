@@ -71,8 +71,6 @@ export function Studio({
   };
   const [customMode, setCustomMode] = useState<CustomMode>("rules");
   const [generated, setGenerated] = useState<Generated | null>(null);
-  // Credits shown in the Studio, lowered locally after each strategy writer call.
-  const [liveCredits, setLiveCredits] = useState(credits);
 
   const lookback = strategy === "custom" ? rulesLookback(rules) : LOOKBACK_HOURS;
   const fromIndex = market.hours - BACKTEST_HOURS;
@@ -213,12 +211,14 @@ export function Studio({
               mode={customMode}
               onModeChange={setCustomMode}
               generated={generated}
-              hasCredits={(liveCredits?.freeUsd ?? 0) + (liveCredits?.paidUsd ?? 0) > 0.001}
+              // Unknown credits (null) right after a login are not "out of credits"; the server checks anyway.
+              hasCredits={credits === null || credits.freeUsd + credits.paidUsd > 0.001}
               copilotOn={aiModelId !== null}
-              onGenerated={({ rules: next, costUsd, ...result }) => {
+              onGenerated={({ rules: next, prompt, summary, notes }) => {
                 setRules(next);
-                setGenerated(result);
-                setLiveCredits((current) => current && { ...current, freeUsd: Math.max(0, current.freeUsd - costUsd) });
+                setGenerated({ prompt, summary, notes });
+                // Fresh balance from the server; the form state stays as it is.
+                router.refresh();
               }}
             />
           )}
@@ -227,7 +227,7 @@ export function Studio({
           <AiCopilotPicker
             value={aiModelId}
             onChange={chooseAiModel}
-            credits={liveCredits}
+            credits={credits}
             limit={aiLimit}
             onLimitChange={(next) => {
               setAiLimitTouched(true);
