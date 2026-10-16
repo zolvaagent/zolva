@@ -94,6 +94,9 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 
 - [x] "Forge" renamed to **Studio** (2026-10-16): menu "Studio", page "Agent Studio", URL `/studio`; `/forge` (with its query string) redirects permanently (next.config.ts). Older task notes below still say Forge
 
+- [x] Landing "What's next" redesigned (2026-10-16): dark panel with glows, each card with a small product preview in HTML (Paper/Live switch, wallet, limit slider, stop switch; crypto list with shimmering placeholders, no made-up prices) and an honest "Now:" status line
+- [x] Agent page (2026-10-16): pause and resume ask for confirmation and say what happens (open positions are kept but not managed while paused; paused hours are skipped). Owners see "Trade with real money" (Soon), which explains the future flow: a live copy with the same settings (agent mode stays immutable), own wallet, limits, stop switch, paper record kept. Tested end to end with a throwaway wallet, test data deleted
+
 ## Phase 2: Backtest in the Studio
 - [ ] 30-day backtest panel (same engine), equity chart, warn on tokens with short history
 

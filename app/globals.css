@@ -2035,6 +2035,26 @@ main:focus {
   accent-color: var(--color-purple-rich);
 }
 
+/* Short bullet list inside a dialog: what will happen if you confirm. */
+.modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-75);
+  margin: 0;
+  padding-left: var(--space-200);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.modal .choice__glyph {
+  margin-bottom: 0;
+}
+
+.hero__actions .button .pill {
+  margin-left: var(--space-25);
+}
+
 .modal__actions {
   display: flex;
   flex-wrap: wrap;
@@ -4605,46 +4625,308 @@ main:focus {
   margin: 0 auto var(--space-100);
 }
 
-/* Landing: "What's next" cards for features that are announced but not live. */
-.soon-grid {
-  display: grid;
-  gap: var(--space-200);
-  max-width: 880px;
-  margin: 0 auto;
+/* Landing: "What's next", a dark panel with product previews of features
+   that are announced but not live. Previews show no real-looking numbers. */
+.next-panel {
+  margin-top: var(--space-400);
+  margin-bottom: var(--space-400);
+  padding: var(--space-800) 0;
 }
 
 @media (min-width: 768px) {
-  .soon-grid {
+  .next-panel {
+    padding: 120px 0;
+  }
+}
+
+.next-grid {
+  display: grid;
+  gap: var(--space-200);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+@media (min-width: 860px) {
+  .next-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
 
-.soon-card {
+.next-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-dark-line);
+  border-radius: var(--radius-3xl);
+  background: var(--color-dark-card);
+  transition: transform 500ms var(--ease-out-expo), border-color 300ms var(--ease-out-expo), background-color 300ms var(--ease-out-expo);
+}
+
+.next-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(152, 150, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* The preview: a small inset "screen" with a lavender glow behind it. */
+.next-preview {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+  margin: var(--space-100);
+  padding: var(--space-300);
+  border-radius: var(--radius-2xl);
+  background:
+    radial-gradient(90% 70% at 50% 0%, rgba(128, 117, 255, 0.28), transparent 70%),
+    #16141c;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  color: var(--color-on-dark);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.next-card__body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-100);
-  padding: var(--space-400);
-  border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-3xl);
-  background: var(--color-bg-subtle);
+  padding: var(--space-300) var(--space-400) var(--space-200);
 }
 
-.soon-card h3 {
-  margin: var(--space-75) 0 0;
-  font-size: 20px;
-  line-height: 28px;
-  font-weight: 600;
+.next-card__body h3 {
+  margin: var(--space-50) 0 0;
+  color: var(--color-on-dark);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 500;
   letter-spacing: -0.02em;
 }
 
-.soon-card p {
+.next-card__body p {
   margin: 0;
-  color: var(--color-text-muted);
+  color: var(--color-on-dark-muted);
   font-size: 15px;
   line-height: 24px;
 }
 
-.soon-card .choice__glyph {
-  margin-bottom: var(--space-50);
+.next-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
+  padding: var(--space-25) var(--space-100);
+  border-radius: var(--radius-full);
+  background: rgba(152, 150, 255, 0.14);
+  color: var(--color-purple-5);
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.next-card__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-75);
+  margin-top: auto;
+  padding: var(--space-200) var(--space-400);
+  border-top: 1px solid var(--color-dark-line);
+  color: var(--color-on-dark-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* Real money preview pieces. */
+.next-mode,
+.next-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-50);
+  padding: var(--space-50);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-on-dark-muted);
+  text-align: center;
+}
+
+.next-mode__option,
+.next-tabs span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-50);
+  padding: var(--space-75);
+  border-radius: var(--radius-lg);
+}
+
+.next-mode__option--on,
+.next-tabs .next-tabs__on {
+  background: #fff;
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: 0 6px 16px -6px rgba(128, 117, 255, 0.6);
+}
+
+.next-wallet,
+.next-limit,
+.next-stop,
+.next-coin {
+  padding: var(--space-100);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.next-wallet {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-100);
+}
+
+.next-wallet strong,
+.next-coin strong {
+  display: block;
+  font-weight: 500;
+}
+
+.next-wallet span span {
+  color: var(--color-on-dark-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.next-wallet__icon,
+.next-coin__icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-lg);
+  background: rgba(152, 150, 255, 0.18);
+  color: var(--color-purple-5);
+  font-size: 18px;
+}
+
+.next-wallet__ok {
+  color: #6fe3a1;
+  font-size: 18px;
+}
+
+.next-limit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-75);
+}
+
+.next-limit__head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-on-dark-muted);
+}
+
+.next-limit__head strong {
+  color: var(--color-on-dark);
+  font-weight: 500;
+}
+
+.next-limit__track {
+  position: relative;
+  height: 6px;
+  margin: var(--space-25) 0;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.next-limit__fill {
+  position: absolute;
+  inset: 0 62% 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--color-purple-5), var(--color-purple-rich));
+}
+
+.next-limit__knob {
+  position: absolute;
+  top: 50%;
+  left: 38%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(128, 117, 255, 0.35);
+  transform: translate(-50%, -50%);
+}
+
+.next-stop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-on-dark-muted);
+}
+
+.next-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--color-purple-rich);
+}
+
+.next-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* Crypto preview pieces. */
+.next-coin {
+  display: grid;
+  grid-template-columns: auto 1fr 64px 56px;
+  align-items: center;
+  gap: var(--space-100);
+}
+
+.next-coin__spark {
+  width: 64px;
+  height: 24px;
+}
+
+.next-coin__spark path {
+  fill: none;
+  stroke: var(--color-purple-5);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* Price placeholder: a shimmering bar, never a made-up number. */
+.next-skeleton {
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.22) 50%, rgba(255, 255, 255, 0.08) 100%);
+  background-size: 200% 100%;
+  animation: next-shimmer 2.4s var(--ease-out-expo) infinite;
+}
+
+@keyframes next-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .next-skeleton {
+    animation: none;
+  }
+
+  .next-card,
+  .next-card:hover {
+    transform: none;
+  }
 }
