@@ -49,6 +49,17 @@ export type Decision = {
   action: "buy" | "sell" | "hold";
   reasoning: string;
   indicators?: Record<string, number>;
+  /** Set when the AI co-pilot reviewed this hour's rule signal for the token. */
+  ai?: { model: string; verdict: "approved" | "passed"; reasoning: string };
+};
+
+export type RunHourOptions = {
+  /**
+   * Rule signals the AI co-pilot passed on, by token, with its reason. Only
+   * signal trades can be cancelled; stop loss, take profit and max holding
+   * time always execute.
+   */
+  veto?: ReadonlyMap<string, string>;
 };
 
 export type Fill = {
@@ -83,6 +94,7 @@ export function runHour(
   series: Record<string, (number | null)[]>,
   index: number,
   hourTime: number = index * 3600,
+  options: RunHourOptions = {},
 ): HourResult {
   const rules = params.strategy === "custom" ? params.rules : undefined;
   if (params.strategy === "custom" && !rules) throw new Error("Custom strategy without rules");
@@ -143,6 +155,13 @@ export function runHour(
     const signal = rules
       ? evaluateRules(rules, window as number[], Boolean(position))
       : decide(params.strategy as StrategyKey, window as number[], Boolean(position));
+
+    const wantsTrade = signal.action === "buy" || (signal.action === "sell" && position);
+    const passed = wantsTrade ? options.veto?.get(token) : undefined;
+    if (passed !== undefined) {
+      decisions.push({ token, action: "hold", reasoning: `${signal.reasoning} The AI co-pilot passed: ${passed}`, indicators: signal.indicators });
+      continue;
+    }
 
     if (signal.action === "buy") {
       const notional = Math.min(cash, equityBefore * maxShare);

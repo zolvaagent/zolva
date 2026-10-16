@@ -97,6 +97,16 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Landing "What's next" redesigned (2026-10-16): dark panel with glows, each card with a small product preview in HTML (Paper/Live switch, wallet, limit slider, stop switch; crypto list with shimmering placeholders, no made-up prices) and an honest "Now:" status line
 - [x] Agent page (2026-10-16): pause and resume ask for confirmation and say what happens (open positions are kept but not managed while paused; paused hours are skipped). Owners see "Trade with real money" (Soon), which explains the future flow: a live copy with the same settings (agent mode stays immutable), own wallet, limits, stop switch, paper record kept. Tested end to end with a throwaway wallet, test data deleted
 
+- [x] Workers request isolation (2026-10-16): `db()` no longer caches a module-level Supabase client. Each route and page creates one client per request and passes it to the `lib/` functions, which now take it as their first argument. A shared client let overlapping requests (the cron tick and a page view, or pg_cron and the Worker cron) resolve each other's promises, which Workers cancel. Same fix as Obelisk. viem: the chain client uses no JSON-RPC batching, so its shared URL-keyed batch queue does not apply. Verified in `wrangler dev --test-scheduled`: two Worker crons, a direct `/api/cron/tick` and 8 pages/APIs at once, all 200, all three ticks `ok`, no cross-request warnings
+
+## Phase A: AI co-pilot (plan: [ai-and-token-plan.md](ai-and-token-plan.md))
+- [x] Built (2026-10-16), existing strategies untouched: any agent (momentum, mean reversion, custom) can get an AI co-pilot (OpenRouter). When its rules want to trade, the AI approves or passes, with a reason; stop loss, take profit and max hold always run (engine `veto` option). Only the newest hour is reviewed, catch-up hours use rules
+- [x] Credits: $0.50 free per account at first login (once, Lite models only), paid credits for Standard/Pro/Max; top-up "coming soon", manual grants with `npm run credits:grant -- <address> <usd> [note]`. Global daily AI budget (`AI_DAILY_BUDGET_USD`, default $5); one review per agent hour claimed in the database before the call, so two ticks never pay twice; out of credits / failure / unreadable answer = rules decide
+- [x] Migration `ai_copilot` (agents.ai_model, ai_credits, ai_ledger, ai_usage, ai_grant_welcome/ai_grant/ai_claim/ai_settle/ai_spent_since), tested in a rolled-back transaction. 13 new tests (95 total). Studio model picker with monthly estimates, agent page shows the model and each AI verdict, dashboard credit card. End to end checked with a throwaway wallet (welcome grant, invalid model refused, AI agent saved), test data deleted
+- [ ] **Add `OPENROUTER_API_KEY` to .dev.vars**, approve one real test review (a fraction of a cent), then redeploy to switch the co-pilot on
+- [ ] Show AI verdicts in Activity; per-agent AI spend on the agent page
+- [ ] Self-serve top-up (USDG on chain) when ready
+
 ## Phase 2: Backtest in the Studio
 - [ ] 30-day backtest panel (same engine), equity chart, warn on tokens with short history
 

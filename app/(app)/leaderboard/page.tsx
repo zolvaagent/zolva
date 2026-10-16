@@ -3,12 +3,14 @@ import Link from "next/link";
 
 import { Leaderboard } from "@/components/app/Leaderboard";
 import { listAgents } from "@/lib/data/agents";
+import { db } from "@/lib/supabase";
 
 export const metadata: Metadata = { title: "Leaderboard" };
 export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
-  const agents = (await listAgents()).filter((agent) => agent.status === "active");
+  const client = db();
+  const agents = (await listAgents(client)).filter((agent) => agent.status === "active");
   return (
     <div className="container page">
       <div className="page__head">

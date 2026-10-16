@@ -1,8 +1,9 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { isHouseOwner } from "@/lib/agents/house";
 import { summarize, type ActivityHour, type ActivitySummary, type ActivityTrade } from "@/lib/activity";
-import { db } from "@/lib/supabase";
 
 /** Hours of history on the activity page. */
 export const ACTIVITY_HOURS = 48;
@@ -35,9 +36,9 @@ type RawActivity = {
 };
 
 /** Every paper agent's hourly checks and trades over the last two days. */
-export async function getActivity(): Promise<Activity> {
+export async function getActivity(db: SupabaseClient): Promise<Activity> {
   const now = Math.floor(Date.now() / 1000);
-  const { data, error } = await db().rpc("agent_activity", { p_from: new Date((now - ACTIVITY_HOURS * 3600) * 1000).toISOString() });
+  const { data, error } = await db.rpc("agent_activity", { p_from: new Date((now - ACTIVITY_HOURS * 3600) * 1000).toISOString() });
   if (error) throw new Error(`Loading activity failed: ${error.message}`);
   const raw = data as RawActivity;
 

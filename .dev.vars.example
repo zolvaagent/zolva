@@ -21,3 +21,8 @@ SESSION_SECRET=
 # Leave both blank to offer wallet login only.
 PRIVY_APP_ID=
 PRIVY_APP_SECRET=
+
+# AI co-pilot (OpenRouter, openrouter.ai/keys). Leave blank to keep the co-pilot off.
+OPENROUTER_API_KEY=
+# Most all AI reviews may cost per UTC day, in USD (default 5).
+AI_DAILY_BUDGET_USD=5

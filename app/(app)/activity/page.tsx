@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Activity } from "@/components/app/Activity";
 import { getActivity } from "@/lib/data/activity";
 import { usd } from "@/lib/format";
+import { db } from "@/lib/supabase";
 
 export const metadata: Metadata = {
   title: "Activity",
@@ -12,7 +13,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function ActivityPage() {
-  const { hours, trades, lastDay } = await getActivity();
+  const client = db();
+  const { hours, trades, lastDay } = await getActivity(client);
   return (
     <div className="container page">
       <div className="page__head">

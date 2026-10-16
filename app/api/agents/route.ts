@@ -3,9 +3,11 @@ import { NextResponse, type NextRequest } from "next/server";
 import { AgentInputError, createAgent, type CreateAgentInput } from "@/lib/agents/create";
 import { BLOCKED_MESSAGE, countryFromHeaders, isBlockedCountry } from "@/lib/auth/geo";
 import { getSessionAddress } from "@/lib/auth/session";
+import { db } from "@/lib/supabase";
 
 /** Launch a paper agent from the Studio. */
 export async function POST(request: NextRequest) {
+  const client = db();
   const owner = await getSessionAddress();
   if (!owner) return NextResponse.json({ error: "Please log in first." }, { status: 401 });
   if (isBlockedCountry(countryFromHeaders(request.headers))) {
@@ -16,7 +18,7 @@ export async function POST(request: NextRequest) {
   if (!body) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
   try {
-    const { id } = await createAgent(owner, body);
+    const { id } = await createAgent(client, owner, body);
     return NextResponse.json({ id }, { status: 201 });
   } catch (cause) {
     if (cause instanceof AgentInputError) return NextResponse.json({ error: cause.message }, { status: 400 });

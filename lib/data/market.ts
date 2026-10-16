@@ -1,7 +1,8 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { buildCloseSeries, HOUR_SECONDS, OUTLIER_WINDOW, type CloseCandle } from "@/lib/engine/series";
-import { db } from "@/lib/supabase";
 
 /** Hours of closes sent to pages: 30 day backtests + a week of look-back + spare. */
 export const MARKET_HOURS = 900;
@@ -33,16 +34,16 @@ let cached: { at: number; market: Market } | null = null;
  * The last MARKET_HOURS hourly closes of every enabled token, aligned to the
  * same hours and cleaned exactly like the live engine sees them.
  */
-export async function getMarket(): Promise<Market> {
+export async function getMarket(db: SupabaseClient): Promise<Market> {
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.market;
 
-  const latest = await latestCandleTime();
+  const latest = await latestCandleTime(db);
   if (latest === null) return { startTs: 0, hours: 0, tokens: [] };
   const startTs = latest - (MARKET_HOURS - 1) * HOUR_SECONDS;
   // Load a day earlier than the window so the outlier filter starts warm.
   const from = startTs - OUTLIER_WINDOW * HOUR_SECONDS;
 
-  const { data, error } = await db().rpc("candle_closes", { p_from: new Date(from * 1000).toISOString() });
+  const { data, error } = await db.rpc("candle_closes", { p_from: new Date(from * 1000).toISOString() });
   if (error) throw new Error(`Loading prices failed: ${error.message}`);
 
   const tokens = (data as RawToken[]).map((token) => {
@@ -58,8 +59,8 @@ export async function getMarket(): Promise<Market> {
 }
 
 /** Start of the newest stored hour (unix seconds), or null with no data. */
-export async function latestCandleTime(): Promise<number | null> {
-  const { data, error } = await db().from("candles").select("ts").order("ts", { ascending: false }).limit(1).maybeSingle();
+export async function latestCandleTime(db: SupabaseClient): Promise<number | null> {
+  const { data, error } = await db.from("candles").select("ts").order("ts", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(`Loading the latest price failed: ${error.message}`);
   return data ? Date.parse(data.ts) / 1000 : null;
 }

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Markets } from "@/components/app/Markets";
 import { getMarketOverview } from "@/lib/data/markets";
 import { dateAt } from "@/lib/format";
+import { db } from "@/lib/supabase";
 
 export const metadata: Metadata = {
   title: "Markets",
@@ -11,7 +12,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function MarketsPage() {
-  const { rows, asOf, marketOpen: open } = await getMarketOverview();
+  const client = db();
+  const { rows, asOf, marketOpen: open } = await getMarketOverview(client);
   return (
     <div className="container page">
       <div className="page__head">

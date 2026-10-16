@@ -57,6 +57,15 @@ export const env = {
    * Privy app (email and Google login). Optional: without both values the
    * app offers wallet login only. The app ID is public; the secret is not.
    */
+  /** OpenRouter key for the AI co-pilot. Absent = co-pilot off, agents trade on their rules alone. */
+  get openRouterKey(): string | null {
+    return optional("OPENROUTER_API_KEY");
+  },
+  /** Most all AI reviews together may cost per UTC day, in USD (the global brake). Default $5. */
+  get aiDailyBudgetUsd(): number {
+    const value = Number(optional("AI_DAILY_BUDGET_USD") ?? 5);
+    return Number.isFinite(value) && value >= 0 ? value : 5;
+  },
   get privy(): { appId: string; appSecret: string } | null {
     const appId = optional("PRIVY_APP_ID");
     const appSecret = optional("PRIVY_APP_SECRET");

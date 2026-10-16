@@ -1,10 +1,11 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { listAgents, type AgentSummary } from "@/lib/data/agents";
 import { getMarket } from "@/lib/data/market";
 import { isMarketHours } from "@/lib/format";
 import { marketStats, type MarketStats } from "@/lib/markets";
-import { db } from "@/lib/supabase";
 
 export type MarketRow = {
   address: string;
@@ -28,8 +29,8 @@ export type MarketOverview = {
 
 type TokenInfo = { address: string; price_pool: string; pool_kind: "v3" | "v4"; verified_official: boolean };
 
-async function tokenInfo(): Promise<Map<string, TokenInfo>> {
-  const { data, error } = await db().from("tokens").select("address, price_pool, pool_kind, verified_official").eq("enabled", true);
+async function tokenInfo(db: SupabaseClient): Promise<Map<string, TokenInfo>> {
+  const { data, error } = await db.from("tokens").select("address, price_pool, pool_kind, verified_official").eq("enabled", true);
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
   return new Map((data as TokenInfo[]).map((token) => [token.address, token]));
 }
@@ -44,8 +45,8 @@ function activeAgentsBySymbol(agents: AgentSummary[]): Map<string, AgentSummary[
 }
 
 /** Every enabled stock with its price stats, pool and agent count. */
-export async function getMarketOverview(): Promise<MarketOverview> {
-  const [market, info, agents] = await Promise.all([getMarket(), tokenInfo(), listAgents()]);
+export async function getMarketOverview(db: SupabaseClient): Promise<MarketOverview> {
+  const [market, info, agents] = await Promise.all([getMarket(db), tokenInfo(db), listAgents(db)]);
   const bySymbol = activeAgentsBySymbol(agents);
   const rows: MarketRow[] = [];
   for (const token of market.tokens) {
@@ -80,8 +81,8 @@ export type MarketDetail = {
 const DETAIL_HOURS = 721;
 
 /** One stock's page data, or null for an unknown symbol. */
-export async function getMarketDetail(symbol: string): Promise<MarketDetail | null> {
-  const [market, info, agents] = await Promise.all([getMarket(), tokenInfo(), listAgents()]);
+export async function getMarketDetail(db: SupabaseClient, symbol: string): Promise<MarketDetail | null> {
+  const [market, info, agents] = await Promise.all([getMarket(db), tokenInfo(db), listAgents(db)]);
   const token = market.tokens.find((item) => item.symbol === symbol.toUpperCase());
   const pool = token && info.get(token.address);
   const stats = token && marketStats(token.closes);

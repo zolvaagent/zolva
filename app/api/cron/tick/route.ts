@@ -5,6 +5,7 @@ import { secretsMatch } from "@/lib/secrets";
 import { runActiveAgents } from "@/lib/agents/runner";
 import { clearMarketCache } from "@/lib/data/market";
 import { ingestLatestCandles } from "@/lib/prices/ingest";
+import { db } from "@/lib/supabase";
 
 /**
  * The hourly heartbeat. Supabase pg_cron calls this a few minutes past every
@@ -20,11 +21,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const client = db();
   const startedAt = Date.now();
-  const ingest = await ingestLatestCandles();
+  const ingest = await ingestLatestCandles(client);
   clearMarketCache();
   // Agents still run if the prices failed: they simply see no new hour.
-  const agents = await runActiveAgents();
+  const agents = await runActiveAgents(client);
   // GeckoTerminal problems are warnings only; on-chain prices are what agents need.
   const ok = ingest.failed.length === 0 && agents.failed.length === 0;
   return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents }, { status: ok ? 200 : 502 });

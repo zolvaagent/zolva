@@ -3,7 +3,7 @@
  * database), so the hourly runner and the tests share it. The runner then
  * writes each planned hour atomically with the `apply_agent_hour` function.
  */
-import { COST_RATE, runHour, type AgentParams, type AgentState, type Decision, type Fill } from "../engine/engine.ts";
+import { COST_RATE, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions } from "../engine/engine.ts";
 import type { Rules } from "../engine/rules.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
@@ -57,7 +57,14 @@ export function agentParams(agent: AgentRow): AgentParams {
 /**
  * @param latestTs  start of the newest hour with prices (unix seconds)
  */
-export function planAgentHours(agent: AgentRow, positions: PositionRow[], market: MarketSeries, latestTs: number): HourWrite[] {
+export function planAgentHours(
+  agent: AgentRow,
+  positions: PositionRow[],
+  market: MarketSeries,
+  latestTs: number,
+  /** The AI co-pilot's vetoes for one hour (unix seconds), from the runner. */
+  copilot?: { ts: number } & RunHourOptions,
+): HourWrite[] {
   const lastRun = agent.last_run_ts ? Date.parse(agent.last_run_ts) / 1000 : null;
   let firstTs = lastRun === null ? latestTs : lastRun + HOUR;
   firstTs = Math.max(firstTs, latestTs - (MAX_CATCH_UP_HOURS - 1) * HOUR);
@@ -85,7 +92,7 @@ export function planAgentHours(agent: AgentRow, positions: PositionRow[], market
   for (let ts = firstTs; ts <= latestTs; ts += HOUR) {
     const index = (ts - market.startTs) / HOUR;
     if (index < 0) continue;
-    const hour = runHour(state, params, series, index, ts);
+    const hour = runHour(state, params, series, index, ts, copilot && copilot.ts === ts ? { veto: copilot.veto } : {});
     state = hour.state;
     writes.push({
       ts: new Date(ts * 1000).toISOString(),
