@@ -5,6 +5,7 @@ import { AgentView, type Preview } from "@/components/app/AgentView";
 import { agentParams } from "@/lib/agents/plan";
 import { getSessionAddress } from "@/lib/auth/session";
 import { getAgentDetail, type AgentDetail } from "@/lib/data/agents";
+import { getCredits } from "@/lib/data/credits";
 import { getMarket } from "@/lib/data/market";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { db } from "@/lib/supabase";
@@ -47,5 +48,7 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
     }
   }
 
-  return <AgentView detail={detail} isOwner={address === detail.agent.owner} prices={prices} preview={preview} symbols={symbols} />;
+  const isOwner = address === detail.agent.owner;
+  const credits = isOwner && address ? await getCredits(client, address) : null;
+  return <AgentView detail={detail} isOwner={isOwner} credits={credits} prices={prices} preview={preview} symbols={symbols} />;
 }

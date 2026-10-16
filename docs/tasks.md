@@ -120,6 +120,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [ ] Create the Zolva X account, then set its href in lib/social.ts (the footer already shows the X icon as coming soon)
 - [x] Loading skeletons (2026-10-16): loading.tsx for dashboard, leaderboard, agent, markets, market, activity and studio, built from components/ui/Skeleton.tsx on the real layout grids, so the page does not jump; screen reader status line, pulse off with reduced motion
 - [ ] Show the strategy prompt on the agent page
+- [x] AI limit per agent (2026-10-16): every AI agent has a total spending limit and an end date (7, 30, 90 days or 1 year), set in the Studio (prefilled with about 3 months of typical use) and editable on the agent page. The co-pilot stops at the limit, the date, or when credits run out, whichever comes first; the agent keeps trading on its rules. A limit may exceed the balance (a cap, nothing reserved). Checked in the database by ai_claim_review in the same call that claims the hour (old ai_claim dropped). The one existing AI agent got $0.50 for 30 days
 - [ ] Show AI verdicts in Activity; per-agent AI spend on the agent page
 - [ ] Self-serve top-up (USDG on chain) when ready
 
