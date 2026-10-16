@@ -133,6 +133,33 @@ export function Forge({ market, activeCount, initialStrategy, initialStock }: { 
             {nameMissing && <span className="field-error">Give your agent a name first.</span>}
           </div>
 
+          <div className="form-section" role="radiogroup" aria-labelledby="mode-label">
+            <div className="form-section__label" id="mode-label">
+              Trading mode
+            </div>
+            <div className="choice-grid">
+              <label className="choice">
+                <input type="radio" name="mode" value="paper" checked readOnly />
+                <span className="choice__glyph" aria-hidden="true">
+                  <i className="ph ph-flask" />
+                </span>
+                <span className="choice__title">Paper trading</span>
+                <span className="choice__text">Virtual money at real Robinhood Chain prices. Free, nothing to deposit.</span>
+              </label>
+              {/* Real money is a confirmed goal but not built yet: shown so people know it is coming, never selectable. */}
+              <label className="choice choice--soon" aria-disabled="true">
+                <input type="radio" name="mode" value="live" disabled />
+                <span className="choice__glyph" aria-hidden="true">
+                  <i className="ph ph-wallet" />
+                </span>
+                <span className="choice__title">
+                  Real money <span className="pill pill--accent">Soon</span>
+                </span>
+                <span className="choice__text">Your agent trades from your own wallet, within limits you set. Not available yet.</span>
+              </label>
+            </div>
+          </div>
+
           <div className="form-section" role="radiogroup" aria-labelledby="strategy-label">
             <div className="form-section__label" id="strategy-label">
               Strategy
