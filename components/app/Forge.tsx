@@ -6,6 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import { useAuth, useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
 import { Select, type SelectOption } from "@/components/ui/Select";
+import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
@@ -169,7 +170,10 @@ export function Forge({ market, activeCount, initialStrategy, initialStock }: { 
                     onClick={() => toggleSymbol(token.symbol)}
                   >
                     <span className="token__row">
-                      <span className="token__symbol">{token.symbol}</span>
+                      <span className="token__symbol">
+                        <TickerAvatar symbol={token.symbol} size={20} />
+                        {token.symbol}
+                      </span>
                       <span className={tooNew ? "" : change > 0.05 ? "gain" : change < -0.05 ? "loss" : ""}>{tooNew ? "New" : percent(change)}</span>
                     </span>
                     <span className="token__name">{tooNew ? "Too new to backtest" : token.name}</span>

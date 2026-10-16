@@ -1,0 +1,19 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "medium",
+    "background": "opaque",
+    "aspect_ratio": "1:1",
+    "output_format": "png"
+  },
+  "style": "A premium logo mark for Zolva, a fintech app with automated trading agents, in the style of Aave's 3D brand icons: soft clay-like glossy 3D render, smooth rounded forms, soft diffused studio light from the top left, gentle lavender (#9896ff to #e5e5ff) as the main color with one small warm yellow (#ffc42c) accent and crisp white highlights. Simple, bold and readable even when shown very small, one clear idea, no clutter. Centered with generous empty space around it, isolated on a plain, perfectly flat pure white (#ffffff) background that touches every edge of the image. No words, no other letters, no numbers, no ground shadow, no border.",
+  "icons": {
+    "z-ribbon-tile": "Subject: an app icon tile, a rounded square in deep ink color #252228, holding one smooth glowing lavender ribbon that folds into a bold, clearly readable letter Z, its top-right end turning into a small yellow four-point spark.",
+    "z-ribbon-mark": "Subject: one thick smooth glowing lavender ribbon folded into a bold, clearly readable letter Z, floating on its own, its top-right end turning into a small yellow four-point spark. No tile behind it.",
+    "watcher-tile": "Subject: an app icon tile, a rounded square in deep ink color #252228, holding a glossy lavender sphere with a single round glowing pupil looking up and to the right, like a calm, friendly watcher keeping an eye on the market, with a tiny yellow glint in the eye.",
+    "watcher-mark": "Subject: a glossy lavender sphere with a single round glowing pupil looking up and to the right, like a calm, friendly watcher keeping an eye on the market, with a tiny yellow glint in the eye, floating on its own. No tile behind it.",
+    "z-zigzag-tile": "Subject: an app icon tile, a rounded square in deep ink color #252228, holding a thick glossy lavender line that zigzags like a rising price chart and forms a bold, clearly readable letter Z, ending at the top right in a small yellow star.",
+    "z-zigzag-mark": "Subject: a thick glossy lavender line that zigzags like a rising price chart and forms a bold, clearly readable letter Z, ending at the top right in a small yellow star, floating on its own. No tile behind it."
+  },
+  "note": "Logo concepts for the Zolva rebrand (2026-10-15). Approved by the user: 6 images, medium quality, about $0.28 total."
+}

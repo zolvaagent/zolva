@@ -5,17 +5,23 @@
 //
 // Writes prototype/img/icons/<name>.png. Existing files are skipped so a rerun
 // never pays twice; delete a file to regenerate it.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+//
+// Other sets (e.g. logo concepts) use their own prompt file and folder:
+//   PROMPTS=assets/logo-prompts.json OUT_DIR=assets/brand/logo-concepts node scripts/generate-icons.mjs
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const token = process.env.REPLICATE_API_TOKEN;
 if (!token) throw new Error("Set REPLICATE_API_TOKEN");
 
-const config = JSON.parse(readFileSync(new URL("../assets/icon-prompts.json", import.meta.url), "utf8"));
+const root = new URL("../", import.meta.url);
+const config = JSON.parse(readFileSync(new URL(process.env.PROMPTS ?? "assets/icon-prompts.json", root), "utf8"));
+const outDir = new URL(`${process.env.OUT_DIR ?? "prototype/img/icons"}/`, root);
+mkdirSync(outDir, { recursive: true });
 const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(config.icons);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 for (const name of names) {
-  const out = new URL(`../prototype/img/icons/${name}.png`, import.meta.url);
+  const out = new URL(`${name}.png`, outDir);
   if (existsSync(out)) {
     console.log(`skip ${name} (exists)`);
     continue;

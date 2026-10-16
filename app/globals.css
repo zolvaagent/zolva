@@ -1734,7 +1734,15 @@ main:focus {
 }
 
 .token__symbol {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
   font-weight: 600;
+}
+
+/* Monograms shrink with the 20px avatar in the stock picker. */
+.token__symbol .ticker-avatar {
+  font-size: 6px;
 }
 
 .token__name {
@@ -2734,6 +2742,18 @@ main:focus {
   font-size: 9px;
   font-weight: 600;
   letter-spacing: -0.02em;
+}
+
+/* Company logo version: the logo sits inside a thin ring, padded so wide marks fit. */
+.ticker-avatar--logo {
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.ticker-avatar--logo img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
 }
 
 .agent-cell {

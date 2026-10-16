@@ -87,6 +87,8 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 
 - [x] Activity report `/activity` (2026-10-15, version c5543c87): last 24h totals (agent checks, buys/sells, paper volume, most traded), then an hour-by-hour log of the last 48 hours with every trade, its price, amount and the agent's own reason; quiet hours collapse into one line; filters All / By Zolva / Community. One SQL call (`agent_activity` RPC, server-only). In the sidebar, phone tab bar (5 items) and footer. Logic in `lib/activity.ts` with 4 tests
 
+- [x] Real company logos (2026-10-16): 16 stocks show their logo (`public/img/stocks`, list in `lib/stock-logos.ts`) in markets, activity, landing and the Forge stock picker; ETFs (SPY, QQQ, GLD, USO) keep the monogram. Source FMP image-stock, each checked by eye (ticker lookups can pick the wrong company: Parqet returned a SPAC ETF for SPCX); margins trimmed so logos fill evenly. Robinhood's own logo CDN is unreachable from this network (TLS intercepted), GeckoTerminal only has the Robinhood feather
+
 ## Phase 2: Backtest in the Forge
 - [ ] 30-day backtest panel (same engine), equity chart, warn on tokens with short history
 
