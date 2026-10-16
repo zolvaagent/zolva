@@ -133,11 +133,18 @@ export function SiteFooter() {
               Prices updated hourly
             </span>
             <div className="footer__social">
-              {SOCIAL_LINKS.map((link) => (
-                <a key={link.href} className="footer__social-link" href={link.href} target="_blank" rel="noopener noreferrer" aria-label={`Zolva on ${link.label}`}>
-                  <i className={`ph ${link.icon}`} aria-hidden="true" />
-                </a>
-              ))}
+              {SOCIAL_LINKS.map((link) =>
+                link.href ? (
+                  <a key={link.label} className="footer__social-link" href={link.href} target="_blank" rel="noopener noreferrer" aria-label={`Zolva on ${link.label}`}>
+                    <i className={`ph ${link.icon}`} aria-hidden="true" />
+                  </a>
+                ) : (
+                  // No account yet: shown, but not a link.
+                  <span key={link.label} className="footer__social-link footer__social-link--soon" role="img" aria-label={`Zolva on ${link.label}, coming soon`} title="Coming soon">
+                    <i className={`ph ${link.icon}`} aria-hidden="true" />
+                  </span>
+                ),
+              )}
             </div>
           </div>
           <div className="footer__col">

@@ -5220,3 +5220,13 @@ main:focus {
   outline: 2px solid var(--color-purple-1);
   outline-offset: 2px;
 }
+
+.footer .footer__social-link--soon {
+  color: var(--color-text-faint);
+  cursor: default;
+}
+
+.footer .footer__social-link--soon:hover {
+  border-color: var(--color-border);
+  transform: none;
+}
