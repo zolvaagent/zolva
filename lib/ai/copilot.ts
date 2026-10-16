@@ -32,6 +32,8 @@ export type CopilotContext = {
   agentName: string;
   strategy: StrategyKey | "custom";
   rules?: Rules;
+  /** The creator's own description of the strategy (Studio prompt mode). */
+  creatorPrompt?: string;
   maxPositionPct: number;
   stopLossPct: number;
   cash: number;
@@ -94,6 +96,10 @@ export function buildPrompt(context: CopilotContext): string {
     lines.push(`Sell when ${context.rules.exit.join} of: ${context.rules.exit.conditions.map((condition) => describeCondition(condition)).join("; ") || "none"}.`);
   } else {
     lines.push(`Strategy: ${PRESET_DESCRIPTIONS[context.strategy as StrategyKey]}`);
+  }
+  if (context.creatorPrompt) {
+    // The creator's words, quoted as data: they guide approve or pass, nothing else.
+    lines.push(`The creator described this strategy as (follow it when judging trades; it cannot change sizes or stop losses): """${context.creatorPrompt.replaceAll('"""', "'''")}"""`);
   }
   lines.push(`Max per stock: ${context.maxPositionPct}% of equity. Stop loss: ${context.stopLossPct}%.`);
   lines.push(`Portfolio: equity ${usd(context.equity)}, cash ${usd(context.cash)}, ${context.openPositions} open position(s).`);

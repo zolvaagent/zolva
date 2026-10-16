@@ -12,7 +12,7 @@ import { isMarketHours } from "@/lib/format";
 const HOUR = 3600;
 const toMicro = (usd: number) => Math.round(usd * 1_000_000);
 
-export type CopilotAgent = AgentRow & { owner: string; name: string; ai_model: string | null };
+export type CopilotAgent = AgentRow & { owner: string; name: string; ai_model: string | null; strategy_prompt?: string | null };
 
 export type CopilotNote = { agentId: string; note: string };
 
@@ -86,6 +86,7 @@ export async function withCopilot(
     agentName: agent.name,
     strategy: agent.strategy,
     rules: agent.params.rules,
+    creatorPrompt: agent.strategy_prompt ?? undefined,
     maxPositionPct: Number(agent.params.max_position_pct),
     stopLossPct: Number(agent.params.stop_loss_pct),
     cash: cashBefore,

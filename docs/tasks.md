@@ -105,6 +105,9 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Migration `ai_copilot` (agents.ai_model, ai_credits, ai_ledger, ai_usage, ai_grant_welcome/ai_grant/ai_claim/ai_settle/ai_spent_since), tested in a rolled-back transaction. 13 new tests (95 total). Studio model picker with monthly estimates, agent page shows the model and each AI verdict, dashboard credit card. End to end checked with a throwaway wallet (welcome grant, invalid model refused, AI agent saved), test data deleted
 - [x] OpenRouter key added; one real Claude Haiku 5.5 review tested on live NVDA closes (1,036 in / 236 out tokens, $0.00022, valid JSON; it correctly passed a buy whose rule reason did not match the data). Redeployed with the co-pilot on (2026-10-16)
 - [ ] Watch the first live AI reviews in ai_usage once a user agent has the co-pilot on
+- [x] Compact model picker (2026-10-16): one dropdown with provider logos (LobeHub Icons, MIT, in public/ai-logos), tier groups, monthly estimate, locked models; the shared Select now supports icons, meta text, groups and disabled options
+- [x] Prompt mode for Custom strategies (2026-10-16): describe the idea in plain words, the AI strategy writer (Claude Haiku 5.5) turns it into rules in the normal rule builder (editable, backtested); the words are saved as agents.strategy_prompt and quoted to the co-pilot on live trades. Paid from AI credits, 10 tries per account per day (ai_generations, ai_generation_start/settle), counted in the global daily budget. Reasoning is switched off for all AI calls (hidden thinking ate the token limit). Live test: Indonesian prompt gave valid rules for $0.0004
+- [ ] Show the strategy prompt on the agent page
 - [ ] Show AI verdicts in Activity; per-agent AI spend on the agent page
 - [ ] Self-serve top-up (USDG on chain) when ready
 

@@ -7,6 +7,7 @@ import { useAuth, useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
 import { Select, type SelectOption } from "@/components/ui/Select";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
+import { PromptWriter, type CustomMode, type Generated } from "@/components/app/PromptWriter";
 import { AiCopilotPicker, type CreditsView } from "@/components/app/AiCopilot";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
@@ -56,6 +57,10 @@ export function Studio({
   const [stopLossPct, setStopLossPct] = useState(8);
   const [showErrors, setShowErrors] = useState(false);
   const [aiModelId, setAiModelId] = useState<string | null>(null);
+  const [customMode, setCustomMode] = useState<CustomMode>("rules");
+  const [generated, setGenerated] = useState<Generated | null>(null);
+  // Credits shown in the Studio, lowered locally after each strategy writer call.
+  const [liveCredits, setLiveCredits] = useState(credits);
 
   const lookback = strategy === "custom" ? rulesLookback(rules) : LOOKBACK_HOURS;
   const fromIndex = market.hours - BACKTEST_HOURS;
@@ -113,6 +118,8 @@ export function Studio({
         stopLossPct,
         acceptTerms: true,
         aiModel: aiModelId,
+        // Only a prompt that actually produced these rules is kept.
+        strategyPrompt: strategy === "custom" && customMode === "prompt" ? generated?.prompt : undefined,
       }),
     });
     const body = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
@@ -186,9 +193,23 @@ export function Studio({
             </div>
           </div>
 
+          {strategy === "custom" && (
+            <PromptWriter
+              mode={customMode}
+              onModeChange={setCustomMode}
+              generated={generated}
+              hasCredits={(liveCredits?.freeUsd ?? 0) + (liveCredits?.paidUsd ?? 0) > 0.001}
+              copilotOn={aiModelId !== null}
+              onGenerated={({ rules: next, costUsd, ...result }) => {
+                setRules(next);
+                setGenerated(result);
+                setLiveCredits((current) => current && { ...current, freeUsd: Math.max(0, current.freeUsd - costUsd) });
+              }}
+            />
+          )}
           {strategy === "custom" && <RuleBuilder rules={rules} onChange={setRules} errors={showErrors ? ruleErrors : []} />}
 
-          <AiCopilotPicker value={aiModelId} onChange={setAiModelId} credits={credits} />
+          <AiCopilotPicker value={aiModelId} onChange={setAiModelId} credits={liveCredits} />
 
           <div className="form-section">
             <div className="form-section__label">

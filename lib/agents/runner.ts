@@ -31,7 +31,7 @@ export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult>
 
   const { data: agents, error } = await db
     .from("agents")
-    .select("id, owner, name, ai_model, strategy, params, token_addresses, start_capital, cash, last_run_ts")
+    .select("id, owner, name, ai_model, strategy_prompt, strategy, params, token_addresses, start_capital, cash, last_run_ts")
     .eq("status", "active")
     .eq("mode", "paper");
   if (error) throw new Error(`Loading agents failed: ${error.message}`);
