@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { useAuth, useToast } from "@/components/ui/Providers";
+import { SOCIAL_LINKS } from "@/lib/social";
 
 const LINKS = [
   { href: "/markets", label: "Markets" },
@@ -131,6 +132,13 @@ export function SiteFooter() {
               <span className="pulse" />
               Prices updated hourly
             </span>
+            <div className="footer__social">
+              {SOCIAL_LINKS.map((link) => (
+                <a key={link.href} className="footer__social-link" href={link.href} target="_blank" rel="noopener noreferrer" aria-label={`Zolva on ${link.label}`}>
+                  <i className={`ph ${link.icon}`} aria-hidden="true" />
+                </a>
+              ))}
+            </div>
           </div>
           <div className="footer__col">
             <h3>Product</h3>

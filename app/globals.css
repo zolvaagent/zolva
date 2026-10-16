@@ -5186,3 +5186,37 @@ main:focus {
     animation: none;
   }
 }
+
+/* Footer: icon links to Zolva's public accounts (lib/social.ts). */
+.footer__social {
+  display: flex;
+  gap: var(--space-75);
+}
+
+.footer .footer__social-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: #fff;
+  color: var(--color-text);
+  font-size: 18px;
+  transition: border-color var(--duration-micro) var(--ease-out-expo), transform var(--duration-micro) var(--ease-out-expo);
+}
+
+.footer .footer__social-link:hover {
+  border-color: var(--color-border-strong);
+  transform: translateY(-1px);
+}
+
+.footer .footer__social-link:active {
+  transform: scale(0.96);
+}
+
+.footer .footer__social-link:focus-visible {
+  outline: 2px solid var(--color-purple-1);
+  outline-offset: 2px;
+}

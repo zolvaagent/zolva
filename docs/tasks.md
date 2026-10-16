@@ -110,6 +110,9 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Fix (2026-10-16): accounts that signed in before credits existed never got the $0.50 welcome grant (it only ran at login). `getCredits` now grants it once on first read (Studio, dashboard, strategy writer)
 - [x] Publish to leaderboard (2026-10-16): user agents start private (agents.published_at, migration publish_agents). Owners publish or unpublish from the agent page with a confirm dialog; only published agents appear on the leaderboard, landing feed, markets and activity, and a private agent page is a 404 for everyone but its owner. House and lab agents are always published. Leaderboard marks the signed in user rows with "Your agent"
 - [x] Dashboard agent cards show Private / On leaderboard (2026-10-16)
+- [x] Footer GitHub link to github.com/zolvaagent/zolva (2026-10-16). Social accounts live in lib/social.ts
+- [ ] Make the GitHub repo public (owner does this; the footer link 404s for visitors until then)
+- [ ] Create the Zolva X account, then add it to lib/social.ts
 - [x] Loading skeletons (2026-10-16): loading.tsx for dashboard, leaderboard, agent, markets, market, activity and studio, built from components/ui/Skeleton.tsx on the real layout grids, so the page does not jump; screen reader status line, pulse off with reduced motion
 - [ ] Show the strategy prompt on the agent page
 - [ ] Show AI verdicts in Activity; per-agent AI spend on the agent page
