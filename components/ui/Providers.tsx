@@ -140,7 +140,7 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
             {loginState.busy ? (
               <>
                 <span className="privy__pulse">
-                  <img src="/img/icons/app.png" alt="" width={56} height={56} />
+                  <img src="/img/brand/zolva-mark.png" alt="" width={56} height={56} />
                 </span>
                 <h2 className="privy__title" id="login-title">
                   Confirm in your wallet
@@ -149,7 +149,7 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
               </>
             ) : (
               <>
-                <img className="privy__logo" src="/img/icons/app.png" alt="" width={56} height={56} />
+                <img className="privy__logo" src="/img/brand/zolva-mark.png" alt="" width={56} height={56} />
                 <h2 className="privy__title" id="login-title">
                   Log in or sign up
                 </h2>

@@ -52,7 +52,7 @@ export function SiteHeader() {
       <header className={`nav${scrolled ? " is-scrolled" : ""}`}>
         <nav className="container nav__bar" aria-label="Main">
           <Link className="brand" href="/">
-            <img className="brand__mark" src="/img/icons/app.png" alt="" width={28} height={28} />
+            <img className="brand__mark" src="/img/brand/zolva-mark.png" alt="" width={28} height={28} />
             Zolva
           </Link>
           <ul className="nav__links">
@@ -123,7 +123,7 @@ export function SiteFooter() {
         <div className="footer__grid">
           <div className="footer__brand">
             <Link className="brand" href="/">
-              <img className="brand__mark" src="/img/icons/app.png" alt="" width={28} height={28} />
+              <img className="brand__mark" src="/img/brand/zolva-mark.png" alt="" width={28} height={28} />
               Zolva
             </Link>
             <p>No code trading agents for tokenized US stocks on Robinhood Chain.</p>

@@ -252,7 +252,7 @@ export function Forge({ market, activeCount, initialStrategy, initialStock }: { 
             void submitLaunch();
           }}
         >
-          <img className="modal__icon" src="/img/icons/app.png" alt="" width={56} height={56} />
+          <img className="modal__icon" src="/img/brand/zolva-mark.png" alt="" width={56} height={56} />
           <h2 className="modal__title" id="launch-title">
             Launch {name.trim()}
           </h2>
