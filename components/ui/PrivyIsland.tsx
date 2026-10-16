@@ -28,7 +28,7 @@ export default function PrivyIsland({ appId, ...bridge }: PrivyIslandProps) {
       appId={appId}
       config={{
         loginMethods: ["email", "google"],
-        appearance: { theme: "light", accentColor: "#8075ff", logo: "/img/icons/app.png" },
+        appearance: { theme: "light", accentColor: "#8075ff", logo: "/img/brand/zolva-mark.png" },
         // Email and Google users get a wallet, which becomes their account.
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
       }}

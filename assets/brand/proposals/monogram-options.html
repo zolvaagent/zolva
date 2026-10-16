@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zolva monogram options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Unbounded:wght@700;800&family=Syne:wght@700;800&family=Space+Grotesk:wght@700&family=Bricolage+Grotesque:opsz,wght@96,800&family=Fraunces:opsz,wght@144,700&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #252228; --muted: rgba(37, 34, 40, 0.6); --line: #ececeb; --lav: #8075ff; --lav-soft: #b9b7ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 40px 32px 64px; background: #fafaf9; color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+  h1 { margin: 0 0 4px; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .lead { margin: 0 0 28px; color: var(--muted); font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .card { padding: 24px; border: 1px solid var(--line); border-radius: 24px; background: #fff; }
+  .card h2 { margin: 16px 0 4px; font-size: 16px; font-weight: 600; }
+  .card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 19px; }
+  .row { display: flex; align-items: center; gap: 14px; }
+  .tile { display: grid; place-items: center; width: 112px; height: 112px; border-radius: 30px; overflow: hidden; line-height: 1; }
+  .sm { width: 40px; height: 40px; border-radius: 11px; }
+  .xs { width: 20px; height: 20px; border-radius: 6px; }
+  .lockup { display: flex; align-items: center; gap: 10px; margin-top: 16px; font-size: 22px; font-weight: 600; letter-spacing: -0.03em; }
+
+  /* 1. Unbounded: wide, confident, crypto-native. */
+  .m1 { background: linear-gradient(150deg, #a9a6ff, #6c5cff); color: #fff; font-family: Unbounded; font-weight: 800; }
+  /* 2. Syne: sharp and editorial, on ink. */
+  .m2 { background: var(--ink); color: #c9c7ff; font-family: Syne; font-weight: 800; }
+  /* 3. Lowercase z in Bricolage: friendly, rounded, playful. */
+  .m3 { background: #e5e5ff; color: var(--lav); font-family: "Bricolage Grotesque"; font-weight: 800; }
+  /* 4. Serif Z: premium, like a private bank. */
+  .m4 { background: var(--ink); color: #fff; font-family: Fraunces; font-weight: 700; }
+  /* 5. Space Grotesk Z with a spark: techy, ties to the "agent acts" moment. */
+  .m5 { position: relative; background: linear-gradient(150deg, #2d2a33, #17151a); color: #fff; font-family: "Space Grotesk"; font-weight: 700; }
+  .m5 .spark { position: absolute; top: 16%; right: 16%; width: 18%; height: 18%; background: #ffc42c; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
+  /* 6. Outline ring + Z: a coin or token badge. */
+  .m6 { background: #fff; color: var(--lav); font-family: Unbounded; font-weight: 700; box-shadow: inset 0 0 0 1px var(--line); }
+  .m6 .ring { display: grid; place-items: center; width: 78%; height: 78%; border: 0.09em solid currentColor; border-radius: 50%; }
+</style>
+</head>
+<body>
+<h1>Zolva monograms</h1>
+<p class="lead">One letter, set in a strong typeface on a tile. Each shown large, at app-icon size, at favicon size, and with the name.</p>
+
+<div class="grid">
+  <div class="card">
+    <div class="row">
+      <div class="tile m1" style="font-size: 64px">Z</div>
+      <div class="tile sm m1" style="font-size: 23px">Z</div>
+      <div class="tile xs m1" style="font-size: 12px">Z</div>
+    </div>
+    <div class="lockup"><div class="tile sm m1" style="font-size: 23px">Z</div>Zolva</div>
+    <h2>1. Bold Z, lavender</h2>
+    <p>Wide and confident (Unbounded). The brand lavender as a soft gradient. Most "crypto app" of the six.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="tile m2" style="font-size: 70px">Z</div>
+      <div class="tile sm m2" style="font-size: 25px">Z</div>
+      <div class="tile xs m2" style="font-size: 13px">Z</div>
+    </div>
+    <div class="lockup"><div class="tile sm m2" style="font-size: 25px">Z</div>Zolva</div>
+    <h2>2. Sharp Z, ink</h2>
+    <p>Editorial and sharp (Syne) on the dark ink of the site, with a lavender letter. Calm and premium.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="tile m3" style="font-size: 82px; padding-bottom: 10px">z</div>
+      <div class="tile sm m3" style="font-size: 29px; padding-bottom: 4px">z</div>
+      <div class="tile xs m3" style="font-size: 15px; padding-bottom: 2px">z</div>
+    </div>
+    <div class="lockup"><div class="tile sm m3" style="font-size: 29px; padding-bottom: 4px">z</div>Zolva</div>
+    <h2>3. Friendly lowercase z</h2>
+    <p>Rounded and playful (Bricolage), soft lavender. Closest to Aave's friendly feel.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="tile m4" style="font-size: 72px">Z</div>
+      <div class="tile sm m4" style="font-size: 26px">Z</div>
+      <div class="tile xs m4" style="font-size: 13px">Z</div>
+    </div>
+    <div class="lockup"><div class="tile sm m4" style="font-size: 26px">Z</div>Zolva</div>
+    <h2>4. Serif Z</h2>
+    <p>A high-contrast serif (Fraunces). Feels like a private bank or wealth app; the most distinctive among crypto apps.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="tile m5" style="font-size: 68px">Z<span class="spark"></span></div>
+      <div class="tile sm m5" style="font-size: 24px">Z<span class="spark"></span></div>
+      <div class="tile xs m5" style="font-size: 12px">Z<span class="spark"></span></div>
+    </div>
+    <div class="lockup"><div class="tile sm m5" style="font-size: 24px">Z<span class="spark"></span></div>Zolva</div>
+    <h2>5. Z with a spark</h2>
+    <p>Techy (Space Grotesk) on ink, with the yellow spark from the icon set: the moment an agent acts.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="tile m6" style="font-size: 50px"><span class="ring">Z</span></div>
+      <div class="tile sm m6" style="font-size: 18px"><span class="ring">Z</span></div>
+      <div class="tile xs m6" style="font-size: 9px"><span class="ring">Z</span></div>
+    </div>
+    <div class="lockup"><div class="tile sm m6" style="font-size: 18px"><span class="ring">Z</span></div>Zolva</div>
+    <h2>6. Token badge</h2>
+    <p>Z inside a ring, like a coin or token. Says "onchain" at a glance; less legible at 16 px.</p>
+  </div>
+</div>
+</body>
+</html>

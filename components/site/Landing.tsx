@@ -41,7 +41,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
         <div className="container">
           <section className="hero">
             <Link className="hero__badge" href="/leaderboard">
-              <img src="/img/icons/app.png" alt="" width={24} height={24} />
+              <img src="/img/brand/zolva-mark.png" alt="" width={24} height={24} />
               Paper trading on Robinhood Chain
               <i className="ph ph-caret-right" />
             </Link>
@@ -75,7 +75,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
         <div className="container">
           <div className="showcase">
             <span className="showcase__label reveal">
-              <img src="/img/icons/app.png" alt="" width={32} height={32} />
+              <img src="/img/brand/zolva-mark.png" alt="" width={32} height={32} />
               Zolva Forge
             </span>
             <Words className="showcase__title" text="A" highlight="trading desk" />
@@ -499,7 +499,7 @@ function Browser({ agents }: { agents: AgentSummary[] }) {
       <div className="browser__body">
         <aside className="browser__side">
           <div className="browser__brand">
-            <img src="/img/icons/app.png" alt="" />
+            <img src="/img/brand/zolva-mark.png" alt="" />
             Zolva
           </div>
           {nav("squares-four", "Dashboard")}

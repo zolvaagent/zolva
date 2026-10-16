@@ -13,7 +13,13 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"], axes: ["opsz
 export const metadata: Metadata = {
   title: { default: "Zolva", template: "%s · Zolva" },
   description: "Build a trading agent for tokenized US stocks on Robinhood Chain. See how it would have traded the last 30 days before you launch it.",
-  icons: { icon: "/img/icons/app.png", apple: "/img/icons/app.png" },
+  icons: {
+    icon: [
+      { url: "/img/brand/favicon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/img/brand/zolva-mark.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/img/brand/apple-touch-icon.png",
+  },
   openGraph: { title: "Zolva", description: "No code trading agents for tokenized US stocks on Robinhood Chain." },
 };
 

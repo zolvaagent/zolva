@@ -33,7 +33,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [ ] Port the Aave-style tokens + components into the Next app (`app/globals.css`, switch Geist to Inter)
 - [ ] **Buy `zolva.xyz`** (and maybe `zolvaagent.com`) and claim the X handle before announcing; then point the domain at the Worker
 - [ ] Decide whether to rename folder, package and Workers from `pitwise` to `zolva` (only worth it with the custom domain)
-- [ ] New Zolva logo: the current mark is an "S" path to a star (from the Sita name)
+- [x] Zolva logo for now (2026-10-16): the "Watcher" mark, a glossy lavender orb with one eye glancing up and right (gpt-image-2 concept, background cut out locally). `public/img/brand/zolva-mark.png` everywhere the old S icon was, plus `favicon-48.png`, `apple-touch-icon.png`, and X avatars `assets/x/x-avatar-400-ink.png` / `-light.png`. Other concepts and monogram options are in `assets/brand/` for a later final logo
 - [x] Verify 20 token addresses against Robinhood's official Stock Token list (2026-10-15): all 20 match active assets in `GET https://api.robinhood.com/rhj/assets` (194 tokens on chain 4663). `tokens.verified_official` set (migration `verify_official_tokens`); market pages show a verified note. Tokens carry a small `currentMultiplier` (ERC-8056 corporate actions, up to 1.0027), so a token price can sit slightly above the share price
 - [ ] Confirm excluded-countries list (US + likely UK, CA, CH, AE)
 
