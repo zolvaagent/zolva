@@ -103,7 +103,8 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Built (2026-10-16), existing strategies untouched: any agent (momentum, mean reversion, custom) can get an AI co-pilot (OpenRouter). When its rules want to trade, the AI approves or passes, with a reason; stop loss, take profit and max hold always run (engine `veto` option). Only the newest hour is reviewed, catch-up hours use rules
 - [x] Credits: $0.50 free per account at first login (once, Lite models only), paid credits for Standard/Pro/Max; top-up "coming soon", manual grants with `npm run credits:grant -- <address> <usd> [note]`. Global daily AI budget (`AI_DAILY_BUDGET_USD`, default $5); one review per agent hour claimed in the database before the call, so two ticks never pay twice; out of credits / failure / unreadable answer = rules decide
 - [x] Migration `ai_copilot` (agents.ai_model, ai_credits, ai_ledger, ai_usage, ai_grant_welcome/ai_grant/ai_claim/ai_settle/ai_spent_since), tested in a rolled-back transaction. 13 new tests (95 total). Studio model picker with monthly estimates, agent page shows the model and each AI verdict, dashboard credit card. End to end checked with a throwaway wallet (welcome grant, invalid model refused, AI agent saved), test data deleted
-- [ ] **Add `OPENROUTER_API_KEY` to .dev.vars**, approve one real test review (a fraction of a cent), then redeploy to switch the co-pilot on
+- [x] OpenRouter key added; one real Claude Haiku 5.5 review tested on live NVDA closes (1,036 in / 236 out tokens, $0.00022, valid JSON; it correctly passed a buy whose rule reason did not match the data). Redeployed with the co-pilot on (2026-10-16)
+- [ ] Watch the first live AI reviews in ai_usage once a user agent has the co-pilot on
 - [ ] Show AI verdicts in Activity; per-agent AI spend on the agent page
 - [ ] Self-serve top-up (USDG on chain) when ready
 
