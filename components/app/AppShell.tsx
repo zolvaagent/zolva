@@ -9,7 +9,7 @@ import { shortAddress } from "@/lib/format";
 const NAV = [
   { href: "/app", label: "Dashboard", icon: "squares-four" },
   { href: "/markets", label: "Markets", icon: "chart-line-up" },
-  { href: "/forge", label: "Forge", icon: "sliders-horizontal" },
+  { href: "/studio", label: "Studio", icon: "sliders-horizontal" },
   { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
   { href: "/activity", label: "Activity", icon: "pulse" },
 ];

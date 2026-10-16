@@ -4,7 +4,7 @@ import { AgentInputError, createAgent, type CreateAgentInput } from "@/lib/agent
 import { BLOCKED_MESSAGE, countryFromHeaders, isBlockedCountry } from "@/lib/auth/geo";
 import { getSessionAddress } from "@/lib/auth/session";
 
-/** Launch a paper agent from the Forge. */
+/** Launch a paper agent from the Studio. */
 export async function POST(request: NextRequest) {
   const owner = await getSessionAddress();
   if (!owner) return NextResponse.json({ error: "Please log in first." }, { status: 401 });

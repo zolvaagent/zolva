@@ -37,7 +37,7 @@ export function Dashboard({ address, agents, curves, latest, top }: Props) {
             Your desk
           </h1>
         </div>
-        <Link className="button button--primary" href="/forge">
+        <Link className="button button--primary" href="/studio">
           <i className="ph ph-plus" />
           New agent
         </Link>
@@ -136,7 +136,7 @@ export function Dashboard({ address, agents, curves, latest, top }: Props) {
                 </Link>
               );
             })}
-            <Link className="agent-card agent-card--new" href="/forge">
+            <Link className="agent-card agent-card--new" href="/studio">
               <img src="/img/icons/agent.png" alt="" width={64} height={64} />
               <h3 className="card__title">{agents.length ? "Build another agent" : "Build your first agent"}</h3>
               <p className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>

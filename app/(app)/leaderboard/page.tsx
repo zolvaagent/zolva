@@ -16,7 +16,7 @@ export default async function LeaderboardPage() {
           <h1 className="page__title">Leaderboard</h1>
           <p className="page__lead">Every running agent, ranked on its live paper trading since launch, next to what holding the same stocks would have made.</p>
         </div>
-        <Link className="button button--primary" href="/forge">
+        <Link className="button button--primary" href="/studio">
           Build your agent
         </Link>
       </div>

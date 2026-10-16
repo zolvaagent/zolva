@@ -17,7 +17,7 @@ Non-US crypto traders can now hold AAPL, NVDA, SPY and similar stocks as tokens 
 | | Heurix | Pitwise |
 |---|---|---|
 | Assets | Not stated | Tokenized US stocks only (20 at launch) |
-| Before launch | Wait hours for first trades | **30-day backtest in the Forge** |
+| Before launch | Wait hours for first trades | **30-day backtest in the Studio** |
 | Results | Visible to beta testers | Public leaderboard + shareable agent pages |
 | Token | Live before the product | None until the product is proven |
 
@@ -31,7 +31,7 @@ Non-US crypto traders can now hold AAPL, NVDA, SPY and similar stocks as tokens 
 
 ### In scope (Phase 1)
 - **Wallet sign-in** (Sign-In with Ethereum). Free signature, no gas.
-- **Forge:**
+- **Studio:**
   - agent name
   - strategy: Momentum or Mean Reversion
   - virtual capital
@@ -45,7 +45,7 @@ Non-US crypto traders can now hold AAPL, NVDA, SPY and similar stocks as tokens 
 - **Paper trading only.** No funds move.
 
 ### Phase 2 (the edge)
-- **Backtest in the Forge.** "Would have returned X% over the last 30 days," with an equity chart, before you press Launch. It reuses the same engine code, so backtest and live results always behave the same.
+- **Backtest in the Studio.** "Would have returned X% over the last 30 days," with an equity chart, before you press Launch. It reuses the same engine code, so backtest and live results always behave the same.
 
 ### Phase 3: real trading (confirmed goal, 2026-10-15)
 Paper trading comes first; real trading follows. The MVP must not block it. See "Real trading: design constraints" below.
@@ -121,7 +121,7 @@ Live-trading hooks (added 2026-10-15, unused until Phase 3):
 | Route | What |
 |---|---|
 | `/` | Landing: promise, live leaderboard preview, Sign in |
-| `/forge` | Build an agent (Phase 2 adds the backtest panel) |
+| `/studio` | Build an agent (Phase 2 adds the backtest panel) |
 | `/agents/[id]` | Public agent page |
 | `/leaderboard` | All agents ranked |
 | `/api/auth/nonce`, `/api/auth/verify` | Wallet sign-in, plus geo check |
@@ -136,11 +136,11 @@ About 6 sessions. Each one ends with something you can see or check.
 | 1.1 | **Setup.** Next app, OpenNext, Supabase project + schema, token seed | App runs locally; tables exist; 20 tokens seeded |
 | 1.2 | **Price data.** Backfill ~3 months of hourly candles; hourly ingest job | `candles` filled for all tokens; tick adds the new hour |
 | 1.3 | **Engine.** Strategies, simulator, stop loss, cost; unit tests; tune thresholds on history | Tests pass; one-off backtest numbers look sane for both strategies |
-| 1.4 | **Sign-in + Forge.** Privy login, geo-block, terms, create agents (up to 5 running) | You can sign in and create an agent |
+| 1.4 | **Sign-in + Studio.** Privy login, geo-block, terms, create agents (up to 5 running) | You can sign in and create an agent |
 | 1.5 | **Agent page + leaderboard.** Equity chart, trades, reasoning, pause/resume | Your test agent trades hourly and shows up ranked |
 | 1.6 | **Deploy + self-test.** Cloudflare deploy, pg_cron live, 48h soak test | Runs 48 hours without missed ticks |
 
-**Your design input matters most in 1.4–1.5:** the Forge, the agent page and the leaderboard. A Figma pass before 1.4 would help.
+**Your design input matters most in 1.4–1.5:** the Studio, the agent page and the leaderboard. A Figma pass before 1.4 would help.
 
 ## 8b. Real trading: design constraints (Phase 3)
 

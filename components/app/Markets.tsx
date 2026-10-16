@@ -163,7 +163,7 @@ function StockMarkets({ rows }: { rows: MarketRow[] }) {
                       </td>
                       <td className="num">{row.agents || <span className="muted">0</span>}</td>
                       <td className="num col-wide">
-                        <Link className="button button--ghost button--small" href={`/forge?stock=${row.symbol}`}>
+                        <Link className="button button--ghost button--small" href={`/studio?stock=${row.symbol}`}>
                           Build agent
                         </Link>
                       </td>

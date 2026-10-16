@@ -27,7 +27,7 @@ const BLANK_RULES: Rules = {
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-export function Forge({ market, activeCount, initialStrategy, initialStock }: { market: Market; activeCount: number; initialStrategy?: string; initialStock?: string }) {
+export function Studio({ market, activeCount, initialStrategy, initialStock }: { market: Market; activeCount: number; initialStrategy?: string; initialStock?: string }) {
   const router = useRouter();
   const toast = useToast();
   const { address, openLogin } = useAuth();
@@ -118,12 +118,12 @@ export function Forge({ market, activeCount, initialStrategy, initialStock }: { 
     <div className="container page">
       <div className="page__head">
         <div>
-          <h1 className="page__title">Forge</h1>
+          <h1 className="page__title">Agent Studio</h1>
           <p className="page__lead">Shape your agent and watch the last 30 days replay with your exact settings.</p>
         </div>
       </div>
 
-      <div className="forge">
+      <div className="studio">
         <form className="card" noValidate onSubmit={(event) => event.preventDefault()}>
           <div className="form-section">
             <label className="form-section__label" htmlFor="agent-name">
@@ -255,7 +255,7 @@ export function Forge({ market, activeCount, initialStrategy, initialStock }: { 
           </div>
         </form>
 
-        <aside className="forge__result" aria-live="polite">
+        <aside className="studio__result" aria-live="polite">
           {!symbols.length || !backtest ? (
             <div className="card">
               <div className="empty">

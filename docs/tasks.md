@@ -92,7 +92,9 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] "Coming soon" teasers (2026-10-16), no dates promised: Forge "Trading mode" with Paper trading (on) and Real money (Soon, not selectable); Markets "Stocks / Crypto (Soon)" switch with an explainer; landing "What's next" section (real money trading, crypto markets). Nothing collects emails yet
 - [ ] Crypto markets: pick tokens with deep USDG pools on Robinhood Chain (e.g. WETH), add them to `tokens` with pool config, reuse the on-chain price reader
 
-## Phase 2: Backtest in the Forge
+- [x] "Forge" renamed to **Studio** (2026-10-16): menu "Studio", page "Agent Studio", URL `/studio`; `/forge` (with its query string) redirects permanently (next.config.ts). Older task notes below still say Forge
+
+## Phase 2: Backtest in the Studio
 - [ ] 30-day backtest panel (same engine), equity chart, warn on tokens with short history
 
 ## Found during prototype / setup
