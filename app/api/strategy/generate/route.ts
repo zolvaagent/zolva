@@ -16,6 +16,7 @@ import {
 import { BLOCKED_MESSAGE, countryFromHeaders, isBlockedCountry } from "@/lib/auth/geo";
 import { getSessionAddress } from "@/lib/auth/session";
 import { env } from "@/lib/env";
+import { getCredits } from "@/lib/data/credits";
 import { db } from "@/lib/supabase";
 
 const toMicro = (usd: number) => Math.round(usd * 1_000_000);
@@ -48,8 +49,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "The AI is busy today. Please build your rules by hand or try again tomorrow." }, { status: 429 });
   }
 
-  const { data: credits } = await client.from("ai_credits").select("free_micro, paid_micro").eq("owner", owner).maybeSingle();
-  if (Number(credits?.free_micro ?? 0) + Number(credits?.paid_micro ?? 0) < maxCost) {
+  const credits = await getCredits(client, owner);
+  if (toMicro(credits.freeUsd + credits.paidUsd) < maxCost) {
     return NextResponse.json({ error: "You are out of AI credits. Build your rules by hand instead." }, { status: 402 });
   }
 
