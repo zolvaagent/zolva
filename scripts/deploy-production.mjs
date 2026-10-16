@@ -61,6 +61,7 @@ async function main() {
   }
 
   console.log(dev.PRIVY_APP_ID && dev.PRIVY_APP_SECRET ? "Privy: email and Google login on" : "Privy: not set in .dev.vars, wallet login only");
+  console.log(dev.OPENROUTER_API_KEY ? "AI co-pilot: on" : "AI co-pilot: no OPENROUTER_API_KEY in .dev.vars, off");
   run("npx", ["opennextjs-cloudflare", "build"]);
   run("npx", ["opennextjs-cloudflare", "deploy"]);
 
@@ -75,6 +76,9 @@ async function main() {
       SESSION_SECRET: prod.SESSION_SECRET,
       // Optional: without these the live site offers wallet login only.
       ...(dev.PRIVY_APP_ID && dev.PRIVY_APP_SECRET ? { PRIVY_APP_ID: dev.PRIVY_APP_ID, PRIVY_APP_SECRET: dev.PRIVY_APP_SECRET } : {}),
+      // Optional: without a key the AI co-pilot stays off and agents trade on their rules.
+      ...(dev.OPENROUTER_API_KEY ? { OPENROUTER_API_KEY: dev.OPENROUTER_API_KEY } : {}),
+      ...(dev.AI_DAILY_BUDGET_USD ? { AI_DAILY_BUDGET_USD: dev.AI_DAILY_BUDGET_USD } : {}),
     }),
   );
   try {

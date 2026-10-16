@@ -5,6 +5,7 @@ import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { BLOCKED_MESSAGE, countryFromHeaders, isBlockedCountry } from "@/lib/auth/geo";
 import { NONCE_COOKIE } from "@/lib/auth/session";
 import { startSession } from "@/lib/auth/start-session";
+import { db } from "@/lib/supabase";
 
 /**
  * Step 2 of Sign-In with Ethereum: checks the signed message and starts a
@@ -16,6 +17,7 @@ import { startSession } from "@/lib/auth/start-session";
  * supported yet. Email and Google sign in go through /api/auth/privy.
  */
 export async function POST(request: NextRequest) {
+  const client = db();
   const country = countryFromHeaders(request.headers);
   if (isBlockedCountry(country)) {
     return NextResponse.json({ error: BLOCKED_MESSAGE }, { status: 451 });
@@ -40,5 +42,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature could not be verified" }, { status: 401 });
   }
 
-  return startSession(fields.address, country);
+  return startSession(client, fields.address, country);
 }

@@ -5,11 +5,14 @@ import { LoginPrompt } from "@/components/app/LoginPrompt";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { Decision } from "@/lib/engine/engine";
 import { dateAt, percent, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
+import { formatCredits } from "@/lib/ai/models";
 import { EXPLORER_URL } from "@/lib/chain";
 
 const MAX_ACTIVE = 5;
 
 type Props = {
+  /** AI co-pilot credits, USD. */
+  credits: { freeUsd: number; paidUsd: number };
   address: string;
   agents: AgentSummary[];
   curves: Record<string, number[]>;
@@ -22,7 +25,7 @@ function greeting() {
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Dashboard({ address, agents, curves, latest, top }: Props) {
+export function Dashboard({ address, agents, curves, latest, top, credits }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
   const totalStart = agents.reduce((sum, agent) => sum + agent.startCapital, 0);
   const totalNow = agents.reduce((sum, agent) => sum + agent.equity, 0);
@@ -197,6 +200,27 @@ export function Dashboard({ address, agents, curves, latest, top }: Props) {
               </p>
             </div>
             <LoginPrompt mode="logout" />
+          </div>
+
+          <div className="card stack stack--tight">
+            <div className="card-head" style={{ margin: 0 }}>
+              <h2 className="card__title">AI credits</h2>
+              <i className="ph ph-sparkle" style={{ color: "var(--color-purple-rich)", fontSize: 22 }} aria-hidden="true" />
+            </div>
+            <div className="growth__row" style={{ padding: 0, border: 0 }}>
+              <span className="muted">Free (Lite models)</span>
+              <strong>{formatCredits(credits.freeUsd)}</strong>
+            </div>
+            <div className="growth__row" style={{ padding: 0, border: 0 }}>
+              <span className="muted">Paid (any model)</span>
+              <strong>{formatCredits(credits.paidUsd)}</strong>
+            </div>
+            <p className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
+              Spent only when an agent&apos;s AI co-pilot reviews a trade. If credits run out, agents keep trading on their rules.
+            </p>
+            <button className="button button--ghost" type="button" disabled>
+              Top up <span className="pill pill--accent">Soon</span>
+            </button>
           </div>
 
           <div className="card stack stack--tight">

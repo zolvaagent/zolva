@@ -7,17 +7,20 @@ import { getSessionAddress } from "@/lib/auth/session";
 import { getAgentDetail } from "@/lib/data/agents";
 import { getMarket } from "@/lib/data/market";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
+import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/agents/[id]">): Promise<Metadata> {
-  const detail = await getAgentDetail((await params).id);
+  const client = db();
+  const detail = await getAgentDetail(client, (await params).id);
   return { title: detail ? detail.agent.name : "Agent not found" };
 }
 
 export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
+  const client = db();
   const { id } = await params;
-  const [detail, address, market] = await Promise.all([getAgentDetail(id), getSessionAddress(), getMarket()]);
+  const [detail, address, market] = await Promise.all([getAgentDetail(client, id), getSessionAddress(), getMarket(client)]);
   if (!detail) notFound();
 
   const last = market.hours - 1;

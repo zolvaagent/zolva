@@ -12,9 +12,10 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   try {
+    const client = db();
     const [tokens, candles] = await Promise.all([
-      db().from("tokens").select("*", { count: "exact", head: true }),
-      db().from("candles").select("*", { count: "exact", head: true }),
+      client.from("tokens").select("*", { count: "exact", head: true }),
+      client.from("candles").select("*", { count: "exact", head: true }),
     ]);
     const error = tokens.error ?? candles.error;
     if (error) {

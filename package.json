@@ -15,7 +15,8 @@
     "backfill": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/backfill-candles.mts",
     "backtest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/backtest.mts",
     "seed:house": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/seed-house-agents.mts",
-    "deploy:prod": "node scripts/deploy-production.mjs"
+    "deploy:prod": "node scripts/deploy-production.mjs",
+    "credits:grant": "node scripts/grant-credits.mts"
   },
   "dependencies": {
     "@privy-io/node": "^0.35.0",

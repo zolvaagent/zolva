@@ -1,9 +1,11 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { getMarket, latestCandleTime } from "@/lib/data/market";
+import { aiModel } from "@/lib/ai/models";
 import { parseRules, rulesLookback, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
-import { db } from "@/lib/supabase";
 
 export type CreateAgentInput = {
   name: unknown;
@@ -14,6 +16,8 @@ export type CreateAgentInput = {
   maxPositionPct: unknown;
   stopLossPct: unknown;
   acceptTerms: unknown;
+  /** OpenRouter model id for the AI co-pilot, or empty for rules only. */
+  aiModel?: unknown;
 };
 
 export class AgentInputError extends Error {}
@@ -25,7 +29,7 @@ const STRATEGIES = ["momentum", "mean_reversion", "custom"] as const;
  * The agent starts at the newest stored hour, so its first decision is made
  * by the next hourly tick, never on the past.
  */
-export async function createAgent(owner: string, input: CreateAgentInput): Promise<{ id: string }> {
+export async function createAgent(db: SupabaseClient, owner: string, input: CreateAgentInput): Promise<{ id: string }> {
   const name = typeof input.name === "string" ? input.name.trim().replace(/\s+/g, " ") : "";
   if (name.length < 1 || name.length > 40) throw new AgentInputError("Give your agent a name of up to 40 characters.");
 
@@ -41,6 +45,10 @@ export async function createAgent(owner: string, input: CreateAgentInput): Promi
 
   if (input.acceptTerms !== true) throw new AgentInputError("Please accept the terms to launch.");
 
+  // Only models from our list; whether credits cover it is checked every hour.
+  const aiModelId = typeof input.aiModel === "string" && input.aiModel ? input.aiModel : null;
+  if (aiModelId && !aiModel(aiModelId)) throw new AgentInputError("Pick an AI model from the list, or turn the co-pilot off.");
+
   const capital = Number(input.capital);
   const maxPositionPct = Number(input.maxPositionPct);
   const stopLossPct = Number(input.stopLossPct);
@@ -52,7 +60,7 @@ export async function createAgent(owner: string, input: CreateAgentInput): Promi
   if (tokens.length < 1 || tokens.length > 3) throw new AgentInputError("Pick 1 to 3 stocks.");
 
   // Every stock must be on the allowlist and have enough clean history right now.
-  const market = await getMarket();
+  const market = await getMarket(db);
   const lastIndex = market.hours - 1;
   const lookback = rules ? rulesLookback(rules) : LOOKBACK_HOURS;
   const startPrices: Record<string, number> = {};
@@ -66,7 +74,7 @@ export async function createAgent(owner: string, input: CreateAgentInput): Promi
     startPrices[address] = price;
   }
 
-  const { data, error } = await db()
+  const { data, error } = await db
     .from("agents")
     .insert({
       owner,
@@ -78,6 +86,7 @@ export async function createAgent(owner: string, input: CreateAgentInput): Promi
       cash: capital,
       status: "active",
       mode: "paper",
+      ai_model: aiModelId,
       last_run_ts: new Date((market.startTs + lastIndex * 3600) * 1000).toISOString(),
     })
     .select("id")
@@ -90,7 +99,7 @@ export async function createAgent(owner: string, input: CreateAgentInput): Promi
     throw new Error(`Saving the agent failed: ${error.message}`);
   }
 
-  await db().from("wallets").update({ terms_accepted_at: new Date().toISOString() }).eq("address", owner).is("terms_accepted_at", null);
+  await db.from("wallets").update({ terms_accepted_at: new Date().toISOString() }).eq("address", owner).is("terms_accepted_at", null);
   return { id: data.id };
 }
 
@@ -98,14 +107,14 @@ export async function createAgent(owner: string, input: CreateAgentInput): Promi
  * Pause or resume one of the owner's agents. Resuming continues from the
  * newest hour: a paused agent never trades the hours it was paused.
  */
-export async function setAgentStatus(owner: string, id: string, status: unknown): Promise<void> {
+export async function setAgentStatus(db: SupabaseClient, owner: string, id: string, status: unknown): Promise<void> {
   if (status !== "active" && status !== "paused") throw new AgentInputError("Unknown status.");
   const changes: { status: string; last_run_ts?: string } = { status };
   if (status === "active") {
-    const latest = await latestCandleTime();
+    const latest = await latestCandleTime(db);
     if (latest !== null) changes.last_run_ts = new Date(latest * 1000).toISOString();
   }
-  const { data, error } = await db().from("agents").update(changes).eq("id", id).eq("owner", owner).select("id");
+  const { data, error } = await db.from("agents").update(changes).eq("id", id).eq("owner", owner).select("id");
   if (error) {
     if (error.message.includes("active_agent_limit")) throw new AgentInputError("You can run up to 5 agents. Pause another one first.");
     throw new Error(`Updating the agent failed: ${error.message}`);

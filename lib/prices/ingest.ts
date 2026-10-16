@@ -1,9 +1,10 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { env } from "@/lib/env";
 import { completeHoursOnly, fetchHourlyCandles, repairBatch, REQUEST_SPACING_MS, sleep, toCandleRow } from "@/lib/prices/geckoterminal";
 import { blockBefore, createChainClient, readPrices, type PricePool } from "@/lib/prices/onchain";
-import { db } from "@/lib/supabase";
 
 const HOUR_MS = 3_600_000;
 /**
@@ -47,8 +48,8 @@ export type IngestResult = {
  *
  * Safe to run twice in the same hour.
  */
-export async function ingestLatestCandles(nowMs: number = Date.now()): Promise<IngestResult> {
-  const { data: tokens, error } = await db()
+export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Date.now()): Promise<IngestResult> {
+  const { data: tokens, error } = await db
     .from("tokens")
     .select("address, symbol, price_pool, pool_kind, stock_is_token0, token_decimals, history_start")
     .eq("enabled", true)
@@ -68,7 +69,7 @@ export async function ingestLatestCandles(nowMs: number = Date.now()): Promise<I
   };
 
   try {
-    const missing = await missingHours(
+    const missing = await missingHours(db, 
       tokens.map((token) => ({ address: token.address, historyStart: token.history_start ? Date.parse(token.history_start) : null })),
       currentHourStart,
     );
@@ -94,7 +95,7 @@ export async function ingestLatestCandles(nowMs: number = Date.now()): Promise<I
       );
       if (!rows.length) continue;
       // ignoreDuplicates: never overwrite a candle that is already stored.
-      const { error: insertError } = await db().from("candles").upsert(rows, { onConflict: "token_address,ts", ignoreDuplicates: true });
+      const { error: insertError } = await db.from("candles").upsert(rows, { onConflict: "token_address,ts", ignoreDuplicates: true });
       if (insertError) throw new Error(insertError.message);
       result.hoursFilled.push(new Date(hourStartMs).toISOString());
       result.snapshots += rows.length;
@@ -111,7 +112,7 @@ export async function ingestLatestCandles(nowMs: number = Date.now()): Promise<I
         nowMs,
       );
       if (!candles.length) continue;
-      const { error: repairError } = await db()
+      const { error: repairError } = await db
         .from("candles")
         .upsert(candles.map((candle) => toCandleRow(token.address, candle)), { onConflict: "token_address,ts" });
       if (repairError) throw new Error(repairError.message);
@@ -130,10 +131,10 @@ export async function ingestLatestCandles(nowMs: number = Date.now()): Promise<I
  * first, each with the tokens it lacks. A token is expected from its
  * history_start on; a token without history yet only gets the newest hour.
  */
-async function missingHours(tokens: { address: string; historyStart: number | null }[], currentHourStart: number): Promise<Map<number, Set<string>>> {
+async function missingHours(db: SupabaseClient, tokens: { address: string; historyStart: number | null }[], currentHourStart: number): Promise<Map<number, Set<string>>> {
   const from = currentHourStart - CATCH_UP_HOURS * HOUR_MS;
   // 20 tokens x 24 hours stays far below the 1,000 row default limit.
-  const { data, error } = await db()
+  const { data, error } = await db
     .from("candles")
     .select("token_address, ts")
     .in(

@@ -7,6 +7,8 @@ import { useRef, useState } from "react";
 import { useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
 import type { AgentDetail } from "@/lib/data/agents";
+import { aiModel } from "@/lib/ai/models";
+import type { Decision } from "@/lib/engine/engine";
 import { describeCondition, type Rules } from "@/lib/engine/rules";
 import { dateAt, dayAt, isMarketHours, percent, points, price, shortAddress, STRATEGY_NAMES, tone, usd } from "@/lib/format";
 
@@ -58,6 +60,7 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
   const rules = agent.params.rules as Rules | undefined;
   const settings: [string, React.ReactNode][] = [
     ["Strategy", STRATEGY_NAMES[agent.strategy]],
+    ["AI co-pilot", aiModel(agent.ai_model)?.label ?? "Off"],
     ["Stocks", summary.tokens.map((token) => token.symbol).join(", ")],
     ["Starting capital", usd(summary.startCapital)],
     ["Max per stock", `${agent.params.max_position_pct}%`],
@@ -345,7 +348,7 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
                   {isMarketHours(run.ts) ? "" : " · DEX hours"}
                 </span>
                 {run.decisions.map((decision, i) => (
-                  <DecisionRow key={i} symbol={symbolOf(decision.token)} action={decision.action} reasoning={decision.reasoning} />
+                  <DecisionRow key={i} symbol={symbolOf(decision.token)} action={decision.action} reasoning={decision.reasoning} ai={decision.ai} />
                 ))}
               </div>
             ))}
@@ -415,7 +418,7 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
               {dateAt(lastRun.ts)}
             </span>
             {lastRun.decisions.map((decision, i) => (
-              <DecisionRow key={i} symbol={symbolOf(decision.token)} action={decision.action} reasoning={decision.reasoning} />
+              <DecisionRow key={i} symbol={symbolOf(decision.token)} action={decision.action} reasoning={decision.reasoning} ai={decision.ai} />
             ))}
           </div>
           <div className="card">
@@ -487,12 +490,21 @@ function Stat({ label, value, className = "" }: { label: string; value: string; 
   );
 }
 
-export function DecisionRow({ symbol, action, reasoning }: { symbol: string; action: string; reasoning: string }) {
+export function DecisionRow({ symbol, action, reasoning, ai }: { symbol: string; action: string; reasoning: string; ai?: Decision["ai"] }) {
   return (
     <div className="decision">
       <span className={`decision__action decision__action--${action}`}>{action}</span>
       <span>
         <strong>{symbol}</strong> <span className="muted">{reasoning}</span>
+        {ai && (
+          <span className="decision__ai">
+            <span className={`pill ${ai.verdict === "approved" ? "pill--accent" : "pill--warn"}`}>
+              <i className="ph ph-sparkle" aria-hidden="true" /> AI {ai.verdict}
+            </span>{" "}
+            {ai.verdict === "approved" ? ai.reasoning : null}
+            <span className="decision__ai-model">{aiModel(ai.model)?.label ?? ai.model}</span>
+          </span>
+        )}
       </span>
     </div>
   );

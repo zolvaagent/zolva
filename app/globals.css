@@ -4934,3 +4934,135 @@ main:focus {
     transform: none;
   }
 }
+
+/* Studio: AI co-pilot picker. */
+.ai-intro {
+  margin: 0 0 var(--space-100);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.ai-credits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-75);
+  margin-bottom: var(--space-100);
+  padding: var(--space-100) var(--space-200);
+  border-radius: var(--radius-xl);
+  background: var(--color-purple-8);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.ai-credits i {
+  color: var(--color-purple-rich);
+  font-size: 16px;
+}
+
+.ai-credits .pill {
+  margin-left: auto;
+}
+
+.ai-models {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-75);
+}
+
+.ai-tier {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+}
+
+.ai-tier__label {
+  margin-top: var(--space-75);
+  color: var(--color-text-faint);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.ai-model {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-100);
+  padding: var(--space-100) var(--space-200);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color var(--duration-micro) var(--ease-out-expo), box-shadow var(--duration-micro) var(--ease-out-expo);
+}
+
+.ai-model:hover {
+  border-color: var(--color-purple-5);
+}
+
+.ai-model:has(input:checked) {
+  border-color: var(--color-purple-1);
+  box-shadow: 0 0 0 3px var(--color-purple-8);
+}
+
+.ai-model:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.ai-model[aria-disabled] {
+  background: var(--color-bg-subtle);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.ai-model input {
+  accent-color: var(--color-purple-rich);
+}
+
+.ai-model__name {
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.ai-model__name strong {
+  font-weight: 500;
+}
+
+.ai-model__name span {
+  color: var(--color-text-faint);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.ai-model__cost {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* AI co-pilot verdict under a decision. */
+.decision__ai {
+  display: block;
+  margin-top: var(--space-50);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.decision__ai .pill {
+  gap: var(--space-25);
+}
+
+.decision__ai-model {
+  margin-left: var(--space-75);
+  color: var(--color-text-faint);
+}

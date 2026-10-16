@@ -7,6 +7,7 @@ import { useAuth, useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
 import { Select, type SelectOption } from "@/components/ui/Select";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
+import { AiCopilotPicker, type CreditsView } from "@/components/app/AiCopilot";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
@@ -27,7 +28,19 @@ const BLANK_RULES: Rules = {
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-export function Studio({ market, activeCount, initialStrategy, initialStock }: { market: Market; activeCount: number; initialStrategy?: string; initialStock?: string }) {
+export function Studio({
+  market,
+  activeCount,
+  initialStrategy,
+  initialStock,
+  credits,
+}: {
+  market: Market;
+  activeCount: number;
+  initialStrategy?: string;
+  initialStock?: string;
+  credits: CreditsView;
+}) {
   const router = useRouter();
   const toast = useToast();
   const { address, openLogin } = useAuth();
@@ -42,6 +55,7 @@ export function Studio({ market, activeCount, initialStrategy, initialStock }: {
   const [maxPositionPct, setMaxPositionPct] = useState(33);
   const [stopLossPct, setStopLossPct] = useState(8);
   const [showErrors, setShowErrors] = useState(false);
+  const [aiModelId, setAiModelId] = useState<string | null>(null);
 
   const lookback = strategy === "custom" ? rulesLookback(rules) : LOOKBACK_HOURS;
   const fromIndex = market.hours - BACKTEST_HOURS;
@@ -98,6 +112,7 @@ export function Studio({ market, activeCount, initialStrategy, initialStock }: {
         maxPositionPct,
         stopLossPct,
         acceptTerms: true,
+        aiModel: aiModelId,
       }),
     });
     const body = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
@@ -172,6 +187,8 @@ export function Studio({ market, activeCount, initialStrategy, initialStock }: {
           </div>
 
           {strategy === "custom" && <RuleBuilder rules={rules} onChange={setRules} errors={showErrors ? ruleErrors : []} />}
+
+          <AiCopilotPicker value={aiModelId} onChange={setAiModelId} credits={credits} />
 
           <div className="form-section">
             <div className="form-section__label">

@@ -4,6 +4,7 @@ import { Dashboard } from "@/components/app/Dashboard";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { getSessionAddress } from "@/lib/auth/session";
 import { equityCurves, listAgents, listAgentsByOwner, tokenSymbols } from "@/lib/data/agents";
+import { getCredits } from "@/lib/data/credits";
 import type { Decision } from "@/lib/engine/engine";
 import { db } from "@/lib/supabase";
 
@@ -27,14 +28,15 @@ export default async function DashboardPage() {
     );
   }
 
-  const [agents, everyone, symbols] = await Promise.all([listAgentsByOwner(address), listAgents(), tokenSymbols()]);
-  const curves = await equityCurves(agents.map((agent) => agent.id));
+  const client = db();
+  const [agents, everyone, symbols, credits] = await Promise.all([listAgentsByOwner(client, address), listAgents(client), tokenSymbols(client), getCredits(client, address)]);
+  const curves = await equityCurves(client, agents.map((agent) => agent.id));
 
   // Latest decisions of the newest running agent that has run at least once.
   const newest = agents.find((agent) => agent.status === "active" && agent.runs > 0);
   let latest = null;
   if (newest) {
-    const { data } = await db().from("agent_runs").select("ts, decisions").eq("agent_id", newest.id).order("ts", { ascending: false }).limit(1).maybeSingle();
+    const { data } = await client.from("agent_runs").select("ts, decisions").eq("agent_id", newest.id).order("ts", { ascending: false }).limit(1).maybeSingle();
     if (data) {
       latest = {
         agentId: newest.id,
@@ -46,5 +48,5 @@ export default async function DashboardPage() {
   }
 
   const top = everyone.filter((agent) => agent.status === "active").sort((a, b) => b.returnPct - a.returnPct).slice(0, 3);
-  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} />;
+  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} />;
 }
