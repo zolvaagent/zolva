@@ -15,18 +15,20 @@ export type AiModel = {
   tier: AiTier;
   inputPerMillion: number;
   outputPerMillion: number;
+  /** Provider logo in public/ai-logos (LobeHub Icons, MIT). */
+  logo: string;
 };
 
 export const AI_MODELS: AiModel[] = [
-  { id: "anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5", tier: "lite", inputPerMillion: 0.1, outputPerMillion: 0.5 },
-  { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", tier: "lite", inputPerMillion: 0.018, outputPerMillion: 0.684 },
-  { id: "openai/gpt-5.6-luna", label: "GPT-5.6 Luna", tier: "lite", inputPerMillion: 0.2, outputPerMillion: 1.2 },
-  { id: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", tier: "standard", inputPerMillion: 0.825, outputPerMillion: 4.125 },
-  { id: "openai/gpt-5.4-mini", label: "GPT-5.4 mini", tier: "standard", inputPerMillion: 0.75, outputPerMillion: 4.5 },
-  { id: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", tier: "pro", inputPerMillion: 2, outputPerMillion: 10 },
-  { id: "openai/gpt-5.6-terra", label: "GPT-5.6 Terra", tier: "pro", inputPerMillion: 2, outputPerMillion: 12 },
-  { id: "x-ai/grok-4.7", label: "Grok 4.7", tier: "pro", inputPerMillion: 2, outputPerMillion: 6 },
-  { id: "anthropic/claude-opus-5.5", label: "Claude Opus 5.5", tier: "max", inputPerMillion: 4, outputPerMillion: 20 },
+  { id: "anthropic/claude-haiku-5.5", label: "Claude Haiku 5.5", tier: "lite", inputPerMillion: 0.1, outputPerMillion: 0.5, logo: "/ai-logos/claude-color.svg" },
+  { id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", tier: "lite", inputPerMillion: 0.018, outputPerMillion: 0.684, logo: "/ai-logos/deepseek-color.svg" },
+  { id: "openai/gpt-5.6-luna", label: "GPT-5.6 Luna", tier: "lite", inputPerMillion: 0.2, outputPerMillion: 1.2, logo: "/ai-logos/openai.svg" },
+  { id: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", tier: "standard", inputPerMillion: 0.825, outputPerMillion: 4.125, logo: "/ai-logos/gemini-color.svg" },
+  { id: "openai/gpt-5.4-mini", label: "GPT-5.4 mini", tier: "standard", inputPerMillion: 0.75, outputPerMillion: 4.5, logo: "/ai-logos/openai.svg" },
+  { id: "anthropic/claude-sonnet-5.5", label: "Claude Sonnet 5.5", tier: "pro", inputPerMillion: 2, outputPerMillion: 10, logo: "/ai-logos/claude-color.svg" },
+  { id: "openai/gpt-5.6-terra", label: "GPT-5.6 Terra", tier: "pro", inputPerMillion: 2, outputPerMillion: 12, logo: "/ai-logos/openai.svg" },
+  { id: "x-ai/grok-4.7", label: "Grok 4.7", tier: "pro", inputPerMillion: 2, outputPerMillion: 6, logo: "/ai-logos/grok.svg" },
+  { id: "anthropic/claude-opus-5.5", label: "Claude Opus 5.5", tier: "max", inputPerMillion: 4, outputPerMillion: 20, logo: "/ai-logos/claude-color.svg" },
 ];
 
 export const TIER_LABELS: Record<AiTier, string> = { lite: "Lite", standard: "Standard", pro: "Pro", max: "Max" };

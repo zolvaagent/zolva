@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
 /**
@@ -17,6 +17,14 @@ export type SelectOption<Value extends string | number> = {
   label: string;
   /** Short helper line shown under the label in the list. */
   hint?: string;
+  /** Image shown before the label, in the list and on the trigger. */
+  icon?: string;
+  /** Short text on the right of the option, e.g. a price. */
+  meta?: string;
+  /** Shown but not selectable; keyboard navigation skips it. */
+  disabled?: boolean;
+  /** Options with the same group sit under one heading; keep them adjacent. */
+  group?: string;
 };
 
 type SelectProps<Value extends string | number> = {
@@ -25,8 +33,8 @@ type SelectProps<Value extends string | number> = {
   onChange: (value: Value) => void;
   /** Accessible name, since the trigger only shows the current value. */
   label: string;
-  /** "inline" sits inside a sentence ("all of these are true"). */
-  variant?: "field" | "inline";
+  /** "inline" sits inside a sentence ("all of these are true"); "block" fills its row. */
+  variant?: "field" | "inline" | "block";
 };
 
 const POPOVER_GAP = 6;
@@ -64,8 +72,17 @@ export function Select<Value extends string | number>({ value, options, onChange
 
   const choose = (index: number) => {
     const option = options[index];
-    if (option && option.value !== value) onChange(option.value);
+    if (!option || option.disabled) return;
+    if (option.value !== value) onChange(option.value);
     close();
+  };
+
+  /** Next enabled option from `from` in `step` direction, or `from` when there is none. */
+  const nextEnabled = (from: number, step: 1 | -1) => {
+    for (let index = from + step; index >= 0 && index < options.length; index += step) {
+      if (!options[index].disabled) return index;
+    }
+    return from;
   };
 
   // Place the popover under the trigger, or above it when there is no room.
@@ -116,7 +133,7 @@ export function Select<Value extends string | number>({ value, options, onChange
     window.clearTimeout(typeahead.current.timer);
     typeahead.current.text += key.toLowerCase();
     typeahead.current.timer = window.setTimeout(() => (typeahead.current.text = ""), 600);
-    const match = options.findIndex((option) => option.label.toLowerCase().startsWith(typeahead.current.text));
+    const match = options.findIndex((option) => !option.disabled && option.label.toLowerCase().startsWith(typeahead.current.text));
     if (match >= 0) setActiveIndex(match);
     return match;
   };
@@ -137,19 +154,19 @@ export function Select<Value extends string | number>({ value, options, onChange
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
-        setActiveIndex((index) => Math.min(index + 1, last));
+        setActiveIndex((index) => nextEnabled(index, 1));
         break;
       case "ArrowUp":
         event.preventDefault();
-        setActiveIndex((index) => Math.max(index - 1, 0));
+        setActiveIndex((index) => nextEnabled(index, -1));
         break;
       case "Home":
         event.preventDefault();
-        setActiveIndex(0);
+        setActiveIndex(nextEnabled(-1, 1));
         break;
       case "End":
         event.preventDefault();
-        setActiveIndex(last);
+        setActiveIndex(nextEnabled(last + 1, -1));
         break;
       case "Enter":
       case " ":
@@ -187,7 +204,9 @@ export function Select<Value extends string | number>({ value, options, onChange
         onClick={() => (open ? close() : openList())}
         onKeyDown={onKeyDown}
       >
+        {selected?.icon && <img className="select__icon" src={selected.icon} alt="" />}
         <span className="select__value">{selected?.label}</span>
+        {variant === "block" && selected?.meta && <span className="select__meta">{selected.meta}</span>}
         <i className="ph ph-caret-down select__caret" aria-hidden="true" />
       </button>
 
@@ -210,26 +229,40 @@ export function Select<Value extends string | number>({ value, options, onChange
           >
             {options.map((option, index) => {
               const isSelected = index === selectedIndex;
+              const heading = option.group && option.group !== options[index - 1]?.group ? option.group : null;
               return (
+                <Fragment key={String(option.value)}>
+                {heading && (
+                  <li role="presentation" className="select__group">
+                    {heading}
+                  </li>
+                )}
                 <li
-                  key={String(option.value)}
                   id={optionId(index)}
                   role="option"
                   aria-selected={isSelected}
+                  aria-disabled={option.disabled || undefined}
                   data-index={index}
                   data-active={index === activeIndex || undefined}
                   className="select__option"
-                  onPointerMove={() => setActiveIndex(index)}
+                  onPointerMove={() => !option.disabled && setActiveIndex(index)}
                   // Keep focus on the trigger so keyboard and screen readers stay in sync.
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => choose(index)}
                 >
+                  {option.icon && <img className="select__icon" src={option.icon} alt="" />}
                   <span className="select__text">
                     <span className="select__label">{option.label}</span>
                     {option.hint && <span className="select__hint">{option.hint}</span>}
                   </span>
-                  <i className={`ph ph-check select__check${isSelected ? " is-visible" : ""}`} aria-hidden="true" />
+                  {option.meta && <span className="select__meta">{option.meta}</span>}
+                  {option.disabled ? (
+                    <i className="ph ph-lock-simple select__lock" aria-hidden="true" />
+                  ) : (
+                    <i className={`ph ph-check select__check${isSelected ? " is-visible" : ""}`} aria-hidden="true" />
+                  )}
                 </li>
+                </Fragment>
               );
             })}
           </ul>,

@@ -31,6 +31,8 @@ export async function chatJson(options: {
   system: string;
   user: string;
   schema?: object;
+  /** Answer length cap; defaults to MAX_OUTPUT_TOKENS. */
+  maxTokens?: number;
   fetchImpl?: typeof fetch;
 }): Promise<ChatResult> {
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -54,7 +56,10 @@ export async function chatJson(options: {
           { role: "user", content: options.user },
         ],
         temperature: 0.2,
-        max_tokens: MAX_OUTPUT_TOKENS,
+        max_tokens: options.maxTokens ?? MAX_OUTPUT_TOKENS,
+        // Hidden thinking counts against max_tokens and can eat the whole
+        // answer (seen with Claude Haiku 5.5); these short JSON tasks don't need it.
+        reasoning: { enabled: false },
         ...(options.schema ? { response_format: { type: "json_schema", json_schema: { name: "review", strict: true, schema: options.schema } } } : {}),
         // Ask OpenRouter to report the real cost of this call.
         usage: { include: true },

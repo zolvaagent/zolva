@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getMarket, latestCandleTime } from "@/lib/data/market";
 import { aiModel } from "@/lib/ai/models";
+import { PROMPT_MAX_LENGTH } from "@/lib/ai/strategy-writer";
 import { parseRules, rulesLookback, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
 
@@ -18,6 +19,8 @@ export type CreateAgentInput = {
   acceptTerms: unknown;
   /** OpenRouter model id for the AI co-pilot, or empty for rules only. */
   aiModel?: unknown;
+  /** Custom strategies made in prompt mode: the user's own words, read by the co-pilot. */
+  strategyPrompt?: unknown;
 };
 
 export class AgentInputError extends Error {}
@@ -42,6 +45,8 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
     if (!parsed.rules) throw new AgentInputError(parsed.errors[0]);
     rules = parsed.rules;
   }
+
+  const strategyPrompt = strategy === "custom" && typeof input.strategyPrompt === "string" ? input.strategyPrompt.trim().slice(0, PROMPT_MAX_LENGTH) || null : null;
 
   if (input.acceptTerms !== true) throw new AgentInputError("Please accept the terms to launch.");
 
@@ -87,6 +92,7 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
       status: "active",
       mode: "paper",
       ai_model: aiModelId,
+      strategy_prompt: strategyPrompt,
       last_run_ts: new Date((market.startTs + lastIndex * 3600) * 1000).toISOString(),
     })
     .select("id")

@@ -4276,6 +4276,63 @@ main:focus {
   transform: scale(1);
 }
 
+/* Full width trigger with icon and meta, e.g. the AI model picker. */
+.select--block {
+  width: 100%;
+  height: 44px;
+  gap: var(--space-75);
+  padding: 0 var(--space-100);
+  font-size: 14px;
+}
+
+.select--block .select__value {
+  flex: 1;
+  text-align: left;
+}
+
+.select__icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+
+.select__meta {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.select--block .select__meta {
+  margin-left: 0;
+}
+
+.select__option .select__meta + .select__check,
+.select__option .select__meta + .select__lock {
+  margin-left: 0;
+}
+
+.select__group {
+  padding: var(--space-75) var(--space-100) var(--space-50);
+  color: var(--color-text-faint);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.select__option[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.select__lock {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .select__list {
     animation: none;
@@ -4966,89 +5023,6 @@ main:focus {
   margin-left: auto;
 }
 
-.ai-models {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-75);
-}
-
-.ai-tier {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-50);
-}
-
-.ai-tier__label {
-  margin-top: var(--space-75);
-  color: var(--color-text-faint);
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.ai-model {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: var(--space-100);
-  padding: var(--space-100) var(--space-200);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-xl);
-  background: #fff;
-  cursor: pointer;
-  transition: border-color var(--duration-micro) var(--ease-out-expo), box-shadow var(--duration-micro) var(--ease-out-expo);
-}
-
-.ai-model:hover {
-  border-color: var(--color-purple-5);
-}
-
-.ai-model:has(input:checked) {
-  border-color: var(--color-purple-1);
-  box-shadow: 0 0 0 3px var(--color-purple-8);
-}
-
-.ai-model:has(input:focus-visible) {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.ai-model[aria-disabled] {
-  background: var(--color-bg-subtle);
-  cursor: not-allowed;
-  opacity: 0.65;
-}
-
-.ai-model input {
-  accent-color: var(--color-purple-rich);
-}
-
-.ai-model__name {
-  display: flex;
-  flex-direction: column;
-  font-size: 14px;
-  line-height: 20px;
-}
-
-.ai-model__name strong {
-  font-weight: 500;
-}
-
-.ai-model__name span {
-  color: var(--color-text-faint);
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.ai-model__cost {
-  color: var(--color-text-muted);
-  font-size: 13px;
-  line-height: 18px;
-  font-variant-numeric: tabular-nums;
-}
-
 /* AI co-pilot verdict under a decision. */
 .decision__ai {
   display: block;
@@ -5065,4 +5039,70 @@ main:focus {
 .decision__ai-model {
   margin-left: var(--space-75);
   color: var(--color-text-faint);
+}
+
+/* Studio prompt mode: plain words strategy, turned into rules by the AI. */
+.prompt-writer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+}
+
+.prompt-writer__input {
+  height: auto;
+  min-height: 112px;
+  padding: var(--space-100);
+  line-height: 20px;
+  resize: vertical;
+}
+
+.prompt-writer__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-100);
+}
+
+.prompt-writer__hint {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.prompt-writer__spin {
+  animation: prompt-spin 900ms linear infinite;
+}
+
+@keyframes prompt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.prompt-writer__result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-75);
+  padding: var(--space-100) var(--space-200);
+  border: 1px solid var(--color-purple-6);
+  border-radius: var(--radius-lg);
+  background: var(--color-purple-8);
+  font-size: 14px;
+  line-height: 20px;
+  text-wrap: pretty;
+}
+
+.prompt-writer__result .ph-check-circle {
+  color: var(--color-purple-rich);
+}
+
+.prompt-writer__notes {
+  color: var(--color-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-writer__spin {
+    animation: none;
+  }
 }
