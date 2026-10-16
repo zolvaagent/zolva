@@ -108,6 +108,8 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Compact model picker (2026-10-16): one dropdown with provider logos (LobeHub Icons, MIT, in public/ai-logos), tier groups, monthly estimate, locked models; the shared Select now supports icons, meta text, groups and disabled options
 - [x] Prompt mode for Custom strategies (2026-10-16): describe the idea in plain words, the AI strategy writer (Claude Haiku 5.5) turns it into rules in the normal rule builder (editable, backtested); the words are saved as agents.strategy_prompt and quoted to the co-pilot on live trades. Paid from AI credits, 10 tries per account per day (ai_generations, ai_generation_start/settle), counted in the global daily budget. Reasoning is switched off for all AI calls (hidden thinking ate the token limit). Live test: Indonesian prompt gave valid rules for $0.0004
 - [x] Fix (2026-10-16): accounts that signed in before credits existed never got the $0.50 welcome grant (it only ran at login). `getCredits` now grants it once on first read (Studio, dashboard, strategy writer)
+- [x] Publish to leaderboard (2026-10-16): user agents start private (agents.published_at, migration publish_agents). Owners publish or unpublish from the agent page with a confirm dialog; only published agents appear on the leaderboard, landing feed, markets and activity, and a private agent page is a 404 for everyone but its owner. House and lab agents are always published. Leaderboard marks the signed in user rows with "Your agent"
+- [ ] Dashboard: show Private / On leaderboard on each of the user agents
 - [ ] Show the strategy prompt on the agent page
 - [ ] Show AI verdicts in Activity; per-agent AI spend on the agent page
 - [ ] Self-serve top-up (USDG on chain) when ready

@@ -5108,3 +5108,8 @@ main:focus {
     animation: none;
   }
 }
+
+/* The signed-in user's own rows on the leaderboard. */
+.leaderboard__mine td {
+  background: var(--color-purple-8);
+}

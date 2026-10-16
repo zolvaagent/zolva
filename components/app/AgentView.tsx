@@ -10,9 +10,26 @@ import type { AgentDetail } from "@/lib/data/agents";
 import { aiModel } from "@/lib/ai/models";
 import type { Decision } from "@/lib/engine/engine";
 import { describeCondition, type Rules } from "@/lib/engine/rules";
-import { dateAt, dayAt, isMarketHours, percent, points, price, shortAddress, STRATEGY_NAMES, tone, usd } from "@/lib/format";
+import {
+  dateAt,
+  dayAt,
+  isMarketHours,
+  percent,
+  points,
+  price,
+  shortAddress,
+  STRATEGY_NAMES,
+  tone,
+  usd,
+} from "@/lib/format";
 
-export type Preview = { startTs: number; equity: number[]; hold: number[]; returnPct: number; holdReturnPct: number } | null;
+export type Preview = {
+  startTs: number;
+  equity: number[];
+  hold: number[];
+  returnPct: number;
+  holdReturnPct: number;
+} | null;
 
 type Props = {
   detail: AgentDetail;
@@ -26,7 +43,13 @@ type Props = {
 
 const RANGES = { "7d": 7 * 24, "30d": 30 * 24, all: Infinity } as const;
 
-export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) {
+export function AgentView({
+  detail,
+  isOwner,
+  prices,
+  preview,
+  symbols,
+}: Props) {
   const router = useRouter();
   const toast = useToast();
   const { agent, summary, runs, trades, positions } = detail;
@@ -35,6 +58,8 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
   const [busy, setBusy] = useState(false);
   const pauseRef = useRef<HTMLDialogElement>(null);
   const liveRef = useRef<HTMLDialogElement>(null);
+  const publishRef = useRef<HTMLDialogElement>(null);
+  const isPublished = agent.published_at !== null;
   const isActive = agent.status === "active";
   const minutesToNextRun = 60 - new Date().getUTCMinutes();
   const symbolOf = (token: string) => symbols[token] ?? token;
@@ -42,12 +67,46 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
   const togglePause = async () => {
     setBusy(true);
     const status = agent.status === "active" ? "paused" : "active";
-    const response = await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
-    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    const response = await fetch(`/api/agents/${agent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
     setBusy(false);
     pauseRef.current?.close();
-    if (!response.ok) return toast(body.error ?? "Updating failed. Please try again.");
-    toast(status === "active" ? "Agent resumed. It continues from the next hour." : "Agent paused");
+    if (!response.ok)
+      return toast(body.error ?? "Updating failed. Please try again.");
+    toast(
+      status === "active"
+        ? "Agent resumed. It continues from the next hour."
+        : "Agent paused",
+    );
+    router.refresh();
+  };
+
+  const togglePublish = async () => {
+    setBusy(true);
+    const published = !isPublished;
+    const response = await fetch(`/api/agents/${agent.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ published }),
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    setBusy(false);
+    publishRef.current?.close();
+    if (!response.ok)
+      return toast(body.error ?? "Updating failed. Please try again.");
+    toast(
+      published
+        ? "Published. Your agent is on the leaderboard."
+        : "Unpublished. Only you can see this agent now.",
+    );
     router.refresh();
   };
 
@@ -65,16 +124,34 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
     ["Starting capital", usd(summary.startCapital)],
     ["Max per stock", `${agent.params.max_position_pct}%`],
     ["Stop loss", `${agent.params.stop_loss_pct}%`],
-    ...(rules?.takeProfitPct ? ([["Take profit", `${rules.takeProfitPct}%`]] as [string, string][]) : []),
-    ...(rules?.maxHoldHours ? ([["Max holding time", `${rules.maxHoldHours} hours`]] as [string, string][]) : []),
-    ["Owner", summary.isHouse ? "Zolva (house agent)" : <span className="mono">{shortAddress(agent.owner)}</span>],
+    ...(rules?.takeProfitPct
+      ? ([["Take profit", `${rules.takeProfitPct}%`]] as [string, string][])
+      : []),
+    ...(rules?.maxHoldHours
+      ? ([["Max holding time", `${rules.maxHoldHours} hours`]] as [
+          string,
+          string,
+        ][])
+      : []),
+    [
+      "Owner",
+      summary.isHouse ? (
+        "Zolva (house agent)"
+      ) : (
+        <span className="mono">{shortAddress(agent.owner)}</span>
+      ),
+    ],
     ["Launched", dateAt(Date.parse(agent.created_at) / 1000)],
   ];
 
   const header = (
     <div className="agent-head">
       <div>
-        <Link className="eyebrow" href={isOwner ? "/app" : "/leaderboard"} style={{ textDecoration: "none" }}>
+        <Link
+          className="eyebrow"
+          href={isOwner ? "/app" : "/leaderboard"}
+          style={{ textDecoration: "none" }}
+        >
           <i className="ph ph-arrow-left" />
           {isOwner ? "Dashboard" : "Leaderboard"}
         </Link>
@@ -94,31 +171,73 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
             </span>
           )}
           {summary.isHouse && <span className="pill">by Zolva</span>}
+          {isOwner && !summary.isHouse && (
+            <span className="pill">
+              <i
+                className={`ph ${isPublished ? "ph-globe-simple" : "ph-lock-simple"}`}
+                aria-hidden="true"
+              />
+              {isPublished ? "On leaderboard" : "Private"}
+            </span>
+          )}
           <span>{STRATEGY_NAMES[agent.strategy]}</span>
           <span aria-hidden="true">·</span>
           <span>{summary.tokens.map((token) => token.symbol).join(", ")}</span>
           <span aria-hidden="true">·</span>
-          <span>{agent.status === "active" ? `Next decision in ${minutesToNextRun} min` : "Not trading while paused"}</span>
+          <span>
+            {agent.status === "active"
+              ? `Next decision in ${minutesToNextRun} min`
+              : "Not trading while paused"}
+          </span>
         </div>
       </div>
       <div className="hero__actions">
         {isOwner && (
-          <button className="button button--ghost" type="button" onClick={() => liveRef.current?.showModal()}>
+          <button
+            className="button button--ghost"
+            type="button"
+            onClick={() => liveRef.current?.showModal()}
+          >
             <i className="ph ph-wallet" />
             Trade with real money
             <span className="pill pill--accent">Soon</span>
           </button>
         )}
         {isOwner && (
-          <button className="button button--ghost" type="button" onClick={() => pauseRef.current?.showModal()} disabled={busy}>
+          <button
+            className="button button--ghost"
+            type="button"
+            onClick={() => pauseRef.current?.showModal()}
+            disabled={busy}
+          >
             <i className={`ph ${isActive ? "ph-pause" : "ph-play"}`} />
             {isActive ? "Pause" : "Resume"}
           </button>
         )}
-        <button className="button button--ghost" type="button" onClick={share}>
-          <i className="ph ph-share-network" />
-          Share
-        </button>
+        {isOwner && !summary.isHouse && (
+          <button
+            className={`button ${isPublished ? "button--ghost" : "button--primary"}`}
+            type="button"
+            onClick={() => publishRef.current?.showModal()}
+            disabled={busy}
+          >
+            <i
+              className={`ph ${isPublished ? "ph-eye-slash" : "ph-trophy"}`}
+              aria-hidden="true"
+            />
+            {isPublished ? "Unpublish" : "Publish to leaderboard"}
+          </button>
+        )}
+        {(isPublished || summary.isHouse) && (
+          <button
+            className="button button--ghost"
+            type="button"
+            onClick={share}
+          >
+            <i className="ph ph-share-network" />
+            Share
+          </button>
+        )}
       </div>
     </div>
   );
@@ -148,21 +267,98 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
                 ? `Its ${positions.length} open position${positions.length === 1 ? " stays" : "s stay"} open, but the stop loss and sell rules don't run while paused.`
                 : "It holds no stocks right now, so nothing is left open."}
             </li>
-            <li>You can resume it at any time. The hours it was paused are skipped, not traded later.</li>
+            <li>
+              You can resume it at any time. The hours it was paused are
+              skipped, not traded later.
+            </li>
           </ul>
         ) : (
           <ul className="modal__list">
-            <li>It starts deciding again from the next hour, with the same settings.</li>
+            <li>
+              It starts deciding again from the next hour, with the same
+              settings.
+            </li>
             <li>The hours it was paused are skipped, not traded afterwards.</li>
             <li>It counts toward your 5 running agents.</li>
           </ul>
         )}
         <div className="modal__actions">
-          <button className="button button--ghost" type="button" onClick={() => pauseRef.current?.close()} disabled={busy}>
+          <button
+            className="button button--ghost"
+            type="button"
+            onClick={() => pauseRef.current?.close()}
+            disabled={busy}
+          >
             Cancel
           </button>
-          <button className="button button--primary" type="button" onClick={togglePause} disabled={busy}>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={togglePause}
+            disabled={busy}
+          >
             {busy ? "Saving…" : isActive ? "Pause agent" : "Resume agent"}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+
+  const publishDialog = (
+    <dialog
+      ref={publishRef}
+      className="modal"
+      aria-labelledby="publish-title"
+      onClick={(event) => {
+        if (event.target === publishRef.current) publishRef.current?.close();
+      }}
+    >
+      <div className="modal__body">
+        <span className="choice__glyph" aria-hidden="true">
+          <i className={`ph ${isPublished ? "ph-eye-slash" : "ph-trophy"}`} />
+        </span>
+        <h2 className="modal__title" id="publish-title">
+          {isPublished
+            ? `Take ${agent.name} off the leaderboard?`
+            : `Publish ${agent.name}?`}
+        </h2>
+        {isPublished ? (
+          <ul className="modal__list">
+            <li>It leaves the leaderboard, markets and the activity report.</li>
+            <li>Its page and link only work for you again.</li>
+            <li>
+              It keeps trading as before. You can publish it again at any time.
+            </li>
+          </ul>
+        ) : (
+          <ul className="modal__list">
+            <li>
+              It appears on the leaderboard, ranked on its live results since
+              launch, losses included.
+            </li>
+            <li>
+              Anyone can open its page: settings, rules, trades and reasoning.
+              Your wallet shows shortened.
+            </li>
+            <li>You can unpublish it at any time.</li>
+          </ul>
+        )}
+        <div className="modal__actions">
+          <button
+            className="button button--ghost"
+            type="button"
+            onClick={() => publishRef.current?.close()}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={togglePublish}
+            disabled={busy}
+          >
+            {busy ? "Saving…" : isPublished ? "Unpublish" : "Publish"}
           </button>
         </div>
       </div>
@@ -190,15 +386,30 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
         <h2 className="modal__title" id="live-title">
           Take {agent.name} live
         </h2>
-        <p className="muted">Real money trading is not available yet. When it opens, this is how it will work:</p>
+        <p className="muted">
+          Real money trading is not available yet. When it opens, this is how it
+          will work:
+        </p>
         <ul className="modal__list">
-          <li>A live copy of this agent starts with the same strategy, stocks and rules.</li>
-          <li>It trades from your own wallet, within a limit per trade and per day that you set.</li>
+          <li>
+            A live copy of this agent starts with the same strategy, stocks and
+            rules.
+          </li>
+          <li>
+            It trades from your own wallet, within a limit per trade and per day
+            that you set.
+          </li>
           <li>You can stop it at any time with one switch.</li>
-          <li>This paper agent keeps running, and its track record stays as it is.</li>
+          <li>
+            This paper agent keeps running, and its track record stays as it is.
+          </li>
         </ul>
         <div className="modal__actions">
-          <button className="button button--primary" type="button" onClick={() => liveRef.current?.close()}>
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => liveRef.current?.close()}
+          >
             Got it
           </button>
         </div>
@@ -211,25 +422,48 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
       <h2 className="card__title" style={{ marginBottom: "var(--space-200)" }}>
         Settings
       </h2>
-      <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>
+      <div
+        className="stack stack--tight"
+        style={{ fontSize: 14, lineHeight: "20px" }}
+      >
         {settings.map(([label, value]) => (
-          <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-200)" }}>
+          <div
+            key={label}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "var(--space-200)",
+            }}
+          >
             <span className="muted">{label}</span>
             <span style={{ textAlign: "right" }}>{value}</span>
           </div>
         ))}
       </div>
       {rules && (
-        <div className="stack stack--tight" style={{ marginTop: "var(--space-200)" }}>
-          <strong style={{ fontSize: 14 }}>Buy when {rules.entry.join} of:</strong>
+        <div
+          className="stack stack--tight"
+          style={{ marginTop: "var(--space-200)" }}
+        >
+          <strong style={{ fontSize: 14 }}>
+            Buy when {rules.entry.join} of:
+          </strong>
           <ul className="rule-summary">
             {rules.entry.conditions.map((condition, i) => (
               <li key={i}>{describeCondition(condition)}</li>
             ))}
           </ul>
-          <strong style={{ fontSize: 14 }}>Sell when {rules.exit.join} of:</strong>
+          <strong style={{ fontSize: 14 }}>
+            Sell when {rules.exit.join} of:
+          </strong>
           <ul className="rule-summary">
-            {rules.exit.conditions.length ? rules.exit.conditions.map((condition, i) => <li key={i}>{describeCondition(condition)}</li>) : <li>No rule: take profit, max holding time or stop loss</li>}
+            {rules.exit.conditions.length ? (
+              rules.exit.conditions.map((condition, i) => (
+                <li key={i}>{describeCondition(condition)}</li>
+              ))
+            ) : (
+              <li>No rule: take profit, max holding time or stop loss</li>
+            )}
           </ul>
         </div>
       )}
@@ -242,6 +476,7 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
         {header}
         {isOwner && pauseDialog}
         {isOwner && liveDialog}
+        {isOwner && publishDialog}
         <div className="agent-layout">
           <div className="stack">
             <div className="card">
@@ -254,8 +489,17 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
             </div>
             <div className="card">
               <div className="empty">
-                <img src="/img/icons/backtest.png" alt="" width={72} height={72} />
-                <h2 className="card__title">{agent.status === "active" ? "Waiting for the first decision" : "Paused before its first decision"}</h2>
+                <img
+                  src="/img/icons/backtest.png"
+                  alt=""
+                  width={72}
+                  height={72}
+                />
+                <h2 className="card__title">
+                  {agent.status === "active"
+                    ? "Waiting for the first decision"
+                    : "Paused before its first decision"}
+                </h2>
                 <p>
                   {agent.status === "active"
                     ? `The agent checks prices at the top of every hour, in about ${minutesToNextRun} minutes. Trades and reasoning show up here.`
@@ -269,12 +513,37 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
               <div className="card stack">
                 <div>
                   <div className="eyebrow">While you wait</div>
-                  <h2 className="card__title">These settings over the last 30 days</h2>
+                  <h2 className="card__title">
+                    These settings over the last 30 days
+                  </h2>
                 </div>
-                <LineChart startTs={preview.startTs} height={140} baseline={summary.startCapital} step={3} series={[{ label: "Backtest", values: preview.equity, color: "var(--color-text-muted)" }]} legend={false} />
-                <div className={tone(preview.returnPct)} style={{ fontSize: 24, lineHeight: "32px", fontWeight: 600 }}>
+                <LineChart
+                  startTs={preview.startTs}
+                  height={140}
+                  baseline={summary.startCapital}
+                  step={3}
+                  series={[
+                    {
+                      label: "Backtest",
+                      values: preview.equity,
+                      color: "var(--color-text-muted)",
+                    },
+                  ]}
+                  legend={false}
+                />
+                <div
+                  className={tone(preview.returnPct)}
+                  style={{ fontSize: 24, lineHeight: "32px", fontWeight: 600 }}
+                >
                   {percent(preview.returnPct)}{" "}
-                  <span className="muted" style={{ fontSize: 14, lineHeight: "20px", fontWeight: 400 }}>
+                  <span
+                    className="muted"
+                    style={{
+                      fontSize: 14,
+                      lineHeight: "20px",
+                      fontWeight: 400,
+                    }}
+                  >
                     vs holding {percent(preview.holdReturnPct)}
                   </span>
                 </div>
@@ -291,7 +560,12 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
   const lastRun = runs[runs.length - 1];
   const logRuns = [...runs]
     .reverse()
-    .filter((run) => showHolds || !summary.trades || run.decisions.some((decision) => decision.action !== "hold"))
+    .filter(
+      (run) =>
+        showHolds ||
+        !summary.trades ||
+        run.decisions.some((decision) => decision.action !== "hold"),
+    )
     .slice(0, showHolds || !summary.trades ? 24 : 12);
 
   return (
@@ -299,20 +573,39 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
       {header}
       {isOwner && pauseDialog}
       {isOwner && liveDialog}
+      {isOwner && publishDialog}
       <div className="agent-layout">
         <div className="stack">
           <div className="card stack">
             <div className="stat-grid">
               <Stat label="Value" value={usd(summary.equity)} />
-              <Stat label={`Return since ${dayAt(Date.parse(agent.created_at) / 1000)}`} value={percent(summary.returnPct)} className={tone(summary.returnPct)} />
-              <Stat label="vs holding" value={points(summary.edge)} className={tone(summary.edge)} />
-              <Stat label="Worst drop" value={percent(-summary.maxDrawdownPct)} />
+              <Stat
+                label={`Return since ${dayAt(Date.parse(agent.created_at) / 1000)}`}
+                value={percent(summary.returnPct)}
+                className={tone(summary.returnPct)}
+              />
+              <Stat
+                label="vs holding"
+                value={points(summary.edge)}
+                className={tone(summary.edge)}
+              />
+              <Stat
+                label="Worst drop"
+                value={percent(-summary.maxDrawdownPct)}
+              />
             </div>
             <div className="card-head" style={{ margin: 0 }}>
               <h2 className="card__title">Value over time</h2>
               <div className="tabs" role="tablist" aria-label="Chart range">
                 {(Object.keys(RANGES) as (keyof typeof RANGES)[]).map((key) => (
-                  <button key={key} className="tab" role="tab" type="button" aria-selected={range === key} onClick={() => setRange(key)}>
+                  <button
+                    key={key}
+                    className="tab"
+                    role="tab"
+                    type="button"
+                    aria-selected={range === key}
+                    onClick={() => setRange(key)}
+                  >
                     {key === "all" ? "All" : key.toUpperCase()}
                   </button>
                 ))}
@@ -323,8 +616,17 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
               height={240}
               baseline={summary.startCapital}
               series={[
-                { label: "Agent", values: visible.map((run) => run.equity), color: "var(--color-purple-rich)" },
-                { label: "Holding", values: visible.map((run) => run.holdEquity), color: "var(--color-hold-line)", dashed: true },
+                {
+                  label: "Agent",
+                  values: visible.map((run) => run.equity),
+                  color: "var(--color-purple-rich)",
+                },
+                {
+                  label: "Holding",
+                  values: visible.map((run) => run.holdEquity),
+                  color: "var(--color-hold-line)",
+                  dashed: true,
+                },
               ]}
             />
           </div>
@@ -334,7 +636,11 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
               <h2 className="card__title">Decision log</h2>
               {summary.trades ? (
                 <label className="check">
-                  <input type="checkbox" checked={showHolds} onChange={(event) => setShowHolds(event.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={showHolds}
+                    onChange={(event) => setShowHolds(event.target.checked)}
+                  />
                   Show hours with no trade
                 </label>
               ) : (
@@ -348,7 +654,13 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
                   {isMarketHours(run.ts) ? "" : " · DEX hours"}
                 </span>
                 {run.decisions.map((decision, i) => (
-                  <DecisionRow key={i} symbol={symbolOf(decision.token)} action={decision.action} reasoning={decision.reasoning} ai={decision.ai} />
+                  <DecisionRow
+                    key={i}
+                    symbol={symbolOf(decision.token)}
+                    action={decision.action}
+                    reasoning={decision.reasoning}
+                    ai={decision.ai}
+                  />
                 ))}
               </div>
             ))}
@@ -357,7 +669,10 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
           <div className="card">
             <div className="card-head">
               <h2 className="card__title">Trades</h2>
-              <span className="muted" style={{ fontSize: 14, lineHeight: "20px" }}>
+              <span
+                className="muted"
+                style={{ fontSize: 14, lineHeight: "20px" }}
+              >
                 {summary.trades} total, 0.5% cost each
               </span>
             </div>
@@ -379,19 +694,36 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
                       <tr key={i}>
                         <td className="muted">{dateAt(trade.ts)}</td>
                         <td>
-                          <span className={`decision__action decision__action--${trade.side}`}>{trade.side}</span>
+                          <span
+                            className={`decision__action decision__action--${trade.side}`}
+                          >
+                            {trade.side}
+                          </span>
                         </td>
                         <td>
                           <strong>{trade.symbol}</strong>
                         </td>
                         <td className="num">{price(trade.price)}</td>
-                        <td className="num">{usd(trade.quantity * trade.price)}</td>
+                        <td className="num">
+                          {usd(trade.quantity * trade.price)}
+                        </td>
                         <td>
-                          {trade.reason === "stop_loss" && <span className="pill pill--warn">Stop loss</span>}
-                          {trade.reason === "take_profit" && <span className="pill pill--running">Take profit</span>}
-                          {trade.reason === "max_hold" && <span className="pill">Max hold</span>}{" "}
+                          {trade.reason === "stop_loss" && (
+                            <span className="pill pill--warn">Stop loss</span>
+                          )}
+                          {trade.reason === "take_profit" && (
+                            <span className="pill pill--running">
+                              Take profit
+                            </span>
+                          )}
+                          {trade.reason === "max_hold" && (
+                            <span className="pill">Max hold</span>
+                          )}{" "}
                           {!isMarketHours(trade.ts) && (
-                            <span className="pill" title="New York exchange closed. Price came from Robinhood Chain trading only.">
+                            <span
+                              className="pill"
+                              title="New York exchange closed. Price came from Robinhood Chain trading only."
+                            >
                               DEX hours
                             </span>
                           )}
@@ -403,9 +735,17 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
               </div>
             ) : (
               <div className="empty">
-                <img src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`} alt="" width={72} height={72} />
+                <img
+                  src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`}
+                  alt=""
+                  width={72}
+                  height={72}
+                />
                 <h3 className="card__title">Waiting for its moment</h3>
-                <p>The agent only trades when its rules trigger. Every hour so far ended in a hold; the log above shows why.</p>
+                <p>
+                  The agent only trades when its rules trigger. Every hour so
+                  far ended in a hold; the log above shows why.
+                </p>
               </div>
             )}
           </div>
@@ -414,17 +754,29 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
         <div className="stack">
           <div className="card stack stack--tight">
             <h2 className="card__title">Latest decision</h2>
-            <span className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
+            <span
+              className="muted"
+              style={{ fontSize: 12, lineHeight: "16px" }}
+            >
               {dateAt(lastRun.ts)}
             </span>
             {lastRun.decisions.map((decision, i) => (
-              <DecisionRow key={i} symbol={symbolOf(decision.token)} action={decision.action} reasoning={decision.reasoning} ai={decision.ai} />
+              <DecisionRow
+                key={i}
+                symbol={symbolOf(decision.token)}
+                action={decision.action}
+                reasoning={decision.reasoning}
+                ai={decision.ai}
+              />
             ))}
           </div>
           <div className="card">
             <div className="card-head">
               <h2 className="card__title">Holdings</h2>
-              <span className="mono muted" style={{ fontSize: 14, lineHeight: "20px" }}>
+              <span
+                className="mono muted"
+                style={{ fontSize: 14, lineHeight: "20px" }}
+              >
                 Cash {usd(lastRun.cash)}
               </span>
             </div>
@@ -451,8 +803,12 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
                           </td>
                           <td className="num">{price(position.entryPrice)}</td>
                           <td className="num">{price(now)}</td>
-                          <td className={`num ${tone(change)}`}>{percent(change)}</td>
-                          <td className="num">{usd(position.quantity * now)}</td>
+                          <td className={`num ${tone(change)}`}>
+                            {percent(change)}
+                          </td>
+                          <td className="num">
+                            {usd(position.quantity * now)}
+                          </td>
                         </tr>
                       );
                     })}
@@ -468,7 +824,10 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
                   <span className="muted">Cash</span>
                   <strong>100%</strong>
                 </div>
-                <p className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
+                <p
+                  className="muted"
+                  style={{ fontSize: 13, lineHeight: "18px" }}
+                >
                   Fully in cash. It buys the moment its rules trigger.
                 </p>
               </div>
@@ -481,7 +840,15 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
   );
 }
 
-function Stat({ label, value, className = "" }: { label: string; value: string; className?: string }) {
+function Stat({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
   return (
     <div className="stat">
       <span className="stat__label">{label}</span>
@@ -490,19 +857,35 @@ function Stat({ label, value, className = "" }: { label: string; value: string; 
   );
 }
 
-export function DecisionRow({ symbol, action, reasoning, ai }: { symbol: string; action: string; reasoning: string; ai?: Decision["ai"] }) {
+export function DecisionRow({
+  symbol,
+  action,
+  reasoning,
+  ai,
+}: {
+  symbol: string;
+  action: string;
+  reasoning: string;
+  ai?: Decision["ai"];
+}) {
   return (
     <div className="decision">
-      <span className={`decision__action decision__action--${action}`}>{action}</span>
+      <span className={`decision__action decision__action--${action}`}>
+        {action}
+      </span>
       <span>
         <strong>{symbol}</strong> <span className="muted">{reasoning}</span>
         {ai && (
           <span className="decision__ai">
-            <span className={`pill ${ai.verdict === "approved" ? "pill--accent" : "pill--warn"}`}>
+            <span
+              className={`pill ${ai.verdict === "approved" ? "pill--accent" : "pill--warn"}`}
+            >
               <i className="ph ph-sparkle" aria-hidden="true" /> AI {ai.verdict}
             </span>{" "}
             {ai.verdict === "approved" ? ai.reasoning : null}
-            <span className="decision__ai-model">{aiModel(ai.model)?.label ?? ai.model}</span>
+            <span className="decision__ai-model">
+              {aiModel(ai.model)?.label ?? ai.model}
+            </span>
           </span>
         )}
       </span>

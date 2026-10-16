@@ -4,24 +4,27 @@ import { notFound } from "next/navigation";
 import { AgentView, type Preview } from "@/components/app/AgentView";
 import { agentParams } from "@/lib/agents/plan";
 import { getSessionAddress } from "@/lib/auth/session";
-import { getAgentDetail } from "@/lib/data/agents";
+import { getAgentDetail, type AgentDetail } from "@/lib/data/agents";
 import { getMarket } from "@/lib/data/market";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
+const canView = (detail: AgentDetail, address: string | null) => detail.agent.published_at !== null || address === detail.agent.owner;
+
 export async function generateMetadata({ params }: PageProps<"/agents/[id]">): Promise<Metadata> {
   const client = db();
-  const detail = await getAgentDetail(client, (await params).id);
-  return { title: detail ? detail.agent.name : "Agent not found" };
+  const [detail, address] = await Promise.all([getAgentDetail(client, (await params).id), getSessionAddress()]);
+  return { title: detail && canView(detail, address) ? detail.agent.name : "Agent not found" };
 }
 
 export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
   const client = db();
   const { id } = await params;
   const [detail, address, market] = await Promise.all([getAgentDetail(client, id), getSessionAddress(), getMarket(client)]);
-  if (!detail) notFound();
+  // A private agent looks like it does not exist to everyone but its owner.
+  if (!detail || !canView(detail, address)) notFound();
 
   const last = market.hours - 1;
   const prices: Record<string, number> = {};

@@ -109,6 +109,19 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   return { id: data.id };
 }
 
+/** Show one of the owner's agents on the leaderboard and other public lists, or take it off. */
+export async function setAgentPublished(db: SupabaseClient, owner: string, id: string, published: unknown): Promise<void> {
+  if (typeof published !== "boolean") throw new AgentInputError("Unknown request.");
+  const { data, error } = await db
+    .from("agents")
+    .update({ published_at: published ? new Date().toISOString() : null })
+    .eq("id", id)
+    .eq("owner", owner)
+    .select("id");
+  if (error) throw new Error(`Updating the agent failed: ${error.message}`);
+  if (!data.length) throw new AgentInputError("Agent not found.");
+}
+
 /**
  * Pause or resume one of the owner's agents. Resuming continues from the
  * newest hour: a paused agent never trades the hours it was paused.
