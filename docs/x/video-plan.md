@@ -42,8 +42,31 @@ generated; paid clips need a separate yes with the exact cost.
 | B. Product plus 2 cinematic shots | Option A plus two short generated clips (for example the orb watching a wall of charts) for 0:00-0:07 | A Grok video model on Replicate; check its exact slug and price per clip before asking | Only if A feels too plain after a first cut |
 | C. Mostly generated | Generated scenes with the UI composited in | Highest | Not recommended: looks like every other AI launch and shows less of the product |
 
+## Option B in detail (chosen 2026-10-16, waiting for a yes before generating)
+
+**Model:** [`xai/grok-imagine-video`](https://replicate.com/xai/grok-imagine-video), checked on
+Replicate on 2026-10-16: **$0.05 per second of output video**, the same at 480p and 720p. Text or
+image to video, 1 to 15 seconds, 720p at most, 16:9 among the aspect ratios.
+The newer [`xai/grok-imagine-video-1.5`](https://replicate.com/xai/grok-imagine-video-1.5) costs
+$0.08 per second and is a preview release that only does image to video; not needed here.
+
+Both clips start from our own logo image (image to video), so the orb looks like the real brand
+mark rather than a new character.
+
+| Clip | Replaces | Input | Prompt | Length | Cost |
+|---|---|---|---|---|---|
+| 1. The watcher wakes | 0:00-0:07 (scenes 1 and 2) | `public/img/brand/zolva-mark.png` on a dark background | A glossy lavender orb with one eye floats in a dark room lit by walls of glowing stock tickers and candlestick charts; the eye opens, the pupil darts from screen to screen, the light reflects on the orb; slow push in, calm, cinematic, no text | 6 s, 720p, 16:9 | $0.30 |
+| 2. 3am, still watching | 0:24-0:29, under the decision row | Same image | The same lavender orb hovers over a desk at night beside a window of a sleeping city, a single chart glows green, the eye follows the line and blinks once; gentle camera drift, soft purple light, no text | 6 s, 720p, 16:9 | $0.30 |
+
+**Cost:** 2 clips x 6 s x $0.05 = **$0.60**. If a clip comes out wrong (extra eyes, warped
+logo), one retry each brings it to **$1.20 at most**. I'd ask again before any third try.
+
+Notes: 720p is the model's maximum, so the clips are upscaled in the 1080p cut; fine for short
+atmospheric shots. The 1080 x 1350 feed version frames the 16:9 clips with the brand background
+rather than cropping them.
+
 ## What I need from you before recording
 
-1. Pick an option (A recommended).
+1. Option B chosen; say yes to the $0.60 (max $1.20) Grok cost above to generate the 2 clips.
 2. The token ticker and contract address for the end card.
 3. Voice over or captions only (captions only is fine for X).
