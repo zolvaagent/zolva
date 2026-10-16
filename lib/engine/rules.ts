@@ -1,5 +1,5 @@
 /**
- * Custom strategies: rules a user builds in the Forge.
+ * Custom strategies: rules a user builds in the Studio.
  *
  * Same semantics as prototype/engine.js (a Vitest parity test keeps them in
  * step). Momentum and Mean reversion also exist as templates in this format,

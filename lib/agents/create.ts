@@ -21,7 +21,7 @@ export class AgentInputError extends Error {}
 const STRATEGIES = ["momentum", "mean_reversion", "custom"] as const;
 
 /**
- * Validates untrusted Forge input and launches a paper agent for `owner`.
+ * Validates untrusted Studio input and launches a paper agent for `owner`.
  * The agent starts at the newest stored hour, so its first decision is made
  * by the next hourly tick, never on the past.
  */

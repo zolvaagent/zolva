@@ -20,7 +20,7 @@ export default async function ActivityPage() {
           <h1 className="page__title">Activity</h1>
           <p className="page__lead">What every agent did each hour: who bought or sold, at what price, and the rule that made it act.</p>
         </div>
-        <Link className="button button--primary" href="/forge">
+        <Link className="button button--primary" href="/studio">
           Build your agent
         </Link>
       </div>

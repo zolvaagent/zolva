@@ -9,7 +9,7 @@ import { useAuth, useToast } from "@/components/ui/Providers";
 const LINKS = [
   { href: "/markets", label: "Markets" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/forge", label: "Forge" },
+  { href: "/studio", label: "Studio" },
   { href: "/app", label: "Dashboard" },
 ];
 
@@ -136,15 +136,15 @@ export function SiteFooter() {
             <h3>Product</h3>
             <Link href="/app">Dashboard</Link>
             <Link href="/markets">Markets</Link>
-            <Link href="/forge">Forge</Link>
+            <Link href="/studio">Studio</Link>
             <Link href="/leaderboard">Leaderboard</Link>
             <Link href="/activity">Activity</Link>
           </div>
           <div className="footer__col">
             <h3>Strategies</h3>
-            <Link href="/forge?strategy=momentum">Momentum</Link>
-            <Link href="/forge?strategy=mean_reversion">Mean reversion</Link>
-            <Link href="/forge?strategy=custom">Build your own</Link>
+            <Link href="/studio?strategy=momentum">Momentum</Link>
+            <Link href="/studio?strategy=mean_reversion">Mean reversion</Link>
+            <Link href="/studio?strategy=custom">Build your own</Link>
           </div>
           <div className="footer__col">
             <h3>Legal</h3>

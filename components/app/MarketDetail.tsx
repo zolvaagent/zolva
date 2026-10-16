@@ -64,7 +64,7 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
           </div>
         </div>
         <div className="hero__actions">
-          <Link className="button button--primary" href={`/forge?stock=${row.symbol}`}>
+          <Link className="button button--primary" href={`/studio?stock=${row.symbol}`}>
             Build an agent for {row.symbol}
             <i className="ph ph-arrow-right" />
           </Link>
@@ -143,8 +143,8 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
             ) : (
               <div className="empty" style={{ padding: "var(--space-300) 0" }}>
                 <p>No agent trades {row.symbol} yet. Yours could be the first.</p>
-                <Link className="button button--ghost button--small" href={`/forge?stock=${row.symbol}`}>
-                  Open the Forge
+                <Link className="button button--ghost button--small" href={`/studio?stock=${row.symbol}`}>
+                  Open the Studio
                 </Link>
               </div>
             )}

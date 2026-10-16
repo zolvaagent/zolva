@@ -50,7 +50,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
               Build an agent for NVDA, Tesla or SPY in minutes. See how it would have traded the last 30 days before it touches a single virtual dollar.
             </p>
             <div className="hero__actions reveal">
-              <Link className="button button--primary button--large" href="/forge">
+              <Link className="button button--primary button--large" href="/studio">
                 Build your agent
               </Link>
               <Link className="button button--ghost button--large" href="/leaderboard">
@@ -76,13 +76,13 @@ export function Landing({ market, backtests, agents, feed }: Props) {
           <div className="showcase">
             <span className="showcase__label reveal">
               <img src="/img/brand/zolva-mark.png" alt="" width={32} height={32} />
-              Zolva Forge
+              Zolva Studio
             </span>
             <Words className="showcase__title" text="A" highlight="trading desk" />
             <p className="showcase__lead reveal">Shape an agent, replay its last 30 days and launch it. Every number below comes from real Robinhood Chain prices.</p>
             <div className="hero__actions reveal">
-              <Link className="button button--light button--large" href="/forge">
-                Open the Forge
+              <Link className="button button--light button--large" href="/studio">
+                Open the Studio
               </Link>
               <Link className="button button--dark-soft button--large" href="/leaderboard">
                 See live agents
@@ -99,7 +99,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
             </div>
             <div className="strategy-grid">
               <StrategyCard
-                href="/forge?strategy=momentum"
+                href="/studio?strategy=momentum"
                 icon="momentum"
                 label="Trend following"
                 title="Momentum"
@@ -109,7 +109,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
                 backtest={backtests.find((item) => item.config.strategy === "momentum")}
               />
               <StrategyCard
-                href="/forge?strategy=mean_reversion"
+                href="/studio?strategy=mean_reversion"
                 icon="mean-reversion"
                 label="Buy the dip"
                 title="Mean reversion"
@@ -119,7 +119,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
                 backtest={backtests.find((item) => item.config.strategy === "mean_reversion")}
               />
               <StrategyCard
-                href="/forge?strategy=custom"
+                href="/studio?strategy=custom"
                 icon="backtest"
                 label="Your own rules"
                 title="Custom"
@@ -156,7 +156,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
             <p className="section-heading__lead reveal">No code, no formulas, no deposit. Shape it, check it, launch it.</p>
           </div>
           <div className="grid-3">
-            <Feature icon="backtest" step="Step 1" title="Replay the last 30 days" text="Pick a strategy or write your own rules, choose up to three stocks and a stop loss. The Forge replays real hourly prices with your exact settings, instantly." />
+            <Feature icon="backtest" step="Step 1" title="Replay the last 30 days" text="Pick a strategy or write your own rules, choose up to three stocks and a stop loss. The Studio replays real hourly prices with your exact settings, instantly." />
             <Feature icon="agent" step="Step 2" title="Launch your agent" text="Sign one free message with your wallet. Your agent checks prices every hour and writes down why it acted." />
             <Feature icon="leaderboard" step="Step 3" title="Climb the leaderboard" text="Every agent has a public page, ranked by return and by how far it beats holding. Run up to five at once." />
           </div>
@@ -235,8 +235,8 @@ export function Landing({ market, backtests, agents, feed }: Props) {
                   </span>
                   <strong>{usd(10000)}</strong>
                 </div>
-                <Link className="button button--ghost" href={`/forge?strategy=${top.config.strategy}`} style={{ width: "fit-content" }}>
-                  Try it in the Forge
+                <Link className="button button--ghost" href={`/studio?strategy=${top.config.strategy}`} style={{ width: "fit-content" }}>
+                  Try it in the Studio
                   <i className="ph ph-arrow-right" />
                 </Link>
               </div>
@@ -424,7 +424,7 @@ function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
       <div className="phone phone--left">
         <div className="phone__screen">
           {status}
-          <div className="phone__title">Forge</div>
+          <div className="phone__title">Studio</div>
           <div className="phone__chips">
             <span className={`phone__chip${second.config.strategy === "momentum" ? " phone__chip--on" : ""}`}>Momentum</span>
             <span className={`phone__chip${second.config.strategy === "mean_reversion" ? " phone__chip--on" : ""}`}>Mean reversion</span>
@@ -532,7 +532,7 @@ function Browser({ agents }: { agents: AgentSummary[] }) {
           </div>
           {nav("squares-four", "Dashboard")}
           <div className="browser__group">Explore</div>
-          {nav("sliders-horizontal", "Forge")}
+          {nav("sliders-horizontal", "Studio")}
           {nav("trophy", "Leaderboard", true)}
           {nav("chart-line-up", "Markets")}
           <div className="browser__group">Learn</div>
@@ -621,7 +621,7 @@ function StockGrid({ market }: { market: Market }) {
           const week = token.closes.slice(Math.max(token.firstIndex ?? 0, last - 7 * 24)).filter((value): value is number => value != null);
           const color = week[week.length - 1] >= week[0] ? "var(--color-gain)" : "var(--color-loss)";
           return (
-            <Link key={token.address} className="stock-tile reveal" href={`/forge?stock=${token.symbol}`} title={`Build an agent for ${token.name}`}>
+            <Link key={token.address} className="stock-tile reveal" href={`/studio?stock=${token.symbol}`} title={`Build an agent for ${token.name}`}>
               <span className="stock-tile__head">
                 <TickerAvatar symbol={token.symbol} />
                 <span>
@@ -750,8 +750,8 @@ function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
         <p className="section-heading__lead">Build it, replay its last 30 days and launch it in about five minutes. No deposit, no gas.</p>
         <div className="hero__actions" style={{ justifyContent: "flex-start" }}>
           <GoToAppButton className="button button--primary button--large" label="Go to app" />
-          <Link className="button button--ghost button--large" href="/forge">
-            Try the Forge
+          <Link className="button button--ghost button--large" href="/studio">
+            Try the Studio
           </Link>
         </div>
         <ul className="closing__points">

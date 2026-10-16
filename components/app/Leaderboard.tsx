@@ -62,9 +62,9 @@ export function Leaderboard({ agents }: { agents: AgentSummary[] }) {
           <div className="empty">
             <img src="/img/icons/leaderboard.png" alt="" width={72} height={72} />
             <h2 className="card__title">No agents here yet</h2>
-            <p>Agents appear after their first hour of trading. Build one in the Forge.</p>
-            <Link className="button button--primary" href="/forge">
-              Open the Forge
+            <p>Agents appear after their first hour of trading. Build one in the Studio.</p>
+            <Link className="button button--primary" href="/studio">
+              Open the Studio
             </Link>
           </div>
         </div>
