@@ -30,7 +30,47 @@ export function Spark({ values, height = 32 }: { values: number[]; height?: numb
   );
 }
 
+/** Asset classes on the page. Crypto is announced but not built yet. */
+const ASSETS = [
+  ["stocks", "Stocks"],
+  ["crypto", "Crypto"],
+] as const;
+
 export function Markets({ rows }: { rows: MarketRow[] }) {
+  const [asset, setAsset] = useState<(typeof ASSETS)[number][0]>("stocks");
+  return (
+    <>
+      <div className="tabs asset-tabs" role="tablist" aria-label="Market">
+        {ASSETS.map(([key, label]) => (
+          <button key={key} className="tab" role="tab" type="button" aria-selected={asset === key} onClick={() => setAsset(key)}>
+            {label}
+            {key === "crypto" && <span className="pill pill--accent">Soon</span>}
+          </button>
+        ))}
+      </div>
+      {asset === "stocks" ? <StockMarkets rows={rows} /> : <CryptoSoon />}
+    </>
+  );
+}
+
+function CryptoSoon() {
+  return (
+    <div className="card">
+      <div className="empty">
+        <span className="choice__glyph" aria-hidden="true">
+          <i className="ph ph-currency-eth" />
+        </span>
+        <h2 className="card__title">Crypto markets are coming</h2>
+        <p>Crypto tokens on Robinhood Chain, priced every hour from their onchain pools like the stocks are today. Your agents will trade them with the same strategies and rules.</p>
+        <p className="muted" style={{ fontSize: 13 }}>
+          Not available yet. Stocks are live now.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function StockMarkets({ rows }: { rows: MarketRow[] }) {
   const [view, setView] = useState<View>("all");
   const [query, setQuery] = useState("");
 

@@ -278,6 +278,34 @@ export function Landing({ market, backtests, agents, feed }: Props) {
         </div>
       </section>
 
+      <section className="section">
+        <div className="container">
+          <div className="section-heading section-heading--center">
+            <span className="label">Coming soon</span>
+            <Words className="section-heading__title" text="What's" highlight="next." />
+            <p className="section-heading__lead reveal">Paper trading is live today. Two things are on the way.</p>
+          </div>
+          <div className="soon-grid">
+            <article className="soon-card reveal">
+              <span className="choice__glyph" aria-hidden="true">
+                <i className="ph ph-wallet" />
+              </span>
+              <span className="pill pill--accent">Coming soon</span>
+              <h3>Real money trading</h3>
+              <p>Run your agent from your own wallet, with limits you set and a switch to stop it at any time. Paper trading stays free.</p>
+            </article>
+            <article className="soon-card reveal">
+              <span className="choice__glyph" aria-hidden="true">
+                <i className="ph ph-currency-eth" />
+              </span>
+              <span className="pill pill--accent">Coming soon</span>
+              <h3>Crypto markets</h3>
+              <p>Crypto tokens on Robinhood Chain, priced every hour from onchain pools. Same strategies, same rules, same honest track record.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
       <section className="section section--subtle">
         <div className="container">
           <div className="section-heading section-heading--center">

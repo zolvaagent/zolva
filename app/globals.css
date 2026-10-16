@@ -1673,6 +1673,49 @@ main:focus {
   transform: translateY(-2px) rotate(-4deg);
 }
 
+/* Phosphor icon version of .choice__icon, for choices without a 3D icon. */
+.choice__glyph {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--space-75);
+  border-radius: var(--radius-xl);
+  background: var(--color-purple-8);
+  color: var(--color-purple-rich);
+  font-size: 22px;
+}
+
+/* A choice that is coming but not available: visible, clearly not selectable. */
+.choice--soon {
+  border-style: dashed;
+  background: var(--color-bg-subtle);
+  cursor: not-allowed;
+}
+
+.choice--soon:hover {
+  border-color: var(--color-border-strong);
+}
+
+.choice--soon:active {
+  transform: none;
+}
+
+.choice--soon .choice__glyph {
+  background: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.choice--soon .choice__title,
+.choice--soon .choice__text {
+  color: var(--color-text-muted);
+}
+
+.choice__title .pill {
+  margin-left: var(--space-50);
+  vertical-align: 1px;
+}
+
 .choice__title {
   font-size: 15px;
   line-height: 20px;
@@ -4545,4 +4588,63 @@ main:focus {
     align-items: baseline;
     text-align: left;
   }
+}
+
+/* Stocks / Crypto switch above the markets table. */
+.asset-tabs {
+  margin-bottom: var(--space-200);
+}
+
+.asset-tabs .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-50);
+}
+
+.empty .choice__glyph {
+  margin: 0 auto var(--space-100);
+}
+
+/* Landing: "What's next" cards for features that are announced but not live. */
+.soon-grid {
+  display: grid;
+  gap: var(--space-200);
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .soon-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.soon-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-100);
+  padding: var(--space-400);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-3xl);
+  background: var(--color-bg-subtle);
+}
+
+.soon-card h3 {
+  margin: var(--space-75) 0 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.soon-card p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 24px;
+}
+
+.soon-card .choice__glyph {
+  margin-bottom: var(--space-50);
 }
