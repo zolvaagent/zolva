@@ -278,31 +278,14 @@ export function Landing({ market, backtests, agents, feed }: Props) {
         </div>
       </section>
 
-      <section className="section">
+      <section className="panel-dark next-panel">
         <div className="container">
           <div className="section-heading section-heading--center">
             <span className="label">Coming soon</span>
             <Words className="section-heading__title" text="What's" highlight="next." />
-            <p className="section-heading__lead reveal">Paper trading is live today. Two things are on the way.</p>
+            <p className="section-heading__lead reveal">Paper trading is live today. Two things are on the way, built with the same honesty.</p>
           </div>
-          <div className="soon-grid">
-            <article className="soon-card reveal">
-              <span className="choice__glyph" aria-hidden="true">
-                <i className="ph ph-wallet" />
-              </span>
-              <span className="pill pill--accent">Coming soon</span>
-              <h3>Real money trading</h3>
-              <p>Run your agent from your own wallet, with limits you set and a switch to stop it at any time. Paper trading stays free.</p>
-            </article>
-            <article className="soon-card reveal">
-              <span className="choice__glyph" aria-hidden="true">
-                <i className="ph ph-currency-eth" />
-              </span>
-              <span className="pill pill--accent">Coming soon</span>
-              <h3>Crypto markets</h3>
-              <p>Crypto tokens on Robinhood Chain, priced every hour from onchain pools. Same strategies, same rules, same honest track record.</p>
-            </article>
-          </div>
+          <WhatsNext />
         </div>
       </section>
 
@@ -807,6 +790,104 @@ function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SoonBadge() {
+  return (
+    <span className="next-card__badge">
+      <span className="pulse" />
+      Coming soon
+    </span>
+  );
+}
+
+/** Two upcoming features, each with a small preview of how it will look. Nothing here is live. */
+function WhatsNext() {
+  return (
+    <div className="next-grid">
+      <article className="next-card reveal">
+        <div className="next-preview" aria-hidden="true">
+          <div className="next-mode">
+            <span className="next-mode__option">
+              <i className="ph ph-flask" /> Paper
+            </span>
+            <span className="next-mode__option next-mode__option--on">
+              <i className="ph-fill ph-lock-simple" /> Live
+            </span>
+          </div>
+          <div className="next-wallet">
+            <span className="next-wallet__icon">
+              <i className="ph ph-wallet" />
+            </span>
+            <span>
+              <strong>Your wallet</strong>
+              <span>Funds never leave it</span>
+            </span>
+            <span className="next-wallet__ok">
+              <i className="ph-fill ph-shield-check" />
+            </span>
+          </div>
+          <div className="next-limit">
+            <span className="next-limit__head">
+              <span>Limit per trade</span>
+              <strong>you choose</strong>
+            </span>
+            <span className="next-limit__track">
+              <span className="next-limit__fill" />
+              <span className="next-limit__knob" />
+            </span>
+          </div>
+          <div className="next-stop">
+            <span>Stop the agent anytime</span>
+            <span className="next-switch" />
+          </div>
+        </div>
+        <div className="next-card__body">
+          <SoonBadge />
+          <h3>Real money trading</h3>
+          <p>Run your agent from your own wallet, with limits you set and a switch to stop it at any time. Paper trading stays free.</p>
+        </div>
+        <div className="next-card__foot">
+          <i className="ph ph-hourglass-medium" />
+          Now: designing safety limits and a legal review
+        </div>
+      </article>
+
+      <article className="next-card reveal">
+        <div className="next-preview" aria-hidden="true">
+          <div className="next-tabs">
+            <span>Stocks</span>
+            <span className="next-tabs__on">Crypto</span>
+          </div>
+          {[
+            ["currency-eth", "Ether", "M2 22 L12 16 L22 19 L32 10 L42 13 L52 6 L62 9"],
+            ["currency-btc", "Bitcoin", "M2 18 L12 20 L22 12 L32 15 L42 8 L52 11 L62 5"],
+            ["coins", "More tokens", "M2 14 L12 18 L22 15 L32 19 L42 12 L52 14 L62 8"],
+          ].map(([icon, name, line]) => (
+            <div className="next-coin" key={name}>
+              <span className="next-coin__icon">
+                <i className={`ph ph-${icon}`} />
+              </span>
+              <strong>{name}</strong>
+              <svg viewBox="0 0 64 24" className="next-coin__spark">
+                <path d={line} />
+              </svg>
+              <span className="next-skeleton" />
+            </div>
+          ))}
+        </div>
+        <div className="next-card__body">
+          <SoonBadge />
+          <h3>Crypto markets</h3>
+          <p>Crypto tokens on Robinhood Chain, priced every hour from onchain pools. Same strategies, same rules, same honest track record.</p>
+        </div>
+        <div className="next-card__foot">
+          <i className="ph ph-hourglass-medium" />
+          Now: picking tokens with deep onchain liquidity
+        </div>
+      </article>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
@@ -31,6 +31,9 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
   const [range, setRange] = useState<keyof typeof RANGES>("all");
   const [showHolds, setShowHolds] = useState(false);
   const [busy, setBusy] = useState(false);
+  const pauseRef = useRef<HTMLDialogElement>(null);
+  const liveRef = useRef<HTMLDialogElement>(null);
+  const isActive = agent.status === "active";
   const minutesToNextRun = 60 - new Date().getUTCMinutes();
   const symbolOf = (token: string) => symbols[token] ?? token;
 
@@ -40,6 +43,7 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
     const response = await fetch(`/api/agents/${agent.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
     const body = (await response.json().catch(() => ({}))) as { error?: string };
     setBusy(false);
+    pauseRef.current?.close();
     if (!response.ok) return toast(body.error ?? "Updating failed. Please try again.");
     toast(status === "active" ? "Agent resumed. It continues from the next hour." : "Agent paused");
     router.refresh();
@@ -96,9 +100,16 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
       </div>
       <div className="hero__actions">
         {isOwner && (
-          <button className="button button--ghost" type="button" onClick={togglePause} disabled={busy}>
-            <i className={`ph ${agent.status === "active" ? "ph-pause" : "ph-play"}`} />
-            {agent.status === "active" ? "Pause" : "Resume"}
+          <button className="button button--ghost" type="button" onClick={() => liveRef.current?.showModal()}>
+            <i className="ph ph-wallet" />
+            Trade with real money
+            <span className="pill pill--accent">Soon</span>
+          </button>
+        )}
+        {isOwner && (
+          <button className="button button--ghost" type="button" onClick={() => pauseRef.current?.showModal()} disabled={busy}>
+            <i className={`ph ${isActive ? "ph-pause" : "ph-play"}`} />
+            {isActive ? "Pause" : "Resume"}
           </button>
         )}
         <button className="button button--ghost" type="button" onClick={share}>
@@ -107,6 +118,89 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
         </button>
       </div>
     </div>
+  );
+
+  // Pausing stops the hourly runs entirely, so positions are kept but not managed.
+  const pauseDialog = (
+    <dialog
+      ref={pauseRef}
+      className="modal"
+      aria-labelledby="pause-title"
+      onClick={(event) => {
+        if (event.target === pauseRef.current) pauseRef.current?.close();
+      }}
+    >
+      <div className="modal__body">
+        <span className="choice__glyph" aria-hidden="true">
+          <i className={`ph ${isActive ? "ph-pause" : "ph-play"}`} />
+        </span>
+        <h2 className="modal__title" id="pause-title">
+          {isActive ? `Pause ${agent.name}?` : `Resume ${agent.name}?`}
+        </h2>
+        {isActive ? (
+          <ul className="modal__list">
+            <li>It stops making decisions from the next hour.</li>
+            <li>
+              {positions.length
+                ? `Its ${positions.length} open position${positions.length === 1 ? " stays" : "s stay"} open, but the stop loss and sell rules don't run while paused.`
+                : "It holds no stocks right now, so nothing is left open."}
+            </li>
+            <li>You can resume it at any time. The hours it was paused are skipped, not traded later.</li>
+          </ul>
+        ) : (
+          <ul className="modal__list">
+            <li>It starts deciding again from the next hour, with the same settings.</li>
+            <li>The hours it was paused are skipped, not traded afterwards.</li>
+            <li>It counts toward your 5 running agents.</li>
+          </ul>
+        )}
+        <div className="modal__actions">
+          <button className="button button--ghost" type="button" onClick={() => pauseRef.current?.close()} disabled={busy}>
+            Cancel
+          </button>
+          <button className="button button--primary" type="button" onClick={togglePause} disabled={busy}>
+            {busy ? "Saving…" : isActive ? "Pause agent" : "Resume agent"}
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+
+  // Real money is not built yet. An agent's mode can never change (the database
+  // forbids it), so going live will copy these settings into a new live agent.
+  const liveDialog = (
+    <dialog
+      ref={liveRef}
+      className="modal"
+      aria-labelledby="live-title"
+      onClick={(event) => {
+        if (event.target === liveRef.current) liveRef.current?.close();
+      }}
+    >
+      <div className="modal__body">
+        <span className="choice__glyph" aria-hidden="true">
+          <i className="ph ph-wallet" />
+        </span>
+        <span className="pill pill--accent" style={{ width: "fit-content" }}>
+          Coming soon
+        </span>
+        <h2 className="modal__title" id="live-title">
+          Take {agent.name} live
+        </h2>
+        <p className="muted">Real money trading is not available yet. When it opens, this is how it will work:</p>
+        <ul className="modal__list">
+          <li>A live copy of this agent starts with the same strategy, stocks and rules.</li>
+          <li>It trades from your own wallet, within a limit per trade and per day that you set.</li>
+          <li>You can stop it at any time with one switch.</li>
+          <li>This paper agent keeps running, and its track record stays as it is.</li>
+        </ul>
+        <div className="modal__actions">
+          <button className="button button--primary" type="button" onClick={() => liveRef.current?.close()}>
+            Got it
+          </button>
+        </div>
+      </div>
+    </dialog>
   );
 
   const settingsCard = (
@@ -143,6 +237,8 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
     return (
       <div className="container page">
         {header}
+        {isOwner && pauseDialog}
+        {isOwner && liveDialog}
         <div className="agent-layout">
           <div className="stack">
             <div className="card">
@@ -198,6 +294,8 @@ export function AgentView({ detail, isOwner, prices, preview, symbols }: Props) 
   return (
     <div className="container page">
       {header}
+      {isOwner && pauseDialog}
+      {isOwner && liveDialog}
       <div className="agent-layout">
         <div className="stack">
           <div className="card stack">
