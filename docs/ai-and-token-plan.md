@@ -91,7 +91,10 @@ on chain (`getLaunchFeePolicy(token)`), the docs don't publish the numbers.
 - `TokenParams.creatorFeeRecipient` decides who earns the creator fees. It can be changed later
   only by the current recipient (`transferCreatorFeeRecipient`). Fees collect in a `FeeEscrow`
   contract and are pulled with `claim()` / `claimToken()`.
-- **Public launches are closed right now: only whitelisted addresses can create tokens.**
+- ~~Public launches are closed right now: only whitelisted addresses can create tokens.~~
+  **Update 2026-10-18 (read on chain):** `launchEnabled()` is `true` and `canLaunch(any address)`
+  returns `true`, so launches are public now (the docs still say closed). The factory saw 86
+  transactions in the last 50k blocks from 50+ different wallets.
 - **v2 is unaudited** (three reviews in progress, none closed).
 - No integrator or referral fee exists; partnership contact: contact@ponsfamily.com.
 
@@ -140,7 +143,8 @@ that record next to "holding the same stocks", including losses.
    say so on every screen. A stronger version waits for real money trading.
 3. **Unaudited contracts.** Pons v2 is unaudited and our AgentVault would hold real funds: it
    needs its own audit, and a cap on what it holds until then.
-4. **Whitelist dependency.** We need Pons to whitelist our wrapper contract (or open launches).
+4. ~~**Whitelist dependency.**~~ Resolved: Pons launches are public since at least 2026-10-18.
+   Pons can still close the gate again (`launchEnabled`), so check `canLaunch` before each launch.
 5. **Impersonation.** Passenger tokens can copy names; launches only through Zolva, clear labels,
    and a report button.
 6. **LLM failure modes.** Prompt injection (later, if agents read news), invalid outputs, model
@@ -166,3 +170,35 @@ Phase A is valuable on its own and carries no token risk, so it can start while 
 2. Which cadence by default: hourly, every 4 hours, or AI only when a rule fires (cheapest).
 3. Do you want to contact Pons now for the whitelist? (Phase C cannot happen without it.)
 4. Placeholder fee split in section 5: keep or change.
+
+## 9. Reference: how Supercapital does it (checked on chain, 2026-10-18)
+
+Supercapital (supercapital.fun) is an agent marketplace on Robinhood Chain: agents ("Supers") sell
+services per call over x402, and after 100 paid calls a Super may launch a token on Pons. No
+trading, no stock tokens. Their published pattern matches our AgentVault idea:
+
+1. Deploy a per-launch `CreatorFeeSplitter` from their `SplitterFactory`
+   (`0xE792a6cBA247c02AcC68D212E6a43355d7fa73e4`).
+2. Launch the token on Pons with that splitter as `creatorFeeRecipient`.
+3. The splitter pays 90% to the creator and 10% to buy and burn `$SUPERCAP`.
+
+What the chain shows:
+
+| Check | Result |
+|---|---|
+| Pons gate | `launchEnabled() = true`; any address can launch |
+| SplitterFactory | Deployed (1,055 bytes of code), **no events yet**: no agent token has launched through it, so the splitter pattern is not proven on chain yet; source not readable (Blockscout behind a challenge) |
+| `$SUPERCAP` launch | From a plain wallet `0x9bc8…3b26`, through a Pons router `0xe33e…2948`, with 0.0905 ETH (launch fee plus a first buy) |
+| `$SUPERCAP` creator fee recipient | That same wallet, not a contract: their "100% of revenue buys and burns" is a promise, not enforced on chain |
+| Token tax | 2% buy and sell (200 bps) |
+
+What this means for Zolva:
+
+- The Pons whitelist is no longer a blocker.
+- The per-agent splitter (our AgentVault) is the right pattern, but nobody has shipped it on chain
+  yet; we write our own (small, claims from FeeEscrow, splits by fixed shares, no admin that can
+  redirect funds) and get it audited.
+- Make every split enforced by the contract, including the protocol share, and show it on the
+  agent page. That is a concrete difference from a promise held in one wallet.
+- Gate launches on a track record (for example 30 days live and published), similar to their
+  "100 settled payments".
