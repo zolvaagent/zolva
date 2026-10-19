@@ -4,7 +4,7 @@
  *   npm run deploy:prod
  *
  * 1. Builds the app with OpenNext and deploys the "pitwise" Worker
- *    (https://pitwise.<account>.workers.dev).
+ *    (https://zolvaagent.app; pitwise.<account>.workers.dev stays on as a fallback).
  * 2. Sets the Worker secrets: Supabase URL and key, the chain RPC URL (and Privy, if set) from
  *    .dev.vars, plus a
  *    production cron secret and session secret. Those two are generated once
@@ -23,7 +23,7 @@ import { spawnSync } from "node:child_process";
 
 import { createClient } from "@supabase/supabase-js";
 
-const SITE = "https://pitwise.<account>.workers.dev";
+const SITE = "https://zolvaagent.app";
 const root = new URL("..", import.meta.url);
 
 function readVars(file) {
