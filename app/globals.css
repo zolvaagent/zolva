@@ -5461,3 +5461,168 @@ main:focus {
     grid-area: foot;
   }
 }
+
+/* ---------- Agent launchpad: micro-interactions ----------
+   Everything starts when the card is revealed (.reveal.is-visible, set by
+   the IntersectionObserver in components/ui/Motion.tsx). */
+
+/* Count up from 0% to the share; browsers without @property just show the end value. */
+@property --pct {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+
+.next-split__pct {
+  --pct: 0;
+  counter-reset: pct var(--pct);
+  transition: --pct 1400ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition-delay: calc(400ms + var(--i, 0) * 180ms);
+}
+
+.next-split__pct::after {
+  content: counter(pct) "%";
+}
+
+.next-card--featured.is-visible .next-split__pct {
+  --pct: var(--share);
+}
+
+/* Bars fill from empty, one row after the other. */
+.next-split__bar > span {
+  width: 0;
+  transition: width 1400ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition-delay: calc(400ms + var(--i, 0) * 180ms);
+}
+
+.next-card--featured.is-visible .next-split__bar > span {
+  width: calc(var(--share) * 1%);
+}
+
+/* Fees flowing from the token card into the split: a dotted line that moves. */
+.next-flow {
+  align-self: center;
+  width: 2px;
+  height: 18px;
+  margin: calc(var(--space-75) * -1) 0;
+  background-image: radial-gradient(circle, var(--color-purple-1) 1px, transparent 1.5px);
+  background-size: 2px 6px;
+  opacity: 0.8;
+  animation: next-flow 900ms linear infinite;
+}
+
+@keyframes next-flow {
+  to {
+    background-position: 0 6px;
+  }
+}
+
+/* The ticker breathes softly. */
+.next-token__ticker {
+  animation: next-glow 2.8s ease-in-out infinite;
+}
+
+@keyframes next-glow {
+  50% {
+    box-shadow: 0 0 0 4px rgba(152, 150, 255, 0.12), 0 0 18px rgba(152, 150, 255, 0.35);
+  }
+}
+
+/* "Launch on Pons": a light sweep every few seconds, and the rocket lifts off on hover. */
+.next-launch {
+  position: relative;
+  overflow: hidden;
+  transition: background-color 300ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.next-launch::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: next-sweep 4.5s cubic-bezier(0.32, 0.72, 0, 1) infinite;
+}
+
+@keyframes next-sweep {
+  0%,
+  55% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.next-launch i {
+  color: var(--color-purple-5);
+  transition: transform 700ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.next-card--featured:hover .next-launch {
+  background: rgba(152, 150, 255, 0.14);
+}
+
+.next-card--featured:hover .next-launch i {
+  transform: translate(3px, -3px) rotate(-8deg) scale(1.15);
+}
+
+/* The preview lifts a little when the card is hovered. */
+.next-card--featured .next-preview {
+  transition: transform 700ms cubic-bezier(0.32, 0.72, 0, 1), box-shadow 700ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.next-card--featured:hover .next-preview {
+  transform: translateY(-4px);
+  box-shadow: inset 0 0 0 1px rgba(152, 150, 255, 0.25), 0 18px 40px -20px rgba(128, 117, 255, 0.6);
+}
+
+/* The three points slide in one by one; their icons nudge on hover. */
+.next-points li {
+  opacity: 0;
+  transform: translateX(-12px);
+  transition: opacity 800ms cubic-bezier(0.32, 0.72, 0, 1), transform 800ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition-delay: calc(500ms + var(--i, 0) * 150ms);
+}
+
+.next-card--featured.is-visible .next-points li {
+  opacity: 1;
+  transform: none;
+}
+
+.next-points i {
+  transition: transform 500ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.next-points li:hover i {
+  transform: scale(1.25) rotate(-10deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .next-split__pct {
+    --pct: var(--share);
+    transition: none;
+  }
+
+  .next-split__bar > span {
+    width: calc(var(--share) * 1%);
+    transition: none;
+  }
+
+  .next-points li {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .next-flow,
+  .next-token__ticker,
+  .next-launch::after {
+    animation: none;
+  }
+
+  .next-card--featured:hover .next-preview,
+  .next-card--featured:hover .next-launch i {
+    transform: none;
+  }
+}

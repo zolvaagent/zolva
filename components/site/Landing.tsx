@@ -817,23 +817,28 @@ function WhatsNext() {
             </span>
             <span className="next-token__ticker">$OWL</span>
           </div>
+          {/* Fees flowing from the token into the split. */}
+          <span className="next-flow" />
           <div className="next-split">
             <span className="next-split__head">Creator fees, split by contract</span>
-            {[
-              ["Agent creator", 70],
-              ["Agent AI fuel", 20],
-              ["Zolva buyback and burn", 10],
-            ].map(([label, share]) => (
-              <span className="next-split__row" key={label}>
+            {(
+              [
+                ["Agent creator", 70],
+                ["Agent AI fuel", 20],
+                ["Zolva buyback and burn", 10],
+              ] as const
+            ).map(([label, share], index) => (
+              // --share drives the bar and the count up; --i staggers the rows.
+              <span className="next-split__row" key={label} style={{ "--share": share, "--i": index } as React.CSSProperties}>
                 <span>{label}</span>
                 <span className="next-split__bar">
-                  <span style={{ width: `${share}%` }} />
+                  <span />
                 </span>
-                <strong>{share}%</strong>
+                <strong className="next-split__pct" data-share={share} />
               </span>
             ))}
           </div>
-          <div className="next-stop">
+          <div className="next-stop next-launch">
             <span>Launch on Pons</span>
             <i className="ph ph-rocket-launch" />
           </div>
@@ -843,13 +848,13 @@ function WhatsNext() {
           <h3>Agent launchpad</h3>
           <p>Launch a token for your agent on Pons, right from Zolva. A contract splits the creator fees, so part of them keeps the agent&apos;s AI running.</p>
           <ul className="next-points">
-            <li>
+            <li style={{ "--i": 0 } as React.CSSProperties}>
               <i className="ph ph-rocket-launch" aria-hidden="true" /> Two steps from your own wallet
             </li>
-            <li>
+            <li style={{ "--i": 1 } as React.CSSProperties}>
               <i className="ph ph-git-fork" aria-hidden="true" /> Fee split enforced by contract, no admin
             </li>
-            <li>
+            <li style={{ "--i": 2 } as React.CSSProperties}>
               <i className="ph ph-users-three" aria-hidden="true" /> Anyone can launch on a published agent, its creator still earns
             </li>
           </ul>
