@@ -1,8 +1,8 @@
 # Zolva on X: tweet drafts
 
-Order: narrative quotes, teasers, launch (with token), Dex paid, dev supply burnt, then 10 product
+Order: narrative quotes, teasers, launch (with token), Dex paid, dev supply burnt, then 11 product
 posts. Counts follow X's rules (a link counts as 23 characters, emoji may count as 2). Facts were
-checked against the live app and database on 2026-10-16; recheck numbers on the day you post.
+checked against the live app and database on 2026-10-19; recheck numbers on the day you post.
 Assets are not generated yet: the "Visual" line says what each post needs.
 
 Placeholders to replace before posting: `$TICKER`, the contract address `0x000…`, the DEX
@@ -83,13 +83,13 @@ Quote: https://x.com/RobinhoodApp/status/2105307330015592517 (Sep 30, 153K views
 
 ### T2. The proof
 
-> 15 agents have been trading stock tokens on Robinhood Chain all week.
+> 16 public agents have traded stock tokens on Robinhood Chain since Oct 15.
 > 
-> Paper money. Real onchain prices. Every decision on record.
+> 58 trades. 1,606 hourly decisions. Paper money, real onchain prices, every decision on record.
 > 
 > You'll be able to build your own. Very soon.
 
-- Characters: 176 of 280
+- Characters: 216 of 280
 - Visual: Leaderboard screenshot with names blurred
 - Status: **Fill: recount agents on the day**
 
@@ -142,7 +142,7 @@ Quote: https://x.com/RobinhoodApp/status/2105307330015592517 (Sep 30, 153K views
 
 ## Phase 4: Product (one a day after launch)
 
-Each post shows one real feature with a real screenshot. Numbers are from the live app on 2026-10-16; recheck before posting.
+Each post shows one real feature with a real screenshot. Numbers are from the live app on 2026-10-19; recheck before posting.
 
 ### P1. Build an agent in 3 steps
 
@@ -213,11 +213,11 @@ Each post shows one real feature with a real screenshot. Numbers are from the li
 
 > New: an AI co-pilot for your agent.
 > 
-> When your rules want to trade, the AI reads the same numbers and approves or passes, with a reason.
+> When your rules want to trade, the AI approves or passes, with a reason. It can't change sizes or skip a stop loss.
 > 
-> It can't change sizes or skip a stop loss. 9 models to pick from, and new accounts get $0.50 of free credits.
+> 9 models. You set a spending limit and an end date. New accounts get $0.50 free.
 
-- Characters: 247 of 280
+- Characters: 234 of 280
 - Visual: AI co-pilot picker + a decision with 'AI passed'
 - Status: **Ready**
 
@@ -253,29 +253,45 @@ Each post shows one real feature with a real screenshot. Numbers are from the li
 > 
 > • Stop loss always runs
 > • Max size per stock
-> • Up to 5 agents at once
-> • AI can only approve or pass, never size a trade
+> • AI can only approve or pass
+> • AI spending capped by a limit you set
 > • Missed hours are skipped, never traded late
 > 
 > Boring on purpose.
 
-- Characters: 219 of 280
+- Characters: 214 of 280
 - Visual: None, or the settings panel
 - Status: **Ready**
 
-### P10. What's next
+### P10. Agent launchpad (coming soon)
+
+> Coming to Zolva: the agent launchpad.
+> 
+> Launch a token for your agent on Pons, from your own wallet. A contract splits the creator fees:
+> 
+> 70% to you
+> 20% to your agent's AI
+> 10% buys and burns the Zolva token
+> 
+> No admin key. The split is in the code.
+
+- Characters: 246 of 280
+- Visual: Landing page Agent launchpad card (animated, record a short clip)
+- Status: **Ready (say Coming soon until the contracts are audited and live)**
+
+### P11. What's next
 
 > Paper trading is step one.
 > 
 > Next on Zolva:
+> • Agent launchpad on Pons
 > • Real money trading from your own wallet, within limits you set
 > • Crypto markets next to stock tokens
-> • Self-serve AI credit top up
 > 
 > Build an agent now and it has a track record by then.
 > 
 > pitwise.hoodguard.workers.dev
 
-- Characters: 255 of 280
+- Characters: 251 of 280
 - Visual: Landing page 'What's next' section
 - Status: **Ready (only promise what is on the roadmap)**
