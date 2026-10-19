@@ -794,11 +794,11 @@ function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
   );
 }
 
-function SoonBadge() {
+function SoonBadge({ label = "Coming soon" }: { label?: string }) {
   return (
     <span className="next-card__badge">
       <span className="pulse" />
-      Coming soon
+      {label}
     </span>
   );
 }
@@ -807,6 +807,59 @@ function SoonBadge() {
 function WhatsNext() {
   return (
     <div className="next-grid">
+      <article className="next-card next-card--featured reveal">
+        <div className="next-preview" aria-hidden="true">
+          <div className="next-token">
+            <img src="/img/icons/agent.png" alt="" width={32} height={32} />
+            <span>
+              <strong>Night Owl NVDA</strong>
+              <span>Agent token on Pons</span>
+            </span>
+            <span className="next-token__ticker">$OWL</span>
+          </div>
+          <div className="next-split">
+            <span className="next-split__head">Creator fees, split by contract</span>
+            {[
+              ["Agent creator", 70],
+              ["Agent AI fuel", 20],
+              ["Zolva buyback and burn", 10],
+            ].map(([label, share]) => (
+              <span className="next-split__row" key={label}>
+                <span>{label}</span>
+                <span className="next-split__bar">
+                  <span style={{ width: `${share}%` }} />
+                </span>
+                <strong>{share}%</strong>
+              </span>
+            ))}
+          </div>
+          <div className="next-stop">
+            <span>Launch on Pons</span>
+            <i className="ph ph-rocket-launch" />
+          </div>
+        </div>
+        <div className="next-card__body">
+          <SoonBadge label="Next up" />
+          <h3>Agent launchpad</h3>
+          <p>Launch a token for your agent on Pons, right from Zolva. A contract splits the creator fees, so part of them keeps the agent&apos;s AI running.</p>
+          <ul className="next-points">
+            <li>
+              <i className="ph ph-rocket-launch" aria-hidden="true" /> Two steps from your own wallet
+            </li>
+            <li>
+              <i className="ph ph-git-fork" aria-hidden="true" /> Fee split enforced by contract, no admin
+            </li>
+            <li>
+              <i className="ph ph-users-three" aria-hidden="true" /> Anyone can launch on a published agent, its creator still earns
+            </li>
+          </ul>
+        </div>
+        <div className="next-card__foot">
+          <i className="ph ph-hourglass-medium" />
+          Now: writing the fee split contract, then an audit
+        </div>
+      </article>
+
       <article className="next-card reveal">
         <div className="next-preview" aria-hidden="true">
           <div className="next-mode">
@@ -886,48 +939,6 @@ function WhatsNext() {
         <div className="next-card__foot">
           <i className="ph ph-hourglass-medium" />
           Now: picking tokens with deep onchain liquidity
-        </div>
-      </article>
-
-      <article className="next-card reveal">
-        <div className="next-preview" aria-hidden="true">
-          <div className="next-token">
-            <img src="/img/icons/agent.png" alt="" width={32} height={32} />
-            <span>
-              <strong>Night Owl NVDA</strong>
-              <span>Agent token on Pons</span>
-            </span>
-            <span className="next-token__ticker">$OWL</span>
-          </div>
-          <div className="next-split">
-            <span className="next-split__head">Creator fees, split by contract</span>
-            {[
-              ["Agent creator", 70],
-              ["Agent AI fuel", 20],
-              ["Zolva buyback and burn", 10],
-            ].map(([label, share]) => (
-              <span className="next-split__row" key={label}>
-                <span>{label}</span>
-                <span className="next-split__bar">
-                  <span style={{ width: `${share}%` }} />
-                </span>
-                <strong>{share}%</strong>
-              </span>
-            ))}
-          </div>
-          <div className="next-stop">
-            <span>Launch on Pons</span>
-            <i className="ph ph-rocket-launch" />
-          </div>
-        </div>
-        <div className="next-card__body">
-          <SoonBadge />
-          <h3>Agent launchpad</h3>
-          <p>Launch a token for your agent on Pons, right from Zolva. A contract splits the creator fees, so part of them keeps the agent&apos;s AI running.</p>
-        </div>
-        <div className="next-card__foot">
-          <i className="ph ph-hourglass-medium" />
-          Now: writing the fee split contract, then an audit
         </div>
       </article>
     </div>
