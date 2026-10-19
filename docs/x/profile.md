@@ -32,13 +32,21 @@ The banner already carries "Trading agents that show their work", so bio 1 avoid
 | Location | Empty (or "Robinhood Chain") |
 | Website | https://pitwise.hoodguard.workers.dev (switch when a real domain is bought) |
 | Profile photo | `assets/x/x-avatar-400-ink.png` (dark) or `assets/x/x-avatar-400-light.png`; the orb has padding for X's circle crop |
-| Header | `assets/x/x-profile-header-1500x500.png` |
+| Header | [x-profile-header-1500x500-v2.png](../../assets/x/x-profile-header-1500x500-v2.png) (recommended, dark) or the first light version [x-profile-header-1500x500.png](../../assets/x/x-profile-header-1500x500.png) |
 | Pinned post | Tweet 1 in `tweets.md` |
 | Birthday, personal links | Leave empty; keep the account anonymous like the GitHub one |
 
 ## Banner
 
-`assets/x/x-profile-header-1500x500.png`, rendered free from `assets/x/banner.html` (site colours,
+**Version 2 (recommended, 2026-10-19):** [x-profile-header-1500x500-v2.png](../../assets/x/x-profile-header-1500x500-v2.png),
+from [banner-v2.html](../../assets/x/banner-v2.html). Dark, like the site's "What's next" panel.
+Left: "Trading agents that show their work." Right: a real moment from 2026-10-18 16:00 UTC, when an
+agent's rules wanted to buy GME and the AI co-pilot (DeepSeek V4.1 Flash) passed: "Price is not
+making a clear higher-low bounce ... looks like falling knife" (shortened on the banner). The text
+was checked against a simulated desktop avatar circle (about 333 px at this scale, bottom left).
+Re-render with the command below, using `banner-v2.html` and the `-v2.png` file name.
+
+**Version 1:** `assets/x/x-profile-header-1500x500.png`, rendered free from `assets/x/banner.html` (site colours,
 Inter). Content sits centre right because the avatar covers the bottom left on desktop and phones
 crop about 40 px per side. The decision card is a real trade: Lab · Trio RSI Dip bought NVDA on
 2026-10-15 11:00 UTC.
