@@ -11,6 +11,8 @@ import "./globals.css";
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"], axes: ["opsz"] });
 
 export const metadata: Metadata = {
+  // Absolute URLs in share cards point at the main domain.
+  metadataBase: new URL("https://zolvaagent.app"),
   title: { default: "Zolva", template: "%s · Zolva" },
   description: "Build a trading agent for tokenized US stocks on Robinhood Chain. See how it would have traded the last 30 days before you launch it.",
   icons: {

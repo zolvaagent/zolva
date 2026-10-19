@@ -30,7 +30,7 @@ The banner already carries "Trading agents that show their work", so bio 1 avoid
 | Field | Value |
 |---|---|
 | Location | Empty (or "Robinhood Chain") |
-| Website | https://pitwise.hoodguard.workers.dev (switch when a real domain is bought) |
+| Website | https://zolvaagent.app |
 | Profile photo | `assets/x/x-avatar-400-ink.png` (dark) or `assets/x/x-avatar-400-light.png`; the orb has padding for X's circle crop |
 | Header | [x-profile-header-1500x500-v2.png](../../assets/x/x-profile-header-1500x500-v2.png) (recommended, dark) or the first light version [x-profile-header-1500x500.png](../../assets/x/x-profile-header-1500x500.png) |
 | Pinned post | Tweet 1 in `tweets.md` |

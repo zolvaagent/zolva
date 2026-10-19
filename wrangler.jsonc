@@ -18,6 +18,18 @@
     { "binding": "WORKER_SELF_REFERENCE", "service": "pitwise" }
   ],
 
+  // zolvaagent.app (bought 2026-10-19 on Cloudflare Registrar, same account).
+  // Cloudflare creates the DNS records and certificates for custom domains.
+  // pitwise.hoodguard.workers.dev keeps working as a fallback: with routes set,
+  // Wrangler turns workers.dev off unless it is enabled explicitly.
+  "workers_dev": true,
+  // No public URL per uploaded version.
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "zolvaagent.app", "custom_domain": true },
+    { "pattern": "www.zolvaagent.app", "custom_domain": true }
+  ],
+
   // Worker logs in the Cloudflare dashboard, including cron runs.
   "observability": { "enabled": true },
 

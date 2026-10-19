@@ -46,7 +46,7 @@ export async function chatJson(options: {
         Authorization: `Bearer ${options.apiKey}`,
         "Content-Type": "application/json",
         // Shown in OpenRouter's app rankings; harmless metadata.
-        "HTTP-Referer": "https://pitwise.hoodguard.workers.dev",
+        "HTTP-Referer": "https://zolvaagent.app",
         "X-Title": "Zolva",
       },
       body: JSON.stringify({

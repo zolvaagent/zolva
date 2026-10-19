@@ -6,7 +6,7 @@ checked against the live app and database on 2026-10-19; recheck numbers on the 
 Assets are not generated yet: the "Visual" line says what each post needs.
 
 Placeholders to replace before posting: `$TICKER`, the contract address `0x000…`, the DEX
-Screener link, the burn transaction and its percentage, and the app link if a real domain is bought.
+Screener link, the burn transaction and its percentage, and recheck the app link.
 
 ## Rules for every post
 
@@ -102,7 +102,7 @@ Quote: https://x.com/RobinhoodApp/status/2105307330015592517 (Sep 30, 153K views
 > 
 > No code trading agents for stock tokens on Robinhood Chain. Build one in plain words. Backtest first. Trades hourly, explains every decision.
 > 
-> Paper trading live: pitwise.hoodguard.workers.dev
+> Paper trading live: zolvaagent.app
 > 
 > $TICKER is live on Pons
 > CA: 0x0000000000000000000000000000000000000000
@@ -154,7 +154,7 @@ Each post shows one real feature with a real screenshot. Numbers are from the li
 > 
 > The backtest updates while you move the sliders. No code.
 > 
-> pitwise.hoodguard.workers.dev/studio
+> zolvaagent.app/studio
 
 - Characters: 242 of 280
 - Visual: Studio screenshot
@@ -290,7 +290,7 @@ Each post shows one real feature with a real screenshot. Numbers are from the li
 > 
 > Build an agent now and it has a track record by then.
 > 
-> pitwise.hoodguard.workers.dev
+> zolvaagent.app
 
 - Characters: 251 of 280
 - Visual: Landing page 'What's next' section

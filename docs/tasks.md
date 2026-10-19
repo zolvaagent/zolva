@@ -125,6 +125,8 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Fix (2026-10-16): Studio said "out of AI credits" after logging in from the Studio page, because it kept its first (logged out) copy of the credits. It now uses the server value and refreshes it after each strategy writer call
 - [x] Agent launchpad design approved (2026-10-19, docs/ai-and-token-plan.md section 10); Coming soon card on the landing page and a Launch token (Soon) button on the agent page
 - [ ] Agent launchpad: contracts (ZolvaSplitterFactory, AgentFeeSplitter, ZolvaBurner) with Foundry tests, needs OK to install Foundry
+- [x] Domain zolvaagent.app connected (2026-10-19): custom domains for apex and www on the Worker, workers.dev kept as fallback, preview URLs off, pg_cron backup and the deploy health check now use zolvaagent.app, OpenRouter referer and share card base URL updated, X drafts and profile use the new link
+- [ ] Add https://zolvaagent.app and https://www.zolvaagent.app to the Privy allowed origins (dashboard), or email/Google login fails on the new domain
 - [ ] Show AI verdicts in Activity; per-agent AI spend on the agent page
 - [ ] Self-serve top-up (USDG on chain) when ready
 
