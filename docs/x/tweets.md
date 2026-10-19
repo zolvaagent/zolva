@@ -33,7 +33,7 @@ Quote: https://x.com/RobinhoodCrypto/status/2109719299606659207 (Oct 12, 141K vi
 > We're building it.
 
 - Characters: 212 of 280
-- Visual: Video: video/q1/zolva-q1-1920x1080.mp4 (20 s, voice over, music, captions; built by video/q1/build.sh)
+- Visual: Video: video/q1/zolva-q1-v2-1920x1080.mp4 (25 s Remotion motion graphics, music only; source video/remotion)
 - Status: **Ready**
 
 ### Q2. Quote @Cointelegraph on 24/7 stock token trading
