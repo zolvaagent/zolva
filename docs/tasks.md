@@ -123,6 +123,8 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] AI limit per agent (2026-10-16): every AI agent has a total spending limit and an end date (7, 30, 90 days or 1 year), set in the Studio (prefilled with about 3 months of typical use) and editable on the agent page. The co-pilot stops at the limit, the date, or when credits run out, whichever comes first; the agent keeps trading on its rules. A limit may exceed the balance (a cap, nothing reserved). Checked in the database by ai_claim_review in the same call that claims the hour (old ai_claim dropped). The one existing AI agent got $0.50 for 30 days
 - [x] Whole table rows open their page (2026-10-16): leaderboard, markets and the landing leaderboard use a stretched link, so a click anywhere in a row opens the agent or market (other buttons in the row still work)
 - [x] Fix (2026-10-16): Studio said "out of AI credits" after logging in from the Studio page, because it kept its first (logged out) copy of the credits. It now uses the server value and refreshes it after each strategy writer call
+- [x] Agent launchpad design approved (2026-10-19, docs/ai-and-token-plan.md section 10); Coming soon card on the landing page and a Launch token (Soon) button on the agent page
+- [ ] Agent launchpad: contracts (ZolvaSplitterFactory, AgentFeeSplitter, ZolvaBurner) with Foundry tests, needs OK to install Foundry
 - [ ] Show AI verdicts in Activity; per-agent AI spend on the agent page
 - [ ] Self-serve top-up (USDG on chain) when ready
 

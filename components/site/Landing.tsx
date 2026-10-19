@@ -283,7 +283,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
           <div className="section-heading section-heading--center">
             <span className="label">Coming soon</span>
             <Words className="section-heading__title" text="What's" highlight="next." />
-            <p className="section-heading__lead reveal">Paper trading is live today. Two things are on the way, built with the same honesty.</p>
+            <p className="section-heading__lead reveal">Paper trading is live today. Three things are on the way, built with the same honesty.</p>
           </div>
           <WhatsNext />
         </div>
@@ -803,7 +803,7 @@ function SoonBadge() {
   );
 }
 
-/** Two upcoming features, each with a small preview of how it will look. Nothing here is live. */
+/** Upcoming features, each with a small preview of how it will look. Nothing here is live. */
 function WhatsNext() {
   return (
     <div className="next-grid">
@@ -886,6 +886,48 @@ function WhatsNext() {
         <div className="next-card__foot">
           <i className="ph ph-hourglass-medium" />
           Now: picking tokens with deep onchain liquidity
+        </div>
+      </article>
+
+      <article className="next-card reveal">
+        <div className="next-preview" aria-hidden="true">
+          <div className="next-token">
+            <img src="/img/icons/agent.png" alt="" width={32} height={32} />
+            <span>
+              <strong>Night Owl NVDA</strong>
+              <span>Agent token on Pons</span>
+            </span>
+            <span className="next-token__ticker">$OWL</span>
+          </div>
+          <div className="next-split">
+            <span className="next-split__head">Creator fees, split by contract</span>
+            {[
+              ["Agent creator", 70],
+              ["Agent AI fuel", 20],
+              ["Zolva buyback and burn", 10],
+            ].map(([label, share]) => (
+              <span className="next-split__row" key={label}>
+                <span>{label}</span>
+                <span className="next-split__bar">
+                  <span style={{ width: `${share}%` }} />
+                </span>
+                <strong>{share}%</strong>
+              </span>
+            ))}
+          </div>
+          <div className="next-stop">
+            <span>Launch on Pons</span>
+            <i className="ph ph-rocket-launch" />
+          </div>
+        </div>
+        <div className="next-card__body">
+          <SoonBadge />
+          <h3>Agent launchpad</h3>
+          <p>Launch a token for your agent on Pons, right from Zolva. A contract splits the creator fees, so part of them keeps the agent&apos;s AI running.</p>
+        </div>
+        <div className="next-card__foot">
+          <i className="ph ph-hourglass-medium" />
+          Now: writing the fee split contract, then an audit
         </div>
       </article>
     </div>

@@ -67,6 +67,7 @@ export function AgentView({
   const [busy, setBusy] = useState(false);
   const pauseRef = useRef<HTMLDialogElement>(null);
   const liveRef = useRef<HTMLDialogElement>(null);
+  const tokenRef = useRef<HTMLDialogElement>(null);
   const publishRef = useRef<HTMLDialogElement>(null);
   const limitRef = useRef<HTMLDialogElement>(null);
   const limitUsd =
@@ -292,6 +293,17 @@ export function AgentView({
           <button
             className="button button--ghost"
             type="button"
+            onClick={() => tokenRef.current?.showModal()}
+          >
+            <i className="ph ph-rocket-launch" />
+            Launch token
+            <span className="pill pill--accent">Soon</span>
+          </button>
+        )}
+        {isOwner && (
+          <button
+            className="button button--ghost"
+            type="button"
             onClick={() => pauseRef.current?.showModal()}
             disabled={busy}
           >
@@ -502,6 +514,54 @@ export function AgentView({
 
   // Real money is not built yet. An agent's mode can never change (the database
   // forbids it), so going live will copy these settings into a new live agent.
+  // The agent launchpad is not built yet (docs/ai-and-token-plan.md, section 10).
+  const tokenDialog = (
+    <dialog
+      ref={tokenRef}
+      className="modal"
+      aria-labelledby="token-title"
+      onClick={(event) => {
+        if (event.target === tokenRef.current) tokenRef.current?.close();
+      }}
+    >
+      <div className="modal__body">
+        <span className="choice__glyph" aria-hidden="true">
+          <i className="ph ph-rocket-launch" />
+        </span>
+        <span className="pill pill--accent" style={{ width: "fit-content" }}>
+          Coming soon
+        </span>
+        <h2 className="modal__title" id="token-title">
+          A token for {agent.name}
+        </h2>
+        <p className="muted">
+          The agent launchpad is not available yet. When it opens, this is how it
+          will work:
+        </p>
+        <ul className="modal__list">
+          <li>You launch the token on Pons from your own wallet, in two steps.</li>
+          <li>
+            A contract receives the creator fees and splits them: 70% to you, 20%
+            to this agent&apos;s AI credits, 10% to buy and burn the Zolva token.
+          </li>
+          <li>
+            The token page shows this agent&apos;s live track record, losses
+            included. The token gives no claim on the agent&apos;s trading.
+          </li>
+        </ul>
+        <div className="modal__actions">
+          <button
+            className="button button--primary"
+            type="button"
+            onClick={() => tokenRef.current?.close()}
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </dialog>
+  );
+
   const liveDialog = (
     <dialog
       ref={liveRef}
@@ -611,6 +671,7 @@ export function AgentView({
         {header}
         {isOwner && pauseDialog}
         {isOwner && liveDialog}
+        {isOwner && tokenDialog}
         {isOwner && publishDialog}
         {isOwner && limitDialog}
         <div className="agent-layout">
@@ -709,6 +770,7 @@ export function AgentView({
       {header}
       {isOwner && pauseDialog}
       {isOwner && liveDialog}
+      {isOwner && tokenDialog}
       {isOwner && publishDialog}
       {isOwner && limitDialog}
       <div className="agent-layout">
