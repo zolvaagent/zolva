@@ -4731,6 +4731,13 @@ main:focus {
   }
 }
 
+@media (min-width: 1120px) {
+  .next-grid {
+    max-width: 1200px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .next-card {
   display: flex;
   flex-direction: column;
@@ -5308,4 +5315,83 @@ main:focus {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-75);
+}
+
+/* What is next: agent launchpad preview (token card and fee split). */
+.next-token {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-100);
+  padding: var(--space-100);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.next-token > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  color: var(--color-on-dark-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.next-token strong {
+  color: var(--color-on-dark);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.next-token__ticker {
+  padding: var(--space-25) var(--space-75);
+  border-radius: var(--radius-full);
+  background: rgba(152, 150, 255, 0.18);
+  color: var(--color-purple-5);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.next-split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-75);
+  padding: var(--space-100);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-on-dark-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.next-split__head {
+  color: var(--color-on-dark);
+  font-weight: 500;
+}
+
+.next-split__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px 32px;
+  align-items: center;
+  gap: var(--space-75);
+}
+
+.next-split__row strong {
+  color: var(--color-on-dark);
+  font-weight: 500;
+  text-align: right;
+}
+
+.next-split__bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.next-split__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-purple-1);
 }

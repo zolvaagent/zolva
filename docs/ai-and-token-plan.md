@@ -202,3 +202,44 @@ What this means for Zolva:
   agent page. That is a concrete difference from a promise held in one wallet.
 - Gate launches on a track record (for example 30 days live and published), similar to their
   "100 settled payments".
+
+## 10. Agent launchpad: approved design (2026-10-19)
+
+Decisions:
+
+- **The Zolva token** launches directly on Pons (no splitter). Its creator fees go to the Zolva wallet.
+- **Agent tokens** launch through Zolva, wrapped around Pons with a per-token fee splitter.
+- The Zolva share of agent token fees **buys and burns the Zolva token**, enforced by contract.
+- **Any owner may launch a token for their agent at any time** (no track record gate). The token
+  page shows the agent's age and live record clearly ("live for 2 days").
+- **Passenger tokens from day one**, only on published agents; the agent's owner can switch
+  passengers off; every token page names who built the agent and who launched the token.
+- **Two transactions from the user's wallet**: 1) create the splitter, 2) launch on Pons with the
+  splitter as `creatorFeeRecipient`. The user is the creator on Pons.
+
+Contracts (to write, test on testnet, then audit before mainnet):
+
+1. `ZolvaSplitterFactory`: creates one `AgentFeeSplitter` per token, shares fixed at creation.
+2. `AgentFeeSplitter`: the Pons `creatorFeeRecipient`. Anyone may call `claimAndSplit()`, which
+   claims from the Pons FeeEscrow (`claim` for ETH, `claimToken` for ERC-20) and pays the shares.
+   No admin, no function that moves the fee recipient or the shares.
+3. `ZolvaBurner`: receives the Zolva share, buys the Zolva token and burns it. The Zolva token
+   address is set once after the Zolva token launches, then locked.
+
+Proposed shares (still adjustable before the contracts are written):
+
+| Receiver | Owner's token | Passenger token |
+|---|---|---|
+| Who launched the token | 70% | 50% |
+| Original agent creator | (same person) | 20% |
+| Agent AI credits ("fuel") | 20% | 20% |
+| Zolva buyback and burn | 10% | 10% |
+
+The fuel share goes to a Zolva address per agent; the backend credits it as paid AI credits for
+that agent's owner.
+
+Order: contracts and tests (Foundry, ask before installing) -> Pons testnet -> audit -> app flow
+(agent page "Launch token", token page) -> mainnet, with a legal review before mainnet.
+
+Shown as "Coming soon" on the landing page (What's next) and as a "Launch token (Soon)" button on
+the owner's agent page.
