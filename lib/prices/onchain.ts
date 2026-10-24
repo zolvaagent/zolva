@@ -1,7 +1,7 @@
 /**
  * Hourly closes read straight from the Uniswap pools on Robinhood Chain.
  *
- * Every token is priced from one stock/USDG pool (see the tokens table):
+ * Every token (stock or crypto) is priced from one token/USDG pool (see the tokens table):
  * a v3 pool contract, or a v4 pool id inside the singleton PoolManager. The
  * close of an hour is the pool price at the last block before the hour ends,
  * so past hours can be read again later (the RPC keeps archive state).
@@ -24,14 +24,24 @@ const Q96 = 2 ** 96;
 
 const V3_POOL_ABI = parseAbi(["function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16, uint16, uint16, uint8, bool)"]);
 const POOL_MANAGER_ABI = parseAbi(["function extsload(bytes32 slot) view returns (bytes32)"]);
+const CHAINLINK_FEED_ABI = parseAbi(["function latestRoundData() view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)"]);
+/** Every Chainlink USD feed on Robinhood Chain reports with 8 decimals. */
+const CHAINLINK_USD_DECIMALS = 8;
+/**
+ * A pool close further than this from the Chainlink price is not stored.
+ * The crypto feeds update on a 0.5% move, so a healthy pool sits well inside.
+ */
+export const MAX_FEED_DEVIATION = 0.02;
+/** Crypto feeds update at least every 24 hours; older answers are not trusted for the check. */
+export const MAX_FEED_AGE_SECONDS = 26 * 3600;
 
 export type PricePool = {
-  /** Stock token address (lowercase). */
+  /** Priced token address (lowercase). */
   address: string;
   /** v3 pool address or v4 pool id. */
   pool: string;
   kind: "v3" | "v4";
-  /** Whether the stock is token0 of the pool; USDG is the other side. */
+  /** Whether the priced token is token0 of the pool; USDG is the other side. */
   stockIsToken0: boolean;
   tokenDecimals: number;
 };
@@ -138,4 +148,63 @@ export async function readPrices(client: PublicClient, pools: PricePool[], block
     if (Number.isFinite(price) && price > 0) prices.set(pool.address, price);
   });
   return prices;
+}
+
+export type FeedPrice = { price: number; updatedAt: number };
+
+/**
+ * Chainlink USD answers at one block, in a single multicall. Takes token
+ * address to feed address; a feed that fails to read is left out.
+ */
+export async function readFeedPrices(client: PublicClient, feeds: Map<string, string>, blockNumber: bigint): Promise<Map<string, FeedPrice>> {
+  const entries = [...feeds];
+  const result = new Map<string, FeedPrice>();
+  if (!entries.length) return result;
+  const answers = await client.multicall({
+    multicallAddress: MULTICALL3,
+    blockNumber,
+    allowFailure: true,
+    contracts: entries.map(([, feed]) => ({ address: feed as Hex, abi: CHAINLINK_FEED_ABI, functionName: "latestRoundData" as const })),
+  });
+  answers.forEach((answer, index) => {
+    if (answer.status !== "success") return;
+    const [, rawPrice, , updatedAt] = answer.result;
+    if (rawPrice <= 0n) return;
+    result.set(entries[index][0], { price: Number(rawPrice) / 10 ** CHAINLINK_USD_DECIMALS, updatedAt: Number(updatedAt) });
+  });
+  return result;
+}
+
+export type FeedCheck = {
+  /** Prices that may be stored. */
+  accepted: Map<string, number>;
+  /** Pool prices too far from their feed: that hour is not stored for the token. */
+  rejected: { address: string; pool: number; feed: number }[];
+  /** Tokens with a feed that could not be used (unreadable or stale); their pool price is kept. */
+  unchecked: string[];
+};
+
+/**
+ * Compares pool closes with Chainlink, for the tokens that have a feed.
+ * Tokens without a feed (the stocks) pass through untouched. When the feed
+ * itself is missing or stale the pool price is kept, so a feed outage never
+ * stops prices; only a clear disagreement does.
+ */
+export function checkAgainstFeeds(prices: Map<string, number>, feedTokens: Set<string>, feeds: Map<string, FeedPrice>, atSeconds: number): FeedCheck {
+  const check: FeedCheck = { accepted: new Map(), rejected: [], unchecked: [] };
+  for (const [address, price] of prices) {
+    if (!feedTokens.has(address)) {
+      check.accepted.set(address, price);
+      continue;
+    }
+    const feed = feeds.get(address);
+    if (!feed || atSeconds - feed.updatedAt > MAX_FEED_AGE_SECONDS) {
+      check.unchecked.push(address);
+      check.accepted.set(address, price);
+      continue;
+    }
+    if (Math.abs(price / feed.price - 1) > MAX_FEED_DEVIATION) check.rejected.push({ address, pool: price, feed: feed.price });
+    else check.accepted.set(address, price);
+  }
+  return check;
 }

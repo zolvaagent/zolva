@@ -19,6 +19,11 @@ import type { Market } from "@/lib/data/market";
 
 const BACKTEST_HOURS = 30 * 24;
 const MAX_ACTIVE = 5;
+/** The picker shows stocks first, then crypto; one agent may hold both. */
+const TOKEN_GROUPS = [
+  ["stock", "Stocks"],
+  ["crypto", "Crypto"],
+] as const;
 
 type Strategy = "momentum" | "mean_reversion" | "custom";
 
@@ -238,40 +243,45 @@ export function Studio({
 
           <div className="form-section">
             <div className="form-section__label">
-              Stocks <span className="form-section__hint">{symbols.length} of 3 picked</span>
+              Markets <span className="form-section__hint">{symbols.length} of 3 picked, stocks and crypto can mix</span>
             </div>
             <div className="token-grid" id="token-grid">
-              {market.tokens.map((token) => {
-                const history = token.firstIndex === null ? 0 : market.hours - token.firstIndex;
-                const tooNew = history < BACKTEST_HOURS + lookback;
-                const selected = symbols.includes(token.symbol);
-                const full = symbols.length >= 3 && !selected;
-                const now = token.closes[last];
-                const dayAgo = token.closes[Math.max(token.firstIndex ?? 0, last - 24)];
-                const change = now && dayAgo ? (now / dayAgo - 1) * 100 : 0;
-                return (
-                  <button
-                    key={token.address}
-                    className="token"
-                    type="button"
-                    aria-pressed={selected}
-                    disabled={tooNew || full}
-                    title={tooNew ? `Listed ${Math.max(1, Math.round(history / 24))} days ago. Needs ${Math.ceil((BACKTEST_HOURS + lookback) / 24)} days of history.` : full ? "You can pick up to 3 stocks" : token.name}
-                    onClick={() => toggleSymbol(token.symbol)}
-                  >
-                    <span className="token__row">
-                      <span className="token__symbol">
-                        <TickerAvatar symbol={token.symbol} size={20} />
-                        {token.symbol}
+              {TOKEN_GROUPS.flatMap(([assetClass, groupLabel]) => [
+                <span key={assetClass} className="token-grid__label">
+                  {groupLabel}
+                </span>,
+                ...market.tokens.filter((token) => token.assetClass === assetClass).map((token) => {
+                  const history = token.firstIndex === null ? 0 : market.hours - token.firstIndex;
+                  const tooNew = history < BACKTEST_HOURS + lookback;
+                  const selected = symbols.includes(token.symbol);
+                  const full = symbols.length >= 3 && !selected;
+                  const now = token.closes[last];
+                  const dayAgo = token.closes[Math.max(token.firstIndex ?? 0, last - 24)];
+                  const change = now && dayAgo ? (now / dayAgo - 1) * 100 : 0;
+                  return (
+                    <button
+                      key={token.address}
+                      className="token"
+                      type="button"
+                      aria-pressed={selected}
+                      disabled={tooNew || full}
+                      title={tooNew ? `Listed ${Math.max(1, Math.round(history / 24))} days ago. Needs ${Math.ceil((BACKTEST_HOURS + lookback) / 24)} days of history.` : full ? "You can pick up to 3" : token.name}
+                      onClick={() => toggleSymbol(token.symbol)}
+                    >
+                      <span className="token__row">
+                        <span className="token__symbol">
+                          <TickerAvatar symbol={token.symbol} size={20} />
+                          {token.symbol}
+                        </span>
+                        <span className={tooNew ? "" : change > 0.05 ? "gain" : change < -0.05 ? "loss" : ""}>{tooNew ? "New" : percent(change)}</span>
                       </span>
-                      <span className={tooNew ? "" : change > 0.05 ? "gain" : change < -0.05 ? "loss" : ""}>{tooNew ? "New" : percent(change)}</span>
-                    </span>
-                    <span className="token__name">{tooNew ? "Too new to backtest" : token.name}</span>
-                  </button>
-                );
-              })}
+                      <span className="token__name">{tooNew ? "Too new to backtest" : token.name}</span>
+                    </button>
+                  );
+                }),
+              ])}
             </div>
-            {showErrors && !symbols.length && <span className="field-error">Pick at least one stock.</span>}
+            {showErrors && !symbols.length && <span className="field-error">Pick at least one stock or coin.</span>}
           </div>
 
           <div className="form-section">
@@ -295,7 +305,7 @@ export function Studio({
 
           <div className="form-section">
             <label className="form-section__label" htmlFor="max-position">
-              Max per stock <span className="form-section__hint">Share of the agent&apos;s money in one stock</span>
+              Max per token <span className="form-section__hint">Share of the agent&apos;s money in one stock or coin</span>
             </label>
             <div className="range">
               <input id="max-position" type="range" min={10} max={100} step={1} value={maxPositionPct} onChange={(event) => setMaxPositionPct(Number(event.target.value))} />
@@ -323,8 +333,8 @@ export function Studio({
             <div className="card">
               <div className="empty">
                 <img src="/img/icons/backtest.png" alt="" width={72} height={72} />
-                <h2 className="card__title">{ruleErrors.length ? "Finish your rules to see the backtest" : "Pick a stock to see the backtest"}</h2>
-                <p>{ruleErrors.length ? ruleErrors[0] : "Choose up to three stocks and the last 30 days replay here instantly."}</p>
+                <h2 className="card__title">{ruleErrors.length ? "Finish your rules to see the backtest" : "Pick a market to see the backtest"}</h2>
+                <p>{ruleErrors.length ? ruleErrors[0] : "Choose up to three stocks or coins and the last 30 days replay here instantly."}</p>
               </div>
             </div>
           ) : (

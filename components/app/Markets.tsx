@@ -30,54 +30,32 @@ export function Spark({ values, height = 32 }: { values: number[]; height?: numb
   );
 }
 
-/** Asset classes on the page. Crypto is announced but not built yet. */
-const ASSETS = [
-  ["stocks", "Stocks"],
-  ["crypto", "Crypto"],
-] as const;
+/** Asset classes on the page, each with its own wording. */
+const ASSETS = {
+  stock: { label: "Stocks", noun: "stock", column: "Stock", placeholder: "Search NVDA, Tesla…", example: "a ticker like NVDA or a name like Tesla" },
+  crypto: { label: "Crypto", noun: "coin", column: "Coin", placeholder: "Search ETH, Bitcoin…", example: "ETH or Bitcoin" },
+} as const;
+
+type Asset = keyof typeof ASSETS;
 
 export function Markets({ rows }: { rows: MarketRow[] }) {
-  const [asset, setAsset] = useState<(typeof ASSETS)[number][0]>("stocks");
-  // Sits in the same row as the stock filters, so the page has one toolbar.
+  const [asset, setAsset] = useState<Asset>("stock");
+  // Sits in the same row as the filters, so the page has one toolbar.
   const assetTabs = (
     <div className="tabs asset-tabs" role="tablist" aria-label="Market">
-      {ASSETS.map(([key, label]) => (
+      {(Object.keys(ASSETS) as Asset[]).map((key) => (
         <button key={key} className="tab" role="tab" type="button" aria-selected={asset === key} onClick={() => setAsset(key)}>
-          {label}
-          {key === "crypto" && <span className="pill pill--accent">Soon</span>}
+          {ASSETS[key].label}
         </button>
       ))}
     </div>
   );
-  if (asset === "stocks") return <StockMarkets rows={rows} leading={assetTabs} />;
-  return (
-    <>
-      <div className="filter-row">
-        <div className="filter-group">{assetTabs}</div>
-      </div>
-      <CryptoSoon />
-    </>
-  );
+  // key resets the filters and search when switching between stocks and crypto.
+  return <MarketList key={asset} asset={asset} rows={rows.filter((row) => row.assetClass === asset)} leading={assetTabs} />;
 }
 
-function CryptoSoon() {
-  return (
-    <div className="card">
-      <div className="empty">
-        <span className="choice__glyph" aria-hidden="true">
-          <i className="ph ph-currency-eth" />
-        </span>
-        <h2 className="card__title">Crypto markets are coming</h2>
-        <p>Crypto tokens on Robinhood Chain, priced every hour from their onchain pools like the stocks are today. Your agents will trade them with the same strategies and rules.</p>
-        <p className="muted" style={{ fontSize: 13 }}>
-          Not available yet. Stocks are live now.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function StockMarkets({ rows, leading }: { rows: MarketRow[]; leading: ReactNode }) {
+function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[]; leading: ReactNode }) {
+  const words = ASSETS[asset];
   const [view, setView] = useState<View>("all");
   const [query, setQuery] = useState("");
 
@@ -105,16 +83,16 @@ function StockMarkets({ rows, leading }: { rows: MarketRow[]; leading: ReactNode
         </div>
         <label className="market-search">
           <i className="ph ph-magnifying-glass" aria-hidden="true" />
-          <span className="sr-only">Search stocks</span>
-          <input className="input" type="search" placeholder="Search NVDA, Tesla…" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <span className="sr-only">Search {words.label.toLowerCase()}</span>
+          <input className="input" type="search" placeholder={words.placeholder} value={query} onChange={(event) => setQuery(event.target.value)} />
         </label>
       </div>
 
       {!visible.length ? (
         <div className="card">
           <div className="empty">
-            <h2 className="card__title">{query ? `No stock matches "${query.trim()}"` : view === "gainers" ? "Nothing is up in the last 24 hours" : "Nothing is down in the last 24 hours"}</h2>
-            <p>{query ? "Try a ticker like NVDA or a name like Tesla." : "Check All to see every stock."}</p>
+            <h2 className="card__title">{query ? `No ${words.noun} matches "${query.trim()}"` : view === "gainers" ? "Nothing is up in the last 24 hours" : "Nothing is down in the last 24 hours"}</h2>
+            <p>{query ? `Try ${words.example}.` : `Check All to see every ${words.noun}.`}</p>
             <button
               className="button button--ghost"
               type="button"
@@ -123,7 +101,7 @@ function StockMarkets({ rows, leading }: { rows: MarketRow[]; leading: ReactNode
                 setView("all");
               }}
             >
-              Show all stocks
+              Show all {words.label.toLowerCase()}
             </button>
           </div>
         </div>
@@ -134,7 +112,7 @@ function StockMarkets({ rows, leading }: { rows: MarketRow[]; leading: ReactNode
               <table className="table table--clickable markets-table">
                 <thead>
                   <tr>
-                    <th>Stock</th>
+                    <th>{words.column}</th>
                     <th className="num">Price</th>
                     <th className="num col-wide">1h</th>
                     <th className="num">24h</th>

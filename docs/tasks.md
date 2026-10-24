@@ -90,7 +90,12 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Real company logos (2026-10-16): 16 stocks show their logo (`public/img/stocks`, list in `lib/stock-logos.ts`) in markets, activity, landing and the Forge stock picker; ETFs (SPY, QQQ, GLD, USO) keep the monogram. Source FMP image-stock, each checked by eye (ticker lookups can pick the wrong company: Parqet returned a SPAC ETF for SPCX); margins trimmed so logos fill evenly. Robinhood's own logo CDN is unreachable from this network (TLS intercepted), GeckoTerminal only has the Robinhood feather
 
 - [x] "Coming soon" teasers (2026-10-16), no dates promised: Forge "Trading mode" with Paper trading (on) and Real money (Soon, not selectable); Markets "Stocks / Crypto (Soon)" switch with an explainer; landing "What's next" section (real money trading, crypto markets). Nothing collects emails yet
-- [ ] Crypto markets: pick tokens with deep USDG pools on Robinhood Chain (e.g. WETH), add them to `tokens` with pool config, reuse the on-chain price reader
+- [x] Crypto markets (2026-10-24): ETH (WETH/USDG v3 0.01%) and BTC (cbBTC/USDG v3 0.05%) in `tokens` with `asset_class = 'crypto'` and a `chainlink_feed`; hourly closes rejected when the pool is more than 2% from Chainlink at the same block (`checkAgainstFeeds`); backfilled (ETH from 2026-07-08, BTC from 2026-08-29); Markets Crypto tab, Studio picker groups (stocks and crypto can mix), crypto detail copy, landing card "Live now"
+  - [x] Research (2026-10-24, `docs/crypto-markets.md`): ETH (WETH, $18.7M pool) and BTC (cbBTC, $0.2M to $0.7M USDG pools) are the only usable majors; Chainlink has BTC/ETH/LINK feeds but no SOL; recommended pool price plus a Chainlink cross check
+  - [x] cbBTC and WETH addresses match Chainlink's CCIP token directory for robinhood-mainnet
+  - [ ] Deploy (`npm run deploy:prod`): the database already has ETH and BTC enabled, so production shows them in the Stocks list without the Chainlink check until this deploy
+  - [ ] Optional: hide the "US market open/closed" line on the Markets page while the Crypto tab is open
+  - [ ] Update tweet P11 ("Crypto markets next") now that ETH and BTC are live
 
 - [x] "Forge" renamed to **Studio** (2026-10-16): menu "Studio", page "Agent Studio", URL `/studio`; `/forge` (with its query string) redirects permanently (next.config.ts). Older task notes below still say Forge
 

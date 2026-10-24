@@ -13,7 +13,7 @@ Read before working: `docs/mvp-plan.md`, `docs/tasks.md`, `docs/phase-0-findings
 - Code: private repo `github.com/zolvaagent/zolva`. Commit only as `Zolva` (set in this repo's git config); never with a personal name or email, and never with a `Co-Authored-By: Claude` line. Push with the `zolvaagent` gh account active
 - Domain: https://zolvaagent.app (and www), custom domains on the `pitwise` Worker (`wrangler.jsonc` routes); pitwise.hoodguard.workers.dev stays on as a fallback
 - Deploy: `npm run deploy:prod` (build, deploy, secrets, pg_cron, health check)
-- Prices: hourly closes read on chain from each token's stock/USDG Uniswap pool (`lib/prices/onchain.ts`, needs `ROBINHOOD_RPC_URL`). GeckoTerminal (network `robinhood`) only for the historical backfill and best-effort candle repair; it rate-limits Cloudflare IPs, throttle to ~1 call every 7s
+- Prices: hourly closes read on chain from each token's token/USDG Uniswap pool (`lib/prices/onchain.ts`, needs `ROBINHOOD_RPC_URL`). Crypto tokens (`asset_class = 'crypto'`: ETH, BTC) also have a `chainlink_feed`; a close more than 2% off Chainlink is not stored (see `docs/crypto-markets.md`). GeckoTerminal (network `robinhood`) only for the historical backfill and best-effort candle repair; it rate-limits Cloudflare IPs, throttle to ~1 call every 7s
 
 ## Rules
 - Never pick a token by symbol or name: same-name clones exist. Use the address allowlist (`tokens` table, `data/stock-tokens.json`).

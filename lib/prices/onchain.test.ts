@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { blockBefore, priceFromSqrtPriceX96, sqrtPriceFromV4Slot0, v4PoolStateSlot } from "./onchain";
+import { blockBefore, checkAgainstFeeds, MAX_FEED_AGE_SECONDS, priceFromSqrtPriceX96, sqrtPriceFromV4Slot0, v4PoolStateSlot } from "./onchain";
 
 /** sqrtPriceX96 for a raw token1/token0 ratio, the way a pool stores it. */
 const sqrtPriceFor = (rawToken1PerToken0: number) => BigInt(Math.round(Math.sqrt(rawToken1PerToken0) * 2 ** 96));
@@ -21,6 +21,46 @@ describe("priceFromSqrtPriceX96", () => {
   it("keeps cheap tokens precise", () => {
     const sqrt = sqrtPriceFor((2.8709 * 1e6) / 1e18);
     expect(priceFromSqrtPriceX96(sqrt, true, 18)).toBeCloseTo(2.8709, 9);
+  });
+});
+
+describe("priceFromSqrtPriceX96 for crypto", () => {
+  it("prices cbBTC (8 decimals) that is token1 against USDG", () => {
+    // $80,586.55 a coin: 1e8 raw cbBTC per 80,586.55e6 raw USDG.
+    const sqrt = sqrtPriceFor(1e8 / (80586.55 * 1e6));
+    expect(priceFromSqrtPriceX96(sqrt, false, 8)).toBeCloseTo(80586.55, 4);
+  });
+});
+
+describe("checkAgainstFeeds", () => {
+  const now = 1_800_000_000;
+  const eth = "0xeth";
+  const nvda = "0xnvda";
+
+  it("keeps a pool close within 2% of its feed", () => {
+    const check = checkAgainstFeeds(new Map([[eth, 2367.08]]), new Set([eth]), new Map([[eth, { price: 2370.08, updatedAt: now - 3600 }]]), now);
+    expect(check.accepted.get(eth)).toBe(2367.08);
+    expect(check.rejected).toEqual([]);
+  });
+
+  it("drops a pool close more than 2% away from its feed", () => {
+    const check = checkAgainstFeeds(new Map([[eth, 2500]]), new Set([eth]), new Map([[eth, { price: 2370, updatedAt: now - 3600 }]]), now);
+    expect(check.accepted.has(eth)).toBe(false);
+    expect(check.rejected).toEqual([{ address: eth, pool: 2500, feed: 2370 }]);
+  });
+
+  it("keeps the pool close when the feed is stale or unreadable", () => {
+    const stale = checkAgainstFeeds(new Map([[eth, 2500]]), new Set([eth]), new Map([[eth, { price: 2370, updatedAt: now - MAX_FEED_AGE_SECONDS - 1 }]]), now);
+    expect(stale.accepted.get(eth)).toBe(2500);
+    expect(stale.unchecked).toEqual([eth]);
+    const missing = checkAgainstFeeds(new Map([[eth, 2500]]), new Set([eth]), new Map(), now);
+    expect(missing.accepted.get(eth)).toBe(2500);
+  });
+
+  it("passes tokens without a feed straight through", () => {
+    const check = checkAgainstFeeds(new Map([[nvda, 181.2]]), new Set(), new Map(), now);
+    expect(check.accepted.get(nvda)).toBe(181.2);
+    expect(check.unchecked).toEqual([]);
   });
 });
 
