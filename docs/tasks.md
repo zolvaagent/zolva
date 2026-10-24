@@ -93,7 +93,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Crypto markets (2026-10-24): ETH (WETH/USDG v3 0.01%) and BTC (cbBTC/USDG v3 0.05%) in `tokens` with `asset_class = 'crypto'` and a `chainlink_feed`; hourly closes rejected when the pool is more than 2% from Chainlink at the same block (`checkAgainstFeeds`); backfilled (ETH from 2026-07-08, BTC from 2026-08-29); Markets Crypto tab, Studio picker groups (stocks and crypto can mix), crypto detail copy, landing card "Live now"
   - [x] Research (2026-10-24, `docs/crypto-markets.md`): ETH (WETH, $18.7M pool) and BTC (cbBTC, $0.2M to $0.7M USDG pools) are the only usable majors; Chainlink has BTC/ETH/LINK feeds but no SOL; recommended pool price plus a Chainlink cross check
   - [x] cbBTC and WETH addresses match Chainlink's CCIP token directory for robinhood-mainnet
-  - [ ] Deploy (`npm run deploy:prod`): the database already has ETH and BTC enabled, so production shows them in the Stocks list without the Chainlink check until this deploy
+  - [x] Deployed 2026-10-24 and checked live (Markets Crypto tab, BTC page, Studio NVDA + ETH backtest, landing "Live now"); the 11:05 UTC tick is the first with the Chainlink check
   - [ ] Optional: hide the "US market open/closed" line on the Markets page while the Crypto tab is open
   - [ ] Update tweet P11 ("Crypto markets next") now that ETH and BTC are live
 
