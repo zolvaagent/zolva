@@ -1736,6 +1736,19 @@ main:focus {
   gap: var(--space-75);
 }
 
+/* Group heading (Stocks, Crypto) spanning the whole picker row. */
+.token-grid__label {
+  grid-column: 1 / -1;
+  color: var(--color-text-faint);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.token-grid__label:not(:first-child) {
+  margin-top: var(--space-100);
+}
+
 .token {
   display: flex;
   flex-direction: column;
@@ -2835,6 +2848,11 @@ main:focus {
   width: 72%;
   height: 72%;
   object-fit: contain;
+}
+
+/* Crypto coin version: the currency icon in white on the coin's color. */
+.ticker-avatar--coin {
+  font-size: 17px;
 }
 
 .agent-cell {

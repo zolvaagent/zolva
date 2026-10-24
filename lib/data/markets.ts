@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listAgents, type AgentSummary } from "@/lib/data/agents";
-import { getMarket } from "@/lib/data/market";
+import { getMarket, type AssetClass } from "@/lib/data/market";
 import { isMarketHours } from "@/lib/format";
 import { marketStats, type MarketStats } from "@/lib/markets";
 
@@ -11,8 +11,9 @@ export type MarketRow = {
   address: string;
   symbol: string;
   name: string;
+  assetClass: AssetClass;
   stats: MarketStats;
-  /** Active agents (anyone's) trading this stock. */
+  /** Active agents (anyone's) trading this token. */
   agents: number;
   pool: string;
   poolKind: "v3" | "v4";
@@ -44,7 +45,7 @@ function activeAgentsBySymbol(agents: AgentSummary[]): Map<string, AgentSummary[
   return bySymbol;
 }
 
-/** Every enabled stock with its price stats, pool and agent count. */
+/** Every enabled token (stocks and crypto) with its price stats, pool and agent count. */
 export async function getMarketOverview(db: SupabaseClient): Promise<MarketOverview> {
   const [market, info, agents] = await Promise.all([getMarket(db), tokenInfo(db), listAgents(db)]);
   const bySymbol = activeAgentsBySymbol(agents);
@@ -57,6 +58,7 @@ export async function getMarketOverview(db: SupabaseClient): Promise<MarketOverv
       address: token.address,
       symbol: token.symbol,
       name: token.name,
+      assetClass: token.assetClass,
       stats,
       agents: bySymbol.get(token.symbol)?.length ?? 0,
       pool: pool.price_pool,
@@ -96,6 +98,7 @@ export async function getMarketDetail(db: SupabaseClient, symbol: string): Promi
       address: token.address,
       symbol: token.symbol,
       name: token.name,
+      assetClass: token.assetClass,
       stats,
       agents: trading.length,
       pool: pool.price_pool,

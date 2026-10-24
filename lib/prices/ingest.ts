@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { env } from "@/lib/env";
 import { completeHoursOnly, fetchHourlyCandles, repairBatch, REQUEST_SPACING_MS, sleep, toCandleRow } from "@/lib/prices/geckoterminal";
-import { blockBefore, createChainClient, readPrices, type PricePool } from "@/lib/prices/onchain";
+import { blockBefore, checkAgainstFeeds, createChainClient, readFeedPrices, readPrices, type PricePool } from "@/lib/prices/onchain";
 
 const HOUR_MS = 3_600_000;
 /**
@@ -13,7 +13,7 @@ const HOUR_MS = 3_600_000;
  * inside one tick.
  */
 const CATCH_UP_HOURS = 24;
-/** Tokens whose GeckoTerminal candles are re-fetched per tick; all 20 every 10 hours. */
+/** Tokens whose GeckoTerminal candles are re-fetched per tick; all 22 every 11 hours. */
 const REPAIR_TOKENS_PER_TICK = 2;
 /** Hours re-read for a repaired token; longer than the rotation so no hour is skipped. */
 const REPAIR_LOOKBACK_HOURS = 24;
@@ -30,8 +30,10 @@ export type IngestResult = {
   repairedCandles: number;
   /** Steps that broke the tick: agents may miss an hour. */
   failed: { step: string; error: string }[];
-  /** Best-effort steps that did not work (GeckoTerminal); the tick is still fine. */
+  /** Best-effort steps that did not work (GeckoTerminal, a stale Chainlink feed); the tick is still fine. */
   warnings: { step: string; error: string }[];
+  /** Pool closes not stored because they disagreed with Chainlink; that hour is retried next tick. */
+  rejected: { symbol: string; hour: string; pool: number; feed: number }[];
 };
 
 /**
@@ -41,7 +43,9 @@ export type IngestResult = {
  *    that some token is missing, read each token's USDG pool at the last
  *    block of that hour and store it as the hour's close. Normally that is
  *    only the hour that just ended; after missed ticks it fills the gap.
- *    An existing candle is never overwritten.
+ *    An existing candle is never overwritten. Tokens with a Chainlink feed
+ *    (crypto) only get the close when the pool agrees with the feed at that
+ *    same block; otherwise the hour stays missing and agents skip it.
  * 2. GeckoTerminal repair (best effort): two tokens, in rotation, get real
  *    open/high/low/close candles for the last day. GeckoTerminal often
  *    answers 429 to Cloudflare's shared IPs; then this is skipped, not retried.
@@ -51,7 +55,7 @@ export type IngestResult = {
 export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Date.now()): Promise<IngestResult> {
   const { data: tokens, error } = await db
     .from("tokens")
-    .select("address, symbol, price_pool, pool_kind, stock_is_token0, token_decimals, history_start")
+    .select("address, symbol, price_pool, pool_kind, stock_is_token0, token_decimals, history_start, chainlink_feed")
     .eq("enabled", true)
     .order("symbol");
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
@@ -66,7 +70,10 @@ export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Da
     repairedCandles: 0,
     failed: [],
     warnings: [],
+    rejected: [],
   };
+  const symbolOf = new Map(tokens.map((token) => [token.address, token.symbol]));
+  const feedOf = new Map(tokens.filter((token) => token.chainlink_feed).map((token) => [token.address, token.chainlink_feed as string]));
 
   try {
     const missing = await missingHours(db, 
@@ -85,11 +92,17 @@ export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Da
     for (const [hourStartMs, addresses] of missing) {
       // The close of an hour is the market at the last block before it ends.
       const block = await blockBefore(chain, (hourStartMs + HOUR_MS) / 1000);
-      const prices = await readPrices(
+      const poolPrices = await readPrices(
         chain,
         pools.filter((pool) => addresses.has(pool.address)),
         block,
       );
+      const feeds = new Map([...feedOf].filter(([address]) => addresses.has(address)));
+      const check = checkAgainstFeeds(poolPrices, new Set(feeds.keys()), await readFeedPrices(chain, feeds, block), (hourStartMs + HOUR_MS) / 1000);
+      const hourLabel = new Date(hourStartMs).toISOString();
+      for (const miss of check.rejected) result.rejected.push({ symbol: symbolOf.get(miss.address) ?? miss.address, hour: hourLabel, pool: miss.pool, feed: miss.feed });
+      for (const address of check.unchecked) result.warnings.push({ step: `chainlink ${symbolOf.get(address) ?? address}`, error: `feed missing or stale at ${hourLabel}; pool price kept` });
+      const prices = check.accepted;
       const rows = [...prices].map(([address, price]) =>
         toCandleRow(address, { time: hourStartMs / 1000, open: price, high: price, low: price, close: price, volumeUsd: 0 }, "onchain"),
       );
@@ -133,7 +146,7 @@ export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Da
  */
 async function missingHours(db: SupabaseClient, tokens: { address: string; historyStart: number | null }[], currentHourStart: number): Promise<Map<number, Set<string>>> {
   const from = currentHourStart - CATCH_UP_HOURS * HOUR_MS;
-  // 20 tokens x 24 hours stays far below the 1,000 row default limit.
+  // 22 tokens x 24 hours stays below the 1,000 row default limit.
   const { data, error } = await db
     .from("candles")
     .select("token_address, ts")

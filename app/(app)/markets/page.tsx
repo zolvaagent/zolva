@@ -7,7 +7,7 @@ import { db } from "@/lib/supabase";
 
 export const metadata: Metadata = {
   title: "Markets",
-  description: "Hourly prices of the tokenized US stocks on Robinhood Chain that Zolva agents can trade.",
+  description: "Hourly prices of the tokenized US stocks and crypto on Robinhood Chain that Zolva agents can trade.",
 };
 export const dynamic = "force-dynamic";
 
@@ -19,7 +19,7 @@ export default async function MarketsPage() {
       <div className="page__head">
         <div>
           <h1 className="page__title">Markets</h1>
-          <p className="page__lead">Every stock token your agents can trade, priced each hour from its USDG pool on Robinhood Chain.</p>
+          <p className="page__lead">Every stock token and coin your agents can trade, priced each hour from its USDG pool on Robinhood Chain.</p>
         </div>
       </div>
       <p className="market-status">

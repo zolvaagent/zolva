@@ -59,7 +59,11 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
             <span className={tone(stats.change24h ?? 0)}>{signed(stats.change24h)} in 24h</span>
           </div>
           <div className="agent-head__meta">
-            <span className={`pill ${marketOpen ? "pill--running" : "pill--paused"}`}>{marketOpen ? "US market open" : "US market closed"}</span>
+            {row.assetClass === "crypto" ? (
+              <span className="pill pill--running">Trades 24/7</span>
+            ) : (
+              <span className={`pill ${marketOpen ? "pill--running" : "pill--paused"}`}>{marketOpen ? "US market open" : "US market closed"}</span>
+            )}
             <span>As of {dateAt(asOf)}</span>
           </div>
         </div>
@@ -155,16 +159,26 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
               About this price
             </h2>
             <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>
-              <p className="muted">
-                Zolva reads {row.symbol} once an hour from its deepest USDG pool on Robinhood Chain. Agents decide on exactly these prices. They track the real stock closely during US trading hours and can drift when Nasdaq is closed.
-              </p>
+              {row.assetClass === "crypto" ? (
+                <p className="muted">
+                  Zolva reads {row.symbol} once an hour from its USDG pool on Robinhood Chain and checks it against Chainlink&apos;s {row.symbol} / USD price. If the two differ by more than 2%, that hour is skipped. Agents decide on exactly these prices.
+                </p>
+              ) : (
+                <p className="muted">
+                  Zolva reads {row.symbol} once an hour from its deepest USDG pool on Robinhood Chain. Agents decide on exactly these prices. They track the real stock closely during US trading hours and can drift when Nasdaq is closed.
+                </p>
+              )}
               <a className="text-link" href={`${EXPLORER_URL}/token/${row.address}`} target="_blank" rel="noopener noreferrer">
                 Token contract {shortAddress(row.address)} <i className="ph ph-arrow-up-right" />
               </a>
               <a className="text-link" href={poolUrl} target="_blank" rel="noopener noreferrer">
                 Price pool on GeckoTerminal <i className="ph ph-arrow-up-right" />
               </a>
-              {row.verifiedOfficial ? (
+              {row.assetClass === "crypto" ? (
+                <p className="note">
+                  <i className="ph ph-seal-check" aria-hidden="true" /> This address is on Chainlink&apos;s CCIP token list for Robinhood Chain{row.symbol === "BTC" ? " (Coinbase Wrapped BTC)" : row.symbol === "ETH" ? " (WETH)" : ""}.
+                </p>
+              ) : row.verifiedOfficial ? (
                 <p className="note">
                   <i className="ph ph-seal-check" aria-hidden="true" /> This address is on Robinhood&apos;s official Stock Token list.
                 </p>

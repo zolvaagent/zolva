@@ -73,9 +73,9 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   if (!Number.isInteger(stopLossPct) || stopLossPct < 2 || stopLossPct > 25) throw new AgentInputError("Stop loss must be between 2% and 25%.");
 
   const tokens = Array.isArray(input.tokens) ? [...new Set(input.tokens.map((token) => String(token).toLowerCase()))] : [];
-  if (tokens.length < 1 || tokens.length > 3) throw new AgentInputError("Pick 1 to 3 stocks.");
+  if (tokens.length < 1 || tokens.length > 3) throw new AgentInputError("Pick 1 to 3 stocks or coins.");
 
-  // Every stock must be on the allowlist and have enough clean history right now.
+  // Every token (stock or coin) must be on the allowlist and have enough clean history right now.
   const market = await getMarket(db);
   const lastIndex = market.hours - 1;
   const lookback = rules ? rulesLookback(rules) : LOOKBACK_HOURS;
@@ -83,9 +83,9 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   for (const address of tokens) {
     const token = market.tokens.find((item) => item.address === address);
     const price = token?.closes[lastIndex];
-    if (!token || price == null) throw new AgentInputError("One of the stocks is not available.");
+    if (!token || price == null) throw new AgentInputError("One of the picked markets is not available.");
     if (token.firstIndex === null || lastIndex - token.firstIndex < lookback) {
-      throw new AgentInputError(`${token.symbol} is too new for this strategy. Pick another stock.`);
+      throw new AgentInputError(`${token.symbol} is too new for this strategy. Pick another one.`);
     }
     startPrices[address] = price;
   }

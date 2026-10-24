@@ -7,10 +7,13 @@ import { buildCloseSeries, HOUR_SECONDS, OUTLIER_WINDOW, type CloseCandle } from
 /** Hours of closes sent to pages: 30 day backtests + a week of look-back + spare. */
 export const MARKET_HOURS = 900;
 
+export type AssetClass = "stock" | "crypto";
+
 export type MarketToken = {
   address: string;
   symbol: string;
   name: string;
+  assetClass: AssetClass;
   /** Index of the first hour with a price, or null if none in the window. */
   firstIndex: number | null;
   /** One cleaned close per hour (forward-filled, outliers removed); null before the first price. */
@@ -24,7 +27,7 @@ export type Market = {
   tokens: MarketToken[];
 };
 
-type RawToken = { address: string; symbol: string; name: string; candles: [number, number][] };
+type RawToken = { address: string; symbol: string; name: string; assetClass?: AssetClass; candles: [number, number][] };
 
 // Prices change once an hour; keep a built snapshot for a few minutes per Worker isolate.
 const CACHE_MS = 5 * 60 * 1000;
@@ -50,7 +53,7 @@ export async function getMarket(db: SupabaseClient): Promise<Market> {
     const candles: CloseCandle[] = token.candles.map(([time, close]) => ({ time: Number(time), close: Number(close) }));
     const series = buildCloseSeries(candles, startTs, latest);
     const firstIndex = series.closes.findIndex((close) => close !== null);
-    return { address: token.address, symbol: token.symbol, name: token.name, firstIndex: firstIndex === -1 ? null : firstIndex, closes: series.closes };
+    return { address: token.address, symbol: token.symbol, name: token.name, assetClass: token.assetClass ?? "stock", firstIndex: firstIndex === -1 ? null : firstIndex, closes: series.closes };
   });
 
   const market = { startTs, hours: MARKET_HOURS, tokens };

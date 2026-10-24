@@ -803,7 +803,7 @@ function SoonBadge({ label = "Coming soon" }: { label?: string }) {
   );
 }
 
-/** Upcoming features, each with a small preview of how it will look. Nothing here is live. */
+/** Upcoming features, each with a small preview of how it will look. Crypto markets went live on 2026-10-24. */
 function WhatsNext() {
   return (
     <div className="next-grid">
@@ -937,13 +937,13 @@ function WhatsNext() {
           ))}
         </div>
         <div className="next-card__body">
-          <SoonBadge />
+          <SoonBadge label="Live now" />
           <h3>Crypto markets</h3>
-          <p>Crypto tokens on Robinhood Chain, priced every hour from onchain pools. Same strategies, same rules, same honest track record.</p>
+          <p>ETH and BTC on Robinhood Chain, priced every hour from onchain pools and checked against Chainlink. Mix them with stocks in one agent.</p>
         </div>
         <div className="next-card__foot">
           <i className="ph ph-hourglass-medium" />
-          Now: picking tokens with deep onchain liquidity
+          Next: more coins once their pools are deep enough
         </div>
       </article>
     </div>
