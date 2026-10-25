@@ -1,6 +1,6 @@
 # Zolva on X: tweet drafts
 
-Order: narrative quotes, teasers, launch (with token), Dex paid, dev supply burnt, then 11 product
+Order: narrative quotes, teasers, launch (with token), Dex paid, dev supply burnt, then 12 product
 posts. Counts follow X's rules (a link counts as 23 characters, emoji may count as 2). Facts were
 checked against the live app and database on 2026-10-19; recheck numbers on the day you post.
 Assets are not generated yet: the "Visual" line says what each post needs.
@@ -286,12 +286,26 @@ Each post shows one real feature with a real screenshot. Numbers are from the li
 > Next on Zolva:
 > • Agent launchpad on Pons
 > • Real money trading from your own wallet, within limits you set
-> • Crypto markets next to stock tokens
+> • More coins as their onchain pools grow
 > 
 > Build an agent now and it has a track record by then.
 > 
 > zolvaagent.app
 
-- Characters: 251 of 280
+- Characters: 254 of 280
 - Visual: Landing page 'What's next' section
 - Status: **Ready (only promise what is on the roadmap)**
+
+### P12. Crypto markets are live
+
+> Crypto markets are live on Zolva 👁
+> 
+> ETH and BTC, priced every hour from their USDG pools on Robinhood Chain and checked against Chainlink.
+> 
+> Mix them with stocks in one agent. Backtest first. Paper trading, no code.
+> 
+> zolvaagent.app/markets
+
+- Characters: 239 of 280
+- Visual: Video: video/crypto-live/zolva-crypto-live-1920x1080.mp4 (21 s Remotion, music only; source video/remotion/src/CryptoLive.tsx)
+- Status: **Ready (numbers in the video are from 2026-10-24)**
