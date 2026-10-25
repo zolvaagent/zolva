@@ -57,7 +57,7 @@ export function Q1() {
 }
 
 /** Light scenes cross fade with a small lift. */
-function LightScene({ children, duration, fadeIn = true, fadeOut = true }: { children: ReactNode; duration: number; fadeIn?: boolean; fadeOut?: boolean }) {
+export function LightScene({ children, duration, fadeIn = true, fadeOut = true }: { children: ReactNode; duration: number; fadeIn?: boolean; fadeOut?: boolean }) {
   const frame = useCurrentFrame();
   const inP = fadeIn ? interpolate(frame, [0, 14], [0, 1], { easing: ease, extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 1;
   const outP = fadeOut ? interpolate(frame, [duration - 12, duration], [1, 0], { easing: ease, extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 1;
@@ -69,7 +69,7 @@ function LightScene({ children, duration, fadeIn = true, fadeOut = true }: { chi
   );
 }
 
-function DotGrid({ color }: { color: string }) {
+export function DotGrid({ color }: { color: string }) {
   return <AbsoluteFill style={{ backgroundImage: `radial-gradient(${color} 1.2px, transparent 1.6px)`, backgroundSize: "28px 28px" }} />;
 }
 

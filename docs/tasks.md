@@ -93,10 +93,10 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Crypto markets (2026-10-24): ETH (WETH/USDG v3 0.01%) and BTC (cbBTC/USDG v3 0.05%) in `tokens` with `asset_class = 'crypto'` and a `chainlink_feed`; hourly closes rejected when the pool is more than 2% from Chainlink at the same block (`checkAgainstFeeds`); backfilled (ETH from 2026-07-08, BTC from 2026-08-29); Markets Crypto tab, Studio picker groups (stocks and crypto can mix), crypto detail copy, landing card "Live now"
   - [x] Research (2026-10-24, `docs/crypto-markets.md`): ETH (WETH, $18.7M pool) and BTC (cbBTC, $0.2M to $0.7M USDG pools) are the only usable majors; Chainlink has BTC/ETH/LINK feeds but no SOL; recommended pool price plus a Chainlink cross check
   - [x] Crypto lab agents (2026-10-24): third lab wallet `0x…0003` runs Momentum, Mean Reversion, Breakout, RSI Dip and Trend Filter on ETH + BTC (max 50%, stop 10%), live from the 09:00 UTC hour. 30 day backtest to Oct 24 (hold −7.5%): mean reversion −2.5%, RSI dip −2.6%, trend filter −6.1%, momentum −6.7%, breakout −10.5%
+  - [x] "Crypto markets are live" video (2026-10-25): `video/crypto-live/zolva-crypto-live-1920x1080.mp4`, 21 s Remotion (`CryptoLive`), music only, -16 LUFS; tweet P12 drafted in `docs/x/tweets.md`, P11 no longer calls crypto "next"
   - [x] cbBTC and WETH addresses match Chainlink's CCIP token directory for robinhood-mainnet
   - [x] Deployed 2026-10-24 and checked live (Markets Crypto tab, BTC page, Studio NVDA + ETH backtest, landing "Live now"); the 11:05 UTC tick is the first with the Chainlink check
   - [ ] Optional: hide the "US market open/closed" line on the Markets page while the Crypto tab is open
-  - [ ] Update tweet P11 ("Crypto markets next") now that ETH and BTC are live
 
 - [x] "Forge" renamed to **Studio** (2026-10-16): menu "Studio", page "Agent Studio", URL `/studio`; `/forge` (with its query string) redirects permanently (next.config.ts). Older task notes below still say Forge
 
