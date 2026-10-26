@@ -8,6 +8,7 @@ eased, never shaken.
 |---|---|---|
 | `Q1` (`src/Q1.tsx`) | 25 s quote video for the @RobinhoodCrypto "100 days" post, music only | `../q1/zolva-q1-v2-1920x1080.mp4` |
 | `CryptoLive` (`src/CryptoLive.tsx`) | 21 s "Crypto markets are live" video for tweet P12, music only (same Lyria track) | `../crypto-live/zolva-crypto-live-1920x1080.mp4` |
+| `RecordCard` (`src/RecordCard.tsx`) | 1600x900 image for tweet U1 (11 days on the record), render with `npx remotion still src/index.ts RecordCard` | `../../assets/x/record-11-days-1600x900.png` |
 
 ## Render
 
