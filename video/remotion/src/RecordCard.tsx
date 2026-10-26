@@ -12,21 +12,21 @@ import { AbsoluteFill, Img, staticFile } from "remotion";
 import { Pill } from "./parts";
 import { C, cardShadow, fontFamily } from "./theme";
 
-type Row = { label: string; tone: "gain" | "warn" | "loss"; name: string; tickers: string[]; agent: number; hold: number; trades: number };
+export type Row = { label: string; tone: "gain" | "warn" | "loss"; name: string; tickers: string[]; agent: number; hold: number; trades: number };
 
-const ROWS: Row[] = [
+export const ROWS: Row[] = [
   { label: "Best so far", tone: "gain", name: "Gold & Oil Momentum", tickers: ["GLD", "USO"], agent: 2.3, hold: 1.4, trades: 1 },
   { label: "Best defense", tone: "warn", name: "Meme Rebound", tickers: ["GME", "AMC"], agent: -0.4, hold: -3.6, trades: 4 },
   { label: "Worst vs holding", tone: "loss", name: "Trio Breakout", tickers: ["NVDA", "TSLA", "AAPL"], agent: -4.0, hold: -0.3, trades: 7 },
 ];
 
-const TONES = {
+export const TONES = {
   gain: { bg: C.gainSoft, color: C.gain },
   warn: { bg: C.lavenderSoft, color: C.purple },
   loss: { bg: "#fdecec", color: C.loss },
 } as const;
 
-const pct = (value: number) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(1)}%`;
+export const pct = (value: number) => `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(1)}%`;
 
 export function RecordCard() {
   return (
