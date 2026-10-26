@@ -309,3 +309,24 @@ Each post shows one real feature with a real screenshot. Numbers are from the li
 - Characters: 239 of 280
 - Visual: Video: video/crypto-live/zolva-crypto-live-1920x1080.mp4 (21 s Remotion, music only; source video/remotion/src/CryptoLive.tsx)
 - Status: **Ready (numbers in the video are from 2026-10-24)**
+
+
+## Updates (any time)
+
+Progress posts with live numbers. Recheck every number on the day you post and use public agents only.
+
+### U1. 11 days on the record (comeback post)
+
+> 11 days of agents trading paper money on Robinhood Chain.
+> 
+> Best so far: +2.3% on gold and oil, from one trade.
+> Best defense: −0.4% while just holding GME and AMC did −3.6%.
+> Worst: −4.0% vs −0.3% for holding.
+> 
+> Small sample. Losses stay on the record.
+> 
+> zolvaagent.app/leaderboard
+
+- Characters: 274 of 280
+- Visual: Image: assets/x/record-11-days-1600x900.png (source video/remotion/src/RecordCard.tsx; leaderboard on 2026-10-26)
+- Status: **Ready (numbers from 2026-10-26)**
