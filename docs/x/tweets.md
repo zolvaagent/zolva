@@ -328,5 +328,5 @@ Progress posts with live numbers. Recheck every number on the day you post and u
 > zolvaagent.app/leaderboard
 
 - Characters: 274 of 280
-- Visual: Image: assets/x/record-11-days-1600x900.png (source video/remotion/src/RecordCard.tsx; leaderboard on 2026-10-26)
+- Visual: Video: video/record/zolva-record-11-days-1920x1080.mp4 (18 s Remotion, music only; source video/remotion/src/RecordVideo.tsx). Image alternative: assets/x/record-11-days-1600x900.png (RecordCard). Both from the leaderboard on 2026-10-26
 - Status: **Ready (numbers from 2026-10-26)**
