@@ -56,6 +56,10 @@ export function AppSidebar() {
           <i className="ph ph-house" />
           Home
         </Link>
+        <Link className="app-link" href="/docs" aria-current={pathname.startsWith("/docs") ? "page" : undefined}>
+          <i className="ph ph-book-open" />
+          Docs
+        </Link>
         <Link className="app-link" href="/terms">
           <i className="ph ph-file-text" />
           Terms
