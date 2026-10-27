@@ -161,3 +161,12 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 
 ## Later (only with real users)
 - LLM-written strategies, more strategies, alerts, token
+
+## Dark mode (2026-10-27)
+
+- [x] Dark theme tokens in `app/globals.css` (`:root[data-theme="dark"]`), plus theme role tokens (`--color-surface`, `--color-tint`, `--color-on-text`, glass, shadows) replacing about 60 hard-coded light colors; panels that are dark in both themes keep fixed colors
+- [x] `ThemeToggle` (System → Light → Dark, saved in localStorage): sidebar row, mobile top bar, landing header; `THEME_INIT_SCRIPT` in `app/layout.tsx` sets the theme before paint; Privy's login window follows the theme
+- [x] Checked in headless Edge: landing (full length), Markets, BTC page, Studio, Leaderboard, Activity, logged-out Dashboard at 1440 px; Markets and Studio at 390 px; light mode unchanged
+- [ ] Deploy (`npm run deploy:prod`): blocked for the assistant, run it yourself
+- [ ] Check logged-in views in dark (Dashboard with agents, agent page dialogs, Privy login window): not covered by the headless check
+

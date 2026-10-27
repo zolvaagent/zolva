@@ -3,6 +3,8 @@
 import { PrivyProvider, useLogin, usePrivy } from "@privy-io/react-auth";
 import { useEffect, useRef } from "react";
 
+import { useResolvedTheme } from "@/components/ui/ThemeToggle";
+
 /**
  * Email and Google login through Privy, loaded in the browser only
  * (Providers imports this with `ssr: false`). That keeps Privy's large wallet
@@ -23,12 +25,14 @@ type PrivyIslandProps = {
 };
 
 export default function PrivyIsland({ appId, ...bridge }: PrivyIslandProps) {
+  // Privy draws its own login window; keep it in the same theme as the page.
+  const theme = useResolvedTheme();
   return (
     <PrivyProvider
       appId={appId}
       config={{
         loginMethods: ["email", "google"],
-        appearance: { theme: "light", accentColor: "#8075ff", logo: "/img/brand/zolva-mark.png" },
+        appearance: { theme, accentColor: "#8075ff", logo: "/img/brand/zolva-mark.png" },
         // Email and Google users get a wallet, which becomes their account.
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
       }}
