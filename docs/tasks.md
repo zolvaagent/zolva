@@ -174,7 +174,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 
 - [x] Step 1: `/docs` with topic sidebar, "On this page" list and previous/next links (`lib/docs.ts` holds the page list; `components/site/Docs.tsx` the parts); pages Getting started, How agents work, Strategies, with every number taken from the engine and app; Docs links in the site header, footer and app sidebar; checked in light and dark, desktop and phone
 - [x] Step 2: Prompt mode, Backtests, AI co-pilot (model table read from `lib/ai/models.ts`), Markets and prices, Leaderboard and publishing, Guardrails (incl. what pausing does), FAQ and glossary (with FAQ structured data); checked in light and dark, desktop and phone
-- [ ] Deploy docs and the Light/Dark toggle change together
+- [x] Deployed docs and the Light/Dark toggle (2026-10-27): all 10 pages return 200, /docs redirects to Getting started, the toggle switches and saves
 - [ ] Found while writing: pausing leaves positions open with no stop loss check, and resuming skips the paused hours; consider warning in the pause dialog
 - [ ] Found while writing: the AI co-pilot prompt still says "tokenized US stocks" and mentions US market hours, though agents can now hold ETH and BTC
 - [ ] Found while writing: tweet P9 says "Missed hours are skipped, never traded late", but the runner replays missed hours (up to 7 days) at their own prices; fix the tweet
