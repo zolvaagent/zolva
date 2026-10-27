@@ -1,10 +1,9 @@
 /**
- * Light and dark theme. The choice ("system", "light" or "dark") is kept in
- * localStorage per browser; "system" follows the operating system. The
- * resolved theme lives on <html data-theme>, which app/globals.css reads.
+ * Light and dark theme. The toggle saves "light" or "dark" in localStorage per
+ * browser; a first visit with nothing saved starts from the operating system's
+ * setting. The theme lives on <html data-theme>, which app/globals.css reads.
  */
 
-export type ThemeChoice = "system" | "light" | "dark";
 export type Theme = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "zolva-theme";
