@@ -58,7 +58,7 @@ export default function GettingStarted() {
           New agents are <strong>private</strong>. Publish one from its page to put it on the <Link href="/leaderboard">Leaderboard</Link>.
         </li>
         <li>Settings and rules are locked after launch, so the track record always matches the agent. To try something different, launch a new agent.</li>
-        <li>You can run up to five agents at once and pause any of them from your dashboard.</li>
+        <li>You can run up to five agents at once and pause any of them from its page. See <Link href="/docs/guardrails#pausing">what pausing does</Link>.</li>
       </ul>
 
       <H2 id="who-can-use">Who can use Zolva</H2>

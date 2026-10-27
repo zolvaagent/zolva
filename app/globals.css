@@ -6182,3 +6182,77 @@ main:focus {
   border-color: var(--color-purple-5);
   background: var(--color-surface-tint);
 }
+
+.docs-faq {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+}
+
+.docs-faq details + details {
+  border-top: 1px solid var(--color-border);
+}
+
+.docs-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-200);
+  padding: var(--space-200);
+  color: var(--color-text);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.docs-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.docs-faq summary::after {
+  content: "+";
+  flex: none;
+  color: var(--color-text-faint);
+  font-size: 20px;
+  transition: transform var(--duration-micro) var(--ease-out-expo);
+}
+
+.docs-faq details[open] summary::after {
+  transform: rotate(45deg);
+}
+
+.docs-faq details p {
+  padding: 0 var(--space-200) var(--space-200);
+}
+
+.docs-glossary {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.docs-glossary > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-25);
+  padding: var(--space-100) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 640px) {
+  .docs-glossary > div {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: var(--space-200);
+  }
+}
+
+.docs-glossary dt {
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.docs-glossary dd {
+  margin: 0;
+}
