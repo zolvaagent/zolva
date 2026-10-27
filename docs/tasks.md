@@ -170,3 +170,10 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Deployed 2026-10-27 and checked live: landing, Markets, Studio, Leaderboard in dark at 1440 px, Markets at 390 px, Studio in light; the toggle cycles System → Light → Dark and saves the choice
 - [ ] Check logged-in views in dark (Dashboard with agents, agent page dialogs, Privy login window): not covered by the headless check
 
+## Docs (2026-10-27)
+
+- [x] Step 1: `/docs` with topic sidebar, "On this page" list and previous/next links (`lib/docs.ts` holds the page list; `components/site/Docs.tsx` the parts); pages Getting started, How agents work, Strategies, with every number taken from the engine and app; Docs links in the site header, footer and app sidebar; checked in light and dark, desktop and phone
+- [ ] Step 2 (after review): Prompt mode, Backtests, AI co-pilot, Markets and prices, Leaderboard and publishing, Guardrails, FAQ and glossary
+- [ ] Found while writing: tweet P9 says "Missed hours are skipped, never traded late", but the runner replays missed hours (up to 7 days) at their own prices; fix the tweet
+- [ ] Found while writing: Terms says agent names and results are public, but agents are private until published; update the Terms
+

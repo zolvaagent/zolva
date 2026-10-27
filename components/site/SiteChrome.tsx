@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/markets", label: "Markets" },
   { href: "/leaderboard", label: "Leaderboard" },
   { href: "/studio", label: "Studio" },
+  { href: "/docs", label: "Docs" },
   { href: "/app", label: "Dashboard" },
 ];
 
@@ -60,7 +61,7 @@ export function SiteHeader() {
           <ul className="nav__links">
             {LINKS.map((link) => (
               <li key={link.href}>
-                <Link className="nav__link" href={link.href} aria-current={pathname === link.href ? "page" : undefined}>
+                <Link className="nav__link" href={link.href} aria-current={pathname === link.href || pathname.startsWith(`${link.href}/`) ? "page" : undefined}>
                   {link.label}
                 </Link>
               </li>
@@ -162,6 +163,7 @@ export function SiteFooter() {
             <Link href="/studio?strategy=momentum">Momentum</Link>
             <Link href="/studio?strategy=mean_reversion">Mean reversion</Link>
             <Link href="/studio?strategy=custom">Build your own</Link>
+            <Link href="/docs">Docs</Link>
           </div>
           <div className="footer__col">
             <h3>Legal</h3>
