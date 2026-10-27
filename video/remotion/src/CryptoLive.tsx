@@ -19,7 +19,7 @@ const SCENES = { intro: [0, 125], markets: [120, 150], check: [265, 145], mix: [
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
-const COINS = {
+export const COINS = {
   BTC: {
     name: "Bitcoin",
     color: "#f7931a",
@@ -34,7 +34,7 @@ const COINS = {
   },
 } as const;
 
-type Coin = keyof typeof COINS;
+export type Coin = keyof typeof COINS;
 
 const usd = (value: number) => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -71,7 +71,7 @@ export function CryptoLive() {
 }
 
 /** The coin's Phosphor icon on its color, like the app's ticker avatar. */
-function CoinAvatar({ coin, size }: { coin: Coin; size: number }) {
+export function CoinAvatar({ coin, size }: { coin: Coin; size: number }) {
   return (
     <span style={{ display: "inline-grid", placeItems: "center", width: size, height: size, borderRadius: "50%", background: COINS[coin].color, flex: "none" }}>
       <Img src={staticFile(COINS[coin].icon)} style={{ width: size * 0.66, height: size * 0.66, filter: "invert(1)" }} />
