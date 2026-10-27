@@ -175,6 +175,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Step 1: `/docs` with topic sidebar, "On this page" list and previous/next links (`lib/docs.ts` holds the page list; `components/site/Docs.tsx` the parts); pages Getting started, How agents work, Strategies, with every number taken from the engine and app; Docs links in the site header, footer and app sidebar; checked in light and dark, desktop and phone
 - [x] Step 2: Prompt mode, Backtests, AI co-pilot (model table read from `lib/ai/models.ts`), Markets and prices, Leaderboard and publishing, Guardrails (incl. what pausing does), FAQ and glossary (with FAQ structured data); checked in light and dark, desktop and phone
 - [x] Deployed docs and the Light/Dark toggle (2026-10-27): all 10 pages return 200, /docs redirects to Getting started, the toggle switches and saves
+- [x] Docs pages have no marketing footer: moved to their own `app/(docs)` route group with the site header only (URLs unchanged)
 - [x] Pause dialog already explained open positions; now leads with "Pausing does not sell anything" in red when positions are open, and no longer says "stocks"
 - [x] AI co-pilot and strategy writer prompts now cover crypto (ETH, BTC); US market hours apply to stock tokens only
 - [x] Tweet P9: the wrong "missed hours are skipped" line replaced with "Settings locked after launch" (missed hours are in fact replayed, up to 7 days)
