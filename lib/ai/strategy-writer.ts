@@ -25,7 +25,7 @@ const KINDS = Object.keys(INDICATORS) as IndicatorKind[];
 const PRICE_KINDS = KINDS.filter((kind) => INDICATORS[kind].unit === "price");
 
 export const WRITER_SYSTEM_PROMPT = [
-  "You turn a plain words trading idea into rules for an hourly paper trading agent on tokenized US stocks.",
+  "You turn a plain words trading idea into rules for an hourly paper trading agent on tokenized US stocks and crypto (ETH, BTC).",
   "Rules use hourly closing prices. Indicators (kind, allowed hours):",
   "- price: the current price (no hours)",
   "- sma: average price over 12, 24, 48 or 72 hours",
@@ -38,7 +38,7 @@ export const WRITER_SYSTEM_PROMPT = [
   "Change, zscore and rsi may only be compared with a value (right = value).",
   `Buy rules (entry) and sell rules (exit): at most ${MAX_CONDITIONS} each, joined by all or any.`,
   "Always give a way out: sell rules, a take profit percent (1 to 500) or a max holding time in hours (1 to 720).",
-  "Stop loss, position size and which stocks to trade are set elsewhere: do not encode them, mention them in notes only if the user asked.",
+  "Stop loss, position size and which stocks or coins to trade are set elsewhere: do not encode them, mention them in notes only if the user asked.",
   "Keep it simple and close to what the user described. Prefer common, sensible thresholds.",
   "Use 0 for any number that does not apply (hours of price, offset, value when comparing two lines, no take profit, no max holding time).",
   "notes: anything the user wants that rules cannot express (news, earnings, market hours, caution), written as short instructions for an AI that approves or passes each trade. Empty when nothing is left.",

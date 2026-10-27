@@ -255,11 +255,11 @@ Each post shows one real feature with a real screenshot. Numbers are from the li
 > • Max size per stock
 > • AI can only approve or pass
 > • AI spending capped by a limit you set
-> • Missed hours are skipped, never traded late
+> • Settings locked after launch, so the record stays honest
 > 
 > Boring on purpose.
 
-- Characters: 214 of 280
+- Characters: 227 of 280
 - Visual: None, or the settings panel
 - Status: **Ready**
 

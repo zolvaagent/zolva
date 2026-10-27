@@ -360,9 +360,14 @@ export function AgentView({
           <ul className="modal__list">
             <li>It stops making decisions from the next hour.</li>
             <li>
-              {positions.length
-                ? `Its ${positions.length} open position${positions.length === 1 ? " stays" : "s stay"} open, but the stop loss and sell rules don't run while paused.`
-                : "It holds no stocks right now, so nothing is left open."}
+              {positions.length ? (
+                <>
+                  <strong className="loss">Pausing does not sell anything.</strong>{" "}
+                  {`Its ${positions.length} open position${positions.length === 1 ? " stays" : "s stay"} open, and the stop loss and sell rules don't run while paused.`}
+                </>
+              ) : (
+                "It holds nothing right now, so no position is left open."
+              )}
             </li>
             <li>
               You can resume it at any time. The hours it was paused are
