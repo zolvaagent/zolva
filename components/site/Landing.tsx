@@ -329,7 +329,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function Feature({ icon, step, title, text }: { icon: string; step: string; title: string; text: string }) {
   return (
-    <article className="feature reveal" style={{ background: "#fff" }}>
+    <article className="feature reveal" style={{ background: "var(--color-surface)" }}>
       <img className="feature__icon" src={`/img/icons/${icon}.png`} alt="" width={64} height={64} />
       <span className="feature__step">{step}</span>
       <h3>{title}</h3>
@@ -340,7 +340,7 @@ function Feature({ icon, step, title, text }: { icon: string; step: string; titl
 
 function Proof({ value, text }: { value: string; text: string }) {
   return (
-    <div className="proof reveal" style={{ background: "#fff" }}>
+    <div className="proof reveal" style={{ background: "var(--color-surface)" }}>
       <strong>{value}</strong>
       <span>{text}</span>
     </div>

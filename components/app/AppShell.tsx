@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/ui/Providers";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { shortAddress } from "@/lib/format";
 
 const NAV = [
@@ -61,6 +62,7 @@ export function AppSidebar() {
         </Link>
       </nav>
       <div className="app-side__account">
+        <ThemeToggle variant="row" />
         {address ? (
           <div className="account">
             <Avatar address={address} />
@@ -91,15 +93,18 @@ export function AppTopbar() {
         <img className="brand__mark" src="/img/brand/zolva-mark.png" alt="" width={28} height={28} />
         Zolva
       </Link>
-      {address ? (
-        <Link className="avatar-button" href="/app" aria-label="Open your dashboard">
-          <Avatar address={address} />
-        </Link>
-      ) : (
-        <button className="button button--primary button--small" type="button" onClick={() => openLogin(() => router.refresh())}>
-          Log in
-        </button>
-      )}
+      <span className="app-topbar__actions">
+        <ThemeToggle />
+        {address ? (
+          <Link className="avatar-button" href="/app" aria-label="Open your dashboard">
+            <Avatar address={address} />
+          </Link>
+        ) : (
+          <button className="button button--primary button--small" type="button" onClick={() => openLogin(() => router.refresh())}>
+            Log in
+          </button>
+        )}
+      </span>
     </header>
   );
 }

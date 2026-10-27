@@ -5,6 +5,7 @@ import { Motion } from "@/components/ui/Motion";
 import { Providers } from "@/components/ui/Providers";
 import { getSessionAddress } from "@/lib/auth/session";
 import { env } from "@/lib/env";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 import "./globals.css";
 
@@ -30,8 +31,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Public value; null keeps login wallet-only until Privy is configured.
   const privyAppId = env.privy?.appId ?? null;
   return (
-    <html lang="en" className={inter.variable}>
+    // The theme script sets data-theme before React hydrates, so the attribute may differ from the server HTML.
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/* Phosphor icon font (same build as the approved prototype). */}
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/fill/style.css" />

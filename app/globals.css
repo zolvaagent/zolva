@@ -44,6 +44,27 @@
 
   --color-focus: #9898ff;
 
+  /* Theme roles: surfaces and tints that flip in dark mode */
+  --color-surface: #ffffff;
+  --color-surface-tint: #fbfbff;
+  --color-tint: rgba(37, 34, 40, 0.05);
+  --color-tint-strong: rgba(37, 34, 40, 0.09);
+  --color-text-dim: rgba(37, 34, 40, 0.16);
+  --color-text-hover: #3b383e;
+  /* Ink on a var(--color-text) background (primary buttons, toasts, tooltips) */
+  --color-on-text: #ffffff;
+  --color-glass: rgba(255, 255, 255, 0.9);
+  --color-glass-strong: rgba(255, 255, 255, 0.94);
+  --color-glass-card: rgba(255, 255, 255, 0.8);
+  --color-glass-border: rgba(255, 255, 255, 0.8);
+  --color-backdrop: rgba(37, 34, 40, 0.3);
+  --color-shadow-soft: rgba(37, 34, 40, 0.07);
+  --color-shadow-strong: rgba(37, 34, 40, 0.18);
+  --color-dots: rgba(37, 34, 40, 0.09);
+  /* Same in both themes: light buttons and highlights that sit on dark panels */
+  --color-ink-fixed: #252228;
+  --color-purple-8-fixed: #e5e5ff;
+
   /* Type */
   --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
 
@@ -77,6 +98,76 @@
 
   --content-width: 1200px;
   --header-height: 64px;
+}
+
+/*
+ * Dark theme. The inline script in app/layout.tsx sets data-theme on <html>
+ * before paint, from the saved choice or the system setting. Sections that
+ * are dark in both themes (hero panel, CTA band, "What's next") use the
+ * --color-dark / --color-on-dark tokens, which do not change here.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #121116;
+  --color-bg-subtle: #16151b;
+  --color-bg-panel: #1c1b21;
+  --color-card: #1b1a20;
+  --color-surface: #1e1d24;
+  --color-surface-tint: #22212b;
+
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.14);
+
+  --color-text: #f1f0f3;
+  --color-text-90: rgba(241, 240, 243, 0.9);
+  --color-text-muted: rgba(241, 240, 243, 0.66);
+  --color-text-faint: #8f8d96;
+  --color-text-ghost: #5d5b64;
+  --color-text-dim: rgba(241, 240, 243, 0.18);
+  --color-text-hover: #d9d7de;
+  --color-on-text: #121116;
+
+  --color-purple-8: rgba(152, 150, 255, 0.16);
+
+  --color-gain: #2fcf78;
+  --color-gain-soft: rgba(47, 207, 120, 0.14);
+  --color-loss: #ff7a45;
+  --color-loss-soft: rgba(255, 122, 69, 0.14);
+  --color-hold-line: #5d5b64;
+
+  --color-tint: rgba(255, 255, 255, 0.06);
+  --color-tint-strong: rgba(255, 255, 255, 0.11);
+  --color-glass: rgba(18, 17, 22, 0.86);
+  --color-glass-strong: rgba(18, 17, 22, 0.94);
+  --color-glass-card: rgba(30, 29, 36, 0.82);
+  --color-glass-border: rgba(255, 255, 255, 0.08);
+  --color-backdrop: rgba(0, 0, 0, 0.6);
+  --color-shadow-soft: rgba(0, 0, 0, 0.3);
+  --color-shadow-strong: rgba(0, 0, 0, 0.55);
+  --color-dots: rgba(255, 255, 255, 0.07);
+}
+
+/* The landing page's soft lavender glows read as grey fog on dark: deeper, quieter versions. */
+:root[data-theme="dark"] .hero-wrap::before {
+  background:
+    radial-gradient(45% 40% at 50% 92%, rgba(128, 117, 255, 0.28), transparent 70%),
+    radial-gradient(30% 30% at 18% 70%, rgba(118, 76, 160, 0.22), transparent 70%),
+    radial-gradient(30% 30% at 82% 70%, rgba(128, 117, 255, 0.16), transparent 70%);
+}
+
+:root[data-theme="dark"] .closing::before {
+  background:
+    radial-gradient(45% 60% at 85% 55%, rgba(128, 117, 255, 0.3), transparent 70%),
+    radial-gradient(35% 45% at 65% 100%, rgba(118, 76, 160, 0.25), transparent 70%),
+    radial-gradient(30% 40% at 0% 0%, rgba(128, 117, 255, 0.12), transparent 70%);
+}
+
+:root[data-theme="dark"] .feed {
+  background:
+    radial-gradient(60% 50% at 70% 20%, rgba(128, 117, 255, 0.2), transparent 70%),
+    radial-gradient(50% 50% at 20% 90%, rgba(118, 76, 160, 0.18), transparent 70%),
+    var(--color-bg-subtle);
 }
 
 /* ---------- Base ---------- */
@@ -163,7 +254,7 @@ main:focus {
   padding: var(--space-75) var(--space-200);
   border-radius: var(--radius-full);
   background: var(--color-text);
-  color: #fff;
+  color: var(--color-on-text);
   font-size: 14px;
   line-height: 20px;
   transition: top var(--duration-micro) var(--ease-out-expo);
@@ -224,7 +315,7 @@ main:focus {
 
 .nav.is-scrolled::before,
 .menu-open .nav::before {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--color-glass);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
 }
@@ -277,7 +368,7 @@ main:focus {
 
 .nav__link:hover {
   color: var(--color-text);
-  background: rgba(37, 34, 40, 0.05);
+  background: var(--color-tint);
 }
 
 .nav__link[aria-current="page"] {
@@ -309,8 +400,44 @@ main:focus {
   height: 32px;
   border: 0;
   border-radius: var(--radius-full);
-  background: rgba(37, 34, 40, 0.05);
+  background: var(--color-tint);
   cursor: pointer;
+}
+
+/* Theme switch: round icon button in headers, same size as the menu button. */
+.theme-toggle {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-tint);
+  color: var(--color-text);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color var(--duration-micro) var(--ease-out-expo), transform var(--duration-micro) var(--ease-out-expo);
+}
+
+.theme-toggle:active {
+  transform: scale(0.94);
+}
+
+@media (hover: hover) {
+  .theme-toggle:hover {
+    background: var(--color-tint-strong);
+  }
+}
+
+/* Sidebar version: a nav row like the links above it. */
+.theme-toggle-row {
+  width: 100%;
+  margin-bottom: var(--space-75);
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
 }
 
 .nav__menu-line {
@@ -347,7 +474,7 @@ main:focus {
   flex-direction: column;
   gap: var(--space-100);
   padding: calc(var(--header-height) + var(--space-600)) var(--space-300) var(--space-300);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--color-glass-strong);
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
   opacity: 0;
@@ -409,21 +536,21 @@ main:focus {
 
 .button--primary {
   background: var(--color-text);
-  color: #fff;
+  color: var(--color-on-text);
 }
 
 .button--ghost {
-  background: rgba(37, 34, 40, 0.05);
+  background: var(--color-tint);
   color: var(--color-text);
 }
 
 @media (hover: hover) {
   .button--primary:hover:not([disabled]) {
-    background: #3b383e;
+    background: var(--color-text-hover);
   }
 
   .button--ghost:hover:not([disabled]) {
-    background: rgba(37, 34, 40, 0.09);
+    background: var(--color-tint-strong);
   }
 }
 
@@ -508,7 +635,7 @@ main:focus {
   height: 24px;
   padding: 0 var(--space-75);
   border-radius: var(--radius-full);
-  background: rgba(37, 34, 40, 0.05);
+  background: var(--color-tint);
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
@@ -571,7 +698,7 @@ main:focus {
   padding: var(--space-75) var(--space-200);
   border-radius: var(--radius-full);
   background: var(--color-text);
-  color: #fff;
+  color: var(--color-on-text);
   font-size: 14px;
   line-height: 20px;
   opacity: 0;
@@ -734,7 +861,7 @@ main:focus {
   padding: 0 var(--space-100) 0 var(--space-50);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
-  background: #fff;
+  background: var(--color-surface);
   font-size: 13px;
   line-height: 18px;
   font-weight: 450;
@@ -867,7 +994,7 @@ main:focus {
   overflow: hidden;
   padding: calc(var(--phone-w) * 0.15) calc(var(--phone-w) * 0.06) calc(var(--phone-w) * 0.06);
   border-radius: calc(var(--phone-w) * 0.13);
-  background: #fff;
+  background: var(--color-surface);
   text-align: left;
   font-size: calc(var(--phone-w) * 0.043);
   line-height: 1.35;
@@ -950,7 +1077,7 @@ main:focus {
 
 .phone__chip--on {
   background: var(--color-text);
-  color: #fff;
+  color: var(--color-on-text);
 }
 
 .phone__button {
@@ -958,7 +1085,7 @@ main:focus {
   padding: calc(var(--phone-w) * 0.035);
   border-radius: var(--radius-full);
   background: var(--color-text);
-  color: #fff;
+  color: var(--color-on-text);
   font-weight: 500;
   text-align: center;
 }
@@ -1254,7 +1381,7 @@ main:focus {
 }
 
 .tagline__word {
-  color: rgba(37, 34, 40, 0.16);
+  color: var(--color-text-dim);
   transition: color 600ms var(--ease-out-expo);
 }
 
@@ -1358,7 +1485,7 @@ main:focus {
   width: 28px;
   height: 28px;
   border-radius: var(--radius-full);
-  background: rgba(37, 34, 40, 0.05);
+  background: var(--color-tint);
   font-size: 14px;
   transition: transform 400ms var(--ease-out-expo);
 }
@@ -1419,12 +1546,12 @@ main:focus {
 
 .cta-band .button--primary {
   background: #fff;
-  color: var(--color-text);
+  color: var(--color-ink-fixed);
 }
 
 @media (hover: hover) {
   .cta-band .button--primary:hover:not([disabled]) {
-    background: var(--color-purple-8);
+    background: var(--color-purple-8-fixed);
   }
 }
 
@@ -1585,7 +1712,7 @@ main:focus {
   padding: 0 var(--space-200);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2xl);
-  background: #fff;
+  background: var(--color-surface);
   /* Textareas default to a monospace font; every field uses the app font. */
   font-family: inherit;
   font-size: 16px;
@@ -1633,7 +1760,7 @@ main:focus {
   padding: var(--space-200);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2xl);
-  background: #fff;
+  background: var(--color-surface);
   cursor: pointer;
   transition: border-color var(--duration-micro) var(--ease-out-expo), box-shadow var(--duration-micro) var(--ease-out-expo),
     transform var(--duration-micro) var(--ease-out-expo);
@@ -1757,7 +1884,7 @@ main:focus {
   padding: var(--space-100);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-xl);
-  background: #fff;
+  background: var(--color-surface);
   text-align: left;
   cursor: pointer;
   transition: border-color var(--duration-micro) var(--ease-out-expo), box-shadow var(--duration-micro) var(--ease-out-expo),
@@ -1974,7 +2101,7 @@ main:focus {
   padding: var(--space-50) var(--space-75);
   border-radius: var(--radius-lg);
   background: var(--color-text);
-  color: #fff;
+  color: var(--color-on-text);
   font-size: 12px;
   line-height: 16px;
   white-space: nowrap;
@@ -1994,9 +2121,9 @@ main:focus {
   padding: 0;
   border: 0;
   border-radius: var(--radius-3xl);
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text);
-  box-shadow: 0 24px 64px rgba(37, 34, 40, 0.18);
+  box-shadow: 0 24px 64px var(--color-shadow-strong);
 }
 
 .modal[open] {
@@ -2011,7 +2138,7 @@ main:focus {
 }
 
 .modal::backdrop {
-  background: rgba(37, 34, 40, 0.3);
+  background: var(--color-backdrop);
   backdrop-filter: blur(4px);
 }
 
@@ -2125,7 +2252,7 @@ main:focus {
   gap: var(--space-25);
   padding: var(--space-25);
   border-radius: var(--radius-full);
-  background: rgba(37, 34, 40, 0.05);
+  background: var(--color-tint);
 }
 
 .tab {
@@ -2148,9 +2275,9 @@ main:focus {
 }
 
 .tab[aria-selected="true"] {
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text);
-  box-shadow: 0 1px 2px rgba(37, 34, 40, 0.08);
+  box-shadow: 0 1px 2px var(--color-shadow-soft);
 }
 
 .card-head {
@@ -2178,7 +2305,7 @@ main:focus {
   min-width: 44px;
   padding: var(--space-25) var(--space-75);
   border-radius: var(--radius-full);
-  background: rgba(37, 34, 40, 0.06);
+  background: var(--color-tint);
   font-size: 11px;
   line-height: 16px;
   font-weight: 600;
@@ -2323,7 +2450,7 @@ main:focus {
   padding: var(--space-75) var(--space-75) var(--space-75) var(--space-200);
   border: 1px dashed var(--color-purple-5);
   border-radius: var(--radius-2xl);
-  background: #fbfbff;
+  background: var(--color-surface-tint);
 }
 
 .empty img {
@@ -2384,7 +2511,7 @@ main:focus {
   padding: var(--space-200);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
-  background: #fff;
+  background: var(--color-surface);
   text-decoration: none;
   transition: background-color var(--duration-micro) var(--ease-out-expo), transform var(--duration-micro) var(--ease-out-expo);
 }
@@ -2461,7 +2588,7 @@ main:focus {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-image: radial-gradient(rgba(37, 34, 40, 0.09) 1px, transparent 1px);
+  background-image: radial-gradient(var(--color-dots) 1px, transparent 1px);
   background-size: 22px 22px;
   mask-image: radial-gradient(60% 55% at 50% 30%, #000 0%, transparent 75%);
   -webkit-mask-image: radial-gradient(60% 55% at 50% 30%, #000 0%, transparent 75%);
@@ -2517,7 +2644,7 @@ main:focus {
 }
 
 .panel-dark .highlight {
-  background: linear-gradient(134deg, var(--color-purple-8) 0%, #9391fe 49%, var(--color-purple-8) 91%);
+  background: linear-gradient(134deg, var(--color-purple-8-fixed) 0%, #9391fe 49%, var(--color-purple-8-fixed) 91%);
   -webkit-background-clip: text;
   background-clip: text;
 }
@@ -2583,7 +2710,7 @@ main:focus {
 
 .button--light {
   background: #fff;
-  color: var(--color-text);
+  color: var(--color-ink-fixed);
 }
 
 .button--dark-soft {
@@ -2593,7 +2720,7 @@ main:focus {
 
 @media (hover: hover) {
   .button--light:hover:not([disabled]) {
-    background: var(--color-purple-8);
+    background: var(--color-purple-8-fixed);
   }
 
   .button--dark-soft:hover:not([disabled]) {
@@ -2899,7 +3026,7 @@ main:focus {
   padding: var(--space-200);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-3xl);
-  background: #fff;
+  background: var(--color-surface);
   text-decoration: none;
   transition: border-color var(--duration-micro) var(--ease-out-expo), transform 400ms var(--ease-out-expo), box-shadow 400ms var(--ease-out-expo);
 }
@@ -3009,9 +3136,9 @@ main:focus {
   flex-direction: column;
   gap: var(--space-75);
   padding: var(--space-200);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--color-glass-border);
   border-radius: var(--radius-2xl);
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--color-glass-card);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 1px 2px rgba(37, 34, 40, 0.04);
@@ -3117,7 +3244,7 @@ main:focus {
 }
 
 .is-app .card {
-  background: #fff;
+  background: var(--color-surface);
 }
 
 @media (min-width: 900px) {
@@ -3133,7 +3260,7 @@ main:focus {
     width: 240px;
     padding: var(--space-300) var(--space-200);
     border-right: 1px solid var(--color-border);
-    background: #fff;
+    background: var(--color-surface);
   }
 
   .is-app main {
@@ -3268,9 +3395,15 @@ main:focus {
     height: 56px;
     padding: 0 var(--space-200);
     border-bottom: 1px solid var(--color-border);
-    background: rgba(255, 255, 255, 0.9);
+    background: var(--color-glass);
     backdrop-filter: blur(25px);
     -webkit-backdrop-filter: blur(25px);
+  }
+
+  .app-topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-75);
   }
 
   .is-app .app-tabbar {
@@ -3283,7 +3416,7 @@ main:focus {
     grid-template-columns: repeat(5, 1fr);
     padding: var(--space-50) var(--space-75) calc(var(--space-50) + env(safe-area-inset-bottom));
     border-top: 1px solid var(--color-border);
-    background: rgba(255, 255, 255, 0.94);
+    background: var(--color-glass-strong);
     backdrop-filter: blur(25px);
     -webkit-backdrop-filter: blur(25px);
   }
@@ -3451,7 +3584,7 @@ main:focus {
   padding: 0 var(--space-200) 0 var(--space-100);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-2xl);
-  background: #fff;
+  background: var(--color-surface);
   font-size: 15px;
   font-weight: 500;
   text-align: left;
@@ -3462,7 +3595,7 @@ main:focus {
 
 .privy__option:hover {
   border-color: var(--color-purple-5);
-  background: #fbfbff;
+  background: var(--color-surface-tint);
 }
 
 .privy__option:active {
@@ -3617,7 +3750,7 @@ main:focus {
   padding: var(--space-300);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-3xl);
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .dash-stat--accent {
@@ -3685,7 +3818,7 @@ main:focus {
   padding: var(--space-300);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-3xl);
-  background: #fff;
+  background: var(--color-surface);
   text-decoration: none;
   transition: border-color var(--duration-micro) var(--ease-out-expo), transform 400ms var(--ease-out-expo), box-shadow 400ms var(--ease-out-expo);
 }
@@ -3742,7 +3875,7 @@ main:focus {
   justify-content: center;
   min-height: 240px;
   border: 1px dashed var(--color-purple-5);
-  background: #fbfbff;
+  background: var(--color-surface-tint);
   text-align: center;
 }
 
@@ -3802,7 +3935,7 @@ main:focus {
   padding: var(--space-600) var(--space-300);
   border: 1px solid var(--color-border);
   border-radius: 40px;
-  background: #fbfbff;
+  background: var(--color-surface-tint);
 }
 
 @media (min-width: 960px) {
@@ -3829,7 +3962,7 @@ main:focus {
   position: absolute;
   inset: 0;
   z-index: -1;
-  background-image: radial-gradient(rgba(37, 34, 40, 0.08) 1px, transparent 1px);
+  background-image: radial-gradient(var(--color-dots) 1px, transparent 1px);
   background-size: 22px 22px;
   mask-image: radial-gradient(50% 70% at 80% 50%, #000, transparent);
   -webkit-mask-image: radial-gradient(50% 70% at 80% 50%, #000, transparent);
@@ -3891,9 +4024,9 @@ main:focus {
   gap: var(--space-100);
   width: min(300px, 78%);
   padding: var(--space-300);
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--color-glass-border);
   border-radius: var(--radius-3xl);
-  background: rgba(255, 255, 255, 0.86);
+  background: var(--color-glass-card);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 24px 60px -24px rgba(76, 31, 94, 0.35);
@@ -4030,7 +4163,7 @@ main:focus {
   padding: var(--space-50) var(--space-100);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
-  background: #fff;
+  background: var(--color-surface);
   font-size: 12px;
   line-height: 16px;
 }
@@ -4050,7 +4183,7 @@ main:focus {
   margin-top: var(--space-200);
   margin-bottom: -0.24em;
   color: transparent;
-  background: linear-gradient(180deg, var(--color-purple-5) 0%, var(--color-purple-8) 70%, rgba(229, 229, 255, 0) 100%);
+  background: linear-gradient(180deg, var(--color-purple-5) 0%, var(--color-purple-8-fixed) 70%, rgba(229, 229, 255, 0) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   font-size: 34vw;
@@ -4083,7 +4216,7 @@ main:focus {
   padding: var(--space-75);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .rule-picker {
@@ -4096,7 +4229,7 @@ main:focus {
   padding: 0 var(--space-75);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--color-surface);
   font-size: 13px;
   line-height: 18px;
   transition: border-color var(--duration-micro) var(--ease-out-expo), box-shadow var(--duration-micro) var(--ease-out-expo);
@@ -4152,7 +4285,7 @@ main:focus {
   padding: 0 var(--space-75) 0 var(--space-100);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text);
   font: inherit;
   font-size: 13px;
@@ -4221,8 +4354,8 @@ main:focus {
   padding: var(--space-50);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(37, 34, 40, 0.06), 0 16px 40px -8px rgba(37, 34, 40, 0.18);
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px var(--color-shadow-soft), 0 16px 40px -8px var(--color-shadow-strong);
   list-style: none;
   max-width: 300px;
   overscroll-behavior: contain;
@@ -4637,7 +4770,7 @@ main:focus {
   padding: var(--space-200);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2xl);
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .activity-trade__body {
@@ -5235,7 +5368,7 @@ main:focus {
   height: 36px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
-  background: #fff;
+  background: var(--color-surface);
   color: var(--color-text);
   font-size: 18px;
   transition: border-color var(--duration-micro) var(--ease-out-expo), transform var(--duration-micro) var(--ease-out-expo);

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { useAuth, useToast } from "@/components/ui/Providers";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { SOCIAL_LINKS } from "@/lib/social";
 
 const LINKS = [
@@ -66,6 +67,7 @@ export function SiteHeader() {
             ))}
           </ul>
           <div className="nav__actions">
+            <ThemeToggle />
             <GoToAppButton />
             <button className="nav__menu-button" type="button" aria-label="Open menu" aria-expanded={menuOpen} aria-controls="menu-overlay" onClick={() => setMenuOpen((open) => !open)}>
               <span className="nav__menu-line" />
