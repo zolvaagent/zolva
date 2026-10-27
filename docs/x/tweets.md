@@ -307,7 +307,7 @@ Each post shows one real feature with a real screenshot. Numbers are from the li
 > zolvaagent.app/markets
 
 - Characters: 239 of 280
-- Visual: Video: video/crypto-live/zolva-crypto-live-1920x1080.mp4 (21 s Remotion, music only; source video/remotion/src/CryptoLive.tsx)
+- Visual: Video: video/crypto-beat/zolva-crypto-beat-1920x1080.mp4 (16 s Remotion, cut to a 120 BPM Lyria track; source video/remotion/src/CryptoBeat.tsx). Replaces the first CryptoLive video, which the user did not like
 - Status: **Ready (numbers in the video are from 2026-10-24)**
 
 

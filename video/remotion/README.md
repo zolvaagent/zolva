@@ -8,6 +8,7 @@ eased, never shaken.
 |---|---|---|
 | `Q1` (`src/Q1.tsx`) | 25 s quote video for the @RobinhoodCrypto "100 days" post, music only | `../q1/zolva-q1-v2-1920x1080.mp4` |
 | `CryptoLive` (`src/CryptoLive.tsx`) | 21 s "Crypto markets are live" video for tweet P12, music only (same Lyria track) | `../crypto-live/zolva-crypto-live-1920x1080.mp4` |
+| `CryptoBeat` (`src/CryptoBeat.tsx`) | 16 s "Crypto is live" v2 for tweet P12, cut to the beat (120 BPM: 15 frames a beat, 60 a bar); `npm run render:crypto-beat` | `../crypto-beat/zolva-crypto-beat-1920x1080.mp4` |
 | `RecordCard` (`src/RecordCard.tsx`) | 1600x900 image for tweet U1 (11 days on the record), render with `npx remotion still src/index.ts RecordCard` | `../../assets/x/record-11-days-1600x900.png` |
 | `RecordVideo` (`src/RecordVideo.tsx`) | 18 s video version of tweet U1, same rows as RecordCard, music only; `npm run render:record` | `../record/zolva-record-11-days-1920x1080.mp4` |
 
@@ -31,6 +32,8 @@ Preview and tweak live with `npm run studio`.
 - `music-lyria.wav`: Google Lyria 2 on Replicate, 2026-10-19 (prediction xvpyzeapnnrmw0d1a9x96j5v8r)
 - `orb-look-left.png`, `orb-look-right.png`, `orb-blink.png`: gpt-image-2 medium on Replicate from the
   brand orb, white background cut out with `scripts/cutout-icons.py`
+- `music-crypto-beat.wav`: Google Lyria 2 on Replicate, 2026-10-27 (prediction t4pd4q7255rmt0d1fkftwqxe98), upbeat electronic at 120 BPM
+- `logo-NVDA.png`, `logo-TSLA.png`: copies of `public/img/stocks`
 - `orb.png`: copy of `public/img/brand/zolva-mark.png`
 - `icon-currency-btc.svg`, `icon-currency-eth.svg`: Phosphor Icons 2.1.1 (fill), the same icons the app's crypto avatars use
 
