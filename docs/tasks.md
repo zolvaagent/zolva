@@ -165,7 +165,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 ## Dark mode (2026-10-27)
 
 - [x] Dark theme tokens in `app/globals.css` (`:root[data-theme="dark"]`), plus theme role tokens (`--color-surface`, `--color-tint`, `--color-on-text`, glass, shadows) replacing about 60 hard-coded light colors; panels that are dark in both themes keep fixed colors
-- [x] `ThemeToggle` (System → Light → Dark, saved in localStorage): sidebar row, mobile top bar, landing header; `THEME_INIT_SCRIPT` in `app/layout.tsx` sets the theme before paint; Privy's login window follows the theme
+- [x] `ThemeToggle` (Light ↔ Dark, saved in localStorage; a first visit starts from the OS setting; "System" option removed 2026-10-27 at the user's request): sidebar row, mobile top bar, landing header; `THEME_INIT_SCRIPT` in `app/layout.tsx` sets the theme before paint; Privy's login window follows the theme
 - [x] Checked in headless Edge: landing (full length), Markets, BTC page, Studio, Leaderboard, Activity, logged-out Dashboard at 1440 px; Markets and Studio at 390 px; light mode unchanged
 - [x] Deployed 2026-10-27 and checked live: landing, Markets, Studio, Leaderboard in dark at 1440 px, Markets at 390 px, Studio in light; the toggle cycles System → Light → Dark and saves the choice
 - [ ] Check logged-in views in dark (Dashboard with agents, agent page dialogs, Privy login window): not covered by the headless check
