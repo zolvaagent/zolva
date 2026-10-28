@@ -42,5 +42,5 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature could not be verified" }, { status: 401 });
   }
 
-  return startSession(client, fields.address, country);
+  return startSession(client, fields.address, country, "wallet");
 }

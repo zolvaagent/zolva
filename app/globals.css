@@ -6256,3 +6256,10 @@ main:focus {
 .docs-glossary dd {
   margin: 0;
 }
+
+/* Live (real money) agent badge. */
+.pill--live {
+  background: var(--color-loss-soft);
+  color: var(--color-loss);
+  font-weight: 600;
+}
