@@ -155,3 +155,14 @@ Still to verify before switching the kill switch on in production:
   price, plus about $0.03 of gas in total since step 1.
 
 Remaining check before the kill switch goes on in production: Privy signing inside the Worker.
+
+### Worker check (2026-10-28): Privy signing runs inside the Cloudflare Worker
+
+`POST /api/dev/live-sign-check` on the OpenNext build under `wrangler dev` (workerd), sign only:
+the allowed approve was signed (173 bytes) and the USDG transfer was refused with `policy_violation`,
+in 469 ms; nothing was broadcast, and a call without the cron secret got 401. The route answers 404
+unless `LIVE_SIGN_CHECK=1` is set, which exists only locally for this check (removed again
+afterwards, never a Worker secret).
+
+All step 2 checks have passed. To go live for the owner: deploy (pushes `PRIVY_AUTHORIZATION_KEY`),
+create one live agent with `npm run live:agent`, then set `live_settings.enabled = true`.

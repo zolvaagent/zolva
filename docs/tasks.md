@@ -192,7 +192,8 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Step 1b (2026-10-28): signer granted; policy refused a USDG transfer (policy_violation); real $2 USDG to NVDA swap on mainnet, filled exactly at the quote, gas about $0.011 (results in docs/real-trading-spike.md)
 - [x] Step 2 built (2026-10-28): executor core, live runner in the tick (newest hour only, recovery, sells first, auto pause after 2 failures), migration live_executor (kill switch OFF, $100 cap, $300/day, 1% slippage, 2% price check, allowlist, guard trigger, apply_live_fill), scripts live:agent and live:smoke, 6 unit tests (116 total)
 - [x] live:smoke passed (2026-10-28): $2 NVDA buy at -0.02% and full sell at -0.11% vs the hourly close, about $0.016 gas
-- [ ] Verify Privy signing inside the Cloudflare Worker before enabling the kill switch in production
+- [x] Privy signing verified inside the Worker (wrangler dev, sign only): approve signed, transfer refused, 469 ms
+- [ ] Go live for the owner: deploy, create one live agent (npm run live:agent), switch live_settings.enabled on, watch its first trades
 - [ ] Legal review of automated trading of tokenized securities for users (before any real money)
 - [ ] On-chain executor via `equity-router` or Uniswap, Chainlink price check, max slippage, gas handling
 - [ ] Invite-only live beta with per-agent caps and a global kill switch

@@ -77,6 +77,10 @@ export const env = {
   get privyAuthorizationKey(): string | null {
     return optional("PRIVY_AUTHORIZATION_KEY");
   },
+  /** Turns on /api/dev/live-sign-check (local wrangler dev only; never set as a Worker secret). */
+  get liveSignCheck(): boolean {
+    return optional("LIVE_SIGN_CHECK") === "1";
+  },
   get liveSigner(): { signerId: string; policyId: string } | null {
     const signerId = optional("PRIVY_SIGNER_ID");
     const policyId = optional("PRIVY_LIVE_POLICY_ID");
