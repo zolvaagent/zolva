@@ -14,6 +14,8 @@ type Auth = {
   /** Opens the login modal; `then` runs after a successful login. */
   openLogin: (then?: () => void) => void;
   logout: () => Promise<void>;
+  /** The loaded Privy island, or null before it loads (used by the owner-only live signer page). */
+  privy: () => PrivyHandle | null;
 };
 
 const AuthContext = createContext<Auth | null>(null);
@@ -121,7 +123,7 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
   );
 
   return (
-    <AuthContext.Provider value={{ address, openLogin, logout }}>
+    <AuthContext.Provider value={{ address, openLogin, logout, privy: () => privy.current }}>
       <ToastContext.Provider value={toast}>
         {children}
 

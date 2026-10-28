@@ -16,7 +16,9 @@
     "backtest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/backtest.mts",
     "seed:house": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/seed-house-agents.mts",
     "deploy:prod": "node scripts/deploy-production.mjs",
-    "credits:grant": "node scripts/grant-credits.mts"
+    "credits:grant": "node scripts/grant-credits.mts",
+    "live:setup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-signer-setup.mts",
+    "live:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-swap-test.mts"
   },
   "dependencies": {
     "@privy-io/node": "^0.35.0",

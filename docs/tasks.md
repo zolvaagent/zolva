@@ -187,7 +187,8 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Schema hooks (2026-10-15): `agents.mode` (paper|live, immutable via trigger), `agents.trading_wallet`, `executions` table (order lifecycle, tx hash, fills, gas; idempotent per agent/hour/token/side; delete-restricted), `trades.execution_id`. Checked structure by script; not yet run on a real Postgres (Docker was off)
 - [ ] Keep MVP ready: engine decides, executor executes (paper executor now)
 - [x] Research spike (2026-10-28, `docs/real-trading-spike.md`): custody = Privy signer with a policy on embedded wallets (eth_signTransaction, we broadcast); route = Uniswap SwapRouter02 exactInputSingle, v3 markets only (14 of 22); EquityRouter on chain does not match its source, not usable; gas about $0.01 to $0.06 a swap; testnet has no markets, test on mainnet with $5 to $10
-- [ ] Step 1: prove the signing path with one tiny real swap (owner enables Privy signers, funds the embedded wallet with ~$10 USDG + ~$1 ETH)
+- [x] Step 1a (2026-10-28): `npm run live:setup` created signer (key quorum) `sulnagv1p05c3j4s1dcfg0x0` and policy `ski28975qoskumany3xe0u0k` for the owner's embedded wallet `0x235c…f628`; Privy accepted the calldata rules. Key in .dev.vars only. Grant page `/dev/live-signer` (local only), test `npm run live:test` (dry run unless --send)
+- [ ] Step 1b: owner adds http://localhost:3000 to Privy allowed origins, funds 0x235c…f628 with ~$10 USDG + ~$1 ETH on Robinhood Chain, grants the signer; then dry run, then a $2 swap with --send
 - [ ] Legal review of automated trading of tokenized securities for users (before any real money)
 - [ ] On-chain executor via `equity-router` or Uniswap, Chainlink price check, max slippage, gas handling
 - [ ] Invite-only live beta with per-agent caps and a global kill switch

@@ -66,6 +66,15 @@ export const env = {
     const value = Number(optional("AI_DAILY_BUDGET_USD") ?? 5);
     return Number.isFinite(value) && value >= 0 ? value : 5;
   },
+  /**
+   * Real money spike (owner only, local): the Privy signer (key quorum) and
+   * policy created by `npm run live:setup`. Null until that has run.
+   */
+  get liveSigner(): { signerId: string; policyId: string } | null {
+    const signerId = optional("PRIVY_SIGNER_ID");
+    const policyId = optional("PRIVY_LIVE_POLICY_ID");
+    return signerId && policyId ? { signerId, policyId } : null;
+  },
   get privy(): { appId: string; appSecret: string } | null {
     const appId = optional("PRIVY_APP_ID");
     const appSecret = optional("PRIVY_APP_SECRET");
