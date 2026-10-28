@@ -112,3 +112,33 @@ granted from `/dev/live-signer`.
 What this proves: custody stays with the user, Zolva's server can trade only what the policy allows,
 and the full path (quote, approve, sign, broadcast, confirm) runs on mainnet for about a cent.
 Next: step 2, the live executor behind the `executions` table.
+
+## Step 2: the live executor (built 2026-10-28)
+
+- `lib/live/executor.ts`: one swap from start to finish, with no database: balances (token and an
+  ETH gas reserve), a fresh QuoterV2 quote, a check against the reference price (Chainlink for ETH
+  and BTC, otherwise the hourly close the decision used), an exact approval only when the
+  allowance is short, `exactInputSingle` with the quote minus the max slippage as the minimum,
+  Privy signs, our RPC broadcasts, and the real amount received is read from the token's Transfer
+  log. Unit tests in `lib/live/executor.test.ts`.
+- `lib/live/runner.ts` (called by `/api/cron/tick` after the paper agents):
+  - does nothing unless `live_settings.enabled` is true and `PRIVY_AUTHORIZATION_KEY` is set
+  - first finishes swaps a crashed tick left `submitted`, and cancels `pending` orders older than 30
+    minutes
+  - runs each live agent on the **newest hour only**; older hours are counted as skipped and never
+    traded with real money
+  - records the hour's decisions with `apply_agent_hour` (no paper trades), then one `executions` row
+    per decision (unique per agent, hour, token and side) before sending anything, sells before buys
+  - writes each confirmed fill atomically with `apply_live_fill` (execution, trade, position, cash);
+    a sent swap that fails marks the order failed, and two failures in a row pause the agent
+- Migration `live_executor`: `live_settings` (kill switch, off by default; $100 cap per live agent,
+  $300 daily volume per wallet, 1% slippage, 2% price check), `live_wallets` (allowlist with the
+  Privy wallet and policy), `live_agent_guard` (refuses wallets off the list and capital over the
+  cap), `apply_live_fill`, and `executions.amount_in` / `amount_out`.
+- Scripts: `npm run live:agent` (allowlist a wallet and create a live agent),
+  `npm run live:smoke` (real $2 buy and sell through `executeSwap`).
+
+Still to verify before switching the kill switch on in production:
+1. The smoke test with real money (`npm run live:smoke -- <wallet> 2`).
+2. That Privy signing works inside the Cloudflare Worker, not only in Node (`wrangler dev` with the
+   kill switch on locally, or one live agent watched through its first trade).

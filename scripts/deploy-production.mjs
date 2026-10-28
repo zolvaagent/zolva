@@ -78,6 +78,8 @@ async function main() {
       ...(dev.PRIVY_APP_ID && dev.PRIVY_APP_SECRET ? { PRIVY_APP_ID: dev.PRIVY_APP_ID, PRIVY_APP_SECRET: dev.PRIVY_APP_SECRET } : {}),
       // Optional: without a key the AI co-pilot stays off and agents trade on their rules.
       ...(dev.OPENROUTER_API_KEY ? { OPENROUTER_API_KEY: dev.OPENROUTER_API_KEY } : {}),
+      // Optional: Zolva's Privy signer key for live agents. Live trading also needs live_settings.enabled.
+      ...(dev.PRIVY_AUTHORIZATION_KEY ? { PRIVY_AUTHORIZATION_KEY: dev.PRIVY_AUTHORIZATION_KEY } : {}),
       ...(dev.AI_DAILY_BUDGET_USD ? { AI_DAILY_BUDGET_USD: dev.AI_DAILY_BUDGET_USD } : {}),
     }),
   );
