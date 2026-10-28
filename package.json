@@ -18,7 +18,8 @@
     "deploy:prod": "node scripts/deploy-production.mjs",
     "credits:grant": "node scripts/grant-credits.mts",
     "live:setup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-signer-setup.mts",
-    "live:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-swap-test.mts"
+    "live:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-swap-test.mts",
+    "live:agent": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-agent-create.mts"
   },
   "dependencies": {
     "@privy-io/node": "^0.35.0",

@@ -70,6 +70,13 @@ export const env = {
    * Real money spike (owner only, local): the Privy signer (key quorum) and
    * policy created by `npm run live:setup`. Null until that has run.
    */
+  /**
+   * Live executor: the private key of Zolva's Privy signer, used to sign
+   * swaps for allowlisted wallets under their policy. Null keeps live trading off.
+   */
+  get privyAuthorizationKey(): string | null {
+    return optional("PRIVY_AUTHORIZATION_KEY");
+  },
   get liveSigner(): { signerId: string; policyId: string } | null {
     const signerId = optional("PRIVY_SIGNER_ID");
     const policyId = optional("PRIVY_LIVE_POLICY_ID");
