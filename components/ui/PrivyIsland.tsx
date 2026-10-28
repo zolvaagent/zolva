@@ -1,6 +1,6 @@
 "use client";
 
-import { PrivyProvider, useLogin, usePrivy } from "@privy-io/react-auth";
+import { PrivyProvider, useLogin, usePrivy, useSigners } from "@privy-io/react-auth";
 import { useEffect, useRef } from "react";
 
 import { useResolvedTheme } from "@/components/ui/ThemeToggle";
@@ -15,6 +15,10 @@ import { useResolvedTheme } from "@/components/ui/ThemeToggle";
 export type PrivyHandle = {
   login: () => void;
   logout: () => Promise<void>;
+  /** Real money spike (owner only): lets Zolva's signer act on the embedded wallet under a policy. */
+  addSigner: (address: string, signerId: string, policyIds: string[]) => Promise<void>;
+  /** Removes every signer from the embedded wallet. */
+  removeSigners: (address: string) => Promise<void>;
 };
 
 type PrivyIslandProps = {
@@ -44,6 +48,7 @@ export default function PrivyIsland({ appId, ...bridge }: PrivyIslandProps) {
 
 function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProps, "appId">) {
   const { ready, getAccessToken, logout } = usePrivy();
+  const { addSigners, removeSigners } = useSigners();
   // Only react to logins started from our modal.
   const pending = useRef(false);
   const { login } = useLogin({
@@ -71,8 +76,14 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
         login({ loginMethods: ["email", "google"] });
       },
       logout,
+      addSigner: async (address, signerId, policyIds) => {
+        await addSigners({ address, signers: [{ signerId, policyIds }] });
+      },
+      removeSigners: async (address) => {
+        await removeSigners({ address });
+      },
     });
-  }, [onReady, onFailure, ready, login, logout]);
+  }, [onReady, onFailure, ready, login, logout, addSigners, removeSigners]);
 
   return null;
 }
