@@ -166,3 +166,16 @@ afterwards, never a Worker secret).
 
 All step 2 checks have passed. To go live for the owner: deploy (pushes `PRIVY_AUTHORIZATION_KEY`),
 create one live agent with `npm run live:agent`, then set `live_settings.enabled = true`.
+
+## Live for the owner (2026-10-28)
+
+- Live agent `eda06900-f5a4-48e8-a465-0e9599d31fec` ("Live BTC ETH"): mean reversion on ETH + BTC, $10,
+  max 50% per token, stop loss 10%, wallet `0x235c…f628`, private. Same settings as the paper agent
+  "Lab · Crypto Mean Reversion", so the two can be compared hour by hour.
+- Deployed with `PRIVY_AUTHORIZATION_KEY` as a Worker secret. A tick with the kill switch off returned
+  `live: switched off` and all 24 paper agents ran normally.
+- `live_settings.enabled = true` at about 10:3x UTC. The next tick ran the live agent on the 10:00 UTC
+  hour: hold on both (BTC z 2.10, ETH z 1.80; it buys below z -2.5). No order yet.
+
+To stop everything: `update live_settings set enabled = false where id = 1;` (takes effect at the next
+tick). To stop the agent only: Pause on its page (logged in as the wallet's owner).

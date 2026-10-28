@@ -193,7 +193,8 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Step 2 built (2026-10-28): executor core, live runner in the tick (newest hour only, recovery, sells first, auto pause after 2 failures), migration live_executor (kill switch OFF, $100 cap, $300/day, 1% slippage, 2% price check, allowlist, guard trigger, apply_live_fill), scripts live:agent and live:smoke, 6 unit tests (116 total)
 - [x] live:smoke passed (2026-10-28): $2 NVDA buy at -0.02% and full sell at -0.11% vs the hourly close, about $0.016 gas
 - [x] Privy signing verified inside the Worker (wrangler dev, sign only): approve signed, transfer refused, 469 ms
-- [ ] Go live for the owner: deploy, create one live agent (npm run live:agent), switch live_settings.enabled on, watch its first trades
+- [x] Live for the owner (2026-10-28): agent eda06900 "Live BTC ETH" (mean reversion, ETH + BTC, $10), deployed, kill switch ON; first live hour 10:00 UTC = hold on both
+- [ ] Watch the first live trades: fill vs decision price, gas, DB cash/positions vs wallet balances, compared with the paper twin "Lab · Crypto Mean Reversion"
 - [ ] Legal review of automated trading of tokenized securities for users (before any real money)
 - [ ] On-chain executor via `equity-router` or Uniswap, Chainlink price check, max slippage, gas handling
 - [ ] Invite-only live beta with per-agent caps and a global kill switch
