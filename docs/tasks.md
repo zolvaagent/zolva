@@ -2,6 +2,40 @@
 
 See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 
+## Open now (cleaned up 2026-10-28)
+
+Everything still open, in priority order. Details are in the sections below.
+
+**Before announcing wider**
+- [ ] Privy allowed origins: add https://zolvaagent.app and https://www.zolvaagent.app (owner, Privy dashboard), plus http://localhost:3000 for local dev
+- [ ] Workers observability/logs on (`observability.enabled` in wrangler.jsonc)
+- [ ] Newsletter form: connect an email provider or remove the form
+- [ ] Confirm the excluded-countries list (US + likely UK, CA, CH, AE) and the geo-block
+- [ ] Check Privy pricing for monthly active users
+- [ ] Check logged-in views in dark mode (owner, needs a login)
+- [ ] Manual check of the AMC token (its old pool was against a spam-looking token)
+- [ ] Make the GitHub repo public, create the X account and set its link in `lib/social.ts` (owner)
+
+**Product**
+- [ ] Lab review around Nov 1 to 12: which strategy beats holding per basket; decide the presets
+- [ ] 9 more coins (SOL, BNB, HYPE, XRP, TRX, ZEC, DOGE, NEAR, XMR) from Chainlink on Arbitrum (TRX on BNB Chain): waiting for Arbitrum and BNB Chain to be enabled on the Alchemy app
+- [ ] Self-serve AI credit top-up (USDG on chain); paid models are unusable without it
+- [ ] Agent page: show the strategy prompt and per-agent AI spend; Activity: show AI verdicts
+- [ ] Docs: Contracts page (token, pool and feed addresses from the `tokens` table)
+- [ ] Markets: hide the "US market open/closed" line on the Crypto tab; label off-hours (DEX only) prices
+
+**Token and launchpad**
+- [ ] Zolva token on Pons: ticker, then CA, Dex link and burn tx in the drafts, and the launch video
+- [ ] Launchpad contracts with Foundry tests (needs OK to install Foundry), then an audit
+
+**Real money trading** (Phase 3 below)
+- [ ] Custody model, executor, invite-only beta with caps and a kill switch
+- [ ] Legal review (owner decided on 2026-10-28 to start building without it first)
+
+**Maintenance**
+- [ ] `npm audit` (build tools only), remove the `permissionless.ox` override once Privy updates
+- [ ] Watch the first live AI reviews once a user agent has the co-pilot on
+
 ## Now
 - [x] Research competitor Heurix (heurix.xyz/docs)
 - [x] Pick chain (Robinhood Chain) and edge (stock tokens + backtest before launch)
@@ -25,14 +59,14 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Prototype: dashboard `#/app` (greeting, paper balance, running agent, all-time return, agent cards, latest decisions, account + wallet card, top agents). Launch requires login first
 - [x] Closing CTA redesigned: light lavender glow panel, copy + "Go to app" on the left, fanned stack of live cards (backtest, leaderboard rank, running agent) on the right
 - [x] Footer redesigned (Aave style): "Stay updated" email row, Product / Strategies / Legal columns, "Prices updated hourly" status, giant gradient "Zolva" wordmark
-- [ ] Newsletter form is front-end only (validation + toast); needs an email provider before launch
-- [ ] Prototype limitation: agents are stored per browser, not per login (switching accounts keeps them)
+- [ ] Newsletter form is front-end only (validation + toast); needs an email provider before launch (also listed under Open now)
+- [x] ~~Prototype limitation: agents are stored per browser~~ superseded: the real app stores agents per account in Supabase
 - [x] Decided: Privy for login (2026-10-15), replacing viem SIWE in 1.4
 - [ ] Check Privy pricing for monthly active users before launch
-- [ ] Design feedback on the restyled prototype
-- [ ] Port the Aave-style tokens + components into the Next app (`app/globals.css`, switch Geist to Inter)
-- [ ] **Buy `zolva.xyz`** (and maybe `zolvaagent.com`) and claim the X handle before announcing; then point the domain at the Worker
-- [ ] Decide whether to rename folder, package and Workers from `pitwise` to `zolva` (only worth it with the custom domain)
+- [x] ~~Design feedback on the restyled prototype~~ superseded: the design was carried into the real app
+- [x] Port the Aave-style tokens + components into the Next app (`app/globals.css`, Inter): done during Phase 1
+- [x] ~~Buy `zolva.xyz`~~ superseded: `zolvaagent.app` bought and connected 2026-10-19. The X account is still to be created (see Open now)
+- [x] Decided 2026-10-28: keep the internal `pitwise` names; the brand only shows as Zolva and renaming the Worker would touch domains, crons and secrets for no user benefit
 - [x] Zolva logo for now (2026-10-16): the "Watcher" mark, a glossy lavender orb with one eye glancing up and right (gpt-image-2 concept, background cut out locally). `public/img/brand/zolva-mark.png` everywhere the old S icon was, plus `favicon-48.png`, `apple-touch-icon.png`, and X avatars `assets/x/x-avatar-400-ink.png` / `-light.png`. Other concepts and monogram options are in `assets/brand/` for a later final logo
 - [x] Verify 20 token addresses against Robinhood's official Stock Token list (2026-10-15): all 20 match active assets in `GET https://api.robinhood.com/rhj/assets` (194 tokens on chain 4663). `tokens.verified_official` set (migration `verify_official_tokens`); market pages show a verified note. Tokens carry a small `currentMultiplier` (ERC-8056 corporate actions, up to 1.0027), so a token price can sit slightly above the share price
 - [ ] Confirm excluded-countries list (US + likely UK, CA, CH, AE)
@@ -55,7 +89,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
   - `npm run backtest`: 3 separate 30-day windows on real Supabase candles. Both strategies still lose to holding (momentum −2.0% vs +2.6%, mean reversion −1.5% vs +2.6% in the latest month). Thresholds kept: further tuning on ~3 months would be overfitting
   - Outlier filter proven on spiky tokens: RDDT momentum −3.5% with filter vs −41.2% without
 - [x] Agent runner (2026-10-15): `planAgentHours` (pure, catch up capped at 168 h) + atomic idempotent SQL `apply_agent_hour`; hooked into `/api/cron/tick`. Resume skips paused hours
-- [ ] Product decision still open: strategies lose to buy and hold in every window tested so far
+- [ ] Product decision still open: strategies lose to buy and hold in every window tested so far (decide at the lab review, see Open now)
 - [x] Multiple agents per user (2026-10-15): DB trigger caps active agents at 5 paper / 1 live per owner (tested: 6th and resume-at-limit blocked, rolled back). Prototype: launch shows "agent N of 5", blocks at 5, no auto-pause; "My agent" nav replaced by Dashboard; leaderboard lists all your running agents
 - [x] 1.4 Production app (2026-10-15): wallet sign in (SIWE, signed httpOnly cookie, nonce replay blocked), geo-block US/CU/IR/KP/SY at sign in and launch, terms stored, Forge with presets + rule builder (custom strategies: price/SMA/high/low/change/z-score/RSI, ALL/ANY, take profit, max hold), backtest card, up to 5 running agents
 - [x] 1.5 Dashboard, agent page (equity vs holding, trades, decisions, pause/resume), leaderboard; 5 house agents "by Zolva" seeded (`npm run seed:house`). Landing shows real backtests labelled as backtests
@@ -63,13 +97,12 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [x] Worker runtime check (wrangler dev): every route 200/404 as expected, cron handler runs ingest + agents. Fixed a 500 on all routes by upgrading OpenNext 1.20.11 → 1.20.12 (Next 16.4 added `preview-props.json`)
 - [x] Hourly schedule: Cloudflare cron (minute 5, `custom-worker.ts`) + pg_cron backup (minute 7, set by the deploy script via `configure_hourly_tick`). Tick is idempotent, so two callers are safe
 - [x] 1.6 Deployed to https://pitwise.hoodguard.workers.dev (2026-10-15, version 6f16ef52). Live checks: all pages 200, health ok, cron tick refuses no-secret calls, wallet login E2E pass on production (test wallet removed), Privy active (forged token 401), pg_cron `sita-hourly-tick` active at minute 7, Cloudflare cron at minute 5
-- [ ] After deploy: confirm one hourly tick in Cloudflare logs, then a 48 h soak (agent_runs grow by 5 per hour)
+- [x] Soak passed: agents have run every hour since 2026-10-15 (about 290 runs each by 2026-10-28, no gaps)
 - [x] Privy email + Google login built (2026-10-15): Privy loads in the browser only (keeps the Worker at 1.4 MB gzip), creates an embedded wallet for each user, `/api/auth/privy` verifies the access token with Privy and starts the same session cookie as wallet login. Off until keys are set; wallet login unchanged and retested on the Worker
 - [x] Privy app created, keys in `.dev.vars` and Worker secrets, production domain in allowed origins (2026-10-15)
 - [x] Privy end-to-end on production (2026-10-15): real email/Google login created embedded wallet session, wallet row saved with country ID. First attempt failed for unknown reasons (no logs kept)
 - [ ] Turn on Workers observability/logs so failed logins can be diagnosed (`observability.enabled` in wrangler.jsonc)
 - [ ] package.json override `permissionless.ox = $ox`: Privy pulls permissionless, whose optional ox@0.8 peer clashes with viem. Remove once Privy updates
-- [ ] Newsletter form is not connected to an email provider (it only shows a toast)
 
 - [x] Forge dropdowns (2026-10-15): native `<select>` replaced by `components/ui/Select.tsx` (listbox popover in a portal, keyboard + type-to-jump, flips near the screen edge, 8px gutter on mobile, plain language hint per option). Deployed (version 96959b7a)
 - [x] Production price ingest fixed with on-chain prices (2026-10-15, version 66e225eb). GeckoTerminal answered 429 to most calls from Cloudflare's shared IPs. Now:
@@ -137,18 +170,17 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [ ] Self-serve top-up (USDG on chain) when ready
 
 ## Phase 2: Backtest in the Studio
-- [ ] 30-day backtest panel (same engine), equity chart, warn on tokens with short history
+- [x] 30-day backtest panel (same engine), equity chart, tokens with short history shown as "too new": built into the Studio in Phase 1
 
 ## Found during prototype / setup
 - [ ] `npm audit`: 9 high warnings, all in build tools (glob, braces via OpenNext/ESLint); production deps report 0. Recheck on next OpenNext update
 - [x] Git initialised (2026-10-15), first commit d945fbe, `.gitattributes` keeps LF, secrets scan clean
 - [x] Code on GitHub (2026-10-15): private repo https://github.com/zolvaagent/zolva under a separate brand account. Every commit is authored as `Zolva <343081122+zolvaagent@users.noreply.github.com>` (repo-only git config, history rewritten before the first push, personal name/email scan clean). This folder uses the `gh` credential helper of the active `gh` account, so `zolvaagent` must be active to push
-- [ ] GeckoTerminal free tier rate-limits after ~10 quick calls; backfill must be throttled (one call every ~7s)
-- [ ] Neither strategy beat holding over the last 30 days: decide positioning before building
+- [x] GeckoTerminal free tier rate-limits after ~10 quick calls: backfill is throttled (`REQUEST_SPACING_MS`), live prices come from chain
 
 ## Before public launch
-- [ ] GeckoTerminal commercial terms → paid API or on-chain prices
-- [ ] Re-check price pool per token
+- [x] GeckoTerminal commercial terms: solved by on-chain prices (2026-10-15); GeckoTerminal is only used for backfills and best effort repairs
+- [x] Re-check price pool per token: done with the on-chain move (2026-10-15); recheck when a token is added
 - [ ] Label off-hours (DEX-only) trades in the UI
 
 ## Phase 3: Real trading (confirmed goal, see mvp-plan section 8b)
@@ -160,7 +192,7 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 - [ ] Invite-only live beta with per-agent caps and a global kill switch
 
 ## Later (only with real users)
-- LLM-written strategies, more strategies, alerts, token
+- More strategies, alerts (LLM-written strategies shipped as prompt mode on 2026-10-16; the token is planned under Phase A)
 
 ## Dark mode (2026-10-27)
 
