@@ -189,7 +189,8 @@ Everything still open, in priority order. Details are in the sections below.
 - [ ] Keep MVP ready: engine decides, executor executes (paper executor now)
 - [x] Research spike (2026-10-28, `docs/real-trading-spike.md`): custody = Privy signer with a policy on embedded wallets (eth_signTransaction, we broadcast); route = Uniswap SwapRouter02 exactInputSingle, v3 markets only (14 of 22); EquityRouter on chain does not match its source, not usable; gas about $0.01 to $0.06 a swap; testnet has no markets, test on mainnet with $5 to $10
 - [x] Step 1a (2026-10-28): `npm run live:setup` created signer (key quorum) `sulnagv1p05c3j4s1dcfg0x0` and policy `ski28975qoskumany3xe0u0k` for the owner's embedded wallet `0x235c…f628`; Privy accepted the calldata rules. Key in .dev.vars only. Grant page `/dev/live-signer` (local only), test `npm run live:test` (dry run unless --send)
-- [ ] Step 1b: owner adds http://localhost:3000 to Privy allowed origins, funds 0x235c…f628 with ~$10 USDG + ~$1 ETH on Robinhood Chain, grants the signer; then dry run, then a $2 swap with --send
+- [x] Step 1b (2026-10-28): signer granted; policy refused a USDG transfer (policy_violation); real $2 USDG to NVDA swap on mainnet, filled exactly at the quote, gas about $0.011 (results in docs/real-trading-spike.md)
+- [ ] Step 2: live executor behind the executions table (quote, price check, slippage, sign, broadcast, confirm, record the real fill), idempotent per agent/hour/token/side
 - [ ] Legal review of automated trading of tokenized securities for users (before any real money)
 - [ ] On-chain executor via `equity-router` or Uniswap, Chainlink price check, max slippage, gas handling
 - [ ] Invite-only live beta with per-agent caps and a global kill switch

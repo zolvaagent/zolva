@@ -90,3 +90,25 @@ test on mainnet with $5 to $10 from the owner's own wallet.
 
 Open questions for step 1: whether Privy's enclave signs for chain 4663 under a policy, and what the
 user sees when `addSigners` runs.
+
+## Step 1 result (2026-10-28): the signing path works
+
+Owner's Privy embedded wallet `0x235c3ccea156dfbbc31ee37c07a7292c4506f628` (email login), funded with
+11 USDG and 0.001 ETH. Signer `sulnagv1p05c3j4s1dcfg0x0` with policy `ski28975qoskumany3xe0u0k`
+granted from `/dev/live-signer`.
+
+- **Policy enforced:** Privy refused to sign a USDG `transfer` to a burn address:
+  `400 policy_violation`. It was never broadcast.
+- **Chain 4663 works with sign only:** Privy signed EIP-1559 transactions for chain 4663
+  (`eth_signTransaction`), and Alchemy broadcast them.
+- **Real swap:** $2 USDG to NVDA through SwapRouter02 `exactInputSingle` (pool fee 0.05%), minimum
+  output quote minus 1%.
+  - approve: [0xca1f…5da3](https://robinhoodchain.blockscout.com/tx/0xca1fd8cc1b3a229c45aa338b2405d77d721856e9ea07a86a3a1f85529e6b5da3), 58,294 gas, about $0.0028
+  - swap: [0x50b4…6d15](https://robinhoodchain.blockscout.com/tx/0x50b4eab0be2bb11bb69d42128135f222cccb95436d9e8e9a98dfbdfb272a6d15), 164,321 gas, about $0.0079
+  - received 0.009098124 NVDA, exactly the QuoterV2 quote (about $219.8 a share)
+- **Cost:** about $0.011 of gas for the first trade in a token (approve plus swap), under a cent for
+  later swaps with an approval in place. Privy signatures are inside the free plan.
+
+What this proves: custody stays with the user, Zolva's server can trade only what the policy allows,
+and the full path (quote, approve, sign, broadcast, confirm) runs on mainnet for about a cent.
+Next: step 2, the live executor behind the `executions` table.
