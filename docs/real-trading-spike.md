@@ -142,3 +142,16 @@ Still to verify before switching the kill switch on in production:
 1. The smoke test with real money (`npm run live:smoke -- <wallet> 2`).
 2. That Privy signing works inside the Cloudflare Worker, not only in Node (`wrangler dev` with the
    kill switch on locally, or one live agent watched through its first trade).
+
+### Smoke test result (2026-10-28, real money)
+
+`npm run live:smoke -- 0x235c…f628 2`, through `executeSwap`, reference = NVDA hourly close $219.60:
+
+- buy: 2 USDG for 0.009109048 NVDA at $219.56 (-0.02% vs the close), 187,323 gas, about $0.009
+  ([0xd41c…82b1](https://robinhoodchain.blockscout.com/tx/0xd41ce45f51e5a5c358979e28fa9e2aacc48b39b688232926b1d55a8a773782b1))
+- sell: all 0.018207172 NVDA (this buy plus step 1's) for 3.99379 USDG at $219.35 (-0.11%), 145,117
+  gas, about $0.007 ([0xc75e…6fa5](https://robinhoodchain.blockscout.com/tx/0xc75ed76ba550aa8d15bc5d07bac94e416c52ff17430a6c29d9f128bd93446fa5))
+- wallet back to 10.99379 USDG and no NVDA: $4 of round trips cost about $0.006 in pool fees and
+  price, plus about $0.03 of gas in total since step 1.
+
+Remaining check before the kill switch goes on in production: Privy signing inside the Worker.
