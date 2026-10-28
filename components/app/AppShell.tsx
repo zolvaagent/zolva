@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useSyncExternalStore } from "react";
 
 import { useAuth } from "@/components/ui/Providers";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -19,6 +20,13 @@ function isCurrent(pathname: string, href: string) {
   return pathname === href || (href === "/app" && pathname.startsWith("/agents/")) || (href === "/markets" && pathname.startsWith("/markets/"));
 }
 
+/** How this browser logged in, from the display-only zolva_login cookie (older sessions have none). */
+function readLoginLabel(): string {
+  const method = document.cookie.match(/(?:^|;\s*)zolva_login=([^;]+)/)?.[1];
+  return method === "privy" ? "Email or Google login" : method === "wallet" ? "Wallet login" : "Signed in";
+}
+const noSubscription = () => () => {};
+
 function Avatar({ address }: { address: string | null }) {
   return address ? (
     <span className="avatar" aria-hidden="true">
@@ -35,6 +43,7 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { address, openLogin, logout } = useAuth();
+  const loginLabel = useSyncExternalStore(noSubscription, readLoginLabel, () => "Signed in");
   return (
     <aside className="app-side" aria-label="App">
       <Link className="brand" href="/">
@@ -72,7 +81,7 @@ export function AppSidebar() {
             <Avatar address={address} />
             <span className="account__text">
               <strong className="mono">{shortAddress(address)}</strong>
-              <span>Wallet login</span>
+              <span>{loginLabel}</span>
             </span>
             <button className="privy__icon-button" type="button" aria-label="Log out" title="Log out" onClick={logout}>
               <i className="ph ph-sign-out" />

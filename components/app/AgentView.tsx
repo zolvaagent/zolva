@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 
 import { useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
+import { EXPLORER_URL } from "@/lib/chain";
 import type { AgentDetail } from "@/lib/data/agents";
 import {
   AiLimitFields,
@@ -50,6 +51,10 @@ type Props = {
 };
 
 const RANGES = { "7d": 7 * 24, "30d": 30 * 24, all: Infinity } as const;
+
+/** Live order statuses (executions.status) in plain words. */
+const ORDER_LABELS: Record<string, string> = { pending: "Pending", submitted: "Sent", confirmed: "Filled", failed: "Failed", cancelled: "Not sent" };
+const ORDER_PILLS: Record<string, string> = { confirmed: "pill--running", failed: "pill--warn", submitted: "pill--accent", pending: "pill--accent" };
 
 export function AgentView({
   detail,
@@ -112,6 +117,7 @@ export function AgentView({
     router.refresh();
   };
   const isPublished = agent.published_at !== null;
+  const isLive = agent.mode === "live";
   const isActive = agent.status === "active";
   const minutesToNextRun = 60 - new Date().getUTCMinutes();
   const symbolOf = (token: string) => symbols[token] ?? token;
@@ -206,6 +212,17 @@ export function AgentView({
           ],
         ] as [string, React.ReactNode][])
       : []),
+    ...(isLive && agent.trading_wallet
+      ? ([
+          ["Mode", "Live, real money"],
+          [
+            "Wallet",
+            <a key="wallet" className="text-link mono" href={`${EXPLORER_URL}/address/${agent.trading_wallet}`} target="_blank" rel="noopener noreferrer">
+              {shortAddress(agent.trading_wallet)} <i className="ph ph-arrow-up-right" aria-hidden="true" />
+            </a>,
+          ],
+        ] as [string, React.ReactNode][])
+      : []),
     ["Stocks", summary.tokens.map((token) => token.symbol).join(", ")],
     ["Starting capital", usd(summary.startCapital)],
     ["Max per stock", `${agent.params.max_position_pct}%`],
@@ -256,6 +273,12 @@ export function AgentView({
               Paused
             </span>
           )}
+          {isLive && (
+            <span className="pill pill--live" title="This agent swaps real tokens from its wallet on Robinhood Chain">
+              <i className="ph-fill ph-lightning" aria-hidden="true" />
+              Live · real money
+            </span>
+          )}
           {summary.isHouse && <span className="pill">by Zolva</span>}
           {isOwner && !summary.isHouse && (
             <span className="pill">
@@ -278,7 +301,7 @@ export function AgentView({
         </div>
       </div>
       <div className="hero__actions">
-        {isOwner && (
+        {isOwner && !isLive && (
           <button
             className="button button--ghost"
             type="button"
@@ -877,7 +900,7 @@ export function AgentView({
                 className="muted"
                 style={{ fontSize: 14, lineHeight: "20px" }}
               >
-                {summary.trades} total, 0.5% cost each
+                {isLive ? `${summary.trades} total, real fills, gas included` : `${summary.trades} total, 0.5% cost each`}
               </span>
             </div>
             {trades.length ? (
@@ -923,6 +946,11 @@ export function AgentView({
                           {trade.reason === "max_hold" && (
                             <span className="pill">Max hold</span>
                           )}{" "}
+                          {trade.txHash && (
+                            <a className="text-link" href={`${EXPLORER_URL}/tx/${trade.txHash}`} target="_blank" rel="noopener noreferrer" title="Swap on Blockscout">
+                              Tx <i className="ph ph-arrow-up-right" aria-hidden="true" />
+                            </a>
+                          )}{" "}
                           {!isMarketHours(trade.ts) && (
                             <span
                               className="pill"
@@ -953,6 +981,60 @@ export function AgentView({
               </div>
             )}
           </div>
+
+          {isLive && (
+            <div className="card">
+              <div className="card-head">
+                <h2 className="card__title">On-chain orders</h2>
+                <span className="muted" style={{ fontSize: 14, lineHeight: "20px" }}>
+                  Every order sent to Robinhood Chain, filled or not
+                </span>
+              </div>
+              {detail.orders.length ? (
+                <div className="table-wrap">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Hour</th>
+                        <th>Side</th>
+                        <th>Token</th>
+                        <th>Status</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.orders.map((order, i) => (
+                        <tr key={i}>
+                          <td className="muted">{dateAt(order.decidedTs)}</td>
+                          <td>
+                            <span className={`decision__action decision__action--${order.side}`}>{order.side}</span>
+                          </td>
+                          <td>
+                            <strong>{order.symbol}</strong>
+                          </td>
+                          <td>
+                            <span className={`pill ${ORDER_PILLS[order.status] ?? ""}`} title={order.error ?? undefined}>
+                              {ORDER_LABELS[order.status] ?? order.status}
+                            </span>
+                            {order.error && <div className="muted" style={{ fontSize: 12, lineHeight: "16px", marginTop: 4 }}>{order.error}</div>}
+                          </td>
+                          <td>
+                            {order.txHash && (
+                              <a className="text-link" href={`${EXPLORER_URL}/tx/${order.txHash}`} target="_blank" rel="noopener noreferrer">
+                                Tx <i className="ph ph-arrow-up-right" aria-hidden="true" />
+                              </a>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="muted">No orders yet. The agent sends one only when its rules want to buy or sell.</p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="stack">

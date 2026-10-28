@@ -14,6 +14,8 @@ import { secretsMatch } from "@/lib/secrets";
 
 export const SESSION_COOKIE = "zolva_session";
 export const NONCE_COOKIE = "zolva_nonce";
+/** How the user logged in ("wallet" or "privy"), for display only: not signed and never trusted for access. */
+export const LOGIN_METHOD_COOKIE = "zolva_login";
 const SESSION_DAYS = 7;
 
 function sign(payload: string): string {

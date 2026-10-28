@@ -167,14 +167,29 @@ export async function recentTrades(db: SupabaseClient, limit = 14): Promise<Deci
 }
 
 export type AgentDetail = {
-  agent: AgentRow & { owner: string; name: string; status: "active" | "paused"; created_at: string; ai_model: string | null; published_at: string | null; ai_limit_micro: number | null; ai_limit_expires_at: string | null };
+  agent: AgentRow & {
+    owner: string;
+    name: string;
+    status: "active" | "paused";
+    created_at: string;
+    ai_model: string | null;
+    published_at: string | null;
+    ai_limit_micro: number | null;
+    ai_limit_expires_at: string | null;
+    /** paper = virtual money; live = real swaps from trading_wallet. */
+    mode: "paper" | "live";
+    trading_wallet: string | null;
+  };
   /** What the AI co-pilot has spent on this agent so far, USD. */
   aiSpentUsd: number;
   /** The AI limit end date has passed (computed on the server, at request time). */
   aiLimitExpired: boolean;
   summary: AgentSummary;
   runs: RunPoint[];
-  trades: { ts: number; token: string; symbol: string; side: "buy" | "sell"; quantity: number; price: number; costUsd: number; reason: string }[];
+  /** Live trades carry the swap's transaction hash. */
+  trades: { ts: number; token: string; symbol: string; side: "buy" | "sell"; quantity: number; price: number; costUsd: number; reason: string; txHash: string | null }[];
+  /** Live agents only: the latest on-chain orders, including ones that did not fill. */
+  orders: { decidedTs: number; symbol: string; side: "buy" | "sell"; status: string; txHash: string | null; error: string | null }[];
   positions: { token: string; symbol: string; quantity: number; entryPrice: number; openedAt: number | null }[];
 };
 
@@ -183,21 +198,22 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db
     .from("agents")
-    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, ai_limit_micro, ai_limit_expires_at")
+    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);
   if (!agent) return null;
 
-  const [stats, runs, trades, positions, symbols, usage] = await Promise.all([
+  const [stats, runs, trades, positions, symbols, usage, orders] = await Promise.all([
     db.from("agent_stats").select(STATS_COLUMNS).eq("id", id).single(),
     db.from("agent_runs").select("ts, equity, hold_equity, cash, decisions").eq("agent_id", id).order("ts", { ascending: false }).limit(720),
-    db.from("trades").select("ts, token_address, side, quantity, price, cost_usd, reason").eq("agent_id", id).order("ts", { ascending: false }).limit(50),
+    db.from("trades").select("ts, token_address, side, quantity, price, cost_usd, reason, executions(tx_hash)").eq("agent_id", id).order("ts", { ascending: false }).limit(50),
     db.from("positions").select("token_address, quantity, avg_entry_price, opened_at").eq("agent_id", id),
     tokenSymbols(db),
     db.from("ai_usage").select("cost_micro").eq("agent_id", id),
+    db.from("executions").select("decided_ts, token_address, side, status, tx_hash, error").eq("agent_id", id).order("created_at", { ascending: false }).limit(20),
   ]);
-  for (const result of [stats, runs, trades, positions, usage]) if (result.error) throw new Error(result.error.message);
+  for (const result of [stats, runs, trades, positions, usage, orders]) if (result.error) throw new Error(result.error.message);
 
   const [summary] = await toSummaries(db, [stats.data as StatsRow]);
   return {
@@ -217,6 +233,15 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
       price: Number(trade.price),
       costUsd: Number(trade.cost_usd),
       reason: trade.reason,
+      txHash: (trade.executions as unknown as { tx_hash: string | null } | null)?.tx_hash ?? null,
+    })),
+    orders: (orders.data ?? []).map((order) => ({
+      decidedTs: Date.parse(order.decided_ts) / 1000,
+      symbol: symbols.get(order.token_address) ?? "?",
+      side: order.side as "buy" | "sell",
+      status: order.status,
+      txHash: order.tx_hash,
+      error: order.error,
     })),
     positions: (positions.data ?? []).map((position) => ({
       token: position.token_address,

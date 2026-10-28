@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (!accessToken) return NextResponse.json({ error: "Missing access token" }, { status: 400 });
 
   try {
-    return startSession(client, await walletFromPrivyToken(accessToken), country);
+    return startSession(client, await walletFromPrivyToken(accessToken), country, "privy");
   } catch (cause) {
     if (cause instanceof PrivyLoginError) return NextResponse.json({ error: cause.message }, { status: cause.status });
     console.error("privy login failed", cause);

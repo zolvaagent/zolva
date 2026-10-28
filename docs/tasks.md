@@ -195,6 +195,8 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Privy signing verified inside the Worker (wrangler dev, sign only): approve signed, transfer refused, 469 ms
 - [x] Live for the owner (2026-10-28): agent eda06900 "Live BTC ETH" (mean reversion, ETH + BTC, $10), deployed, kill switch ON; first live hour 10:00 UTC = hold on both
 - [ ] Watch the first live trades: fill vs decision price, gas, DB cash/positions vs wallet balances, compared with the paper twin "Lab · Crypto Mean Reversion"
+- [x] Agent page for live agents (2026-10-28): "Live · real money" badge (no more "Trade with real money · Soon" on live agents), Mode and Wallet rows with a Blockscout link, trades "real fills, gas included" with a Tx link each, and an "On-chain orders" card from executions (filled, sent, failed, not sent, with the reason). Sidebar says "Email or Google login" or "Wallet login" from a display-only zolva_login cookie set at login (older sessions show "Signed in")
+- [ ] Small: "Next decision in N min" causes a hydration warning when the minute changes between server render and hydration (existing, harmless)
 - [ ] Legal review of automated trading of tokenized securities for users (before any real money)
 - [ ] On-chain executor via `equity-router` or Uniswap, Chainlink price check, max slippage, gas handling
 - [ ] Invite-only live beta with per-agent caps and a global kill switch
