@@ -186,7 +186,8 @@ Everything still open, in priority order. Details are in the sections below.
 ## Phase 3: Real trading (confirmed goal, see mvp-plan section 8b)
 - [x] Schema hooks (2026-10-15): `agents.mode` (paper|live, immutable via trigger), `agents.trading_wallet`, `executions` table (order lifecycle, tx hash, fills, gas; idempotent per agent/hour/token/side; delete-restricted), `trades.execution_id`. Checked structure by script; not yet run on a real Postgres (Docker was off)
 - [ ] Keep MVP ready: engine decides, executor executes (paper executor now)
-- [ ] Choose custody: Privy scoped signer vs session keys vs vault contract (check what Privy policies can enforce + pricing)
+- [x] Research spike (2026-10-28, `docs/real-trading-spike.md`): custody = Privy signer with a policy on embedded wallets (eth_signTransaction, we broadcast); route = Uniswap SwapRouter02 exactInputSingle, v3 markets only (14 of 22); EquityRouter on chain does not match its source, not usable; gas about $0.01 to $0.06 a swap; testnet has no markets, test on mainnet with $5 to $10
+- [ ] Step 1: prove the signing path with one tiny real swap (owner enables Privy signers, funds the embedded wallet with ~$10 USDG + ~$1 ETH)
 - [ ] Legal review of automated trading of tokenized securities for users (before any real money)
 - [ ] On-chain executor via `equity-router` or Uniswap, Chainlink price check, max slippage, gas handling
 - [ ] Invite-only live beta with per-agent caps and a global kill switch
