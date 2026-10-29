@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DecisionRow } from "@/components/app/AgentView";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
+import { WalletExport } from "@/components/app/WalletExport";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { Decision } from "@/lib/engine/engine";
 import { dateAt, percent, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
@@ -18,6 +19,10 @@ type Props = {
   curves: Record<string, number[]>;
   latest: { agentName: string; agentId: string; ts: number; decisions: (Decision & { symbol: string })[] } | null;
   top: AgentSummary[];
+  /** How this browser logged in (display only); "privy" means an email or Google account with a Privy wallet. */
+  loginMethod: "privy" | "wallet" | null;
+  /** Zolva has a live trading signer on this wallet. */
+  liveSigner: boolean;
 };
 
 function greeting() {
@@ -25,7 +30,7 @@ function greeting() {
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Dashboard({ address, agents, curves, latest, top, credits }: Props) {
+export function Dashboard({ address, agents, curves, latest, top, credits, loginMethod, liveSigner }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
   const totalStart = agents.reduce((sum, agent) => sum + agent.startCapital, 0);
   const totalNow = agents.reduce((sum, agent) => sum + agent.equity, 0);
@@ -189,12 +194,12 @@ export function Dashboard({ address, agents, curves, latest, top, credits }: Pro
               </span>
               <span className="account__text">
                 <strong className="mono">{shortAddress(address)}</strong>
-                <span>Wallet login</span>
+                <span>{loginMethod === "privy" ? "Email or Google login" : loginMethod === "wallet" ? "Wallet login" : "Signed in"}</span>
               </span>
             </div>
             <div className="wallet-box">
               <div className="growth__row" style={{ border: 0, padding: 0 }}>
-                <span className="muted">Connected wallet</span>
+                <span className="muted">{loginMethod === "privy" ? "Your Zolva wallet" : "Connected wallet"}</span>
                 <span className="pill pill--accent">Robinhood Chain</span>
               </div>
               <a className="wallet-box__address mono" href={`${EXPLORER_URL}/address/${address}`} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
@@ -202,8 +207,11 @@ export function Dashboard({ address, agents, curves, latest, top, credits }: Pro
                 <i className="ph ph-arrow-square-out" />
               </a>
               <p className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-                Paper trading needs no funds. Your wallet is only used to sign in.
+                {loginMethod === "privy"
+                  ? "Created for you when you logged in. It is yours: export its private key to use it in any wallet app."
+                  : "Paper trading needs no funds. Your wallet is only used to sign in."}
               </p>
+              {loginMethod === "privy" && <WalletExport address={address} liveSigner={liveSigner} />}
             </div>
             <LoginPrompt mode="logout" />
           </div>

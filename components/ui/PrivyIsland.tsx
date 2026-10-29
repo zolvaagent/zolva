@@ -1,6 +1,6 @@
 "use client";
 
-import { PrivyProvider, useLogin, usePrivy, useSigners } from "@privy-io/react-auth";
+import { PrivyProvider, useExportWallet, useLogin, usePrivy, useSigners } from "@privy-io/react-auth";
 import { useEffect, useRef } from "react";
 
 import { useResolvedTheme } from "@/components/ui/ThemeToggle";
@@ -19,6 +19,12 @@ export type PrivyHandle = {
   addSigner: (address: string, signerId: string, policyIds: string[]) => Promise<void>;
   /** Removes every signer from the embedded wallet. */
   removeSigners: (address: string) => Promise<void>;
+  /**
+   * Opens Privy's own window with the embedded wallet's private key. The key is
+   * shown in an iframe on Privy's domain, so Zolva never sees it. Throws when
+   * the Privy session has ended (the user must log in with email or Google again).
+   */
+  exportWallet: (address: string) => Promise<void>;
 };
 
 type PrivyIslandProps = {
@@ -49,6 +55,7 @@ export default function PrivyIsland({ appId, ...bridge }: PrivyIslandProps) {
 function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProps, "appId">) {
   const { ready, getAccessToken, logout } = usePrivy();
   const { addSigners, removeSigners } = useSigners();
+  const { exportWallet } = useExportWallet();
   // Only react to logins started from our modal.
   const pending = useRef(false);
   const { login } = useLogin({
@@ -82,8 +89,11 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
       removeSigners: async (address) => {
         await removeSigners({ address });
       },
+      exportWallet: async (address) => {
+        await exportWallet({ address });
+      },
     });
-  }, [onReady, onFailure, ready, login, logout, addSigners, removeSigners]);
+  }, [onReady, onFailure, ready, login, logout, addSigners, removeSigners, exportWallet]);
 
   return null;
 }
