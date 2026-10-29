@@ -1,9 +1,10 @@
 # Zolva on X: profile kit
 
-Prepared 2026-10-16. The account does not exist yet; the owner creates it and posts. Nothing here
-is posted, followed or liked on their behalf.
+Prepared 2026-10-16. **The account is [@zolva_agent](https://x.com/zolva_agent)** (created by the
+owner, linked from the site footer, the app sidebar and the Dashboard since 2026-10-29). The owner
+posts; nothing here is posted, followed or liked on their behalf.
 
-## Handle (check availability on X when signing up)
+## Handle (options considered before signing up)
 
 | Handle | Note |
 |---|---|

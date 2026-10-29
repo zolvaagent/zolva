@@ -6271,3 +6271,39 @@ button.text-link {
   color: var(--color-loss);
   font-weight: 600;
 }
+
+/* Dashboard: a compact card that links to Zolva's X account. */
+.follow-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: border-color var(--duration-micro) var(--ease-out-expo), background-color var(--duration-micro) var(--ease-out-expo);
+}
+
+.follow-card:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-tint);
+}
+
+.follow-card__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+  color: var(--color-on-text);
+  font-size: 20px;
+}
+
+.follow-card__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-25);
+  font-size: 14px;
+  line-height: 20px;
+}
