@@ -13,8 +13,10 @@ Everything still open, in priority order. Details are in the sections below.
 - [ ] Confirm the excluded-countries list (US + likely UK, CA, CH, AE) and the geo-block
 - [ ] Check Privy pricing for monthly active users
 - [ ] Check logged-in views in dark mode (owner, needs a login)
+- [ ] Dashboard: the live agent card and the "Paper balance" total do not say real money yet (live agents count as paper there)
 - [ ] Manual check of the AMC token (its old pool was against a spam-looking token)
-- [ ] Make the GitHub repo public, create the X account and set its link in `lib/social.ts` (owner)
+- [ ] Make the GitHub repo public (owner)
+- [x] X account [@zolva_agent](https://x.com/zolva_agent) linked (2026-10-29): footer icon, app sidebar link, Dashboard "Follow" card (`lib/social.ts` X_URL)
 
 **Product**
 - [ ] Lab review around Nov 1 to 12: which strategy beats holding per basket; decide the presets
@@ -157,7 +159,7 @@ Everything still open, in priority order. Details are in the sections below.
 - [ ] Token: decide ticker, launch on Pons (check whitelist), then fill CA, Dex link and burn tx in the drafts
 - [x] Launch video option B: 2 Grok clips generated (2026-10-16, about $0.91), files in video/clips
 - [ ] Launch video edit: screen recordings + the 2 clips + captions + end card (needs ticker and CA)
-- [ ] Create the Zolva X account, then set its href in lib/social.ts (the footer already shows the X icon as coming soon)
+- [x] Zolva X account created: @zolva_agent, linked in lib/social.ts (2026-10-29)
 - [x] Loading skeletons (2026-10-16): loading.tsx for dashboard, leaderboard, agent, markets, market, activity and studio, built from components/ui/Skeleton.tsx on the real layout grids, so the page does not jump; screen reader status line, pulse off with reduced motion
 - [ ] Show the strategy prompt on the agent page
 - [x] AI limit per agent (2026-10-16): every AI agent has a total spending limit and an end date (7, 30, 90 days or 1 year), set in the Studio (prefilled with about 3 months of typical use) and editable on the agent page. The co-pilot stops at the limit, the date, or when credits run out, whichever comes first; the agent keeps trading on its rules. A limit may exceed the balance (a cap, nothing reserved). Checked in the database by ai_claim_review in the same call that claims the hour (old ai_claim dropped). The one existing AI agent got $0.50 for 30 days

@@ -7,6 +7,7 @@ import { useSyncExternalStore } from "react";
 import { useAuth } from "@/components/ui/Providers";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { shortAddress } from "@/lib/format";
+import { X_HANDLE, X_URL } from "@/lib/social";
 
 const NAV = [
   { href: "/app", label: "Dashboard", icon: "squares-four" },
@@ -73,6 +74,10 @@ export function AppSidebar() {
           <i className="ph ph-file-text" />
           Terms
         </Link>
+        <a className="app-link" href={X_URL} target="_blank" rel="noopener noreferrer" title={`Follow @${X_HANDLE} on X`}>
+          <i className="ph ph-x-logo" />
+          @{X_HANDLE}
+        </a>
       </nav>
       <div className="app-side__account">
         <ThemeToggle variant="row" />

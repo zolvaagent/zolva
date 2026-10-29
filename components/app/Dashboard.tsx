@@ -8,6 +8,7 @@ import type { Decision } from "@/lib/engine/engine";
 import { dateAt, percent, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
 import { formatCredits } from "@/lib/ai/models";
 import { EXPLORER_URL } from "@/lib/chain";
+import { X_HANDLE, X_URL } from "@/lib/social";
 
 const MAX_ACTIVE = 5;
 
@@ -215,6 +216,17 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
             </div>
             <LoginPrompt mode="logout" />
           </div>
+
+          <a className="card follow-card" href={X_URL} target="_blank" rel="noopener noreferrer">
+            <span className="follow-card__icon" aria-hidden="true">
+              <i className="ph ph-x-logo" />
+            </span>
+            <span className="follow-card__text">
+              <strong>Follow @{X_HANDLE}</strong>
+              <span className="muted">New features, live agent results and what is coming next.</span>
+            </span>
+            <i className="ph ph-arrow-up-right muted" aria-hidden="true" />
+          </a>
 
           <div className="card stack stack--tight">
             <div className="card-head" style={{ margin: 0 }}>
