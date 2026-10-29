@@ -27,7 +27,7 @@
    ```text
    SUPABASE_SERVICE_ROLE_KEY=<secret key>
    ```
-4. Tell Claude "key added". Claude restarts the dev server and checks `/api/health`, which should show `{ "ok": true, "tokens": 20, "candles": 0 }`.
+4. Restart the dev server and open `/api/health`, which should show `{ "ok": true, "tokens": 20, "candles": 0 }`.
 
 ⚠️ The secret key bypasses all database security. Keep it only in `.dev.vars`, never in chat, Figma or a screenshot.
 
