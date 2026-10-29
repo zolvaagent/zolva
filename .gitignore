@@ -48,3 +48,10 @@ next-env.d.ts
 
 # production Worker secrets (scripts/deploy-production.mjs)
 .prod.vars
+
+# Local only: assistant notes and X (Twitter) marketing material
+CLAUDE.md
+.claude/
+/docs/x/
+/assets/x/
+/video/

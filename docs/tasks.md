@@ -154,6 +154,7 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Dashboard agent cards show Private / On leaderboard (2026-10-16)
 - [x] Footer GitHub link to github.com/zolvaagent/zolva (2026-10-16). Social accounts live in lib/social.ts
 - [x] Make the GitHub repo public (2026-10-29)
+- [x] Repo cleanup (2026-10-29): CLAUDE.md, docs/x, assets/x and video/ are no longer on GitHub (kept locally, listed in .gitignore). Older commits still contain them
 - [x] X profile kit (2026-10-16): handles, bios, fields, slogans and wording rules in docs/x/profile.md; banner assets/x/x-profile-header-1500x500.png (rendered free from banner.html); 3 tweet drafts in docs/x/tweets.md
 - [x] X content plan (2026-10-16): 3 narrative quote tweets, 2 teasers, launch post with token, Dex paid, dev supply burnt, 10 product posts (docs/x/tweets.md, all under 280), posting calendar (calendar.md), launch video plan with options (video-plan.md). No assets generated yet
 - [ ] Token: decide ticker, launch on Pons (check whitelist), then fill CA, Dex link and burn tx in the drafts
