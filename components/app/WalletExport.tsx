@@ -35,16 +35,16 @@ export function WalletExport({ address, liveSigner }: { address: string; liveSig
   const showKey = async () => {
     const current = handle();
     if (!current) return;
-    setBusy(true);
     setError(null);
+    // Our dialog sits in the browser's top layer, above everything: Privy's window would open
+    // hidden behind it. Close ours first and reopen it only if Privy fails.
+    dialog.current?.close();
     try {
       await current.exportWallet(address);
-      dialog.current?.close();
     } catch {
       // Privy needs its own login too; after a while only Zolva's session is left.
       setError("Please log in again with your email or Google account, then try the export once more.");
-    } finally {
-      setBusy(false);
+      dialog.current?.showModal();
     }
   };
 
@@ -113,7 +113,15 @@ export function WalletExport({ address, liveSigner }: { address: string; liveSig
             <p className="field-error" role="alert">
               {error}{" "}
               {error.startsWith("Please log in") && (
-                <button className="text-link" type="button" onClick={() => openLogin(() => router.refresh())}>
+                <button
+                  className="text-link"
+                  type="button"
+                  onClick={() => {
+                    // Close this dialog first, or Privy's login window would open behind it.
+                    dialog.current?.close();
+                    openLogin(() => router.refresh());
+                  }}
+                >
                   Log in
                 </button>
               )}
@@ -125,7 +133,7 @@ export function WalletExport({ address, liveSigner }: { address: string; liveSig
               Cancel
             </button>
             <button className="button button--primary" type="button" onClick={showKey} disabled={!understood || busy}>
-              {busy ? "Opening…" : "Show private key"}
+              Show private key
             </button>
           </div>
         </div>
