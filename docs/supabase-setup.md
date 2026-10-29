@@ -23,7 +23,7 @@
 ## Your step: the secret key
 1. Open https://supabase.com/dashboard/project/kjifgddikkofazmndlxu/settings/api-keys
 2. Copy the **secret** key (older projects call it `service_role`). Not the publishable / `anon` key.
-3. Paste it into `D:\Claude\robinhood\pitwise\.dev.vars`:
+3. Paste it into `.dev.vars` in the project root:
    ```text
    SUPABASE_SERVICE_ROLE_KEY=<secret key>
    ```
