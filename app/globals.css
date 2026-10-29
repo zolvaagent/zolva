@@ -4526,6 +4526,14 @@ main:focus {
   transition: color var(--duration-micro) var(--ease-out-expo);
 }
 
+/* Buttons styled as links (dialog actions, "Edit"): drop the browser's button chrome. */
+button.text-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
 .text-link:hover {
   color: var(--color-text);
 }

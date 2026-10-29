@@ -30,7 +30,7 @@ Everything still open, in priority order. Details are in the sections below.
 
 **Real money trading** (Phase 3 below)
 - [ ] Custody model, executor, invite-only beta with caps and a kill switch
-- [ ] Export private key for email/Google accounts: `useExportWallet` from @privy-io/react-auth opens Privy's own secure window (Zolva never sees the key); button on the dashboard account card, with a warning, and remove Zolva's signer first if the user wants to leave
+- [x] Export private key (2026-10-29): Dashboard account card for email/Google accounts ("Your Zolva wallet"); a warning dialog with an "I understand" checkbox, then Privy's own window via useExportWallet (Zolva never sees the key). Wallets with a live signer get "Remove Zolva's signer", which removes the signer and calls /api/live/revoke (pauses live agents, leaves the allowlist). Account card says Email or Google login vs Wallet login. Needs an owner test on production (real Privy session)
 - [ ] Legal review (owner decided on 2026-10-28 to start building without it first)
 
 **Maintenance**
