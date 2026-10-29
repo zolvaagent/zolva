@@ -4,7 +4,7 @@
  *   npm run deploy:prod
  *
  * 1. Builds the app with OpenNext and deploys the "pitwise" Worker
- *    (https://zolvaagent.app; pitwise.hoodguard.workers.dev stays on as a fallback).
+ *    (https://zolvaagent.app; the workers.dev URL stays on as a fallback).
  * 2. Sets the Worker secrets: Supabase URL and key, the chain RPC URL (and Privy, if set) from
  *    .dev.vars, plus a
  *    production cron secret and session secret. Those two are generated once

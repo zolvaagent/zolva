@@ -1632,7 +1632,7 @@
           renderLogin();
           break;
         case "google":
-          startConnecting("google", { method: "google", email: "maya.santoso@gmail.com", wallet: EMBEDDED_WALLET, walletKind: "embedded" });
+          startConnecting("google", { method: "google", email: "maya@example.com", wallet: EMBEDDED_WALLET, walletKind: "embedded" });
           break;
         case "resend":
           toast(`New code sent to ${login.email}`);

@@ -10,8 +10,8 @@ Read before working: `docs/mvp-plan.md`, `docs/tasks.md`, `docs/phase-0-findings
 - Next.js 16 (App Router) + Tailwind 4, deployed to Cloudflare Workers via OpenNext
 - Supabase Postgres; schema in `supabase/migrations/` (run in order)
 - Hourly job: Cloudflare cron (minute 5, `custom-worker.ts`) and Supabase pg_cron backup (minute 7) both call `/api/cron/tick`; the tick is idempotent
-- Code: private repo `github.com/zolvaagent/zolva`. Commit only as `Zolva` (set in this repo's git config); never with a personal name or email, and never with a `Co-Authored-By: Claude` line. Push with the `zolvaagent` gh account active
-- Domain: https://zolvaagent.app (and www), custom domains on the `pitwise` Worker (`wrangler.jsonc` routes); pitwise.hoodguard.workers.dev stays on as a fallback
+- Code: public repo `github.com/zolvaagent/zolva`. Commit only as `Zolva` (set in this repo's git config); never with a personal name or email, and never with a `Co-Authored-By: Claude` line. Push with the `zolvaagent` gh account active
+- Domain: https://zolvaagent.app (and www), custom domains on the `pitwise` Worker (`wrangler.jsonc` routes); the Worker's workers.dev URL stays on as a fallback
 - Deploy: `npm run deploy:prod` (build, deploy, secrets, pg_cron, health check)
 - Prices: hourly closes read on chain from each token's token/USDG Uniswap pool (`lib/prices/onchain.ts`, needs `ROBINHOOD_RPC_URL`). Crypto tokens (`asset_class = 'crypto'`: ETH, BTC) also have a `chainlink_feed`; a close more than 2% off Chainlink is not stored (see `docs/crypto-markets.md`). GeckoTerminal (network `robinhood`) only for the historical backfill and best-effort candle repair; it rate-limits Cloudflare IPs, throttle to ~1 call every 7s
 

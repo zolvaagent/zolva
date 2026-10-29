@@ -15,7 +15,7 @@ Everything still open, in priority order. Details are in the sections below.
 - [ ] Check logged-in views in dark mode (owner, needs a login)
 - [ ] Dashboard: the live agent card and the "Paper balance" total do not say real money yet (live agents count as paper there)
 - [ ] Manual check of the AMC token (its old pool was against a spam-looking token)
-- [ ] Make the GitHub repo public (owner)
+- [x] Make the GitHub repo public (2026-10-29; HEAD cleaned of private hostnames, local paths and a sample email first, older commits still contain them)
 - [x] X account [@zolva_agent](https://x.com/zolva_agent) linked (2026-10-29): footer icon, app sidebar link, Dashboard "Follow" card (`lib/social.ts` X_URL)
 
 **Product**
@@ -48,11 +48,11 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Brand: Pitwise → Sita → **Zolva** (2026-10-15; final rename done in app, prototype and docs). Folder/package/Worker names still `pitwise`
 - [x] Write MVP plan + Phase 1 build plan
 - [x] Approve MVP plan (stack: Supabase + pg_cron, hourly prices only)
-- [x] Clickable prototype with real prices: `prototype/` (landing, Forge + backtest, agent page, leaderboard, legal, 404). Preview: `pitwise-prototype` in `D:\Claude\.claude\launch.json`
+- [x] Clickable prototype with real prices: `prototype/` (landing, Forge + backtest, agent page, leaderboard, legal, 404). Preview: the `pitwise-prototype` launch configuration
 - [x] Fixed price pools: each token now priced from its deepest **USDG** pool (first pick included stock/stock pairs)
 - [x] Tuned strategy thresholds on real data (see mvp-plan section 4)
 - [x] Go / no-go decision on the prototype: **Go** (2026-10-15)
-- [x] Prototype live for design review: https://pitwise-prototype.hoodguard.workers.dev (separate Worker, redeploy with `npm run deploy:prototype`)
+- [x] Prototype live for design review: its own workers.dev Worker (separate Worker, redeploy with `npm run deploy:prototype`)
 - [x] Restyled prototype in aave.com's design language (2026-10-15): Inter, ink #252228, lavender accent, hairlines, 24px cards, pill buttons, expo-out motion, word-by-word headlines, odometer stats, HTML phone mockups, dark strategy cards, growth chart. Tokens taken from Aave's real CSS via the Wayback Machine (aave.com is blocked on this network)
 - [x] 6 3D icons with gpt-image-2 (high, ~$0.77; one extra call failed because gpt-image-2 rejects transparent backgrounds). Prompts in `assets/icon-prompts.json`, script `scripts/generate-icons.mjs`; white cut out locally by `scripts/cutout-icons.py`; originals in `assets/icons-original/`
 - [x] Agent page: prototype switch "Just now / 7 days ago / 30 days ago" for your own agent; empty states use 3D icons and explain why (e.g. biggest 24h rise vs the 3% rule); decision log shows the latest holds when there are no trades; holdings show a cash bar; charts use a fading fill
@@ -99,7 +99,7 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Local E2E on next dev: 12/12 checks pass (auth, replay, invalid rules, launch, 6th agent refused, pause/resume, stranger refused). 64 tests, tsc, eslint clean
 - [x] Worker runtime check (wrangler dev): every route 200/404 as expected, cron handler runs ingest + agents. Fixed a 500 on all routes by upgrading OpenNext 1.20.11 → 1.20.12 (Next 16.4 added `preview-props.json`)
 - [x] Hourly schedule: Cloudflare cron (minute 5, `custom-worker.ts`) + pg_cron backup (minute 7, set by the deploy script via `configure_hourly_tick`). Tick is idempotent, so two callers are safe
-- [x] 1.6 Deployed to https://pitwise.hoodguard.workers.dev (2026-10-15, version 6f16ef52). Live checks: all pages 200, health ok, cron tick refuses no-secret calls, wallet login E2E pass on production (test wallet removed), Privy active (forged token 401), pg_cron `sita-hourly-tick` active at minute 7, Cloudflare cron at minute 5
+- [x] 1.6 Deployed to the Worker's workers.dev URL (2026-10-15, version 6f16ef52). Live checks: all pages 200, health ok, cron tick refuses no-secret calls, wallet login E2E pass on production (test wallet removed), Privy active (forged token 401), pg_cron `sita-hourly-tick` active at minute 7, Cloudflare cron at minute 5
 - [x] Soak passed: agents have run every hour since 2026-10-15 (about 290 runs each by 2026-10-28, no gaps)
 - [x] Privy email + Google login built (2026-10-15): Privy loads in the browser only (keeps the Worker at 1.4 MB gzip), creates an embedded wallet for each user, `/api/auth/privy` verifies the access token with Privy and starts the same session cookie as wallet login. Off until keys are set; wallet login unchanged and retested on the Worker
 - [x] Privy app created, keys in `.dev.vars` and Worker secrets, production domain in allowed origins (2026-10-15)
@@ -153,7 +153,7 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Publish to leaderboard (2026-10-16): user agents start private (agents.published_at, migration publish_agents). Owners publish or unpublish from the agent page with a confirm dialog; only published agents appear on the leaderboard, landing feed, markets and activity, and a private agent page is a 404 for everyone but its owner. House and lab agents are always published. Leaderboard marks the signed in user rows with "Your agent"
 - [x] Dashboard agent cards show Private / On leaderboard (2026-10-16)
 - [x] Footer GitHub link to github.com/zolvaagent/zolva (2026-10-16). Social accounts live in lib/social.ts
-- [ ] Make the GitHub repo public (owner does this; the footer link 404s for visitors until then)
+- [x] Make the GitHub repo public (2026-10-29)
 - [x] X profile kit (2026-10-16): handles, bios, fields, slogans and wording rules in docs/x/profile.md; banner assets/x/x-profile-header-1500x500.png (rendered free from banner.html); 3 tweet drafts in docs/x/tweets.md
 - [x] X content plan (2026-10-16): 3 narrative quote tweets, 2 teasers, launch post with token, Dex paid, dev supply burnt, 10 product posts (docs/x/tweets.md, all under 280), posting calendar (calendar.md), launch video plan with options (video-plan.md). No assets generated yet
 - [ ] Token: decide ticker, launch on Pons (check whitelist), then fill CA, Dex link and burn tx in the drafts

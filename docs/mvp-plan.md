@@ -193,7 +193,7 @@ The MVP is **$0/month**: Supabase free, Cloudflare free, GeckoTerminal free.
 ## 11. Decisions
 
 - Login: **Privy, confirmed 2026-10-15.** "Go to app" opens Privy (Google, email code, or wallet). Email and Google users get a Privy embedded wallet, which is also the basis for scoped signers in live trading (8b). Replaces the viem-only SIWE planned for session 1.4. Accepted tradeoffs: vendor lock-in for accounts and embedded wallets, and per-active-user pricing (check before launch).
-- Design language: follows aave.com (2026-10-15): Inter, white canvas, ink #252228, lavender #9896ff accent, expo-out motion. The approved reference is `prototype/` (live at pitwise-prototype.hoodguard.workers.dev). Overrides the Inter ban and no-gradient-text rules of the landing page skill at the user's request.
+- Design language: follows aave.com (2026-10-15): Inter, white canvas, ink #252228, lavender #9896ff accent, expo-out motion. The approved reference is `prototype/` (also deployed as its own workers.dev Worker). Overrides the Inter ban and no-gradient-text rules of the landing page skill at the user's request.
 
 - Name: **Zolva** (2026-10-15), replacing Sita (a common woman's name in Indonesia; SITA is also a big aviation IT brand) and earlier Pitwise. Invented word, no meaning to defend, pairs as "Zolva Agent". zolva.xyz and zolvaagent.com had no DNS on 2026-10-15 (not yet bought; confirm at a registrar). GitHub `zolva` is taken, so the org/user will need a variant.
 - Chain: Robinhood Chain (4663). Assets: tokenized stocks only.
