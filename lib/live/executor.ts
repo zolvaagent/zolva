@@ -11,7 +11,7 @@
  * Kept free of Next.js and server-only imports so scripts can share it.
  */
 import type { PrivyClient } from "@privy-io/node";
-import { decodeEventLog, encodeFunctionData, erc20Abi, type Hex, type Log, type PublicClient } from "viem";
+import { BaseError, decodeEventLog, encodeFunctionData, erc20Abi, type Hex, type Log, type PublicClient } from "viem";
 
 import { ERC20_APPROVE_ABI, EXACT_INPUT_SINGLE_ABI, QUOTE_EXACT_INPUT_SINGLE_ABI, QUOTER_V2, ROBINHOOD_CHAIN_ID, SWAP_ROUTER_02 } from "./contracts.ts";
 
@@ -111,7 +111,16 @@ async function signAndSend(ctx: LiveContext, to: Hex, data: Hex, gas: bigint): P
   return ctx.chain.sendRawTransaction({ serializedTransaction: signed.signed_transaction as Hex });
 }
 
-const message = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause)).slice(0, 300);
+/**
+ * A short, safe reason for the executions table (shown on the agent page). viem's
+ * full message carries the RPC URL, which holds our API key, and the request body;
+ * keep only its summary and the RPC's own reason, and blank out any URL left.
+ */
+export function message(cause: unknown): string {
+  const text =
+    cause instanceof BaseError ? [cause.shortMessage, cause.details].filter(Boolean).join(" | ") : cause instanceof Error ? cause.message : String(cause);
+  return text.replace(/https?:\/\/\S+/g, "[url]").slice(0, 300);
+}
 
 /**
  * Runs one swap. `onSubmitted` is called with the swap's hash as soon as it is

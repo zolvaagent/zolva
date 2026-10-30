@@ -1,7 +1,7 @@
-import { encodeAbiParameters, pad, type Hex } from "viem";
+import { encodeAbiParameters, InvalidParamsRpcError, pad, RpcRequestError, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { amountReceived, deviationBps, impliedPrice, minimumOut } from "./executor";
+import { amountReceived, deviationBps, impliedPrice, message, minimumOut } from "./executor";
 
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const NVDA = "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec" as Hex;
@@ -54,5 +54,19 @@ describe("amountReceived", () => {
 
   it("returns zero when nothing arrived", () => {
     expect(amountReceived([], NVDA, WALLET)).toBe(0n);
+  });
+});
+
+describe("message", () => {
+  it("keeps the RPC's reason and never the RPC URL with its key", () => {
+    const rpc = new RpcRequestError({ body: { method: "eth_sendRawTransaction" }, url: "https://rpc.example/v2/secret-key", error: { code: -32602, message: "max priority fee too low" } });
+    const text = message(new InvalidParamsRpcError(rpc));
+    expect(text).toContain("max priority fee too low");
+    expect(text).not.toContain("secret-key");
+    expect(text).not.toContain("eth_sendRawTransaction");
+  });
+
+  it("blanks out URLs in plain errors", () => {
+    expect(message(new Error("failed at https://rpc.example/v2/secret-key now"))).toBe("failed at [url] now");
   });
 });

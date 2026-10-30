@@ -14,6 +14,7 @@ Everything still open, in priority order. Details are in the sections below.
 - [ ] Check Privy pricing for monthly active users
 - [ ] Check logged-in views in dark mode (owner, needs a login)
 - [ ] Dashboard: the live agent card and the "Paper balance" total do not say real money yet (live agents count as paper there)
+- [ ] Live agent "Live BTC ETH" auto-paused (2026-10-29 20:00 UTC): both $5 buys (BTC, ETH) failed when the Worker sent the approve ("Missing or invalid parameters" from the RPC); no funds moved. The same approve sent locally on 2026-10-30 confirmed (0x57f2…aada), so the cause is Worker-only and still unknown. Fixed: order errors now keep the RPC reason and never the RPC URL (it held the Alchemy key; the two stored rows were cleaned). Next: deploy, resume, read the real reason if it fails again
 - [ ] Manual check of the AMC token (its old pool was against a spam-looking token)
 - [x] Make the GitHub repo public (2026-10-29; HEAD cleaned of private hostnames, local paths and a sample email first, older commits still contain them)
 - [x] X account [@zolva_agent](https://x.com/zolva_agent) linked (2026-10-29): footer icon, app sidebar link, Dashboard "Follow" card (`lib/social.ts` X_URL)
@@ -155,6 +156,9 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Footer GitHub link to github.com/zolvaagent/zolva (2026-10-16). Social accounts live in lib/social.ts
 - [x] Make the GitHub repo public (2026-10-29)
 - [x] Repo cleanup (2026-10-29): CLAUDE.md, docs/x, assets/x and video/ are no longer on GitHub (kept locally, listed in .gitignore). Older commits still contain them
+- [x] Tweet P13 "code is public on GitHub" (2026-10-29): image assets/x/code-card-1600x900.png, P14 (export key, export-card-1600x900.png) and P15 (docs + dark mode, docs-card-1600x900.png) ready in docs/x/tweets.md (local only)
+- [x] Tweet P16 "real money, first step" (2026-10-29): image assets/x/live-card-1600x900.png from the 2026-10-28 smoke test swaps; says owner wallet only, not open to users
+- [ ] Choose a license (for example MIT) and add a short README before calling the repo "open source"
 - [x] X profile kit (2026-10-16): handles, bios, fields, slogans and wording rules in docs/x/profile.md; banner assets/x/x-profile-header-1500x500.png (rendered free from banner.html); 3 tweet drafts in docs/x/tweets.md
 - [x] X content plan (2026-10-16): 3 narrative quote tweets, 2 teasers, launch post with token, Dex paid, dev supply burnt, 10 product posts (docs/x/tweets.md, all under 280), posting calendar (calendar.md), launch video plan with options (video-plan.md). No assets generated yet
 - [ ] Token: decide ticker, launch on Pons (check whitelist), then fill CA, Dex link and burn tx in the drafts
