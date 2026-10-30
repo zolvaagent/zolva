@@ -4,7 +4,7 @@ import { PrivyClient } from "@privy-io/node";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { erc20Abi, formatUnits, parseUnits, type Hex } from "viem";
 
-import { planAgentHours, type AgentRow, type PositionRow } from "@/lib/agents/plan";
+import { liveEquity, planAgentHours, type AgentRow, type PositionRow } from "@/lib/agents/plan";
 import { getMarket } from "@/lib/data/market";
 import { env } from "@/lib/env";
 import { USDG } from "@/lib/live/contracts";
@@ -117,12 +117,13 @@ export async function runLiveAgents(db: SupabaseClient): Promise<LiveResult> {
       // Only the newest hour: pretend the agent ran up to the hour before it.
       const [hour] = planAgentHours({ ...agent, last_run_ts: new Date((latestTs - HOUR) * 1000).toISOString() }, own, { startTs: market.startTs, closes }, latestTs);
       if (!hour) continue;
-      // Record the decisions; trades, positions and cash only change with real fills.
+      // Record the decisions; trades, positions, cash and value only change with real fills
+      // (hour.equity is the paper result, which already counts the planned trades).
       const { data: written, error: writeError } = await db.rpc("apply_agent_hour", {
         p_agent_id: agent.id,
         p_ts: hour.ts,
         p_cash: Number(agent.cash),
-        p_equity: hour.equity,
+        p_equity: liveEquity(Number(agent.cash), own, closes, (latestTs - market.startTs) / HOUR),
         p_hold_equity: hour.holdEquity,
         p_decisions: hour.decisions,
         p_positions: own.map(({ token_address, quantity, avg_entry_price, opened_at }) => ({ token_address, quantity, avg_entry_price, opened_at })),

@@ -15,6 +15,7 @@ Everything still open, in priority order. Details are in the sections below.
 - [ ] Check logged-in views in dark mode (owner, needs a login)
 - [ ] Dashboard: the live agent card and the "Paper balance" total do not say real money yet (live agents count as paper there)
 - [ ] Live agent "Live BTC ETH" auto-paused (2026-10-29 20:00 UTC): both $5 buys (BTC, ETH) failed when the Worker sent the approve ("Missing or invalid parameters" from the RPC); no funds moved. The same approve sent locally on 2026-10-30 confirmed (0x57f2…aada), so the cause is Worker-only and still unknown. Fixed: order errors now keep the RPC reason and never the RPC URL (it held the Alchemy key; the two stored rows were cleaned). Next: deploy, resume, read the real reason if it fails again
+- [x] Live agent value fix (2026-10-30): the live runner recorded the paper engine's equity for the hour, which already paid the 0.5% cost of planned buys, so the two failed buys showed as -0.5% (equity 9.95 at Oct 29 20:00). It now records liveEquity (cash plus held positions at the close); the 20:00 row was corrected to 10. Deployed: pending approval
 - [ ] Manual check of the AMC token (its old pool was against a spam-looking token)
 - [x] Make the GitHub repo public (2026-10-29; HEAD cleaned of private hostnames, local paths and a sample email first, older commits still contain them)
 - [x] X account [@zolva_agent](https://x.com/zolva_agent) linked (2026-10-29): footer icon, app sidebar link, Dashboard "Follow" card (`lib/social.ts` X_URL)
