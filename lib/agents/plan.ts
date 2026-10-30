@@ -119,6 +119,20 @@ export function planAgentHours(
   return writes;
 }
 
+/**
+ * A live agent's value at an hour from what it really holds: cash plus each position at
+ * that hour's close (its entry price when the close is missing). Planned trades do not
+ * count until they fill, so a failed order never moves the recorded value.
+ */
+export function liveEquity(cash: number, positions: PositionRow[], series: Record<string, (number | null)[]>, index: number): number {
+  let equity = Number(cash);
+  for (const position of positions) {
+    const close = series[position.token_address]?.[index];
+    equity += Number(position.quantity) * (close ?? Number(position.avg_entry_price));
+  }
+  return equity;
+}
+
 /** Equal-weight buy and hold of the agent's tokens since launch, paying the cost once. */
 export function holdEquity(agent: AgentRow, series: Record<string, (number | null)[]>, index: number): number {
   const share = Number(agent.start_capital) / agent.token_addresses.length;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { simulate } from "../engine/engine";
-import { holdEquity, MAX_CATCH_UP_HOURS, planAgentHours, type AgentRow } from "./plan";
+import { holdEquity, liveEquity, MAX_CATCH_UP_HOURS, planAgentHours, type AgentRow } from "./plan";
 
 const HOUR = 3600;
 const START = 1_000 * HOUR;
@@ -79,5 +79,18 @@ describe("holdEquity", () => {
     const index = 200;
     const expected = 1000 * 0.995 * (closes["0xa"][index] / closes["0xa"][100]);
     expect(holdEquity(row, closes, index)).toBeCloseTo(expected);
+  });
+});
+
+describe("liveEquity", () => {
+  it("values only what is held: cash plus positions at the hour's close", () => {
+    const position = { token_address: "0xa", quantity: 2, avg_entry_price: 1, opened_at: null };
+    expect(liveEquity(10, [], closes, 200)).toBe(10);
+    expect(liveEquity(10, [position], closes, 200)).toBeCloseTo(10 + 2 * (closes["0xa"][200] as number));
+  });
+
+  it("falls back to the entry price when the close is missing", () => {
+    const position = { token_address: "0xmissing", quantity: 3, avg_entry_price: 5, opened_at: null };
+    expect(liveEquity(1, [position], closes, 200)).toBe(16);
   });
 });
