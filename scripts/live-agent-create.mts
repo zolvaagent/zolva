@@ -2,7 +2,9 @@
  * Creates a live (real money) agent for an allowlisted wallet (owner only,
  * until the "Trade with real money" UI exists).
  *
- *   npm run live:agent -- <wallet> <capital usd> <momentum|mean_reversion> <SYMBOL> [SYMBOL...]
+ *   npm run live:agent -- <wallet> <capital usd> <momentum|mean_reversion> <SYMBOL> [SYMBOL...] [--max=50] [--stop=10]
+ *
+ * --max is the largest share of the agent per token, --stop the stop loss, both in percent.
  *
  * Adds the wallet to live_wallets (with its Privy wallet and PRIVY_LIVE_POLICY_ID
  * from .dev.vars) if it is not there yet, then inserts the agent with mode
@@ -23,11 +25,15 @@ const vars = Object.fromEntries(
 );
 
 async function main() {
-  const [walletArg, capitalArg, strategy, ...symbols] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const flag = (name: string, fallback: number) => Number(args.find((arg) => arg.startsWith(`--${name}=`))?.split("=")[1] ?? fallback);
+  const maxPositionPct = flag("max", 50);
+  const stopLossPct = flag("stop", 10);
+  const [walletArg, capitalArg, strategy, ...symbols] = args.filter((arg) => !arg.startsWith("--"));
   const wallet = (walletArg ?? "").toLowerCase();
   const capital = Number(capitalArg);
-  if (!/^0x[0-9a-f]{40}$/.test(wallet) || !(capital >= 1) || !["momentum", "mean_reversion"].includes(strategy) || !symbols.length || symbols.length > 3) {
-    throw new Error("Usage: npm run live:agent -- <wallet> <capital usd> <momentum|mean_reversion> <SYMBOL> [SYMBOL...]  (1 to 3 symbols)");
+  if (!/^0x[0-9a-f]{40}$/.test(wallet) || !(capital >= 1) || !["momentum", "mean_reversion"].includes(strategy) || !symbols.length || symbols.length > 3 || !(maxPositionPct > 0 && maxPositionPct <= 100) || !(stopLossPct > 0 && stopLossPct <= 100)) {
+    throw new Error("Usage: npm run live:agent -- <wallet> <capital usd> <momentum|mean_reversion> <SYMBOL> [SYMBOL...] [--max=50] [--stop=10]  (1 to 3 symbols)");
   }
   const db = createClient(vars.SUPABASE_URL, vars.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   const privy = new PrivyClient({ appId: vars.PRIVY_APP_ID, appSecret: vars.PRIVY_APP_SECRET });
@@ -61,7 +67,7 @@ async function main() {
       owner: wallet,
       name: `Live ${tokens.map((token) => token.symbol).join(" ")}`.slice(0, 40),
       strategy,
-      params: { max_position_pct: 50, stop_loss_pct: 10, start_prices: startPrices },
+      params: { max_position_pct: maxPositionPct, stop_loss_pct: stopLossPct, start_prices: startPrices },
       token_addresses: tokens.map((token) => token.address),
       start_capital: capital,
       cash: capital,
@@ -73,7 +79,7 @@ async function main() {
     .select("id")
     .single();
   if (insertError) throw new Error(insertError.message);
-  console.log(`live agent ${agent.id}: ${strategy}, $${capital}, ${tokens.map((token) => token.symbol).join(" ")}, max 50% per token, stop 10%. Trades once live_settings.enabled is on.`);
+  console.log(`live agent ${agent.id}: ${strategy}, $${capital}, ${tokens.map((token) => token.symbol).join(" ")}, max ${maxPositionPct}% per token, stop ${stopLossPct}%. Trades once live_settings.enabled is on.`);
 }
 
 main().catch((cause) => {
