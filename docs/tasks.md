@@ -159,7 +159,7 @@ Everything still open, in priority order. Details are in the sections below.
 - [x] Make the GitHub repo public (2026-10-29)
 - [x] Repo cleanup (2026-10-29): CLAUDE.md, docs/x, assets/x and video/ are no longer on GitHub (kept locally, listed in .gitignore). Older commits still contain them
 - [x] Tweet P13 "code is public on GitHub" (2026-10-29): image assets/x/code-card-1600x900.png, P14 (export key, export-card-1600x900.png) and P15 (docs + dark mode, docs-card-1600x900.png) ready in docs/x/tweets.md (local only)
-- [x] Tweet P16 "real money, first step" (2026-10-29): image assets/x/live-card-1600x900.png from the 2026-10-28 smoke test swaps; says owner wallet only, not open to users
+- [x] Tweet P16 "real money, first fill" (2026-11-01): image assets/x/live-card-1600x900.png from the first live agent fill (GME, 2026-10-31); says owner wallet only, not open to users
 - [ ] Choose a license (for example MIT) and add a short README before calling the repo "open source"
 - [x] X profile kit (2026-10-16): handles, bios, fields, slogans and wording rules in docs/x/profile.md; banner assets/x/x-profile-header-1500x500.png (rendered free from banner.html); 3 tweet drafts in docs/x/tweets.md
 - [x] X content plan (2026-10-16): 3 narrative quote tweets, 2 teasers, launch post with token, Dex paid, dev supply burnt, 10 product posts (docs/x/tweets.md, all under 280), posting calendar (calendar.md), launch video plan with options (video-plan.md). No assets generated yet
