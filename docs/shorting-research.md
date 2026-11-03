@@ -1,0 +1,67 @@
+# Shorting research (2026-11-03)
+
+Question: how could a Zolva agent profit from a falling price (go short)? Research only,
+nothing built.
+
+## Two ways to short on Robinhood Chain
+
+### 1. Borrow and sell on Morpho (on chain, recommended to test first)
+
+Morpho Blue runs on Robinhood Chain (chain 4663). Most markets lend USDG against stock
+tokens, but some do the reverse: lend a **stock token** against **steakUSDG** (Steakhouse's
+USDG vault share) as collateral. A short is:
+
+1. Deposit USDG into the steakUSDG vault, supply the shares as collateral.
+2. Borrow the stock token, sell it for USDG on Uniswap (what live agents already do).
+3. To close: buy the token back, repay the loan, withdraw the collateral.
+
+Markets with a stock token as the loan asset and real liquidity, from Morpho's public API
+(`blue-api.morpho.org`, 532 markets on chain 4663, 2026-11-03). Every address below was
+checked against `data/stock-tokens.json`:
+
+| Borrow | Collateral | Max LTV | Supplied | Available | Borrow APY now |
+|---|---|---|---|---|---|
+| NVDA | steakUSDG | 63% | $18,090 | $17,366 | ~0% |
+| SPY | steakUSDG | 77% | $1,515 | $1,515 | ~0% |
+| SPCX | steakUSDG | 63% | $1,306 | $1,306 | ~0% |
+| MSTR | steakUSDG | 63% | $1,087 | $1,087 | ~0% |
+| QQQ | steakUSDG | 77% | $893 | $891 | ~0% |
+| TSLA | steakUSDG | 63% | $595 | $595 | ~0% |
+| GME | steakUSDG | 63% | $396 | $396 | ~0% |
+| PLTR | steakUSDG | 63% | $386 | $386 | ~0% |
+
+(COIN also has $441, but it is not on our allowlist; a SPCX market against ORBIT is fully
+borrowed at an extreme rate and is not usable.)
+
+- **Good:** same chain, same Uniswap pools, signed by the same Privy signer (the policy
+  would need Morpho and the vault added). No leverage needed: shorting $5 against $10 of
+  collateral is liquidated only if the stock rises about 26%, so a stop loss closes first.
+- **Limits:** small. Fine for a $10 to $100 agent, not for many users. Rates sit near zero
+  because nobody borrows; Morpho's rate rises fast when a market is mostly borrowed.
+- **Not yet checked:** the steakUSDG deposit and withdraw path and its fees, the oracle each
+  market uses (and its pause during corporate actions), gas for the 4 to 6 transactions a
+  short needs.
+
+### 2. Perpetual futures (perps)
+
+- **Lighter:** named as Robinhood Chain's perps partner and the perps venue inside Robinhood
+  Wallet. A separate exchange: funds are deposited there and orders go through its API, so
+  the Privy policy and executor would not cover it.
+- **Arcus** (dYdX Labs and Robinhood Crypto): spot is live, perps (35 markets, up to 50x)
+  were on a waitlist at launch.
+- **Perpetra, Meridian** (RWA perps settled in USDe): smaller, not checked.
+
+Perps give real leverage and deep shorts but add funding costs, liquidation within an hour,
+custody on another venue, and stricter rules for leveraged derivatives.
+
+## Recommendation
+
+1. **Backtest first (free):** add short signals to the research script (for example, short
+   a market that breaks below its average, cover on the bounce) with a borrow cost, and see
+   whether shorting would have paid in the last 30 and 60 days.
+2. **If it pays:** one small manual Morpho short with real money ($5, owner wallet) to
+   measure every step's cost and confirm the path.
+3. **Then:** short positions in the engine (`runHour`, prototype parity), the executor and
+   the Privy policy; paper first, then live.
+
+Perps only if Morpho's liquidity becomes the limit.
