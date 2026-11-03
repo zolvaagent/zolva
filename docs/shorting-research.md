@@ -65,3 +65,25 @@ custody on another venue, and stricter rules for leveraged derivatives.
    the Privy policy; paper first, then live.
 
 Perps only if Morpho's liquidity becomes the limit.
+
+## Backtest of short signals (2026-11-03)
+
+`scripts/research-shorting.mts` (read-only). The 8 borrowable markets, 10% stop, borrow
+at 10% a year (cautious; Morpho was near 0%), one position per side. Return on the
+agent, at 0.3% cost per trade (close to real fills):
+
+| Window | Holding | Trend short | Spike fade | Dip long + spike fade short |
+|---|---|---|---|---|
+| Last 30d (falling) | -8.2% | -4.5% | -10.5% | -7.6% |
+| 30d before (rising) | +7.7% | -25.8% | +1.5% | -5.0% |
+| Last 60d | -1.0% | -29.2% | -9.2% | -12.2% |
+
+At 0.5% cost every result is 4 to 9 points worse. The profit math was checked by hand
+(a 10% fall gains about 9.4% on the short after costs).
+
+**Conclusion: shorting would not have paid.** No short signal made money in the falling
+month; the trend short only lost less than holding (-4.5% vs -8.2%) and lost badly once
+prices rose. These markets reverse fast: by the time a fall is clear enough to short, the
+bounce is near, which is why buying dips (the dip hunter) worked better than shorting.
+Not building shorting now; re-test when there is more history or a market that trends
+down for weeks.
