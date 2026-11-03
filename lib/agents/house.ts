@@ -74,7 +74,9 @@ export const TREND_FILTER: Rules = {
  * side by side test; the second tries other baskets; the third runs the same
  * five strategies on ETH and BTC (added 2026-10-24 with crypto markets; in a
  * 30 day backtest to Oct 24 mean reversion and RSI dip lost least while
- * holding fell 7.5%, breakout did worst). Not on the landing page.
+ * holding fell 7.5%, breakout did worst). Lab · Dip Hunter (2026-11-03) watches
+ * all 14 live-tradable markets and holds one at a time (docs/down-market-research.md).
+ * Not on the landing page.
  */
 export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[] = [
   { owner: LAB_WALLETS[0], name: "Lab · Trio Momentum", strategy: "momentum", symbols: ["NVDA", "TSLA", "AAPL"], maxPositionPct: 33, stopLossPct: 8 },
@@ -92,4 +94,12 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
   { owner: LAB_WALLETS[2], name: "Lab · Crypto Breakout", strategy: "custom", rules: RULE_TEMPLATES.breakout, symbols: ["ETH", "BTC"], maxPositionPct: 50, stopLossPct: 10 },
   { owner: LAB_WALLETS[2], name: "Lab · Crypto RSI Dip", strategy: "custom", rules: RSI_DIP, symbols: ["ETH", "BTC"], maxPositionPct: 50, stopLossPct: 10 },
   { owner: LAB_WALLETS[2], name: "Lab · Crypto Trend Filter", strategy: "custom", rules: TREND_FILTER, symbols: ["ETH", "BTC"], maxPositionPct: 50, stopLossPct: 10 },
+  {
+    owner: LAB_WALLETS[2],
+    name: "Lab · Dip Hunter",
+    strategy: "dip_hunter",
+    symbols: ["AAPL", "AMZN", "BTC", "CRCL", "ETH", "GLD", "GME", "GOOGL", "MU", "NVDA", "QQQ", "RDDT", "SPCX", "USO"],
+    maxPositionPct: 100,
+    stopLossPct: 10,
+  },
 ];

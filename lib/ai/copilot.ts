@@ -49,6 +49,8 @@ export type Review = { token: string; approve: boolean; reasoning: string };
 const PRESET_DESCRIPTIONS: Record<StrategyKey, string> = {
   momentum: "Momentum: buys after a rise of more than 3% in 24 hours while the price is above its 48 hour average; sells when it falls 3% below that average.",
   mean_reversion: "Mean reversion: buys when the price is unusually far below its 48 hour average (z score under -2.5); sells when it returns above the average.",
+  dip_hunter:
+    "Dip hunter: watches many markets and holds one at a time; buys the market furthest below its 48 hour average (z score under -2.5) and sells when it returns above the average.",
 };
 
 export const SYSTEM_PROMPT = [

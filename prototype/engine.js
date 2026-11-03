@@ -7,6 +7,8 @@
 // Rules match docs/mvp-plan.md section 4:
 //   Momentum:       buy when price > 48h average and up > 3% over 24h; sell when 3% below the average.
 //   Mean reversion: buy when z score vs the 48h average < -2.5; sell when it is back to >= 0.5.
+//   Dip hunter:     the mean reversion signal on every market, one position at a time; while it
+//                   holds nothing it buys only the market with the lowest z score.
 //
 // Thresholds were tuned on 30 days of real data (2026-10-15). Faster settings
 // (24h average, 1% entry) traded 100+ times a month and lost to the 0.5% cost.
@@ -67,11 +69,12 @@
       },
     },
   };
+  STRATEGIES.dip_hunter = { label: "Dip hunter", decide: STRATEGIES.mean_reversion.decide };
 
   /**
    * @param {object} options
    * @param {{symbol: string, closes: (number|null)[]}[]} options.tokens  aligned hourly closes
-   * @param {"momentum"|"mean_reversion"} options.strategy
+   * @param {"momentum"|"mean_reversion"|"dip_hunter"|"custom"} options.strategy
    * @param {number} options.capital            starting virtual USD
    * @param {number} options.maxPositionPct     max share of equity per token, 0 to 100
    * @param {number} options.stopLossPct        stop distance below entry, 0 to 100
@@ -97,6 +100,9 @@
       for (const token of options.tokens) prices[token.symbol] = token.closes[index];
       const equityBefore = equityAt(cash, positions, prices);
       const decisions = [];
+      // Dip hunter: decided from the positions held at the start of the hour.
+      const holdsAny = Object.keys(positions).length > 0;
+      const deepestDip = options.strategy === "dip_hunter" && !holdsAny ? findDeepestDip(options.tokens, positions, index, warmup) : null;
 
       for (const token of options.tokens) {
         const price = prices[token.symbol];
@@ -138,6 +144,13 @@
         }
 
         const decision = custom ? evaluateRules(options.rules, window, Boolean(position)) : strategy.decide(window, price, Boolean(position));
+        if (decision.action === "buy" && options.strategy === "dip_hunter" && token.symbol !== deepestDip) {
+          const reasoning = holdsAny
+            ? `${decision.reasoning.replace(" Buying the dip.", "")} Already holding another market: one position at a time.`
+            : `${decision.reasoning.replace(" Buying the dip.", "")} Another market dipped deeper: buying that one instead.`;
+          decisions.push({ symbol: token.symbol, action: "hold", reasoning, indicators: decision.indicators });
+          continue;
+        }
         if (decision.action === "buy") {
           const notional = Math.min(cash, equityBefore * maxShare);
           if (notional < 1) {
@@ -173,6 +186,20 @@
       winRatePct: closedTrades.length ? (closedTrades.filter((profit) => profit > 0).length / closedTrades.length) * 100 : null,
       roundTrips: closedTrades.length,
     };
+  }
+
+  /** The market with the lowest z score below the entry level, among those not held (dip hunter). */
+  function findDeepestDip(tokens, positions, index, warmup) {
+    let deepest = null;
+    for (const token of tokens) {
+      if (positions[token.symbol]) continue;
+      const price = token.closes[index];
+      const window = token.closes.slice(Math.max(0, index - warmup), index + 1);
+      if (price == null || window.length <= warmup || window.some((value) => value == null)) continue;
+      const decision = STRATEGIES.dip_hunter.decide(window, price, false);
+      if (decision.action === "buy" && (!deepest || decision.indicators.zScore < deepest.z)) deepest = { symbol: token.symbol, z: decision.indicators.zScore };
+    }
+    return deepest ? deepest.symbol : null;
   }
 
   /** Equal-weight buy and hold of the same tokens, for comparison. */
