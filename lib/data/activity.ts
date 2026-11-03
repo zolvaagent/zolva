@@ -26,7 +26,7 @@ type RawActivity = {
     owner: string;
     strategy: string;
     symbol: string;
-    side: "buy" | "sell";
+    side: "buy" | "sell" | "short" | "cover";
     quantity: number;
     price: number;
     cost_usd: number;

@@ -158,8 +158,8 @@ export async function recentTrades(db: SupabaseClient, limit = 14): Promise<Deci
   return data.map((row) => ({
     token: row.token_address,
     symbol: symbols.get(row.token_address) ?? "?",
-    action: row.side as "buy" | "sell",
-    reasoning: reasoning.get(`${row.agent_id}|${row.ts}|${row.token_address}`) ?? (row.side === "buy" ? "Bought." : "Sold."),
+    action: row.side as "buy" | "sell" | "short" | "cover",
+    reasoning: reasoning.get(`${row.agent_id}|${row.ts}|${row.token_address}`) ?? ({ buy: "Bought.", sell: "Sold.", short: "Shorted.", cover: "Covered." } as Record<string, string>)[row.side] ?? "Traded.",
     ts: Date.parse(row.ts) / 1000,
     agentId: row.agent_id,
     agentName: (row.agents as unknown as { name: string } | null)?.name ?? "Agent",
@@ -187,10 +187,11 @@ export type AgentDetail = {
   summary: AgentSummary;
   runs: RunPoint[];
   /** Live trades carry the swap's transaction hash. */
-  trades: { ts: number; token: string; symbol: string; side: "buy" | "sell"; quantity: number; price: number; costUsd: number; reason: string; txHash: string | null }[];
+  /** short opens a short and cover closes it (spike fade, paper only). */
+  trades: { ts: number; token: string; symbol: string; side: "buy" | "sell" | "short" | "cover"; quantity: number; price: number; costUsd: number; reason: string; txHash: string | null }[];
   /** Live agents only: the latest on-chain orders, including ones that did not fill. */
   orders: { decidedTs: number; symbol: string; side: "buy" | "sell"; status: string; txHash: string | null; error: string | null }[];
-  positions: { token: string; symbol: string; quantity: number; entryPrice: number; openedAt: number | null }[];
+  positions: { token: string; symbol: string; quantity: number; entryPrice: number; openedAt: number | null; side: "long" | "short" }[];
 };
 
 /** Everything the agent page needs; null if the agent does not exist. */
@@ -208,7 +209,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
     db.from("agent_stats").select(STATS_COLUMNS).eq("id", id).single(),
     db.from("agent_runs").select("ts, equity, hold_equity, cash, decisions").eq("agent_id", id).order("ts", { ascending: false }).limit(720),
     db.from("trades").select("ts, token_address, side, quantity, price, cost_usd, reason, executions(tx_hash)").eq("agent_id", id).order("ts", { ascending: false }).limit(50),
-    db.from("positions").select("token_address, quantity, avg_entry_price, opened_at").eq("agent_id", id),
+    db.from("positions").select("token_address, quantity, avg_entry_price, opened_at, side").eq("agent_id", id),
     tokenSymbols(db),
     db.from("ai_usage").select("cost_micro").eq("agent_id", id),
     db.from("executions").select("decided_ts, token_address, side, status, tx_hash, error").eq("agent_id", id).order("created_at", { ascending: false }).limit(20),
@@ -228,7 +229,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
       ts: Date.parse(trade.ts) / 1000,
       token: trade.token_address,
       symbol: symbols.get(trade.token_address) ?? "?",
-      side: trade.side as "buy" | "sell",
+      side: trade.side as "buy" | "sell" | "short" | "cover",
       quantity: Number(trade.quantity),
       price: Number(trade.price),
       costUsd: Number(trade.cost_usd),
@@ -249,6 +250,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
       quantity: Number(position.quantity),
       entryPrice: Number(position.avg_entry_price),
       openedAt: position.opened_at ? Date.parse(position.opened_at) / 1000 : null,
+      side: position.side === "short" ? ("short" as const) : ("long" as const),
     })),
   };
 }

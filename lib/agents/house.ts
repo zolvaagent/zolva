@@ -76,6 +76,8 @@ export const TREND_FILTER: Rules = {
  * 30 day backtest to Oct 24 mean reversion and RSI dip lost least while
  * holding fell 7.5%, breakout did worst). Lab · Dip Hunter (2026-11-03) watches
  * all 14 live-tradable markets and holds one at a time (docs/down-market-research.md).
+ * Lab · Crypto Spike Fade (2026-11-03) is the first agent that shorts, paper only
+ * (docs/shorting-research.md).
  * Not on the landing page.
  */
 export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[] = [
@@ -103,4 +105,5 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     maxPositionPct: 100,
     stopLossPct: 10,
   },
+  { owner: LAB_WALLETS[3], name: "Lab · Crypto Spike Fade", strategy: "spike_fade", symbols: ["ETH", "BTC"], maxPositionPct: 100, stopLossPct: 10 },
 ];

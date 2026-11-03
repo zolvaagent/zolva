@@ -2324,6 +2324,17 @@ main:focus {
   color: var(--color-loss);
 }
 
+/* Shorts (spike fade): opening bets on a fall, covering takes the result. */
+.decision__action--short {
+  background: var(--color-loss-soft);
+  color: var(--color-loss);
+}
+
+.decision__action--cover {
+  background: var(--color-gain-soft);
+  color: var(--color-gain);
+}
+
 .table-wrap {
   /* Keeps absolutely positioned children (like .sr-only labels) inside the scroll box. */
   position: relative;

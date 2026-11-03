@@ -2,12 +2,13 @@ import { createRequire } from "node:module";
 
 import { describe, expect, it } from "vitest";
 
-import { buyAndHold, COST_RATE, maxDrawdown, runHour, simulate, type AgentParams, type AgentState } from "./engine";
+import { buyAndHold, COST_RATE, maxDrawdown, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
 import { decide, LOOKBACK_HOURS } from "./strategies";
 
 const momentum: AgentParams = { strategy: "momentum", maxPositionPct: 50, stopLossPct: 8 };
 const meanReversion: AgentParams = { strategy: "mean_reversion", maxPositionPct: 50, stopLossPct: 8 };
 const dipHunter: AgentParams = { strategy: "dip_hunter", maxPositionPct: 100, stopLossPct: 10 };
+const spikeFade: AgentParams = { strategy: "spike_fade", maxPositionPct: 100, stopLossPct: 10 };
 
 // Deterministic random walk with some trends and dips.
 function walk(seed: number, length: number): number[] {
@@ -124,13 +125,13 @@ describe("parity with the prototype engine", () => {
     simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string }[] };
   };
 
-  for (const strategy of ["momentum", "mean_reversion", "dip_hunter"] as const) {
+  for (const strategy of ["momentum", "mean_reversion", "dip_hunter", "spike_fade"] as const) {
     it(`matches trades and return for ${strategy}`, () => {
       const series: Record<string, number[]> =
-        strategy === "dip_hunter"
+        strategy === "dip_hunter" || strategy === "spike_fade"
           ? { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600), DDD: walk(5, 600), EEE: walk(1234, 600) }
           : { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600) };
-      const params = strategy === "momentum" ? momentum : strategy === "mean_reversion" ? meanReversion : dipHunter;
+      const params = { momentum, mean_reversion: meanReversion, dip_hunter: dipHunter, spike_fade: spikeFade }[strategy];
       const ours = simulate({ series, params, capital: 10_000, fromIndex: 60 });
       const theirs = prototype.simulate({
         tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes })),
@@ -176,6 +177,64 @@ describe("dip hunter", () => {
     let open = 0;
     for (const fill of run.fills) {
       open += fill.side === "buy" ? 1 : -1;
+      expect(open).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe("spike fade (shorts)", () => {
+  // 49 calm hours around 100, then the given jump in the last hour.
+  const calmThenJump = (jump: number) => [...Array.from({ length: 49 }, (_, i) => 100 + (i % 2 ? 0.5 : -0.5)), 100 * (1 + jump)];
+
+  it("shorts only the strongest spike, at the close, paying the cost", () => {
+    const series = { AAA: calmThenJump(0.03), BBB: calmThenJump(0.06), CCC: calmThenJump(0) };
+    const hour = runHour({ cash: 1000, positions: {} }, spikeFade, series, 49);
+    expect(hour.fills.map((fill) => `${fill.side}:${fill.token}`)).toEqual(["short:BBB"]);
+    const short = hour.state.positions.BBB;
+    expect(short.side).toBe("short");
+    expect(short.entryPrice).toBe(106);
+    expect(short.quantity).toBeCloseTo((1000 * (1 - COST_RATE)) / 106);
+    expect(hour.equity).toBeCloseTo(1000 * (1 - COST_RATE));
+    expect(hour.decisions.find((decision) => decision.token === "AAA")?.reasoning).toContain("Another market spiked higher");
+  });
+
+  it("gains when the price falls and covers on the way back down", () => {
+    const short: AgentState = { cash: 0, positions: { AAA: { quantity: 10, entryPrice: 100, side: "short" } } };
+    // Calm, then a fall well below the average: z under -0.5 covers.
+    const series = { AAA: [...Array.from({ length: 49 }, (_, i) => 100 + (i % 2 ? 0.5 : -0.5)), 90] };
+    const hour = runHour(short, spikeFade, series, 49);
+    const borrow = (10 * 90 * SHORT_BORROW_APR) / (365 * 24);
+    expect(hour.fills.map((fill) => `${fill.side}:${fill.reason}`)).toEqual(["cover:signal"]);
+    // Locked 1000, gained 10 x 10 = 100, paid 0.5% of 900 and an hour of borrow.
+    expect(hour.state.cash).toBeCloseTo(1100 - 900 * COST_RATE - borrow);
+    expect(hour.state.positions).toEqual({});
+  });
+
+  it("stops out when the price rises past the stop", () => {
+    const short: AgentState = { cash: 0, positions: { AAA: { quantity: 10, entryPrice: 100, side: "short" } } };
+    const series = { AAA: [...Array.from({ length: 49 }, () => 100), 111] };
+    const hour = runHour(short, spikeFade, series, 49);
+    expect(hour.fills.map((fill) => `${fill.side}:${fill.reason}`)).toEqual(["cover:stop_loss"]);
+    expect(hour.decisions[0].reasoning).toContain("Stop loss hit: +11.0% above the short entry");
+    expect(hour.state.cash).toBeLessThan(900);
+  });
+
+  it("values an open short as locked cash plus gain, and charges borrow each hour", () => {
+    const short: AgentState = { cash: 0, positions: { AAA: { quantity: 10, entryPrice: 100, side: "short" } } };
+    const series = { AAA: [...Array.from({ length: 49 }, (_, i) => 100 + (i % 2 ? 0.5 : -0.5)), 100.3] };
+    const hour = runHour(short, spikeFade, series, 49);
+    expect(hour.fills).toEqual([]);
+    expect(hour.equity).toBeCloseTo(10 * (200 - 100.3) - (10 * 100.3 * SHORT_BORROW_APR) / (365 * 24));
+  });
+
+  it("never holds two positions over a long run, and only shorts", () => {
+    const series = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600), DDD: walk(5, 600) };
+    const run = simulate({ series, params: spikeFade, capital: 10_000, fromIndex: 60 });
+    expect(run.fills.length).toBeGreaterThan(2);
+    expect(run.fills.every((fill) => fill.side === "short" || fill.side === "cover")).toBe(true);
+    let open = 0;
+    for (const fill of run.fills) {
+      open += fill.side === "short" ? 1 : -1;
       expect(open).toBeLessThanOrEqual(1);
     }
   });

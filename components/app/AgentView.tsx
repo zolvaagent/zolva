@@ -1081,11 +1081,14 @@ export function AgentView({
                   <tbody>
                     {positions.map((position) => {
                       const now = prices[position.token] ?? position.entryPrice;
-                      const change = (now / position.entryPrice - 1) * 100;
+                      const short = position.side === "short";
+                      // A short gains when the price falls; it is worth the cash it locked plus that gain.
+                      const change = (short ? 1 - now / position.entryPrice : now / position.entryPrice - 1) * 100;
                       return (
                         <tr key={position.token}>
                           <td>
                             <strong>{position.symbol}</strong>
+                            {short && <span className="decision__action decision__action--short" style={{ marginLeft: 8 }}>short</span>}
                           </td>
                           <td className="num">{price(position.entryPrice)}</td>
                           <td className="num">{price(now)}</td>
@@ -1093,7 +1096,7 @@ export function AgentView({
                             {percent(change)}
                           </td>
                           <td className="num">
-                            {usd(position.quantity * now)}
+                            {usd(short ? position.quantity * (2 * position.entryPrice - now) : position.quantity * now)}
                           </td>
                         </tr>
                       );

@@ -17,11 +17,16 @@
  * - Every fill pays COST_RATE (fees + slippage).
  * - Dip hunter holds one position at a time: while it holds nothing it buys only
  *   the market furthest below its average, so other buy signals become holds.
+ * - Spike fade is the only strategy that shorts (paper only): the same one position
+ *   rule, the market furthest above its average. A short sells borrowed tokens; its
+ *   stop is the price rising stopLossPct above entry, and it pays SHORT_BORROW_APR.
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
 import { decide, LOOKBACK_HOURS, type StrategyKey } from "./strategies.ts";
 
 export const COST_RATE = 0.005;
+/** Yearly borrow rate charged hourly on open shorts (Morpho was near 0% on 2026-11-03; cautious). */
+export const SHORT_BORROW_APR = 0.1;
 
 export type AgentParams = {
   /** A preset, or "custom" with the user's own rules. */
@@ -29,7 +34,7 @@ export type AgentParams = {
   rules?: Rules;
   /** Max share of equity in one token, 0 to 100. */
   maxPositionPct: number;
-  /** Sell when a position is this far below its entry price, 0 to 100. */
+  /** Sell when a position is this far below its entry price (a short: above), 0 to 100. */
   stopLossPct: number;
 };
 
@@ -38,6 +43,11 @@ export type Position = {
   entryPrice: number;
   /** Hour the position was opened (unix seconds), for the max holding time. */
   openedAt?: number;
+  /**
+   * Set for a short: quantity is the borrowed tokens sold, entryPrice the sale price.
+   * It is worth quantity x (2 x entryPrice - price): the cash it locked plus its gain.
+   */
+  side?: "short";
 };
 
 export type AgentState = {
@@ -48,7 +58,7 @@ export type AgentState = {
 
 export type Decision = {
   token: string;
-  action: "buy" | "sell" | "hold";
+  action: "buy" | "sell" | "short" | "cover" | "hold";
   reasoning: string;
   indicators?: Record<string, number>;
   /** Set when the AI co-pilot reviewed this hour's rule signal for the token. */
@@ -66,12 +76,13 @@ export type RunHourOptions = {
 
 export type Fill = {
   token: string;
-  side: "buy" | "sell";
+  /** short opens a short, cover closes it. */
+  side: "buy" | "sell" | "short" | "cover";
   quantity: number;
   price: number;
   costUsd: number;
   reason: "signal" | "stop_loss" | "take_profit" | "max_hold";
-  /** Entry price of the position a sell closed, for win rate. */
+  /** Entry price of the position a sell or cover closed, for win rate. */
   entryPrice?: number;
 };
 
@@ -114,7 +125,15 @@ export function runHour(
   // Dip hunter: decided before the loop, from the positions held at the start of the hour,
   // so a sell this hour frees the slot for the next hour, not this one.
   const holdsAny = Object.keys(state.positions).length > 0;
-  const deepestDip = params.strategy === "dip_hunter" && !holdsAny ? findDeepestDip(series, index, lookback, state) : null;
+  const deepestDip = params.strategy === "dip_hunter" && !holdsAny ? findExtreme("dip_hunter", series, index, lookback, state) : null;
+  const strongestSpike = params.strategy === "spike_fade" && !holdsAny ? findExtreme("spike_fade", series, index, lookback, state) : null;
+
+  // Borrow cost on shorts, for the hour that just passed.
+  for (const token of tokens) {
+    const position = positions[token];
+    const price = prices[token];
+    if (position?.side === "short" && price != null) cash -= (position.quantity * price * SHORT_BORROW_APR) / (365 * 24);
+  }
 
   for (const token of tokens) {
     const price = prices[token];
@@ -126,7 +145,20 @@ export function runHour(
       continue;
     }
 
-    if (position && price <= position.entryPrice * (1 - stopDistance)) {
+    if (position?.side === "short" && price >= position.entryPrice * (1 + stopDistance)) {
+      const fill = coverAll(token, position, price, "stop_loss");
+      cash += position.quantity * (2 * position.entryPrice - price) - fill.costUsd;
+      delete positions[token];
+      fills.push(fill);
+      decisions.push({
+        token,
+        action: "cover",
+        reasoning: `Stop loss hit: ${formatChange(price / position.entryPrice - 1)} above the short entry. Covering everything.`,
+      });
+      continue;
+    }
+
+    if (position && position.side !== "short" && price <= position.entryPrice * (1 - stopDistance)) {
       const fill = sellAll(token, position, price, "stop_loss");
       cash += fill.quantity * price - fill.costUsd;
       delete positions[token];
@@ -162,7 +194,7 @@ export function runHour(
       ? evaluateRules(rules, window as number[], Boolean(position))
       : decide(params.strategy as StrategyKey, window as number[], Boolean(position));
 
-    const wantsTrade = signal.action === "buy" || (signal.action === "sell" && position);
+    const wantsTrade = signal.action === "buy" || signal.action === "short" || ((signal.action === "sell" || signal.action === "cover") && position);
     const passed = wantsTrade ? options.veto?.get(token) : undefined;
     if (passed !== undefined) {
       decisions.push({ token, action: "hold", reasoning: `${signal.reasoning} The AI co-pilot passed: ${passed}`, indicators: signal.indicators });
@@ -177,7 +209,30 @@ export function runHour(
       continue;
     }
 
-    if (signal.action === "buy") {
+    if (signal.action === "short" && token !== strongestSpike) {
+      const reasoning = holdsAny
+        ? `${signal.reasoning.replace(" Shorting the spike.", "")} Already in another market: one position at a time.`
+        : `${signal.reasoning.replace(" Shorting the spike.", "")} Another market spiked higher: shorting that one instead.`;
+      decisions.push({ token, action: "hold", reasoning, indicators: signal.indicators });
+      continue;
+    }
+
+    if (signal.action === "short") {
+      const notional = Math.min(cash, equityBefore * maxShare);
+      if (notional < 1) {
+        decisions.push({ token, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
+        continue;
+      }
+      const quantity = (notional * (1 - COST_RATE)) / price;
+      cash -= notional;
+      positions[token] = { quantity, entryPrice: price, openedAt: hourTime, side: "short" };
+      fills.push({ token, side: "short", quantity, price, costUsd: notional * COST_RATE, reason: "signal" });
+    } else if (signal.action === "cover" && position) {
+      const fill = coverAll(token, position, price, "signal");
+      cash += position.quantity * (2 * position.entryPrice - price) - fill.costUsd;
+      delete positions[token];
+      fills.push(fill);
+    } else if (signal.action === "buy") {
       const notional = Math.min(cash, equityBefore * maxShare);
       if (notional < 1) {
         decisions.push({ token, action: "hold", reasoning: "Signal to buy, but no cash left. Holding." });
@@ -201,17 +256,35 @@ export function runHour(
   return { state: next, decisions, fills, equity: equityAt(next, prices) };
 }
 
-/** The market with the lowest z score below the entry level, among those not held (dip hunter). */
-function findDeepestDip(series: Record<string, (number | null)[]>, index: number, lookback: number, state: AgentState): string | null {
-  let deepest: { token: string; z: number } | null = null;
+/**
+ * The one market a one-position strategy may enter this hour, among those not held:
+ * dip hunter's lowest z score below its entry level, spike fade's highest above it.
+ */
+function findExtreme(
+  strategy: "dip_hunter" | "spike_fade",
+  series: Record<string, (number | null)[]>,
+  index: number,
+  lookback: number,
+  state: AgentState,
+): string | null {
+  const entry = strategy === "dip_hunter" ? "buy" : "short";
+  // Spike fade wants the highest z score: compare on the flipped sign.
+  const sign = strategy === "dip_hunter" ? 1 : -1;
+  let best: { token: string; score: number } | null = null;
   for (const token of Object.keys(series)) {
     if (state.positions[token]) continue;
     const window = series[token].slice(Math.max(0, index - lookback), index + 1);
     if (series[token][index] == null || window.length <= lookback || window.some((value) => value == null)) continue;
-    const signal = decide("dip_hunter", window as number[], false);
-    if (signal.action === "buy" && (!deepest || signal.indicators.zScore < deepest.z)) deepest = { token, z: signal.indicators.zScore };
+    const signal = decide(strategy, window as number[], false);
+    const score = sign * signal.indicators.zScore;
+    if (signal.action === entry && (!best || score < best.score)) best = { token, score };
   }
-  return deepest?.token ?? null;
+  return best?.token ?? null;
+}
+
+function coverAll(token: string, position: Position, price: number, reason: Fill["reason"]): Fill {
+  const gross = position.quantity * price;
+  return { token, side: "cover", quantity: position.quantity, price, costUsd: gross * COST_RATE, reason, entryPrice: position.entryPrice };
 }
 
 function sellAll(token: string, position: Position, price: number, reason: Fill["reason"]): Fill {
@@ -219,11 +292,12 @@ function sellAll(token: string, position: Position, price: number, reason: Fill[
   return { token, side: "sell", quantity: position.quantity, price, costUsd: gross * COST_RATE, reason, entryPrice: position.entryPrice };
 }
 
-/** Cash plus positions at the given prices; a token without a price is valued at its entry. */
+/** Cash plus positions at the given prices (a short: locked cash plus gain); a token without a price is valued at its entry. */
 export function equityAt(state: AgentState, prices: Record<string, number | null>): number {
   let equity = state.cash;
   for (const [token, position] of Object.entries(state.positions)) {
-    equity += position.quantity * (prices[token] ?? position.entryPrice);
+    const price = prices[token] ?? position.entryPrice;
+    equity += position.side === "short" ? position.quantity * (2 * position.entryPrice - price) : position.quantity * price;
   }
   return equity;
 }
@@ -274,7 +348,11 @@ export function simulate(options: {
   }
 
   const finalEquity = runs.length ? runs[runs.length - 1].equity : options.capital;
-  const profits = fills.filter((fill) => fill.side === "sell").map((fill) => fill.price * (1 - COST_RATE) - (fill.entryPrice ?? fill.price));
+  const profits = fills
+    .filter((fill) => fill.side === "sell" || fill.side === "cover")
+    .map((fill) =>
+      fill.side === "sell" ? fill.price * (1 - COST_RATE) - (fill.entryPrice ?? fill.price) : (fill.entryPrice ?? fill.price) - fill.price * (1 + COST_RATE),
+    );
   return {
     runs,
     fills,

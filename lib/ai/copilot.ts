@@ -17,7 +17,7 @@ export type ProposedTrade = {
   /** Token id used by the engine (address in the app). */
   token: string;
   symbol: string;
-  side: "buy" | "sell";
+  side: "buy" | "sell" | "short" | "cover";
   price: number;
   /** The rule's own explanation, e.g. "Up 3.4% in 24h and ...". */
   ruleReasoning: string;
@@ -51,6 +51,8 @@ const PRESET_DESCRIPTIONS: Record<StrategyKey, string> = {
   mean_reversion: "Mean reversion: buys when the price is unusually far below its 48 hour average (z score under -2.5); sells when it returns above the average.",
   dip_hunter:
     "Dip hunter: watches many markets and holds one at a time; buys the market furthest below its 48 hour average (z score under -2.5) and sells when it returns above the average.",
+  spike_fade:
+    "Spike fade: watches many markets and holds one at a time, short only; shorts the market furthest above its 48 hour average (z score over 2.5) and covers when it falls back below the average.",
 };
 
 export const SYSTEM_PROMPT = [
