@@ -47,9 +47,13 @@ beat holding in all three windows.
 - **Caveats:** 2 to 3 months of data, one strategy setting (z -2.5 / 0.5 from
   2026-10-15, not re-tuned here), and 13 to 14 markets. It can still be luck.
 
-## Not built yet
+## Built: dip hunter (2026-11-03)
 
-The engine cannot run idea 1 as tested: an agent holds at most 3 tokens, and its mean
-reversion buys each of its own tokens, not the single deepest dip across all markets.
-Building it means a new strategy in `runHour` and `prototype/engine.js` (parity test),
-then paper first.
+Preset strategy `dip_hunter` in `lib/engine` and `prototype/engine.js` (parity test).
+The mean reversion signal on every market; while it holds nothing it buys only the market
+with the lowest z score, so it holds one position at a time. A sell frees the slot for the
+next hour, not the same one (the research script could sell and buy in one hour). The only
+strategy allowed more than 3 markets (up to 20, migration `20261103000100_dip_hunter.sql`).
+Not in Studio. Running as the paper agent "Lab · Dip Hunter" on the 14 live markets,
+100% per position, 10% stop. Paper fills pay 0.5%, so it will look worse than the 0.3%
+results above.

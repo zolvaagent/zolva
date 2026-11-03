@@ -7,7 +7,12 @@
  * 100+ times a month and lost to the 0.5% cost per trade.
  */
 
-export type StrategyKey = "momentum" | "mean_reversion";
+/**
+ * dip_hunter uses the mean reversion signal on every market but holds one position at a
+ * time: the engine lets it buy only the deepest dip, and only while it holds nothing
+ * (see runHour). Research: docs/down-market-research.md.
+ */
+export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter";
 
 export type Signal = {
   action: "buy" | "sell" | "hold";
@@ -35,6 +40,7 @@ export const MEAN_REVERSION = {
 export const STRATEGY_LABELS: Record<StrategyKey, string> = {
   momentum: "Momentum",
   mean_reversion: "Mean reversion",
+  dip_hunter: "Dip hunter",
 };
 
 /**

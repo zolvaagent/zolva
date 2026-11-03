@@ -15,6 +15,8 @@
  *   includes the cost paid.
  * - A buy uses min(cash, equity x max position %).
  * - Every fill pays COST_RATE (fees + slippage).
+ * - Dip hunter holds one position at a time: while it holds nothing it buys only
+ *   the market furthest below its average, so other buy signals become holds.
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
 import { decide, LOOKBACK_HOURS, type StrategyKey } from "./strategies.ts";
@@ -109,6 +111,10 @@ export function runHour(
   const positions: Record<string, Position> = { ...state.positions };
   const decisions: Decision[] = [];
   const fills: Fill[] = [];
+  // Dip hunter: decided before the loop, from the positions held at the start of the hour,
+  // so a sell this hour frees the slot for the next hour, not this one.
+  const holdsAny = Object.keys(state.positions).length > 0;
+  const deepestDip = params.strategy === "dip_hunter" && !holdsAny ? findDeepestDip(series, index, lookback, state) : null;
 
   for (const token of tokens) {
     const price = prices[token];
@@ -163,6 +169,14 @@ export function runHour(
       continue;
     }
 
+    if (signal.action === "buy" && params.strategy === "dip_hunter" && token !== deepestDip) {
+      const reasoning = holdsAny
+        ? `${signal.reasoning.replace(" Buying the dip.", "")} Already holding another market: one position at a time.`
+        : `${signal.reasoning.replace(" Buying the dip.", "")} Another market dipped deeper: buying that one instead.`;
+      decisions.push({ token, action: "hold", reasoning, indicators: signal.indicators });
+      continue;
+    }
+
     if (signal.action === "buy") {
       const notional = Math.min(cash, equityBefore * maxShare);
       if (notional < 1) {
@@ -185,6 +199,19 @@ export function runHour(
 
   const next = { cash, positions };
   return { state: next, decisions, fills, equity: equityAt(next, prices) };
+}
+
+/** The market with the lowest z score below the entry level, among those not held (dip hunter). */
+function findDeepestDip(series: Record<string, (number | null)[]>, index: number, lookback: number, state: AgentState): string | null {
+  let deepest: { token: string; z: number } | null = null;
+  for (const token of Object.keys(series)) {
+    if (state.positions[token]) continue;
+    const window = series[token].slice(Math.max(0, index - lookback), index + 1);
+    if (series[token][index] == null || window.length <= lookback || window.some((value) => value == null)) continue;
+    const signal = decide("dip_hunter", window as number[], false);
+    if (signal.action === "buy" && (!deepest || signal.indicators.zScore < deepest.z)) deepest = { token, z: signal.indicators.zScore };
+  }
+  return deepest?.token ?? null;
 }
 
 function sellAll(token: string, position: Position, price: number, reason: Fill["reason"]): Fill {

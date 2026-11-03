@@ -7,6 +7,16 @@ import { decide, LOOKBACK_HOURS } from "./strategies";
 
 const momentum: AgentParams = { strategy: "momentum", maxPositionPct: 50, stopLossPct: 8 };
 const meanReversion: AgentParams = { strategy: "mean_reversion", maxPositionPct: 50, stopLossPct: 8 };
+const dipHunter: AgentParams = { strategy: "dip_hunter", maxPositionPct: 100, stopLossPct: 10 };
+
+// Deterministic random walk with some trends and dips.
+function walk(seed: number, length: number): number[] {
+  let state = seed;
+  const random = () => ((state = (state * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32);
+  const prices = [100];
+  for (let i = 1; i < length; i++) prices.push(prices[i - 1] * (1 + (random() - 0.5) * 0.03 + Math.sin(i / 40) * 0.002));
+  return prices;
+}
 const flat = (length: number, price = 100) => Array<number>(length).fill(price);
 
 describe("strategies", () => {
@@ -114,19 +124,13 @@ describe("parity with the prototype engine", () => {
     simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string }[] };
   };
 
-  // Deterministic random walk with some trends and dips.
-  function walk(seed: number, length: number): number[] {
-    let state = seed;
-    const random = () => ((state = (state * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32);
-    const prices = [100];
-    for (let i = 1; i < length; i++) prices.push(prices[i - 1] * (1 + (random() - 0.5) * 0.03 + Math.sin(i / 40) * 0.002));
-    return prices;
-  }
-
-  for (const strategy of ["momentum", "mean_reversion"] as const) {
+  for (const strategy of ["momentum", "mean_reversion", "dip_hunter"] as const) {
     it(`matches trades and return for ${strategy}`, () => {
-      const series = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600) };
-      const params = strategy === "momentum" ? momentum : meanReversion;
+      const series: Record<string, number[]> =
+        strategy === "dip_hunter"
+          ? { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600), DDD: walk(5, 600), EEE: walk(1234, 600) }
+          : { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600) };
+      const params = strategy === "momentum" ? momentum : strategy === "mean_reversion" ? meanReversion : dipHunter;
       const ours = simulate({ series, params, capital: 10_000, fromIndex: 60 });
       const theirs = prototype.simulate({
         tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes })),
@@ -143,4 +147,36 @@ describe("parity with the prototype engine", () => {
       expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
     });
   }
+});
+
+describe("dip hunter", () => {
+  // 49 calm hours around 100, then the given drop in the last hour.
+  const calmThenDrop = (drop: number) => [...Array.from({ length: 49 }, (_, i) => 100 + (i % 2 ? 0.5 : -0.5)), 100 * (1 - drop)];
+
+  it("buys only the deepest dip when several markets dip in the same hour", () => {
+    const series = { AAA: calmThenDrop(0.03), BBB: calmThenDrop(0.06), CCC: calmThenDrop(0) };
+    const hour = runHour({ cash: 1000, positions: {} }, dipHunter, series, 49);
+    expect(hour.fills.map((fill) => `${fill.side}:${fill.token}`)).toEqual(["buy:BBB"]);
+    expect(hour.decisions.find((decision) => decision.token === "AAA")?.reasoning).toContain("Another market dipped deeper");
+  });
+
+  it("does not buy a second market while it holds one", () => {
+    const series = { AAA: calmThenDrop(0.06), BBB: calmThenDrop(0) };
+    const held = { cash: 0, positions: { BBB: { quantity: 10, entryPrice: 100 } } };
+    const hour = runHour(held, dipHunter, series, 49);
+    expect(hour.fills).toEqual([]);
+    expect(hour.decisions.find((decision) => decision.token === "AAA")?.reasoning).toContain("one position at a time");
+  });
+
+  it("never holds two positions over a long run", () => {
+    const series = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600), DDD: walk(5, 600) };
+    const run = simulate({ series, params: dipHunter, capital: 10_000, fromIndex: 60 });
+    expect(run.fills.length).toBeGreaterThan(2);
+    expect(run.runs.every((hour) => hour.decisions.filter((decision) => decision.action === "buy").length <= 1)).toBe(true);
+    let open = 0;
+    for (const fill of run.fills) {
+      open += fill.side === "buy" ? 1 : -1;
+      expect(open).toBeLessThanOrEqual(1);
+    }
+  });
 });
