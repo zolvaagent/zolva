@@ -109,3 +109,19 @@ are ETH only), 10% a year borrow or funding, 10% stop:
 **Spike fade on crypto was positive in every window**, falling or rising, unlike on
 stocks. But it rests on 5 to 11 shorts per window, mostly ETH alone: too few to trust.
 Trend shorts lost here too.
+
+### ETH and BTC together, last 45 days (2026-11-03)
+
+BTC's full history (52 days, 7 for warm-up), `WINDOWS=45:0,15:0,15:15,15:30`:
+
+| Window | Holding | Spike fade, 0.1% cost | Spike fade, 0.3% cost | Trend short, 0.1% |
+|---|---|---|---|---|
+| 45 days | -10.0% | **+7.5%** | +3.8% | -6.6% |
+| Last 15 days | -7.2% | +1.4% | +0.6% | -1.5% |
+| 15 days before | -6.3% | +0.5% | -0.5% | -3.8% |
+| 15 days before that (rising) | +3.5% | +4.1% | +2.4% | -1.4% |
+
+Spike fade stayed positive in every piece at perps-like cost (0.1%), worst drop about 5%,
+but opened only 9 shorts in 45 days. Consistent so far, still a small sample. Longer
+history (Ethereum or Arbitrum Chainlink feeds) needs those networks enabled in Alchemy;
+CoinGecko's free hourly data covers only 90 days.
