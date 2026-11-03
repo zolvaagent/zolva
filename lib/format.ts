@@ -30,7 +30,7 @@ export const dateAt = (unixSeconds: number) => `${dateFormat.format(unixSeconds 
 /** "Oct 15" from unix seconds. */
 export const dayAt = (unixSeconds: number) => dayFormat.format(unixSeconds * 1000);
 
-export const STRATEGY_NAMES: Record<string, string> = { momentum: "Momentum", mean_reversion: "Mean reversion", dip_hunter: "Dip hunter", custom: "Custom" };
+export const STRATEGY_NAMES: Record<string, string> = { momentum: "Momentum", mean_reversion: "Mean reversion", dip_hunter: "Dip hunter", spike_fade: "Spike fade", custom: "Custom" };
 
 /** US regular session is roughly 13:30 to 20:00 UTC on weekdays; outside it prices come from DEX trading only. */
 export function isMarketHours(unixSeconds: number): boolean {

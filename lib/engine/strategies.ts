@@ -11,11 +11,16 @@
  * dip_hunter uses the mean reversion signal on every market but holds one position at a
  * time: the engine lets it buy only the deepest dip, and only while it holds nothing
  * (see runHour). Research: docs/down-market-research.md.
+ *
+ * spike_fade is mean reversion turned upside down and the only strategy that shorts:
+ * it shorts the market furthest above its average, one position at a time, and covers
+ * when the price falls back. Paper only. Research: docs/shorting-research.md.
  */
-export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter";
+export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter" | "spike_fade";
 
 export type Signal = {
-  action: "buy" | "sell" | "hold";
+  /** short opens a short position, cover closes it (spike_fade only). */
+  action: "buy" | "sell" | "short" | "cover" | "hold";
   reasoning: string;
   indicators: Record<string, number>;
 };
@@ -37,18 +42,28 @@ export const MEAN_REVERSION = {
   exitZ: 0.5,
 } as const;
 
+export const SPIKE_FADE = {
+  /** Short when the z score versus the 48h average is above this. */
+  entryZ: 2.5,
+  /** Cover once the z score is back to at most this. */
+  exitZ: -0.5,
+} as const;
+
 export const STRATEGY_LABELS: Record<StrategyKey, string> = {
   momentum: "Momentum",
   mean_reversion: "Mean reversion",
   dip_hunter: "Dip hunter",
+  spike_fade: "Spike fade",
 };
 
 /**
  * @param window       closes, oldest first, ending with the current hour; at least LOOKBACK_HOURS + 1 long, no nulls
- * @param hasPosition  whether the agent holds this token now
+ * @param hasPosition  whether the agent holds this token now (for spike_fade: is short it)
  */
 export function decide(strategy: StrategyKey, window: number[], hasPosition: boolean): Signal {
-  return strategy === "momentum" ? momentum(window, hasPosition) : meanReversion(window, hasPosition);
+  if (strategy === "momentum") return momentum(window, hasPosition);
+  if (strategy === "spike_fade") return spikeFade(window, hasPosition);
+  return meanReversion(window, hasPosition);
 }
 
 function momentum(window: number[], hasPosition: boolean): Signal {
@@ -91,6 +106,28 @@ function meanReversion(window: number[], hasPosition: boolean): Signal {
     action: "hold",
     indicators,
     reasoning: hasPosition ? `Still below the 48h average (z ${z}). Waiting for the rebound.` : `Price is within the normal range (z ${z}). Waiting for a dip.`,
+  };
+}
+
+function spikeFade(window: number[], isShort: boolean): Signal {
+  const price = window[window.length - 1];
+  const recent = window.slice(-LOOKBACK_HOURS);
+  const average = mean(recent);
+  const deviation = standardDeviation(recent, average);
+  const zScore = deviation > 0 ? (price - average) / deviation : 0;
+  const indicators = { average48h: average, zScore };
+  const z = zScore.toFixed(2);
+
+  if (!isShort && zScore > SPIKE_FADE.entryZ) {
+    return { action: "short", indicators, reasoning: `Price is unusually far above its 48h average (z ${z}). Shorting the spike.` };
+  }
+  if (isShort && zScore <= SPIKE_FADE.exitZ) {
+    return { action: "cover", indicators, reasoning: `Price is back below its 48h average (z ${z}). Covering the short.` };
+  }
+  return {
+    action: "hold",
+    indicators,
+    reasoning: isShort ? `Still above the level to cover (z ${z}). Staying short.` : `Price is within the normal range (z ${z}). Waiting for a spike.`,
   };
 }
 

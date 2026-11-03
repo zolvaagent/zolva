@@ -13,7 +13,7 @@ export type ActivityTrade = {
   isHouse: boolean;
   strategy: string;
   symbol: string;
-  side: "buy" | "sell";
+  side: "buy" | "sell" | "short" | "cover";
   quantity: number;
   price: number;
   costUsd: number;
@@ -57,6 +57,9 @@ export function hourlyReports(hours: ActivityHour[], trades: ActivityTrade[]): H
 }
 
 /** Plain words for why a trade happened. */
+/** What a trade did, as a past tense verb for the feed. */
+export const SIDE_VERBS: Record<ActivityTrade["side"], string> = { buy: "bought", sell: "sold", short: "shorted", cover: "covered" };
+
 export const REASON_LABELS: Record<ActivityTrade["reason"], string> = {
   signal: "Rule met",
   stop_loss: "Stop loss",

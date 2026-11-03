@@ -27,7 +27,8 @@ export type AgentRow = {
   last_run_ts: string | null;
 };
 
-export type PositionRow = { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null };
+/** side is missing on rows read without it, which means long. */
+export type PositionRow = { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side?: "long" | "short" };
 
 export type MarketSeries = {
   /** Start of the hour at index 0, unix seconds. */
@@ -41,7 +42,7 @@ export type HourWrite = {
   equity: number;
   holdEquity: number;
   decisions: Decision[];
-  positions: { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null }[];
+  positions: { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side: "long" | "short" }[];
   trades: { token_address: string; side: Fill["side"]; quantity: number; price: number; cost_usd: number; reason: Fill["reason"] }[];
 };
 
@@ -82,6 +83,7 @@ export function planAgentHours(
           quantity: Number(position.quantity),
           entryPrice: Number(position.avg_entry_price),
           openedAt: position.opened_at ? Date.parse(position.opened_at) / 1000 : undefined,
+          ...(position.side === "short" ? { side: "short" as const } : {}),
         },
       ]),
     ),
@@ -105,6 +107,7 @@ export function planAgentHours(
         quantity: position.quantity,
         avg_entry_price: position.entryPrice,
         opened_at: position.openedAt === undefined ? null : new Date(position.openedAt * 1000).toISOString(),
+        side: position.side ?? "long",
       })),
       trades: hour.fills.map((fill) => ({
         token_address: fill.token,
@@ -122,7 +125,8 @@ export function planAgentHours(
 /**
  * A live agent's value at an hour from what it really holds: cash plus each position at
  * that hour's close (its entry price when the close is missing). Planned trades do not
- * count until they fill, so a failed order never moves the recorded value.
+ * count until they fill, so a failed order never moves the recorded value. Live agents
+ * never short (agents_live_no_shorts), so every position here is long.
  */
 export function liveEquity(cash: number, positions: PositionRow[], series: Record<string, (number | null)[]>, index: number): number {
   let equity = Number(cash);

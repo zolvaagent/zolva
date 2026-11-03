@@ -132,8 +132,11 @@ export async function runLiveAgents(db: SupabaseClient): Promise<LiveResult> {
       if (writeError) throw new Error(writeError.message);
       if (!written) continue; // another tick owns this hour
 
-      // Sells first, so their USDG is back before any buy.
-      const fills = [...hour.trades].sort((a, b) => (a.side === b.side ? 0 : a.side === "sell" ? -1 : 1));
+      // Sells first, so their USDG is back before any buy. Live agents cannot short (the
+      // database refuses live spike fade agents); any short or cover is skipped here too.
+      const fills = [...hour.trades]
+        .filter((fill): fill is typeof fill & { side: "buy" | "sell" } => fill.side === "buy" || fill.side === "sell")
+        .sort((a, b) => (a.side === b.side ? 0 : a.side === "sell" ? -1 : 1));
       for (const fill of fills) {
         const outcome = await executeFill(db, agent, wallet, contextFor(wallet), tokenOf, settings, hour.ts, fill, own);
         result.orders.push({ agentId: agent.id, token: tokenOf.get(fill.token_address)?.symbol ?? fill.token_address, side: fill.side, ...outcome });

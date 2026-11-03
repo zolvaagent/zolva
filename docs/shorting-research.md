@@ -125,3 +125,17 @@ Spike fade stayed positive in every piece at perps-like cost (0.1%), worst drop 
 but opened only 9 shorts in 45 days. Consistent so far, still a small sample. Longer
 history (Ethereum or Arbitrum Chainlink feeds) needs those networks enabled in Alchemy;
 CoinGecko's free hourly data covers only 90 days.
+
+## Built: spike fade, paper only (2026-11-03)
+
+Preset `spike_fade` in `lib/engine` and `prototype/engine.js` (parity and behaviour
+tests): short the market with the highest z score above 2.5, one position at a time,
+cover at z -0.5 or lower, stop when the price rises `stopLossPct` above entry. A short is
+a position with side `short` (quantity = borrowed tokens sold, entry = sale price), worth
+quantity x (2 x entry - price). Trades `short` and `cover`. Shorts pay 10% a year borrow
+(`SHORT_BORROW_APR`) hourly, plus the usual 0.5% per trade.
+
+Migration `20261103000200_spike_fade_shorts.sql`: `positions.side`, trade sides, the
+strategy, and `agents_live_no_shorts` (live agents can never use it; the live runner also
+skips any short or cover). Paper agent "Lab · Crypto Spike Fade" on ETH and BTC, 100%,
+stop 10%. Not in Studio.
