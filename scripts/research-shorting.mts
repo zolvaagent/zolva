@@ -14,7 +14,7 @@
  * Every position: one slot of the agent, a 10% stop loss (for a short: price 10% above
  * entry), the cost per trade on open and close, and a borrow rate on shorts.
  *
- *   RESEARCH_COST=0.003 BORROW_APR=0.10 [SHORT_MARKETS=ETH,BTC] node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/research-shorting.mts
+ *   RESEARCH_COST=0.003 BORROW_APR=0.10 [SHORT_MARKETS=ETH,BTC] [WINDOWS=45:0,15:0] node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/research-shorting.mts
  */
 import { readFileSync } from "node:fs";
 
@@ -146,11 +146,17 @@ async function main() {
   console.log("history:", [...candles].map(([symbol, rows]) => `${symbol} ${Math.round(rows.length / 24)}d`).join(", "));
   const latest = Math.max(...[...candles.values()].map((rows) => rows[rows.length - 1]?.time ?? 0));
 
-  const windows = [
-    { label: "last 30d", endDaysAgo: 0, days: 30 },
-    { label: "30d before", endDaysAgo: 30, days: 30 },
-    { label: "last 60d", endDaysAgo: 0, days: 60 },
-  ];
+  // WINDOWS="45:0,15:0,15:15,15:30" sets windows as days:endDaysAgo pairs.
+  const windows = process.env.WINDOWS
+    ? process.env.WINDOWS.split(",").map((pair) => {
+        const [days, endDaysAgo] = pair.split(":").map(Number);
+        return { label: `${days}d ending ${endDaysAgo}d ago`, endDaysAgo, days };
+      })
+    : [
+        { label: "last 30d", endDaysAgo: 0, days: 30 },
+        { label: "30d before", endDaysAgo: 30, days: 30 },
+        { label: "last 60d", endDaysAgo: 0, days: 60 },
+      ];
   for (const window of windows) {
     const toTime = latest - window.endDaysAgo * 24 * HOUR_SECONDS;
     const fromTime = toTime - (window.days * 24 + WARMUP_HOURS - 1) * HOUR_SECONDS;
