@@ -5,7 +5,7 @@ import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { WalletExport } from "@/components/app/WalletExport";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { Decision } from "@/lib/engine/engine";
-import { dateAt, percent, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
+import { dateAt, marketList, percent, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
 import { formatCredits } from "@/lib/ai/models";
 import { EXPLORER_URL } from "@/lib/chain";
 import { X_HANDLE, X_URL } from "@/lib/social";
@@ -118,7 +118,7 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
                   <div>
                     <h3 className="card__title">{agent.name}</h3>
                     <p className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
-                      {STRATEGY_NAMES[agent.strategy]} · {agent.tokens.map((token) => token.symbol).join(", ")}
+                      {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
                     </p>
                   </div>
                   {curve.length > 1 ? (
@@ -260,7 +260,7 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <strong>{agent.name}</strong>
                   <span className="muted" style={{ display: "block", fontSize: 12, lineHeight: "16px" }}>
-                    {agent.tokens.map((token) => token.symbol).join(", ")}
+                    {marketList(agent.tokens.map((token) => token.symbol))}
                   </span>
                 </span>
                 <span className={tone(agent.returnPct)} style={{ fontWeight: 500 }}>

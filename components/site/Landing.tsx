@@ -8,7 +8,7 @@ import type { AgentSummary, DecisionEvent } from "@/lib/data/agents";
 import type { Market } from "@/lib/data/market";
 import type { Backtest } from "@/lib/data/showcase";
 import type { Decision } from "@/lib/engine/engine";
-import { dateAt, dayAt, percent, points, price, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
+import { dateAt, dayAt, marketList, percent, points, price, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
 
 type Props = {
   market: Market;
@@ -560,7 +560,7 @@ function Browser({ agents }: { agents: AgentSummary[] }) {
                         <TickerAvatar symbol={agent.tokens[0]?.symbol ?? "?"} />
                         <span>
                           {agent.name}
-                          <span className="sub">{agent.tokens.map((token) => token.symbol).join(", ")}</span>
+                          <span className="sub">{marketList(agent.tokens.map((token) => token.symbol))}</span>
                         </span>
                       </span>
                     </td>
@@ -711,7 +711,9 @@ export function LeaderTable({ agents }: { agents: AgentSummary[] }) {
                 )}
               </td>
               <td className="muted only-desktop">{STRATEGY_NAMES[agent.strategy]}</td>
-              <td className="muted">{agent.tokens.map((token) => token.symbol).join(", ")}</td>
+              <td className="muted" title={agent.tokens.map((token) => token.symbol).join(", ")}>
+                {marketList(agent.tokens.map((token) => token.symbol))}
+              </td>
               <td className={`num ${tone(agent.returnPct)}`}>{percent(agent.returnPct)}</td>
               <td className={`num only-desktop ${tone(agent.edge)}`}>{points(agent.edge)}</td>
             </tr>

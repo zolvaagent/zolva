@@ -21,6 +21,7 @@ import {
   dateAt,
   dayAt,
   isMarketHours,
+  marketList,
   percent,
   points,
   price,
@@ -291,7 +292,7 @@ export function AgentView({
           )}
           <span>{STRATEGY_NAMES[agent.strategy]}</span>
           <span aria-hidden="true">·</span>
-          <span>{summary.tokens.map((token) => token.symbol).join(", ")}</span>
+          <span title={summary.tokens.map((token) => token.symbol).join(", ")}>{marketList(summary.tokens.map((token) => token.symbol))}</span>
           <span aria-hidden="true">·</span>
           <span>
             {agent.status === "active"

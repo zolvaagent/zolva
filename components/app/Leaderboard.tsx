@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import type { AgentSummary } from "@/lib/data/agents";
-import { percent, points, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
+import { marketList, percent, points, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const SORTS = [
   ["return", "Highest return"],
@@ -108,7 +108,9 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                         </div>
                       </td>
                       <td>{STRATEGY_NAMES[agent.strategy]}</td>
-                      <td className="muted">{agent.tokens.map((token) => token.symbol).join(", ")}</td>
+                      <td className="muted" title={agent.tokens.map((token) => token.symbol).join(", ")}>
+                        {marketList(agent.tokens.map((token) => token.symbol))}
+                      </td>
                       <td className={`num ${tone(agent.returnPct)}`}>{percent(agent.returnPct)}</td>
                       <td className={`num ${tone(agent.edge)}`}>{points(agent.edge)}</td>
                       <td className="num">{percent(-agent.maxDrawdownPct)}</td>
@@ -127,7 +129,7 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                 <span>
                   <strong>{agent.name}</strong>
                   <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-                    {STRATEGY_NAMES[agent.strategy]} · {agent.tokens.map((token) => token.symbol).join(", ")}
+                    {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
                   </div>
                 </span>
                 <span style={{ textAlign: "right" }}>
