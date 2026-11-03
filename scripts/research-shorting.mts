@@ -14,7 +14,7 @@
  * Every position: one slot of the agent, a 10% stop loss (for a short: price 10% above
  * entry), the cost per trade on open and close, and a borrow rate on shorts.
  *
- *   RESEARCH_COST=0.003 BORROW_APR=0.10 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/research-shorting.mts
+ *   RESEARCH_COST=0.003 BORROW_APR=0.10 [SHORT_MARKETS=ETH,BTC] node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/research-shorting.mts
  */
 import { readFileSync } from "node:fs";
 
@@ -27,8 +27,8 @@ const COST_RATE = Number(process.env.RESEARCH_COST ?? 0.005);
 /** Yearly borrow rate on shorts; Morpho's rates were near 0% on 2026-11-03, 10% is a cautious default. */
 const BORROW_APR = Number(process.env.BORROW_APR ?? 0.1);
 const STOP = 0.1;
-/** Borrowable on Morpho with real liquidity (docs/shorting-research.md). */
-const SHORTABLE = ["NVDA", "SPY", "SPCX", "MSTR", "QQQ", "TSLA", "GME", "PLTR"];
+/** Borrowable on Morpho with real liquidity (docs/shorting-research.md); SHORT_MARKETS=ETH,BTC tests others. */
+const SHORTABLE = process.env.SHORT_MARKETS?.split(",") ?? ["NVDA", "SPY", "SPCX", "MSTR", "QQQ", "TSLA", "GME", "PLTR"];
 
 type Side = "long" | "short";
 type Position = { side: Side; quantity: number; entry: number };

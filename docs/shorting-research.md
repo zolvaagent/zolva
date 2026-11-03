@@ -87,3 +87,25 @@ prices rose. These markets reverse fast: by the time a fall is clear enough to s
 bounce is near, which is why buying dips (the dip hunter) worked better than shorting.
 Not building shorting now; re-test when there is more history or a market that trends
 down for weeks.
+
+## Crypto (2026-11-03)
+
+**Where:** on chain, almost nowhere. Morpho lends only about $50 to $60 of WETH (against
+USDG or vault shares) and no BTC. Crypto shorts would have to go through perps (Lighter,
+Arcus), off the executor's path.
+
+**Backtest** (`SHORT_MARKETS=ETH,BTC`; BTC has 52 days of history, so the older windows
+are ETH only), 10% a year borrow or funding, 10% stop:
+
+| Window | Holding | Trend short | Spike fade | Dip long + spike fade short |
+|---|---|---|---|---|
+| Last 30d, 0.1% cost | -13.2% | -5.3% | **+3.3%** | -1.1% |
+| 30d before, 0.1% | +7.3% | -2.6% | **+10.9%** | +8.7% |
+| Last 60d, 0.1% | -10.4% | -7.8% | **+14.2%** | +7.7% |
+| Last 30d, 0.3% cost | -13.4% | -7.5% | +1.3% | -3.1% |
+| 30d before, 0.3% | +7.1% | -3.4% | +7.9% | +6.1% |
+| Last 60d, 0.3% | -10.5% | -10.7% | +9.4% | +3.3% |
+
+**Spike fade on crypto was positive in every window**, falling or rising, unlike on
+stocks. But it rests on 5 to 11 shorts per window, mostly ETH alone: too few to trust.
+Trend shorts lost here too.
