@@ -14,7 +14,7 @@ export const HOUSE_WALLET = "0x5174000000000000000000000000000000000000";
  * Owners of the "Zolva Lab" research agents. Like HOUSE_WALLET, nobody can
  * sign for them. Several owners because every owner may run at most 5 agents.
  */
-export const LAB_WALLETS = ["0x5174000000000000000000000000000000000001", "0x5174000000000000000000000000000000000002", "0x5174000000000000000000000000000000000003"] as const;
+export const LAB_WALLETS = ["0x5174000000000000000000000000000000000001", "0x5174000000000000000000000000000000000002", "0x5174000000000000000000000000000000000003", "0x5174000000000000000000000000000000000004"] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
 
@@ -95,7 +95,8 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
   { owner: LAB_WALLETS[2], name: "Lab · Crypto RSI Dip", strategy: "custom", rules: RSI_DIP, symbols: ["ETH", "BTC"], maxPositionPct: 50, stopLossPct: 10 },
   { owner: LAB_WALLETS[2], name: "Lab · Crypto Trend Filter", strategy: "custom", rules: TREND_FILTER, symbols: ["ETH", "BTC"], maxPositionPct: 50, stopLossPct: 10 },
   {
-    owner: LAB_WALLETS[2],
+    // Own owner: each owner may run at most 5 active paper agents.
+    owner: LAB_WALLETS[3],
     name: "Lab · Dip Hunter",
     strategy: "dip_hunter",
     symbols: ["AAPL", "AMZN", "BTC", "CRCL", "ETH", "GLD", "GME", "GOOGL", "MU", "NVDA", "QQQ", "RDDT", "SPCX", "USO"],
