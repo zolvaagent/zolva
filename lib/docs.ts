@@ -56,6 +56,12 @@ export const DOC_PAGES: DocPage[] = [
     group: "Results",
   },
   {
+    slug: "public-api",
+    title: "Public API",
+    description: "Read Zolva's published agents, their decisions, the markets and recent trades as JSON, with no key needed.",
+    group: "Developers",
+  },
+  {
     slug: "guardrails",
     title: "Guardrails",
     description: "Every limit that keeps an agent in check, what pausing does, and what is coming next.",
