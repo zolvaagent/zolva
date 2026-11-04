@@ -64,6 +64,20 @@ function render(target, options) {
   console.log(`wrote ${target}`);
 }
 
+// VARIANT=g2 renders the G2 "ink glow" alternative into assets/brand/logo-v2/g2 only, for
+// comparison; the site keeps G1.
+if (process.env.VARIANT === "g2") {
+  const G2 = "radial-gradient(90% 90% at 85% 100%, #8075ff 0%, rgba(128,117,255,0) 70%), radial-gradient(60% 60% at 0% 0%, rgba(152,150,255,0.35) 0%, rgba(152,150,255,0) 70%), #18161f";
+  mkdirSync(new URL("g2/", logoDir), { recursive: true });
+  render("assets/brand/logo-v2/g2/zolva-mark-g2.png", { size: 512, path: full, rounded: true, background: G2 });
+  render("assets/brand/logo-v2/g2/zolva-mark-small-g2.png", { size: 128, path: full, rounded: true, background: G2 });
+  render("assets/brand/logo-v2/g2/favicon-48-g2.png", { size: 48, path: small, rounded: true, background: G2 });
+  render("assets/brand/logo-v2/g2/x-avatar-400-g2.png", { size: 400, path: full, rounded: false, fill: 0.56, background: G2 });
+  render("assets/brand/logo-v2/g2/token-1000-g2.png", { size: 1000, path: full, rounded: false, fill: 0.6, background: G2 });
+  rmSync(work, { recursive: true, force: true });
+  process.exit(0);
+}
+
 render("public/img/brand/zolva-mark.png", { size: 512, path: full, rounded: true });
 render("public/img/brand/zolva-mark-small.png", { size: 128, path: full, rounded: true });
 render("public/img/brand/favicon-48.png", { size: 48, path: small, rounded: true });

@@ -14,8 +14,11 @@ const inter = Inter({ variable: "--font-inter", subsets: ["latin"], axes: ["opsz
 export const metadata: Metadata = {
   // Absolute URLs in share cards point at the main domain.
   metadataBase: new URL("https://zolvaagent.app"),
-  title: { default: "Zolva", template: "%s · Zolva" },
-  description: "Build a trading agent for tokenized US stocks on Robinhood Chain. See how it would have traded the last 30 days before you launch it.",
+  // The home tab reads "Zolva | <slogan>"; other pages stay "<page> · Zolva".
+  title: { default: "Zolva | Trading agents that show their work", template: "%s · Zolva" },
+  description:
+    "Build a trading agent in plain words. It trades stock tokens, ETH and BTC on Robinhood Chain and explains every decision. Paper trading, no code.",
+  applicationName: "Zolva",
   icons: {
     // Logo set from scripts/render-brand.mjs; the SVG stays sharp at every tab size.
     icon: [
@@ -25,7 +28,22 @@ export const metadata: Metadata = {
     ],
     apple: "/img/brand/apple-touch-icon.png",
   },
-  openGraph: { title: "Zolva", description: "No code trading agents for tokenized US stocks on Robinhood Chain." },
+  // Share card: public/og.png, rendered from assets/brand/og-image.html.
+  openGraph: {
+    type: "website",
+    siteName: "Zolva",
+    url: "/",
+    title: "Zolva | Trading agents that show their work",
+    description: "No code trading agents for stock tokens, ETH and BTC on Robinhood Chain. Every decision explained.",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Zolva: trading agents that show their work" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@zolva_agent",
+    title: "Zolva | Trading agents that show their work",
+    description: "No code trading agents for stock tokens, ETH and BTC on Robinhood Chain. Every decision explained.",
+    images: ["/og.png"],
+  },
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
