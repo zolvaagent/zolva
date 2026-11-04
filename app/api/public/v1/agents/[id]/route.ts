@@ -1,9 +1,7 @@
 import type { NextRequest } from "next/server";
 
-import { getAgentDetail } from "@/lib/data/agents";
-import { isPublicAgent, publicAgentDetail } from "@/lib/public-api/format";
+import { agentBody, TTL } from "@/lib/public-api/data";
 import { publicGet, publicOptions } from "@/lib/public-api/http";
-import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +12,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return publicGet(request, 300, async () => {
-    const detail = await getAgentDetail(db(), id.toLowerCase());
-    return detail && isPublicAgent(detail) ? publicAgentDetail(detail, Date.now() / 1000) : null;
-  });
+  return publicGet(request, TTL.agents, () => agentBody(id));
 }
 
 export const OPTIONS = publicOptions;

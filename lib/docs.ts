@@ -62,6 +62,12 @@ export const DOC_PAGES: DocPage[] = [
     group: "Developers",
   },
   {
+    slug: "mcp",
+    title: "MCP server",
+    description: "Connect Claude, Cursor or any MCP client to Zolva and ask about agents, decisions and markets in plain words.",
+    group: "Developers",
+  },
+  {
     slug: "token",
     title: "ZOLVA token",
     description: "What holding ZOLVA unlocks: free hourly AI reviews and higher limits, with nothing to stake or lock.",
