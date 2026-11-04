@@ -17,7 +17,9 @@ export const metadata: Metadata = {
   title: { default: "Zolva", template: "%s · Zolva" },
   description: "Build a trading agent for tokenized US stocks on Robinhood Chain. See how it would have traded the last 30 days before you launch it.",
   icons: {
+    // Logo set from scripts/render-brand.mjs; the SVG stays sharp at every tab size.
     icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/img/brand/favicon-48.png", sizes: "48x48", type: "image/png" },
       { url: "/img/brand/zolva-mark.png", sizes: "512x512", type: "image/png" },
     ],
