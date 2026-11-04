@@ -7,7 +7,7 @@
 //
 // Writes:
 //   public/img/brand/zolva-mark.png        512, rounded tile, full logo (48px and up)
-//   public/img/brand/zolva-mark-small.png  128, rounded tile, S1 without the triangle (16 to 32px)
+//   public/img/brand/zolva-mark-small.png  128, rounded tile, full logo (site header and badges, 24 to 32px)
 //   public/img/brand/favicon-48.png        48, S1
 //   public/img/brand/apple-touch-icon.png  180, square (iOS rounds it), full logo
 //   public/icon.svg                        vector favicon, S1
@@ -65,7 +65,7 @@ function render(target, options) {
 }
 
 render("public/img/brand/zolva-mark.png", { size: 512, path: full, rounded: true });
-render("public/img/brand/zolva-mark-small.png", { size: 128, path: small, rounded: true });
+render("public/img/brand/zolva-mark-small.png", { size: 128, path: full, rounded: true });
 render("public/img/brand/favicon-48.png", { size: 48, path: small, rounded: true });
 render("public/img/brand/apple-touch-icon.png", { size: 180, path: full, rounded: false });
 render("assets/brand/logo-v2/x-avatar-400.png", { size: 400, path: full, rounded: false, fill: 0.56 });
