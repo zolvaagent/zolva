@@ -120,7 +120,8 @@ export default function PublicApi() {
       <H2 id="limits">Limits and caching</H2>
       <ul>
         <li>
-          <strong>60 requests a minute per IP.</strong> Above that you get <code>429</code> with a <code>Retry-After</code> header.
+          <strong>About 60 requests a minute per IP.</strong> Above that you may get <code>429</code> with a <code>Retry-After</code> header. The count is approximate, so do not rely on
+          going over it.
         </li>
         <li>
           <strong>Responses are cached:</strong> markets and activity for 60 seconds, agents for 5 minutes (see the <code>Cache-Control</code> header). Asking more often returns the same answer, so
