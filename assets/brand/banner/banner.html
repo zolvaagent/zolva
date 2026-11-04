@@ -1,0 +1,64 @@
+<!doctype html>
+<!--
+  X header (1500 x 500), 2026-11-04. Background: banner-bg-ribbons.png (gpt-image-2,
+  assets/banner-prompts.json). Mockup: real screenshots of zolvaagent.app (dark theme,
+  Nov 4): the Lab · Trio Mean Reversion agent page and the leaderboard. The decision card
+  quotes that agent's real TSLA buy (Nov 4, 00:00 UTC).
+  Safe zones: the avatar covers the bottom left on desktop; phones crop the sides.
+  Render: headless Edge, window 1500,500, screenshot to x-header-1500x500.png.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@500&display=block" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1500px; height: 500px; overflow: hidden; }
+      body { position: relative; background: #0e0b24 url("banner-bg-ribbons.png") center 58% / 1500px auto no-repeat; color: #f6f7f4; font-family: Inter, system-ui, sans-serif; }
+      /* Keep the text side calm. */
+      .shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(10, 8, 28, 0.9) 0%, rgba(10, 8, 28, 0.55) 38%, rgba(10, 8, 28, 0) 62%); }
+
+      .copy { position: absolute; left: 96px; top: 40px; width: 640px; }
+      .eyebrow { display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px 6px 8px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 999px; background: rgba(255, 255, 255, 0.06); font-size: 15px; font-weight: 500; color: rgba(246, 247, 244, 0.8); }
+      .eyebrow img { width: 26px; height: 26px; }
+      .eyebrow .dot { width: 7px; height: 7px; border-radius: 99px; background: #2fd27a; box-shadow: 0 0 0 4px rgba(47, 210, 122, 0.18); }
+      h1 { margin-top: 20px; font-size: 58px; font-weight: 700; line-height: 1; letter-spacing: -0.045em; }
+      h1 em { font-style: normal; color: transparent; background: linear-gradient(120deg, #e5e5ff, #9896ff 55%, #d0ceff); -webkit-background-clip: text; background-clip: text; }
+      .lead { margin-top: 18px; font-size: 20px; line-height: 29px; color: rgba(246, 247, 244, 0.72); }
+      .chips { margin-top: 22px; display: flex; gap: 8px; }
+      .chips span { padding: 6px 13px; border-radius: 999px; background: rgba(152, 150, 255, 0.14); border: 1px solid rgba(152, 150, 255, 0.3); font-size: 14px; font-weight: 500; color: #d0ceff; }
+
+      /* App mockup: two windows, tilted, the agent page in front. */
+      .stage { position: absolute; left: 790px; top: 40px; width: 760px; height: 440px; perspective: 1600px; }
+      .win { position: absolute; border-radius: 14px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.14); background: #121116; box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(152, 150, 255, 0.12); }
+      .win .bar { display: flex; gap: 6px; padding: 9px 12px; background: #1b1922; }
+      .win .bar span { width: 8px; height: 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.2); }
+      .win img { display: block; width: 100%; }
+      .w-back { left: 170px; top: 10px; width: 560px; transform: rotateY(-16deg) rotateX(4deg); opacity: 0.75; }
+      .w-front { left: 20px; top: 60px; width: 600px; transform: rotateY(-12deg) rotateX(3deg); }
+      .decision { position: absolute; left: -40px; top: 262px; width: 372px; padding: 16px 18px; border-radius: 16px; background: rgba(27, 25, 34, 0.96); border: 1px solid rgba(152, 150, 255, 0.45); box-shadow: 0 24px 50px -16px rgba(0, 0, 0, 0.75), 0 0 40px -10px rgba(128, 117, 255, 0.6); }
+      .decision .row { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+      .decision .buy { padding: 3px 10px; border-radius: 99px; background: rgba(47, 210, 122, 0.16); color: #2fd27a; font-size: 13px; }
+      .decision p { margin-top: 8px; font-family: "Geist Mono", monospace; font-size: 13.5px; line-height: 20px; color: rgba(246, 247, 244, 0.78); }
+      .decision .who { margin-top: 8px; font-size: 12.5px; color: #9896ff; }
+    </style>
+  </head>
+  <body>
+    <div class="shade"></div>
+    <div class="copy">
+      <span class="eyebrow"><img src="../../../public/img/brand/zolva-mark.png" alt="" /><span class="dot"></span>Live on Robinhood Chain</span>
+      <h1>Trading agents that<br /><em>show their work.</em></h1>
+      <p class="lead">Build one in plain words. Every decision explained.</p>
+      <p class="chips"><span>Stock tokens</span><span>ETH · BTC</span><span>No code</span><span>Public API</span></p>
+    </div>
+    <div class="stage">
+      <div class="win w-back"><div class="bar"><span></span><span></span><span></span></div><img src="shot-leaderboard.png" alt="" /></div>
+      <div class="win w-front"><div class="bar"><span></span><span></span><span></span></div><img src="shot-agent.png" alt="" /></div>
+      <div class="decision">
+        <div class="row"><span class="buy">BUY</span>TSLA</div>
+        <p>"Price is unusually far below its 48h average (z -2.90). Buying the dip."</p>
+        <p class="who">Lab · Trio Mean Reversion · 00:00 UTC</p>
+      </div>
+    </div>
+  </body>
+</html>
