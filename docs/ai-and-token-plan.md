@@ -243,3 +243,74 @@ Order: contracts and tests (Foundry, ask before installing) -> Pons testnet -> a
 
 Shown as "Coming soon" on the landing page (What's next) and as a "Launch token (Soon)" button on
 the owner's agent page.
+
+## 11. Zolva token utility: proposal (2026-11-04)
+
+Until now the plan covered where token fees flow (creator fees to Zolva, 10% of agent token
+fees buy and burn ZOLVA) but not what holding or spending ZOLVA does. Reference:
+[Oreno's $ORENO](https://docs.useoreno.com/token), live on Robinhood Chain: holder tiers read
+from the chain (5M and 10M tokens raise agent message and paper run limits), nothing to stake;
+buyback, paying credits in the token and creator staking are announced but not live. Its page
+disclaims ownership, dividends and any claim on revenue.
+
+**Angle: ZOLVA is fuel for agents.** Every AI co-pilot review costs real money, and "fuel" is
+already how the launchpad pays for an agent's AI (section 10). The token plugs into that cost,
+not into message quotas.
+
+### Utilities, in build order
+
+1. **Holder tiers, no staking.** The balance of the user's verified wallets is read from the
+   chain; nothing is locked or moved.
+
+   | | Free | Holder | Pro |
+   |---|---|---|---|
+   | Holds | nothing | ZOLVA worth $25+ | ZOLVA worth $150+ |
+   | Agents with free hourly AI reviews (Lite) | 0 (welcome $0.50 only) | 1 | 3 |
+   | Active paper agents | 5 | 10 | 20 |
+   | Strategy writer tries a day | 10 | 20 | 50 |
+   | Public API | base limits | 2x | 5x and longer history |
+
+   Free AI reviews cost Zolva about $0.36 a month per agent (Claude Haiku 5.5, hourly, section
+   3): $0.36 per Holder, $1.08 per Pro. They still count against the global daily AI budget
+   (`AI_DAILY_BUDGET_USD`), so a rush of holders cannot run up an open-ended bill.
+
+2. **Pay AI credits in ZOLVA, burned.** Self-serve top-up is not built yet (USDG first). Paying in
+   ZOLVA gets 10% more credits than the same value in USDG, and the ZOLVA paid is sent to the
+   burn address. The token is used up because people use the co-pilot.
+
+3. **Agent tokens burn ZOLVA.** Already designed (section 10): 10% of every agent token's fees
+   buy and burn ZOLVA, enforced by `ZolvaBurner`. Starts with the launchpad.
+
+4. **Public API quota.** Higher limits and more history for holders (tier table above), once the
+   public API ships.
+
+5. **Stake to publish (later).** A small ZOLVA stake to put an agent on the leaderboard, lost for
+   spam or impersonation. No yield.
+
+### How tiers work
+
+- Wallet verification: email and Google accounts already have a Privy wallet; extra wallets sign
+  a message (no transaction, no gas). Balances of all verified wallets are added up; one wallet
+  belongs to one account.
+- Balance read at most every 10 minutes and on "Refresh"; if the chain cannot be read, the free
+  tier applies.
+- Thresholds in dollars, not token counts, because the price is unknown before launch. Value at
+  the 7 day average price from the ZOLVA pool, so a one-day swing does not drop a tier; a 3 day
+  grace period before a lower tier applies.
+- ZOLVA is never part of an agent's markets, backtests or results.
+
+### Can the fees carry it?
+
+Pons charges 1% per trade and the creator keeps about 70% (section 4), so each $1 of ZOLVA
+volume gives Zolva about $0.007. Free reviews for 1,000 Pro holders ($1,080 a month) need about
+$154,000 of monthly ZOLVA volume; 1,000 Holders ($360) about $51,000. Below that, tiers are paid
+from Zolva's own budget, which the daily AI cap limits.
+
+### Never
+
+- Revenue share, dividends or staking yield.
+- Any link between the token and agents' trading profits (the agents trade tokenized US stocks).
+- Real money trading access or trading signals sold as a token benefit.
+- Token page wording: utility only, no claim on revenue, can lose all value, not for US persons.
+
+Legal review before launch, as in section 6.

@@ -38,6 +38,7 @@ Everything still open, in priority order. Details are in the sections below.
 
 **Token and launchpad**
 - [ ] Zolva token on Pons: ticker, then CA, Dex link and burn tx in the drafts, and the launch video
+- [ ] Token utility (proposal 2026-11-04, docs/ai-and-token-plan.md section 11): "fuel for agents": holder tiers with free hourly AI reviews ($25 / $150 worth, no staking), AI credits paid in ZOLVA and burned, launchpad burn, API quota. Needs the user's go and a legal review
 - [ ] Launchpad contracts with Foundry tests (needs OK to install Foundry), then an audit
 
 **Real money trading** (Phase 3 below)
