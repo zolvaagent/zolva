@@ -11,8 +11,6 @@ import { formatCredits } from "@/lib/ai/models";
 import { EXPLORER_URL } from "@/lib/chain";
 import { X_HANDLE, X_URL } from "@/lib/social";
 
-const MAX_ACTIVE = 5;
-
 type Props = {
   /** AI co-pilot credits, USD. */
   credits: { freeUsd: number; paidUsd: number };
@@ -25,6 +23,8 @@ type Props = {
   loginMethod: "privy" | "wallet" | null;
   /** Zolva has a live trading signer on this wallet. */
   liveSigner: boolean;
+  /** Running agents allowed at once: 5, or more for ZOLVA holders (lib/tiers.ts). */
+  maxActive: number;
 };
 
 function greeting() {
@@ -32,7 +32,7 @@ function greeting() {
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Dashboard({ address, agents, curves, latest, top, credits, loginMethod, liveSigner }: Props) {
+export function Dashboard({ address, agents, curves, latest, top, credits, loginMethod, liveSigner, maxActive }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
   const totalStart = agents.reduce((sum, agent) => sum + agent.startCapital, 0);
   const totalNow = agents.reduce((sum, agent) => sum + agent.equity, 0);
@@ -66,7 +66,7 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
           <span className="dash-stat__value">
             {active.length}{" "}
             <span className="muted" style={{ fontSize: 18, fontWeight: 450 }}>
-              of {MAX_ACTIVE}
+              of {maxActive}
             </span>
           </span>
           <span className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
