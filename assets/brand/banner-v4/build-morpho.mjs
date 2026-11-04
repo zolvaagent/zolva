@@ -34,6 +34,16 @@ const pages = {
       </style>${blobs}
       <div class="lock"><span class="m">${mark}</span><span>Zolva</span></div>`,
   },
+  // The same header with the mark alone, no wordmark.
+  "morpho-banner-mark": {
+    size: [1500, 500],
+    body: `
+      <style>${field}
+        .m { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); width: 72px; height: 72px; }
+        .m svg { width: 100%; height: 100%; display: block; }
+      </style>${blobs}
+      <span class="m">${mark}</span>`,
+  },
   "morpho-p18": {
     size: [1600, 900],
     body: `
