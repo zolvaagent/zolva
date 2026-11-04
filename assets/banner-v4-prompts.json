@@ -1,0 +1,16 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "low",
+    "background": "opaque",
+    "aspect_ratio": "3:2",
+    "output_format": "png"
+  },
+  "style": "Wide background art for the X (Twitter) header of Zolva, an app for automated trading agents. No text, no letters, no numbers, no logos, no people.",
+  "icons": {
+    "v4-stickers": "Playful flat sticker illustration on a solid charcoal #1d1b22 background, in the style of a modern crypto wallet brand: a few big bold stickers with thick clean shapes, slightly tilted: a lavender #9896ff coin with a small rising candlestick chart, a yellow #ffc42c coin, a mint green diamond shape, a friendly small rounded robot head with a dark visor, a curved arrow path with circles like a strategy play diagram, a few white four-point sparkles and a check mark badge. Flat colors with one soft highlight each, no gradients on the background. Stickers fill the right two thirds and bleed off the top and bottom edges; the left third stays empty charcoal.",
+    "v4-dotwave": "Minimal data art on a near black ink background #0d0b16: one long flowing 3D wave made of thousands of tiny round glowing dots in lavender #9896ff and soft violet, like a price chart turning into a particle field, rising and falling across the whole width, denser where it crests, with perspective so the dots get smaller into the distance. Lots of calm dark space. Elegant and quiet, like a high end trading platform.",
+    "v4-pixels": "Pure white background. Thousands of tiny square pixels in lavender #9896ff, violet #6a5ef5, deep ink #252228 and a few warm yellow #ffc42c, scattered like streaming data: dense clusters bursting from the left and right edges, thinning toward the center, with a few thin lines connecting points like a network. The center third is clean white."
+  },
+  "note": "X banner v4 explorations (2026-11-04), refs 2, 3 and 11, low quality. Run: PROMPTS=assets/banner-v4-prompts.json OUT_DIR=assets/brand/banner-v4 node scripts/generate-icons.mjs"
+}
