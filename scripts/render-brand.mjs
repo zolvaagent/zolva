@@ -64,6 +64,39 @@ function render(target, options) {
   console.log(`wrote ${target}`);
 }
 
+// VARIANT=marks renders the mark alone on a transparent background, 1024px, cropped with
+// a small margin, into assets/brand/logo-v2/marks: white, black, lavender, and one filled
+// with the G1 gradient (for light backgrounds).
+if (process.env.VARIANT === "marks") {
+  mkdirSync(new URL("marks/", logoDir), { recursive: true });
+  const fills = {
+    white: "#ffffff",
+    black: "#000000",
+    ink: "#252228",
+    lavender: "#9896ff",
+    gradient: "url(#g1)",
+  };
+  for (const [name, fill] of Object.entries(fills)) {
+    const html = join(work, "mark.html");
+    writeFileSync(
+      html,
+      `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:1024px;height:1024px;background:transparent;overflow:hidden}svg{width:1024px;height:1024px;display:block}</style></head><body>
+<svg viewBox="${viewBox}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#15103a"/><stop offset="0.5" stop-color="#2e2490"/><stop offset="1" stop-color="#6a5ef5"/></linearGradient></defs><path d="${full}" fill-rule="evenodd" fill="${fill}"/></svg></body></html>`,
+    );
+    const target = `assets/brand/logo-v2/marks/zolva-mark-${name}-1024.png`;
+    execFileSync(EDGE, ["--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=1", "--default-background-color=00000000", `--user-data-dir=${join(work, "profile")}`, "--window-size=1024,1024", `--screenshot=${fileURLToPath(new URL(target, root))}`, `file:///${html.replace(/\\/g, "/")}`], { stdio: "ignore" });
+    console.log(`wrote ${target}`);
+  }
+  // The same, as SVGs with the crop applied, for Figma, slides and the web.
+  for (const [name, fill] of Object.entries(fills)) {
+    const defs = name === "gradient" ? `<defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#15103a"/><stop offset="0.5" stop-color="#2e2490"/><stop offset="1" stop-color="#6a5ef5"/></linearGradient></defs>` : "";
+    writeFileSync(new URL(`marks/zolva-mark-${name}.svg`, logoDir), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${defs}<path d="${full}" fill-rule="evenodd" fill="${fill}"/></svg>\n`);
+  }
+  console.log("wrote the matching SVGs");
+  rmSync(work, { recursive: true, force: true });
+  process.exit(0);
+}
+
 // VARIANT=g2 renders the G2 "ink glow" alternative into assets/brand/logo-v2/g2 only, for
 // comparison; the site keeps G1.
 if (process.env.VARIANT === "g2") {
