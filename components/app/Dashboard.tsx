@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DecisionRow } from "@/components/app/AgentView";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
+import { MembershipCard } from "@/components/app/MembershipCard";
 import { WalletExport } from "@/components/app/WalletExport";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { Decision } from "@/lib/engine/engine";
@@ -227,6 +228,8 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
             </span>
             <i className="ph ph-arrow-up-right muted" aria-hidden="true" />
           </a>
+
+          <MembershipCard address={address} />
 
           <div className="card stack stack--tight">
             <div className="card-head" style={{ margin: 0 }}>

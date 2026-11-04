@@ -4,6 +4,7 @@ import { getAddress } from "viem";
 import { createSiweMessage } from "viem/siwe";
 
 import { ROBINHOOD_CHAIN_ID } from "@/lib/chain";
+import { linkWalletMessage } from "@/lib/tiers";
 
 type Eip1193Provider = {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
@@ -62,5 +63,32 @@ export async function signInWithWallet(): Promise<string> {
     // Code 4001: the user closed or rejected the wallet prompt.
     if ((cause as { code?: number }).code === 4001) throw new WalletError("");
     throw new WalletError("Sign in failed. Please try again.");
+  }
+}
+
+/**
+ * Lets the browser wallet's current account count its ZOLVA for the signed-in Zolva
+ * account (linkWalletMessage: free, no transaction). Resolves with the server's new
+ * membership state; throws WalletError like signInWithWallet.
+ */
+export async function linkExtraWallet<T>(account: string): Promise<T> {
+  const ethereum = window.ethereum;
+  if (!ethereum) throw new WalletError("No wallet found in this browser. Open Zolva in a browser with MetaMask, Rabby or Coinbase Wallet.");
+  try {
+    const [wallet] = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
+    const { nonce } = (await fetch("/api/auth/nonce").then((r) => r.json())) as { nonce: string };
+    const signature = await ethereum.request({ method: "personal_sign", params: [linkWalletMessage(wallet, account, nonce), wallet] });
+    const response = await fetch("/api/membership/wallets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, signature }),
+    });
+    const body = (await response.json().catch(() => ({}))) as T & { error?: string };
+    if (!response.ok) throw new WalletError(body.error ?? "Adding the wallet failed. Please try again.");
+    return body;
+  } catch (cause) {
+    if (cause instanceof WalletError) throw cause;
+    if ((cause as { code?: number }).code === 4001) throw new WalletError("");
+    throw new WalletError("Adding the wallet failed. Please try again.");
   }
 }

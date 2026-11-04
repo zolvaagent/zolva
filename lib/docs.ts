@@ -62,6 +62,12 @@ export const DOC_PAGES: DocPage[] = [
     group: "Developers",
   },
   {
+    slug: "token",
+    title: "ZOLVA token",
+    description: "What holding ZOLVA unlocks: free hourly AI reviews and higher limits, with nothing to stake or lock.",
+    group: "Token",
+  },
+  {
     slug: "guardrails",
     title: "Guardrails",
     description: "Every limit that keeps an agent in check, what pausing does, and what is coming next.",

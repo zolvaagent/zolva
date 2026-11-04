@@ -9,6 +9,11 @@ import { PROMPT_MAX_LENGTH } from "@/lib/ai/strategy-writer";
 import { parseRules, rulesLookback, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
 
+/** The active agent limit named in the database error (it follows the ZOLVA tier: 5, 10 or 20). */
+function activeLimitIn(message: string): string {
+  return /at most (\d+) active/.exec(message)?.[1] ?? "5";
+}
+
 export type CreateAgentInput = {
   name: unknown;
   strategy: unknown;
@@ -113,7 +118,7 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
 
   if (error) {
     if (error.message.includes("active_agent_limit")) {
-      throw new AgentInputError("You already run 5 agents, the most at once. Pause one in your dashboard to launch another.");
+      throw new AgentInputError(`You already run ${activeLimitIn(error.message)} agents, the most at once. Pause one in your dashboard to launch another.`);
     }
     throw new Error(`Saving the agent failed: ${error.message}`);
   }
@@ -163,7 +168,7 @@ export async function setAgentStatus(db: SupabaseClient, owner: string, id: stri
   }
   const { data, error } = await db.from("agents").update(changes).eq("id", id).eq("owner", owner).select("id");
   if (error) {
-    if (error.message.includes("active_agent_limit")) throw new AgentInputError("You can run up to 5 agents. Pause another one first.");
+    if (error.message.includes("active_agent_limit")) throw new AgentInputError(`You can run up to ${activeLimitIn(error.message)} agents. Pause another one first.`);
     throw new Error(`Updating the agent failed: ${error.message}`);
   }
   if (!data?.length) throw new AgentInputError("Agent not found.");

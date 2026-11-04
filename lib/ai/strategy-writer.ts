@@ -15,6 +15,7 @@ export const STRATEGY_WRITER_MODEL = "anthropic/claude-haiku-5.5";
 export const PROMPT_MIN_LENGTH = 10;
 export const PROMPT_MAX_LENGTH = 600;
 /** Strategy writer calls per account per 24 hours. */
+/** Tries per account per day on the Free tier; ZOLVA holders get more (lib/tiers.ts). */
 export const GENERATIONS_PER_DAY = 10;
 /** Rules JSON plus notes; larger than a co-pilot review. */
 export const WRITER_MAX_TOKENS = 1500;

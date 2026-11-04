@@ -8,6 +8,7 @@ import { aiModel, callCostUsd, isLite, maxCallCostUsd } from "@/lib/ai/models";
 import { chatJson } from "@/lib/ai/openrouter";
 import { env } from "@/lib/env";
 import { isMarketHours } from "@/lib/format";
+import { aiReviewCovered } from "@/lib/membership";
 
 const HOUR = 3600;
 const toMicro = (usd: number) => Math.round(usd * 1_000_000);
@@ -24,6 +25,9 @@ export type CopilotNote = { agentId: string; note: string };
  *
  * Only the newest hour is reviewed; catch-up hours after a missed tick run on
  * the rules alone, so an outage never turns into a burst of paid calls.
+ *
+ * ZOLVA holders' first agents on a Lite model are reviewed without credits
+ * (lib/tiers.ts); those reviews still count against the global daily AI budget.
  */
 export async function withCopilot(
   db: SupabaseClient,
@@ -47,11 +51,19 @@ export async function withCopilot(
   if (spentError) return { writes, note: `co-pilot skipped: ${spentError.message}` };
   if (Number(spent) + toMicro(maxCallCostUsd(model)) > toMicro(env.aiDailyBudgetUsd)) return { writes, note: "co-pilot skipped: daily AI budget reached" };
 
-  const { data: credits } = await db.from("ai_credits").select("free_micro, paid_micro").eq("owner", agent.owner).maybeSingle();
-  const free = Number(credits?.free_micro ?? 0);
-  const paid = Number(credits?.paid_micro ?? 0);
-  const usable = isLite(model.id) ? free + paid : paid;
-  if (usable < toMicro(maxCallCostUsd(model))) return { writes, note: "co-pilot skipped: not enough AI credits" };
+  const covered = isLite(model.id) && (await aiReviewCovered(db, agent.id, agent.owner));
+  if (!covered) {
+    const { data: credits } = await db.from("ai_credits").select("free_micro, paid_micro").eq("owner", agent.owner).maybeSingle();
+    const free = Number(credits?.free_micro ?? 0);
+    const paid = Number(credits?.paid_micro ?? 0);
+    const usable = isLite(model.id) ? free + paid : paid;
+    if (usable < toMicro(maxCallCostUsd(model))) return { writes, note: "co-pilot skipped: not enough AI credits" };
+  }
+  // Covered reviews record their cost but take no credits.
+  const settle = (status: string, input: number, output: number, costMicro: number, note: string | null) =>
+    covered
+      ? db.rpc("ai_settle_covered", { p_agent_id: agent.id, p_ts: last.ts, p_status: status, p_input: input, p_output: output, p_cost_micro: costMicro, p_note: note })
+      : db.rpc("ai_settle", { p_agent_id: agent.id, p_ts: last.ts, p_status: status, p_input: input, p_output: output, p_cost_micro: costMicro, p_lite: isLite(model.id), p_note: note });
 
   // Claims the hour and checks the owner's AI limit and its expiry in one database call.
   const { data: claim, error: claimError } = await db.rpc("ai_claim_review", {
@@ -111,22 +123,13 @@ export async function withCopilot(
     answer = await chatJson({ apiKey, model: model.id, system: SYSTEM_PROMPT, user: prompt, schema: REVIEW_SCHEMA });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
-    await db.rpc("ai_settle", { p_agent_id: agent.id, p_ts: last.ts, p_status: "failed", p_input: 0, p_output: 0, p_cost_micro: 0, p_lite: isLite(model.id), p_note: message.slice(0, 200) });
+    await settle("failed", 0, 0, 0, message.slice(0, 200));
     return { writes, note: `co-pilot failed, rules decided: ${message}` };
   }
 
   const costUsd = answer.costUsd ?? callCostUsd(model, answer.inputTokens, answer.outputTokens);
   const { reviews, valid } = parseReviews(answer.content, trades);
-  await db.rpc("ai_settle", {
-    p_agent_id: agent.id,
-    p_ts: last.ts,
-    p_status: valid ? "done" : "failed",
-    p_input: answer.inputTokens,
-    p_output: answer.outputTokens,
-    p_cost_micro: toMicro(costUsd),
-    p_lite: isLite(model.id),
-    p_note: valid ? null : "unreadable answer, rules decided",
-  });
+  await settle(valid ? "done" : "failed", answer.inputTokens, answer.outputTokens, toMicro(costUsd), valid ? null : "unreadable answer, rules decided");
   if (!valid) return { writes, note: "co-pilot answer unreadable, rules decided" };
 
   const veto = new Map(reviews.filter((review) => !review.approve).map((review) => [review.token, review.reasoning]));

@@ -26,3 +26,6 @@ PRIVY_APP_SECRET=
 OPENROUTER_API_KEY=
 # Most all AI reviews may cost per UTC day, in USD (default 5).
 AI_DAILY_BUDGET_USD=5
+# ZOLVA holder tiers (docs/ai-and-token-plan.md section 11). Blank = everyone on Free.
+ZOLVA_TOKEN_ADDRESS=
+ZOLVA_TOKEN_DECIMALS=18
