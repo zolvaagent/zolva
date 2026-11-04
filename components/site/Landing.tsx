@@ -18,8 +18,12 @@ type Props = {
 };
 
 const FAQ = [
-  ["Is real money involved?", "No. Every agent trades virtual dollars at real Robinhood Chain prices. Signing in costs no gas and never moves funds from your wallet."],
+  [
+    "Is real money involved?",
+    "Not yet for users. Every agent trades virtual dollars at real Robinhood Chain prices, and signing in never moves funds from your wallet. We are testing real money trading with our own wallet first.",
+  ],
   ["What are stock tokens?", "Tokens on Robinhood Chain that track the price of a US stock or ETF, such as NVDA or SPY. They trade around the clock, including weekends."],
+  ["Can agents trade crypto?", "Yes. ETH and BTC, priced every hour from their onchain pools and checked against Chainlink. Mix them with stocks in one agent."],
   ["How often does my agent trade?", "It checks prices at the top of every hour and only trades when its rules trigger. Many hours end in a hold, and that is normal."],
   ["Can I make my own strategy?", "Yes. Start from a template or a blank page, combine up to three rules to buy and three to sell, and add a take profit or a max holding time. No code."],
   ["Why compare with holding?", "Because it is the easiest alternative. If an agent cannot beat simply buying the same stocks and waiting, you should know before you trust it."],
@@ -34,6 +38,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
   const leaders = [...running].sort((a, b) => b.returnPct - a.returnPct);
   const decisionsExplained = agents.reduce((sum, agent) => sum + agent.runs * agent.tokens.length, 0);
   const lastTs = market.startTs + (market.hours - 1) * 3600;
+  const stockCount = market.tokens.filter((token) => token.assetClass !== "crypto").length;
 
   return (
     <>
@@ -45,9 +50,9 @@ export function Landing({ market, backtests, agents, feed }: Props) {
               Paper trading on Robinhood Chain
               <i className="ph ph-caret-right" />
             </Link>
-            <Words as="h1" className="hero__title" text="Trading agents for" highlight="every stock" />
+            <Words as="h1" className="hero__title" text="Trading agents for" highlight="stocks and crypto" />
             <p className="hero__lead reveal">
-              Build an agent for NVDA, Tesla or SPY in minutes. See how it would have traded the last 30 days before it touches a single virtual dollar.
+              Build an agent for NVDA, Tesla or ETH in minutes. See how it would have traded the last 30 days before it touches a single virtual dollar.
             </p>
             <div className="hero__actions reveal">
               <Link className="button button--primary button--large" href="/studio">
@@ -64,7 +69,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
 
       <div className="container">
         <section className="stats-band" aria-label="Zolva in numbers">
-          <Stat label="Stock tokens" value={String(market.tokens.length)} />
+          <Stat label="Markets" value={String(market.tokens.length)} />
           <Stat label="Agents running" value={String(running.length)} />
           <Stat label="Decisions explained" value={decisionsExplained.toLocaleString("en-US")} />
           <Stat label="Hours of real prices" value={market.hours.toLocaleString("en-US")} />
@@ -140,7 +145,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
               <span className="label">Markets</span>
               <Words className="section-heading__title" text="Every big name," highlight="around the clock." />
               <p className="section-heading__lead reveal">
-                {market.tokens.length} US stocks and ETFs as tokens on Robinhood Chain. They keep trading at night and on weekends, and so can your agent.
+                {stockCount} US stocks and ETFs, plus ETH and BTC, on Robinhood Chain. They keep trading at night and on weekends, and so can your agent.
               </p>
             </div>
           </div>
@@ -283,7 +288,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
           <div className="section-heading section-heading--center">
             <span className="label">Coming soon</span>
             <Words className="section-heading__title" text="What's" highlight="next." />
-            <p className="section-heading__lead reveal">Paper trading is live today. Three things are on the way, built with the same honesty.</p>
+            <p className="section-heading__lead reveal">Paper trading and crypto markets are live. Real money is in testing.</p>
           </div>
           <WhatsNext />
         </div>
@@ -805,7 +810,7 @@ function SoonBadge({ label = "Coming soon" }: { label?: string }) {
   );
 }
 
-/** Upcoming features, each with a small preview of how it will look. Crypto markets went live on 2026-10-24. */
+/** Upcoming features, each with a small preview of how it will look. Crypto markets went live on 2026-10-24; real money has been in testing with Zolva's own wallet since 2026-10-28. */
 function WhatsNext() {
   return (
     <div className="next-grid">
@@ -905,13 +910,13 @@ function WhatsNext() {
           </div>
         </div>
         <div className="next-card__body">
-          <SoonBadge />
+          <SoonBadge label="In testing" />
           <h3>Real money trading</h3>
           <p>Run your agent from your own wallet, with limits you set and a switch to stop it at any time. Paper trading stays free.</p>
         </div>
         <div className="next-card__foot">
           <i className="ph ph-hourglass-medium" />
-          Now: designing safety limits and a legal review
+          Now: live with our own wallet, first trades filled on chain
         </div>
       </article>
 
