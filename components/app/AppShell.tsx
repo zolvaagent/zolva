@@ -48,7 +48,7 @@ export function AppSidebar() {
   return (
     <aside className="app-side" aria-label="App">
       <Link className="brand" href="/">
-        <img className="brand__mark" src="/img/brand/zolva-mark.png" alt="" width={28} height={28} />
+        <img className="brand__mark" src="/img/brand/zolva-mark-small.png" alt="" width={28} height={28} />
         Zolva
       </Link>
       <nav className="app-side__nav">
@@ -108,7 +108,7 @@ export function AppTopbar() {
   return (
     <header className="app-topbar">
       <Link className="brand" href="/app">
-        <img className="brand__mark" src="/img/brand/zolva-mark.png" alt="" width={28} height={28} />
+        <img className="brand__mark" src="/img/brand/zolva-mark-small.png" alt="" width={28} height={28} />
         Zolva
       </Link>
       <span className="app-topbar__actions">
