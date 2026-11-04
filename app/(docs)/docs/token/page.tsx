@@ -4,6 +4,7 @@ import { Callout, DocsArticle, H2 } from "@/components/site/Docs";
 import { docPage } from "@/lib/docs";
 import { usd } from "@/lib/format";
 import { GRACE_DAYS, TIERS } from "@/lib/tiers";
+import { MAX_BURN_AGE_SECONDS, MIN_TOPUP_USD, ZOLVA_BONUS } from "@/lib/zolva-topup";
 
 const page = docPage("token");
 export const metadata: Metadata = { title: `${page.title} · Docs`, description: page.description };
@@ -72,9 +73,23 @@ export default function Token() {
         </li>
       </ul>
 
+      <H2 id="pay">Pay for AI credits with ZOLVA</H2>
+      <p>
+        On the Dashboard, the AI credits card has <strong>Pay with ZOLVA</strong>. Your wallet sends ZOLVA straight to the burn address, so it is gone for
+        good; Zolva never holds it. Zolva then checks the transaction on Robinhood Chain and adds paid credits.
+      </p>
+      <ul>
+        <li>You get {Math.round(ZOLVA_BONUS * 100)}% more credit than the same value in USDG.</li>
+        <li>The burn is valued at the latest hourly ZOLVA price or the 7 day average, whichever is lower.</li>
+        <li>
+          The smallest top-up is {usd(MIN_TOPUP_USD)}. A burn can be credited for {MAX_BURN_AGE_SECONDS / 3600} hours, once, to the account whose wallet
+          sent it.
+        </li>
+        <li>The transaction needs a little ETH on Robinhood Chain for gas.</li>
+      </ul>
+
       <H2 id="burn">Coming later</H2>
       <ul>
-        <li>Paying for AI credits with ZOLVA, with the ZOLVA paid sent to a burn address.</li>
         <li>Agent tokens: part of every agent token&apos;s trading fees buys ZOLVA and burns it, enforced by a contract.</li>
         <li>Higher Public API limits for holders.</li>
       </ul>

@@ -43,6 +43,7 @@ Everything still open, in priority order. Details are in the sections below.
 **Token and launchpad**
 - [ ] Zolva token on Pons: ticker, then CA, Dex link and burn tx in the drafts, and the launch video
 - [x] Token utility, ready before launch (2026-11-04): holder tiers in lib/tiers.ts (Free/Holder/Pro at $25/$150, 7 day average price, 3 day grace), lib/membership.ts (balances of the login wallet plus signed extra wallets, read every 10 min; hourly ZOLVA price from GeckoTerminal in the cron), tier limits on active agents (database), strategy writer tries and free hourly Lite AI reviews (ai_settle_covered), Dashboard "ZOLVA membership" card, /docs/token. Off until ZOLVA_TOKEN_ADDRESS is set
+- [x] Pay for AI credits with ZOLVA (2026-11-04): the wallet (browser wallet, or Privy for email/Google accounts, now configured for Robinhood Chain) sends ZOLVA to 0x…dEaD; /api/credits/zolva checks the receipt (success, under 24 h, from the account's wallets, Transfer to the burn address), values it at min(latest hourly, 7 day average) +10%, minimum $1, and ai_grant_zolva records it once per tx (zolva_topups, ledger kind zolva). Dashboard "Pay with ZOLVA" replaces "Top up · Soon" once ZOLVA is configured. Migration 20261104000200_zolva_topups.sql
 - [ ] At ZOLVA launch: put ZOLVA_TOKEN_ADDRESS (and decimals) in .dev.vars, deploy, check GeckoTerminal lists a price, test a holder account. Migration 20261104000100_zolva_membership.sql must be applied first
 - [ ] Launchpad contracts with Foundry tests (needs OK to install Foundry), then an audit
 

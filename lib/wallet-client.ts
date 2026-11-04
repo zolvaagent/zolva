@@ -1,9 +1,9 @@
 "use client";
 
-import { getAddress } from "viem";
+import { encodeFunctionData, erc20Abi, getAddress, toHex } from "viem";
 import { createSiweMessage } from "viem/siwe";
 
-import { ROBINHOOD_CHAIN_ID } from "@/lib/chain";
+import { ROBINHOOD_CHAIN, ROBINHOOD_CHAIN_ID } from "@/lib/chain";
 import { linkWalletMessage } from "@/lib/tiers";
 
 type Eip1193Provider = {
@@ -90,5 +90,38 @@ export async function linkExtraWallet<T>(account: string): Promise<T> {
     if (cause instanceof WalletError) throw cause;
     if ((cause as { code?: number }).code === 4001) throw new WalletError("");
     throw new WalletError("Adding the wallet failed. Please try again.");
+  }
+}
+
+/** The ERC-20 call that sends `raw` base units to the burn address. */
+export function burnCall(burnAddress: string, raw: bigint): `0x${string}` {
+  return encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [burnAddress as `0x${string}`, raw] });
+}
+
+/**
+ * Sends ZOLVA to the burn address from the browser wallet (MetaMask, Rabby...), switching
+ * it to Robinhood Chain first. Resolves with the transaction hash; throws WalletError.
+ */
+export async function sendBurnFromBrowserWallet(token: string, burnAddress: string, raw: bigint): Promise<`0x${string}`> {
+  const ethereum = window.ethereum;
+  if (!ethereum) throw new WalletError("No wallet found in this browser.");
+  try {
+    const [from] = (await ethereum.request({ method: "eth_requestAccounts" })) as string[];
+    const chainId = toHex(ROBINHOOD_CHAIN_ID);
+    try {
+      await ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId }] });
+    } catch (cause) {
+      // 4902: the wallet does not know Robinhood Chain yet.
+      if ((cause as { code?: number }).code !== 4902) throw cause;
+      await ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{ chainId, chainName: ROBINHOOD_CHAIN.name, nativeCurrency: ROBINHOOD_CHAIN.nativeCurrency, rpcUrls: ROBINHOOD_CHAIN.rpcUrls.default.http, blockExplorerUrls: [ROBINHOOD_CHAIN.blockExplorers.default.url] }],
+      });
+    }
+    return (await ethereum.request({ method: "eth_sendTransaction", params: [{ from, to: token, data: burnCall(burnAddress, raw) }] })) as `0x${string}`;
+  } catch (cause) {
+    if (cause instanceof WalletError) throw cause;
+    if ((cause as { code?: number }).code === 4001) throw new WalletError("");
+    throw new WalletError("Sending the ZOLVA failed. Check you have ZOLVA and a little ETH for gas, then try again.");
   }
 }

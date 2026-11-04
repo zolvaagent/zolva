@@ -1,9 +1,10 @@
 "use client";
 
-import { PrivyProvider, useExportWallet, useLogin, usePrivy, useSigners } from "@privy-io/react-auth";
+import { PrivyProvider, useExportWallet, useLogin, usePrivy, useSendTransaction, useSigners } from "@privy-io/react-auth";
 import { useEffect, useRef } from "react";
 
 import { useResolvedTheme } from "@/components/ui/ThemeToggle";
+import { ROBINHOOD_CHAIN, ROBINHOOD_CHAIN_ID } from "@/lib/chain";
 
 /**
  * Email and Google login through Privy, loaded in the browser only
@@ -25,6 +26,8 @@ export type PrivyHandle = {
    * the Privy session has ended (the user must log in with email or Google again).
    */
   exportWallet: (address: string) => Promise<void>;
+  /** Sends a transaction from the embedded wallet on Robinhood Chain; Privy shows its own confirm window. */
+  sendTransaction: (address: string, to: string, data: `0x${string}`) => Promise<`0x${string}`>;
 };
 
 type PrivyIslandProps = {
@@ -45,6 +48,9 @@ export default function PrivyIsland({ appId, ...bridge }: PrivyIslandProps) {
         appearance: { theme, accentColor: "#8075ff", logo: "/img/brand/zolva-mark.png" },
         // Email and Google users get a wallet, which becomes their account.
         embeddedWallets: { ethereum: { createOnLogin: "users-without-wallets" } },
+        // Paying with ZOLVA sends a transaction on Robinhood Chain from the embedded wallet.
+        defaultChain: ROBINHOOD_CHAIN,
+        supportedChains: [ROBINHOOD_CHAIN],
       }}
     >
       <PrivyBridge {...bridge} />
@@ -56,6 +62,7 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
   const { ready, getAccessToken, logout } = usePrivy();
   const { addSigners, removeSigners } = useSigners();
   const { exportWallet } = useExportWallet();
+  const { sendTransaction } = useSendTransaction();
   // Only react to logins started from our modal.
   const pending = useRef(false);
   const { login } = useLogin({
@@ -92,8 +99,12 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
       exportWallet: async (address) => {
         await exportWallet({ address });
       },
+      sendTransaction: async (address, to, data) => {
+        const { hash } = await sendTransaction({ to, data, chainId: ROBINHOOD_CHAIN_ID }, { address });
+        return hash;
+      },
     });
-  }, [onReady, onFailure, ready, login, logout, addSigners, removeSigners, exportWallet]);
+  }, [onReady, onFailure, ready, login, logout, addSigners, removeSigners, exportWallet, sendTransaction]);
 
   return null;
 }
