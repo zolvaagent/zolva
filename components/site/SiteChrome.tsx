@@ -16,12 +16,16 @@ const LINKS = [
   { href: "/app", label: "Dashboard" },
 ];
 
-/** "Go to app": straight to the dashboard when logged in, otherwise log in first. */
+/**
+ * "Go to app": straight to the dashboard when logged in, otherwise log in first, with the
+ * option to skip and look around the markets (they, the leaderboard and Studio backtests
+ * need no account; the dashboard does).
+ */
 export function GoToAppButton({ className = "button button--primary button--small", label }: { className?: string; label?: string }) {
   const { address, openLogin } = useAuth();
   const router = useRouter();
   return (
-    <button className={className} type="button" onClick={() => (address ? router.push("/app") : openLogin(() => router.push("/app")))}>
+    <button className={className} type="button" onClick={() => (address ? router.push("/app") : openLogin(() => router.push("/app"), { skipTo: "/markets" }))}>
       {label ?? (address ? "Open app" : "Go to app")}
       <i className="ph ph-arrow-right" />
     </button>
