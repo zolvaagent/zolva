@@ -40,18 +40,41 @@ function edgeCache(): Cache | undefined {
 }
 
 /**
+ * The per-IP limit shared by the REST API and the MCP server. Returns "limited" when the
+ * caller is over it, "on" when it ran and passed, "off" where the binding does not exist.
+ */
+export async function checkLimit(request: Request): Promise<"limited" | "on" | "off"> {
+  const limiter = cloudflareEnv()?.PUBLIC_API_LIMITER as RateLimiter | undefined;
+  if (!limiter) return "off";
+  const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const { success } = await limiter.limit({ key: ip });
+  return success ? "on" : "limited";
+}
+
+/**
+ * A JSON body from the edge cache, or from the loader (then stored for maxAge seconds).
+ * Used by the MCP tools, which share the REST routes' loaders and cache times. null bodies
+ * (not found) are not cached.
+ */
+export async function cachedBody<T>(key: string, maxAge: number, load: () => Promise<T | null>): Promise<T | null> {
+  const cache = edgeCache();
+  const cacheKey = new Request(`https://cache.zolvaagent.app/public-api/${key}`);
+  const cached = await cache?.match(cacheKey);
+  if (cached) return (await cached.json()) as T;
+  const body = await load();
+  if (body !== null) await cache?.put(cacheKey, Response.json(body, { headers: { "Cache-Control": `public, max-age=${maxAge}` } }));
+  return body;
+}
+
+/**
  * Runs a public GET handler with the limit and the cache. The handler returns the JSON
  * body, or null for "not found". maxAge is how long (seconds) a response may be reused.
  */
 export async function publicGet(request: NextRequest, maxAge: number, handler: () => Promise<unknown | null>): Promise<Response> {
-  const limiter = cloudflareEnv()?.PUBLIC_API_LIMITER as RateLimiter | undefined;
-  if (limiter) {
-    const ip = request.headers.get("cf-connecting-ip") ?? "unknown";
-    const { success } = await limiter.limit({ key: ip });
-    if (!success) return apiError(429, "rate_limited", "Too many requests: at most 60 a minute per IP. Cache responses on your side.", { "Retry-After": "60" });
-  }
+  const limit = await checkLimit(request);
+  if (limit === "limited") return apiError(429, "rate_limited", "Too many requests: about 60 a minute per IP. Cache responses on your side.", { "Retry-After": "60" });
   // Says whether the per-IP limit ran, so a missing binding shows up in any response.
-  const limitHeader = { "X-Zolva-Rate-Limit": limiter ? "on" : "off" };
+  const limitHeader = { "X-Zolva-Rate-Limit": limit };
 
   // Cache by the URL without query parameters: none are used, so they must not bust the cache.
   const url = new URL(request.url);
