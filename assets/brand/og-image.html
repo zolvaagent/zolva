@@ -1,0 +1,44 @@
+<!doctype html>
+<!--
+  Share image (Open Graph and X card), 1200 x 630, written to public/og.png:
+  "%EDGE%" --headless=new --screenshot=public/og.png --window-size=1200,630 file:///.../og-image.html
+  The logo is public/img/brand/zolva-mark.png (scripts/render-brand.mjs).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=block" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1200px; height: 630px; overflow: hidden; }
+      body {
+        position: relative;
+        color: #f6f7f4;
+        font-family: Inter, system-ui, sans-serif;
+        /* G2 "ink glow": the dark brand surface, so the G1 logo is the brightest thing on it. */
+        background:
+          radial-gradient(70% 90% at 92% 100%, rgba(128, 117, 255, 0.55) 0%, rgba(128, 117, 255, 0) 70%),
+          radial-gradient(50% 60% at 0% 0%, rgba(152, 150, 255, 0.22) 0%, rgba(152, 150, 255, 0) 70%),
+          #121116;
+      }
+      .dots { position: absolute; inset: 0; background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1.2px); background-size: 22px 22px; }
+      .wrap { position: absolute; left: 88px; top: 92px; right: 88px; }
+      .brand { display: flex; align-items: center; gap: 22px; }
+      .brand img { width: 96px; height: 96px; }
+      .brand span { font-size: 64px; font-weight: 700; letter-spacing: -0.04em; }
+      h1 { margin-top: 56px; font-size: 72px; font-weight: 700; line-height: 1.02; letter-spacing: -0.045em; }
+      h1 em { font-style: normal; color: transparent; background: linear-gradient(120deg, #d0ceff, #9391fe 60%, #d0ceff); -webkit-background-clip: text; background-clip: text; }
+      p { margin-top: 28px; font-size: 28px; line-height: 38px; color: rgba(246, 247, 244, 0.7); }
+      .url { position: absolute; right: 88px; bottom: 64px; font-size: 26px; font-weight: 600; color: #d0ceff; }
+    </style>
+  </head>
+  <body>
+    <div class="dots"></div>
+    <div class="wrap">
+      <div class="brand"><img src="../../public/img/brand/zolva-mark.png" alt="" /><span>Zolva</span></div>
+      <h1>Trading agents that<br /><em>show their work.</em></h1>
+      <p>No code agents for stock tokens, ETH and BTC on Robinhood Chain.</p>
+    </div>
+    <span class="url">zolvaagent.app</span>
+  </body>
+</html>
