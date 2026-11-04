@@ -1,0 +1,14 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "high",
+    "background": "opaque",
+    "aspect_ratio": "3:2",
+    "output_format": "png"
+  },
+  "style": "Abstract background art for the X (Twitter) header of Zolva, a fintech app with automated trading agents. No text, no letters, no numbers, no logos, no people, no devices, no UI.",
+  "icons": {
+    "banner-bg-ribbons": "Deep midnight violet scene (#0e0b24 to #2e2490): smooth glossy translucent glass ribbons and thin glowing light trails flowing from the lower right toward the upper left like streams of market data, in lavender #9896ff, violet #6a5ef5 and a few hairline accents of soft teal. A faint perspective grid of tiny dots fades into darkness on the left half, which stays calm and dark for text. Soft volumetric glow at the lower right, cinematic depth of field, premium and minimal, wide composition."
+  },
+  "note": "X banner background (2026-11-04). Run: PROMPTS=assets/banner-prompts.json OUT_DIR=assets/brand/banner node scripts/generate-icons.mjs"
+}
