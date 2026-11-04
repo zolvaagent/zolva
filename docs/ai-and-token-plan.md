@@ -314,3 +314,18 @@ from Zolva's own budget, which the daily AI cap limits.
 - Token page wording: utility only, no claim on revenue, can lose all value, not for US persons.
 
 Legal review before launch, as in section 6.
+
+### Later: "Ask your agent" chat (idea, 2026-11-04)
+
+Chat with your own agent, answered from its real data: "why did you buy GME at 15:00?"
+(decision log and co-pilot reasons), "why are you behind holding this week?", "what if the
+stop were 15%?" (runs a real backtest, never a guess), "make a more careful version" (a draft
+of new rules opened in the Studio, never a change to the running agent).
+
+Daily messages by tier: Free 3, Holder 20, Pro 60 (Oreno's $ORENO tiers use the same numbers
+for its agent messages). One message on a Lite model costs about $0.0005 to $0.001 because
+the context is one agent's data, so a Free user who uses all 3 every day costs about $0.05
+to $0.09 a month. Counted in the global daily AI budget like every other AI call.
+
+Boundary: it only explains the agent and helps write rules. It never says whether to buy or
+sell a stock ("is NVDA a buy now?" is refused), so Zolva does not give investment advice.
