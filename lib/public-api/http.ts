@@ -50,13 +50,23 @@ export async function publicGet(request: NextRequest, maxAge: number, handler: (
     const { success } = await limiter.limit({ key: ip });
     if (!success) return apiError(429, "rate_limited", "Too many requests: at most 60 a minute per IP. Cache responses on your side.", { "Retry-After": "60" });
   }
+  // Says whether the per-IP limit ran, so a missing binding shows up in any response.
+  const limitHeader = { "X-Zolva-Rate-Limit": limiter ? "on" : "off" };
 
   // Cache by the URL without query parameters: none are used, so they must not bust the cache.
   const url = new URL(request.url);
   const cacheKey = new Request(`${url.origin}${url.pathname}`);
   const cache = edgeCache();
+  const cacheControl = `public, max-age=${maxAge}, s-maxage=${maxAge}`;
   const cached = await cache?.match(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    // Cloudflare serves cache hits with the zone's browser TTL (4 hours); keep ours, so
+    // clients never hold the data longer than maxAge.
+    const response = new Response(cached.body, cached);
+    response.headers.set("Cache-Control", cacheControl);
+    response.headers.set("X-Zolva-Rate-Limit", limitHeader["X-Zolva-Rate-Limit"]);
+    return response;
+  }
 
   let body: unknown | null;
   try {
@@ -67,7 +77,7 @@ export async function publicGet(request: NextRequest, maxAge: number, handler: (
   }
   if (body === null) return apiError(404, "not_found", "No public agent or market matches this path.");
 
-  const response = NextResponse.json(body, { headers: { ...HEADERS, "Cache-Control": `public, max-age=${maxAge}, s-maxage=${maxAge}` } });
+  const response = NextResponse.json(body, { headers: { ...HEADERS, ...limitHeader, "Cache-Control": cacheControl } });
   await cache?.put(cacheKey, response.clone());
   return response;
 }
