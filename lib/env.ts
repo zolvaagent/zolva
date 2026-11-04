@@ -86,6 +86,16 @@ export const env = {
     const policyId = optional("PRIVY_LIVE_POLICY_ID");
     return signerId && policyId ? { signerId, policyId } : null;
   },
+  /**
+   * The ZOLVA token for holder tiers (docs/ai-and-token-plan.md section 11). Null until the
+   * token launches: then every account stays on the Free tier.
+   */
+  get zolvaToken(): { address: `0x${string}`; decimals: number } | null {
+    const address = optional("ZOLVA_TOKEN_ADDRESS")?.toLowerCase();
+    if (!address || !/^0x[0-9a-f]{40}$/.test(address)) return null;
+    const decimals = Number(optional("ZOLVA_TOKEN_DECIMALS") ?? 18);
+    return { address: address as `0x${string}`, decimals: Number.isInteger(decimals) && decimals >= 0 ? decimals : 18 };
+  },
   get privy(): { appId: string; appSecret: string } | null {
     const appId = optional("PRIVY_APP_ID");
     const appSecret = optional("PRIVY_APP_SECRET");

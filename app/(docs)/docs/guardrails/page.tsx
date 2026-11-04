@@ -12,7 +12,7 @@ const LIMITS: [string, string][] = [
   ["Markets per agent", "One to three. Stocks and crypto can mix."],
   ["Positions", "At most one per token. The agent never adds to a position it holds, and a sell always closes the whole position."],
   ["Capital", "$1,000 to $1,000,000 of virtual money, chosen at launch."],
-  ["Running agents", "Up to five at once per account. Pause one to launch another."],
+  ["Running agents", "Up to five at once per account (10 or 20 for ZOLVA holders, see the ZOLVA token page). Pause one to launch another."],
   ["Trading cost", "0.5% on every buy and sell, so results are never better than reality would allow."],
   ["AI co-pilot", "Can only approve or pass a trade the rules want. Each agent has its own spending limit and end date."],
   ["Locked settings", "Strategy, markets and limits cannot change after launch, so the record always matches the agent."],

@@ -5,6 +5,7 @@ import { secretsMatch } from "@/lib/secrets";
 import { runActiveAgents } from "@/lib/agents/runner";
 import { clearMarketCache } from "@/lib/data/market";
 import { runLiveAgents, type LiveResult } from "@/lib/live/runner";
+import { hourlyMembershipUpkeep } from "@/lib/membership";
 import { ingestLatestCandles } from "@/lib/prices/ingest";
 import { db } from "@/lib/supabase";
 
@@ -37,8 +38,14 @@ export async function POST(request: NextRequest) {
     live = { error: cause instanceof Error ? cause.message : String(cause) };
   }
   // GeckoTerminal problems are warnings only; on-chain prices are what agents need.
+  // ZOLVA holder tiers: the hourly price for the 7 day average, and stale balance reads. Best effort.
+  const membership = await hourlyMembershipUpkeep(client, Math.floor(Date.now() / 3_600_000) * 3600).catch((cause: unknown) => ({
+    price: null,
+    refreshed: 0,
+    note: cause instanceof Error ? cause.message : String(cause),
+  }));
   const liveOk = !("error" in live) && live.failed.length === 0;
   const ok = ingest.failed.length === 0 && agents.failed.length === 0 && liveOk;
-  return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents, live }, { status: ok ? 200 : 502 });
+  return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents, live, membership }, { status: ok ? 200 : 502 });
 }
 

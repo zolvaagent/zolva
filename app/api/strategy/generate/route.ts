@@ -3,7 +3,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { aiModel, callCostUsd } from "@/lib/ai/models";
 import { chatJson } from "@/lib/ai/openrouter";
 import {
-  GENERATIONS_PER_DAY,
   PROMPT_MAX_LENGTH,
   PROMPT_MIN_LENGTH,
   STRATEGY_WRITER_MODEL,
@@ -17,7 +16,9 @@ import { BLOCKED_MESSAGE, countryFromHeaders, isBlockedCountry } from "@/lib/aut
 import { getSessionAddress } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { getCredits } from "@/lib/data/credits";
+import { storedTier } from "@/lib/membership";
 import { db } from "@/lib/supabase";
+import { TIERS } from "@/lib/tiers";
 
 const toMicro = (usd: number) => Math.round(usd * 1_000_000);
 
@@ -54,13 +55,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "You are out of AI credits. Build your rules by hand instead." }, { status: 402 });
   }
 
-  const { data: generationId, error: startError } = await client.rpc("ai_generation_start", { p_owner: owner, p_model: model.id, p_daily_limit: GENERATIONS_PER_DAY });
+  // Tries per day follow the account's ZOLVA tier (10 on Free).
+  const dailyLimit = TIERS[await storedTier(client, owner)].writerPerDay;
+  const { data: generationId, error: startError } = await client.rpc("ai_generation_start", { p_owner: owner, p_model: model.id, p_daily_limit: dailyLimit });
   if (startError) {
     console.error(startError);
     return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
   if (generationId === null) {
-    return NextResponse.json({ error: `You can generate ${GENERATIONS_PER_DAY} strategies a day. Edit the rules by hand or try again tomorrow.` }, { status: 429 });
+    return NextResponse.json({ error: `You can generate ${dailyLimit} strategies a day. Edit the rules by hand or try again tomorrow.` }, { status: 429 });
   }
 
   let answer;
