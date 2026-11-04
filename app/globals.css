@@ -4523,6 +4523,13 @@ main:focus {
    Markets (/markets and /markets/[symbol])
    ========================================================================== */
 
+/* "Look around first" under the login options. */
+.privy__skip {
+  align-self: center;
+  font-size: 14px;
+  line-height: 20px;
+}
+
 .text-link {
   display: inline-flex;
   align-items: center;

@@ -11,8 +11,11 @@ import { hasInjectedWallet, signInWithWallet, WalletError } from "@/lib/wallet-c
 type Auth = {
   /** Signed-in wallet address (lowercase) or null. */
   address: string | null;
-  /** Opens the login modal; `then` runs after a successful login. */
-  openLogin: (then?: () => void) => void;
+  /**
+   * Opens the login modal; `then` runs after a successful login. With `skipTo`, the modal
+   * also offers "Look around first", which closes it and opens that page without logging in.
+   */
+  openLogin: (then?: () => void, options?: { skipTo?: string }) => void;
   logout: () => Promise<void>;
   /** The loaded Privy island, or null before it loads (used by the owner-only live signer page). */
   privy: () => PrivyHandle | null;
@@ -41,6 +44,7 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loginRef = useRef<HTMLDialogElement>(null);
   const afterLogin = useRef<(() => void) | null>(null);
+  const [skipTo, setSkipTo] = useState<string | null>(null);
   const [loginState, setLoginState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   // Filled in once the Privy island has loaded.
   const privy = useRef<PrivyHandle | null>(null);
@@ -54,8 +58,9 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
     toastTimer.current = setTimeout(() => setToastText(null), 2600);
   }, []);
 
-  const openLogin = useCallback((then?: () => void) => {
+  const openLogin = useCallback((then?: () => void, options?: { skipTo?: string }) => {
     afterLogin.current = then ?? null;
+    setSkipTo(options?.skipTo ?? null);
     setLoginState({ busy: false, error: null });
     loginRef.current?.showModal();
   }, []);
@@ -178,6 +183,18 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
                   )}
                 </button>
                 {loginState.error && <span className="field-error">{loginState.error}</span>}
+                {skipTo && (
+                  <button
+                    className="text-link privy__skip"
+                    type="button"
+                    onClick={() => {
+                      loginRef.current?.close();
+                      router.push(skipTo);
+                    }}
+                  >
+                    Look around first, log in later
+                  </button>
+                )}
                 <p className="privy__note">
                   {privyEnabled
                     ? "Email and Google accounts get a wallet automatically. Browser wallets like MetaMask and Rabby work too. Signing in is free and never moves funds."
