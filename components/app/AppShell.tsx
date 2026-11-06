@@ -14,6 +14,8 @@ const NAV = [
   { href: "/markets", label: "Markets", icon: "chart-line-up" },
   { href: "/agents", label: "Agents", icon: "robot" },
   { href: "/studio", label: "Studio", icon: "sliders-horizontal" },
+  // Sidebar only: the phone tab bar holds six; on phones Swap is on the Dashboard.
+  { href: "/swap", label: "Swap", icon: "arrows-left-right", tabbar: false },
   { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
   { href: "/activity", label: "Activity", icon: "pulse" },
 ];
@@ -132,7 +134,7 @@ export function AppTabbar() {
   const pathname = usePathname();
   return (
     <nav className="app-tabbar" aria-label="App">
-      {NAV.map((item) => (
+      {NAV.filter((item) => item.tabbar !== false).map((item) => (
         <Link key={item.href} href={item.href} aria-current={isCurrent(pathname, item.href) ? "page" : undefined}>
           <i className={`ph ph-${item.icon}`} />
           {item.label}

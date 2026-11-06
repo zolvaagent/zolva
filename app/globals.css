@@ -6534,3 +6534,20 @@ button.text-link {
   color: var(--color-purple-rich);
   font-weight: 500;
 }
+
+/* /swap: the swap form as a card, not a dialog. */
+.swap-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-200);
+  max-width: 480px;
+}
+
+.swap-card .modal__actions:empty {
+  display: none;
+}
+
+.swap-page__note {
+  font-size: 13px;
+  line-height: 18px;
+}
