@@ -68,6 +68,12 @@ export const DOC_PAGES: DocPage[] = [
     group: "Developers",
   },
   {
+    slug: "premium-api",
+    title: "Premium API (x402)",
+    description: "Paid per call in USDG on Robinhood Chain with x402: a live market scan and backtests with Zolva's engine. No account or key.",
+    group: "Developers",
+  },
+  {
     slug: "token",
     title: "ZOLVA token",
     description: "What holding ZOLVA unlocks: free hourly AI reviews and higher limits, with nothing to stake or lock.",

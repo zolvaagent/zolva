@@ -29,3 +29,9 @@ AI_DAILY_BUDGET_USD=5
 # ZOLVA holder tiers (docs/ai-and-token-plan.md section 11). Blank = everyone on Free.
 ZOLVA_TOKEN_ADDRESS=
 ZOLVA_TOKEN_DECIMALS=18
+
+# Premium API over x402 (npm run x402:setup). X402_ENABLED=1 opens it.
+X402_ENABLED=
+X402_PAY_TO=
+X402_RELAYER_WALLET_ID=
+X402_RELAYER_ADDRESS=

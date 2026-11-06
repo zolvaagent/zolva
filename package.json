@@ -19,7 +19,9 @@
     "credits:grant": "node scripts/grant-credits.mts",
     "live:setup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-signer-setup.mts",
     "live:test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-swap-test.mts",
-    "live:agent": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-agent-create.mts"
+    "live:agent": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-agent-create.mts",
+    "x402:setup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-relayer-setup.mts",
+    "x402:pay": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-pay-test.mts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

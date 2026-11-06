@@ -83,6 +83,10 @@ async function main() {
       // Optional: the ZOLVA token for holder tiers. Without it every account stays on Free.
       ...(dev.ZOLVA_TOKEN_ADDRESS ? { ZOLVA_TOKEN_ADDRESS: dev.ZOLVA_TOKEN_ADDRESS, ZOLVA_TOKEN_DECIMALS: dev.ZOLVA_TOKEN_DECIMALS ?? "18" } : {}),
       ...(dev.AI_DAILY_BUDGET_USD ? { AI_DAILY_BUDGET_USD: dev.AI_DAILY_BUDGET_USD } : {}),
+      // Optional: the premium API over x402 (npm run x402:setup). Closed (503) unless X402_ENABLED is 1.
+      ...(dev.X402_PAY_TO && dev.X402_RELAYER_WALLET_ID && dev.X402_RELAYER_ADDRESS
+        ? { X402_PAY_TO: dev.X402_PAY_TO, X402_RELAYER_WALLET_ID: dev.X402_RELAYER_WALLET_ID, X402_RELAYER_ADDRESS: dev.X402_RELAYER_ADDRESS, X402_ENABLED: dev.X402_ENABLED ?? "0" }
+        : {}),
     }),
   );
   try {
