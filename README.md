@@ -102,6 +102,10 @@ npm run backtest            # read only backtest report
 - Never duplicate strategy logic outside `runHour`. Change `lib/engine/` and `prototype/engine.js` together, or neither.
 - Server secrets come from `lib/env.ts` only. `lib/supabase.ts` is the service role client and stays server only.
 
+## License
+
+[MIT](LICENSE). The Zolva name and logo are not covered by the license.
+
 ## Disclaimer
 
 Zolva is experimental software. Paper results are simulated and past results do not predict future returns. Nothing here is financial advice.
