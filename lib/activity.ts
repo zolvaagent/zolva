@@ -17,7 +17,8 @@ export type ActivityTrade = {
   quantity: number;
   price: number;
   costUsd: number;
-  reason: "signal" | "stop_loss" | "take_profit" | "max_hold";
+  /** manual: sold by the owner of a live agent (Sell position). */
+  reason: "signal" | "stop_loss" | "take_profit" | "max_hold" | "manual";
   reasoning: string | null;
 };
 
@@ -65,4 +66,5 @@ export const REASON_LABELS: Record<ActivityTrade["reason"], string> = {
   stop_loss: "Stop loss",
   take_profit: "Take profit",
   max_hold: "Max holding time",
+  manual: "Sold by the owner",
 };
