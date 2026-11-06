@@ -32,7 +32,7 @@ function readVars(file) {
   return Object.fromEntries(
     readFileSync(path, "utf8")
       .split(/\r?\n/)
-      .filter((line) => /^[A-Z_]+=/.test(line))
+      .filter((line) => /^[A-Z0-9_]+=/.test(line))
       .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1).trim()]),
   );
 }

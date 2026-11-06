@@ -57,9 +57,8 @@ export default function PremiumApi() {
       <p>
         <code>GET {BASE}</code> is free and says whether the premium API is open, the prices and Zolva&apos;s receiving address.
       </p>
-      <Callout kind="note" title="Not open yet">
-        The endpoints are built but closed while we test them; until then they answer <code>503 premium_closed</code>. Follow{" "}
-        <a href="https://x.com/zolva_agent">@zolva_agent</a> for the opening.
+      <Callout kind="note" title="Open since November 6, 2026">
+        Payments settle on Robinhood Chain in about a second. Every payment goes straight from your wallet to Zolva&apos;s address, so each one is on Blockscout.
       </Callout>
 
       <H2 id="paying">How paying works</H2>
