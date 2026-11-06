@@ -10,6 +10,9 @@
  *                 cover when z is back to -0.5 or lower (mean reversion turned upside down).
  *   Dip + fade:   the dip hunter's long (deepest dip, z < -2.5) and the spike fade short,
  *                 one slot each.
+ *   Dip long:     the dip hunter's long side alone, for comparison.
+ *   Swing:        one slot, either side: the most extreme market, long below z -2.5 or
+ *                 short above z +2.5, whichever is further from its average.
  *
  * Every position: one slot of the agent, a 10% stop loss (for a short: price 10% above
  * entry), the cost per trade on open and close, and a borrow rate on shorts.
@@ -32,7 +35,7 @@ const SHORTABLE = process.env.SHORT_MARKETS?.split(",") ?? ["NVDA", "SPY", "SPCX
 
 type Side = "long" | "short";
 type Position = { side: Side; quantity: number; entry: number };
-type Strategy = "trend_short" | "spike_fade" | "dip_and_fade";
+type Strategy = "trend_short" | "spike_fade" | "dip_and_fade" | "dip_long" | "swing";
 
 function readDevVars(): Record<string, string> {
   return Object.fromEntries(
@@ -114,7 +117,11 @@ function simulate(series: Record<string, number[]>, strategy: Strategy, capital:
       const pick = free.filter((row) => row.z > 2.5).sort((a, b) => b.z - a.z)[0];
       if (pick) open(pick.symbol, index, "short");
     }
-    if (strategy === "dip_and_fade" && !holds("long")) {
+    if (strategy === "swing" && positions.size === 0) {
+      const pick = free.filter((row) => Math.abs(row.z) > 2.5).sort((a, b) => Math.abs(b.z) - Math.abs(a.z))[0];
+      if (pick) open(pick.symbol, index, pick.z < 0 ? "long" : "short");
+    }
+    if ((strategy === "dip_and_fade" || strategy === "dip_long") && !holds("long")) {
       const pick = free.filter((row) => row.z < -2.5 && !positions.has(row.symbol)).sort((a, b) => a.z - b.z)[0];
       if (pick) open(pick.symbol, index, "long");
     }
@@ -169,7 +176,7 @@ async function main() {
     const last = series[symbols[0]].length - 1;
     const hold = mean(symbols.map((symbol) => ((1 - COST_RATE) * series[symbol][last]) / series[symbol][WARMUP_HOURS] - 1)) * 100;
     console.log(`\n== ${window.label}, ${symbols.length} markets (${symbols.join(" ")}): holding ${hold.toFixed(1)}%`);
-    for (const strategy of ["trend_short", "spike_fade", "dip_and_fade"] as Strategy[]) {
+    for (const strategy of ["dip_long", "spike_fade", "dip_and_fade", "swing", "trend_short"] as Strategy[]) {
       const run = simulate(series, strategy, 10_000);
       console.log(`   ${strategy.padEnd(14)} ${`${run.returnPct.toFixed(1)}%`.padStart(7)}  trades ${String(run.trades).padStart(3)} (shorts opened ${run.shorts})  worst drop ${run.maxDropPct.toFixed(1)}%`);
     }

@@ -139,3 +139,31 @@ Migration `20261103000200_spike_fade_shorts.sql`: `positions.side`, trade sides,
 strategy, and `agents_live_no_shorts` (live agents can never use it; the live runner also
 skips any short or cover). Paper agent "Lab · Crypto Spike Fade" on ETH and BTC, 100%,
 stop 10%. Not in Studio.
+
+## Long and short together (2026-11-06)
+
+Question from the owner: a strategy that goes long and short, not short only. Two versions
+added to `scripts/research-shorting.mts`: **dip long** (the long side alone) and **swing**
+(one slot, either side: the market furthest from its 48h average, long below z -2.5,
+short above z +2.5). "Dip + fade" is one slot per side. 10% stop, 10% a year borrow.
+
+ETH and BTC, last 45 days (holding -15%):
+
+| Cost per trade | Dip long | Spike fade (short only) | Dip + fade | Swing |
+|---|---|---|---|---|
+| 0.1% (perps-like) | -2.6% | **+12.5%** | +4.8% | +10.2% |
+| 0.3% (DEX fills) | -5.7% | **+8.6%** | +1.3% | +3.0% |
+| 0.5% (the paper engine) | -8.7% | **+4.8%** | -2.1% | -3.8% |
+
+Swing in the 15 day pieces at 0.1%: +2.8%, +0.5%, +8.1% (the last one, a flatter market,
+is the only window where it beat spike fade). Its worst drop is about twice spike fade's
+(9 to 14% against 5 to 6%).
+
+Stocks (the 8 borrowable markets, 0.3%): swing -9.3% over 45 days with an 18% worst drop;
+every long and short mix lost. Long plus short on stocks: no.
+
+**Reading:** the long side lost money in this falling market (dip buying caught falling
+prices), so adding it pulls every mix below short only. Swing is the best mix on crypto
+and still far ahead of holding, but at the paper engine's 0.5% cost it is negative. The
+sample is one falling stretch; a long side should help when the market turns, which this
+data cannot show yet.
