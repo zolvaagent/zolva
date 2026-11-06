@@ -6,7 +6,7 @@ export const PREMIUM_ENDPOINTS = {
   scan: {
     method: "GET",
     path: "/api/x402/v1/scan",
-    price: "0.005",
+    price: "0.02",
     description: "Every Zolva market at the latest hourly close: change, 48 hour z-score, 14 hour RSI and trend, deepest dip first.",
   },
   backtest: {

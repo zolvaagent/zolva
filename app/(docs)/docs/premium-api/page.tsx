@@ -26,7 +26,7 @@ const PAYMENT_HEADER = `{
   "network": "robinhood",
   "payload": {
     "signature": "0x…",
-    "authorization": { "from": "0xYou", "to": "<payTo>", "value": "5000",
+    "authorization": { "from": "0xYou", "to": "<payTo>", "value": "20000",
       "validAfter": "…", "validBefore": "…", "nonce": "0x<32 random bytes>" }
   }
 }`;
