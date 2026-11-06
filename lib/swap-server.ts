@@ -87,3 +87,81 @@ export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapTok
     allowance: allowance === null ? null : allowance.toString(),
   };
 }
+
+const TRANSFER_EVENT = {
+  type: "event",
+  name: "Transfer",
+  inputs: [
+    { name: "from", type: "address", indexed: true },
+    { name: "to", type: "address", indexed: true },
+    { name: "value", type: "uint256", indexed: false },
+  ],
+} as const;
+
+/** About a week of Robinhood Chain blocks (~0.105 s each); one log query covers it. */
+const HISTORY_BLOCKS = 6_000_000n;
+
+export type WalletTransaction = {
+  txHash: Hex;
+  /** Unix seconds. */
+  ts: number;
+  /** What the wallet sent (negative) and received (positive), allowlisted tokens only, in token units. */
+  changes: { symbol: string; amount: number }[];
+};
+
+/**
+ * The wallet's latest transactions over the last week that moved Zolva's tokens: every
+ * ERC-20 Transfer from or to it, kept to the allowlist (spam tokens never show), netted per
+ * transaction. Newest first.
+ */
+export async function walletHistory(chain: PublicClient, owner: Hex, tokens: SwapToken[], limit = 8): Promise<WalletTransaction[]> {
+  const latest = await chain.getBlockNumber();
+  const fromBlock = latest > HISTORY_BLOCKS ? latest - HISTORY_BLOCKS : 0n;
+  const [sent, received] = await Promise.all([
+    chain.getLogs({ event: TRANSFER_EVENT, args: { from: owner }, fromBlock, toBlock: latest }),
+    chain.getLogs({ event: TRANSFER_EVENT, args: { to: owner }, fromBlock, toBlock: latest }),
+  ]);
+  const tokenOf = new Map(tokens.map((token) => [token.address, token]));
+  const byTx = new Map<Hex, { block: bigint; net: Map<string, bigint> }>();
+  for (const [logs, sign] of [
+    [sent, -1n],
+    [received, 1n],
+  ] as const) {
+    for (const log of logs) {
+      const token = tokenOf.get(log.address.toLowerCase() as Hex);
+      if (!token || !log.transactionHash || log.blockNumber === null) continue;
+      const entry = byTx.get(log.transactionHash) ?? { block: log.blockNumber, net: new Map<string, bigint>() };
+      entry.net.set(token.address, (entry.net.get(token.address) ?? 0n) + sign * (log.args.value ?? 0n));
+      byTx.set(log.transactionHash, entry);
+    }
+  }
+  const newest = [...byTx].sort((a, b) => Number(b[1].block - a[1].block)).slice(0, limit);
+  const times = await Promise.all(newest.map(([, entry]) => chain.getBlock({ blockNumber: entry.block }).then((block) => Number(block.timestamp))));
+  return newest
+    .map(([txHash, entry], i) => ({
+      txHash,
+      ts: times[i],
+      changes: [...entry.net]
+        .filter(([, value]) => value !== 0n)
+        .map(([address, value]) => {
+          const token = tokenOf.get(address as Hex)!;
+          return { symbol: token.symbol, amount: Number(value) / 10 ** token.decimals };
+        })
+        // Sent first, then received: reads as "GME → ETH".
+        .sort((a, b) => a.amount - b.amount),
+    }))
+    .filter((row) => row.changes.length > 0);
+}
+
+/** A token's hourly closes for the swap page chart: the last week, oldest first. */
+export async function tokenChart(db: SupabaseClient, address: Hex): Promise<{ startTs: number; closes: number[] } | null> {
+  const market = await getMarket(db);
+  const token = market.tokens.find((item) => item.address.toLowerCase() === address);
+  if (!token) return null;
+  const hours = 168;
+  const from = Math.max(0, market.hours - hours);
+  const closes = token.closes.slice(from).map((close) => close ?? Number.NaN);
+  const first = closes.findIndex((close) => !Number.isNaN(close));
+  if (first === -1) return null;
+  return { startTs: market.startTs + (from + first) * 3600, closes: closes.slice(first) };
+}

@@ -31,6 +31,8 @@ type Props = {
   preset?: SwapPreset;
   /** Called with the swap's hash once it confirmed. */
   onSwapped?: (txHash: Hex) => Promise<void> | void;
+  /** Told which token is being bought, whenever it changes (the swap page's chart follows it). */
+  onPair?: (buy: SwapToken | null) => void;
 };
 
 type Listing = { tokens: SwapToken[]; balances: Record<string, string> | null; ethWei: string | null };
@@ -54,7 +56,7 @@ function usdValue(token: SwapToken | null, raw: string | bigint | null): number 
  * USDG pool, or two through USDG), each signed by the user in Privy's window or the browser
  * wallet. Balances come from the logged in wallet.
  */
-export function SwapDialog({ address, loginMethod, open: openProp = false, onClose, preset, onSwapped, inline = false }: Props) {
+export function SwapDialog({ address, loginMethod, open: openProp = false, onClose, preset, onSwapped, onPair, inline = false }: Props) {
   const open = inline || openProp;
   const { privy, openLogin } = useAuth();
   const router = useRouter();
@@ -104,6 +106,12 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   const tokens = listing?.tokens ?? [];
   const tokenIn = tokens.find((token) => token.address === sellToken) ?? null;
   const tokenOut = tokens.find((token) => token.address === buyToken) ?? null;
+  useEffect(() => {
+    onPair?.(tokenOut);
+    // Only when the bought token changes, not when the parent re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokenOut?.address]);
+
   const balanceOf = (token: SwapToken | null) => (token && listing?.balances ? (listing.balances[token.address] ?? "0") : null);
 
   let amountIn: bigint | null = null;

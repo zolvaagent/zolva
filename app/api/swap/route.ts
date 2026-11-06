@@ -7,19 +7,33 @@ import { createChainClient } from "@/lib/prices/onchain";
 import { checkLimit } from "@/lib/public-api/http";
 import { db } from "@/lib/supabase";
 import { MAX_SLIPPAGE_BPS } from "@/lib/swap";
-import { listSwapTokens, quoteSwap, walletBalances } from "@/lib/swap-server";
+import { listSwapTokens, quoteSwap, tokenChart, walletBalances, walletHistory } from "@/lib/swap-server";
 
 export const dynamic = "force-dynamic";
 
 /**
  * GET: the tokens the swap card offers (USDG and every market with a v3 pool). Logged in, it
  * adds what the wallet holds of each (raw units) and its ETH for gas.
+ * GET ?chart=0x…: a token's hourly closes for the last week (public).
+ * GET ?history: the wallet's latest transactions with Zolva's tokens (logged in).
  * GET ?tx=0x…: whether that transaction has confirmed, so the card can wait for an approval
  * or a swap. Logged in only.
  */
 export async function GET(request: NextRequest) {
   const owner = await getSessionAddress();
   const tx = request.nextUrl.searchParams.get("tx");
+  const chart = request.nextUrl.searchParams.get("chart");
+  if (chart !== null) {
+    // Public: the same hourly closes as the Markets pages.
+    if (!/^0x[0-9a-fA-F]{40}$/.test(chart)) return NextResponse.json({ error: "Not a token address." }, { status: 400 });
+    const body = await tokenChart(db(), chart.toLowerCase() as Hex);
+    return body ? NextResponse.json(body) : NextResponse.json({ error: "No prices for this token." }, { status: 404 });
+  }
+  if (request.nextUrl.searchParams.get("history") !== null) {
+    if (!owner) return NextResponse.json({ error: "Please log in first." }, { status: 401 });
+    const tokens = await listSwapTokens(db());
+    return NextResponse.json({ transactions: await walletHistory(createChainClient(env.robinhoodRpcUrl), owner as Hex, tokens) });
+  }
   if (tx === null) {
     const tokens = await listSwapTokens(db());
     if (!owner) return NextResponse.json({ tokens, balances: null, ethWei: null });
