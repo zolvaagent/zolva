@@ -12,13 +12,14 @@ import { X_HANDLE, X_URL } from "@/lib/social";
 const NAV = [
   { href: "/app", label: "Dashboard", icon: "squares-four" },
   { href: "/markets", label: "Markets", icon: "chart-line-up" },
+  { href: "/agents", label: "Agents", icon: "robot" },
   { href: "/studio", label: "Studio", icon: "sliders-horizontal" },
   { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
   { href: "/activity", label: "Activity", icon: "pulse" },
 ];
 
 function isCurrent(pathname: string, href: string) {
-  return pathname === href || (href === "/app" && pathname.startsWith("/agents/")) || (href === "/markets" && pathname.startsWith("/markets/"));
+  return pathname === href || (href === "/agents" && pathname.startsWith("/agents/")) || (href === "/markets" && pathname.startsWith("/markets/"));
 }
 
 /** How this browser logged in, from the display-only zolva_login cookie (older sessions have none). */

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 
@@ -36,18 +37,23 @@ const BLANK_RULES: Rules = {
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+/** A published agent to start from ("Use these rules" on /agents). */
+export type StudioTemplate = { id: string; name: string; strategy: Strategy; rules: Rules | null; symbols: string[]; maxPositionPct: number; stopLossPct: number };
+
 export function Studio({
   market,
   activeCount,
   initialStrategy,
   initialStock,
   credits,
+  template = null,
 }: {
   market: Market;
   activeCount: number;
   initialStrategy?: string;
   initialStock?: string;
   credits: CreditsView;
+  template?: StudioTemplate | null;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -56,12 +62,14 @@ export function Studio({
   const startStock = market.tokens.find((token) => token.symbol === initialStock?.toUpperCase())?.symbol ?? "NVDA";
 
   const [name, setName] = useState("");
-  const [strategy, setStrategy] = useState<Strategy>(startStrategy);
-  const [rules, setRules] = useState<Rules>(clone(RULE_TEMPLATES.momentum));
-  const [symbols, setSymbols] = useState<string[]>([startStock]);
+  // A template only keeps markets that still trade here.
+  const templateSymbols = template?.symbols.filter((symbol) => market.tokens.some((token) => token.symbol === symbol)) ?? [];
+  const [strategy, setStrategy] = useState<Strategy>(template?.strategy ?? startStrategy);
+  const [rules, setRules] = useState<Rules>(clone(template?.rules ?? RULE_TEMPLATES.momentum));
+  const [symbols, setSymbols] = useState<string[]>(templateSymbols.length ? templateSymbols : [startStock]);
   const [capital, setCapital] = useState(10_000);
-  const [maxPositionPct, setMaxPositionPct] = useState(33);
-  const [stopLossPct, setStopLossPct] = useState(8);
+  const [maxPositionPct, setMaxPositionPct] = useState(template?.maxPositionPct ?? 33);
+  const [stopLossPct, setStopLossPct] = useState(template?.stopLossPct ?? 8);
   const [showErrors, setShowErrors] = useState(false);
   const [aiModelId, setAiModelId] = useState<string | null>(null);
   const [aiLimit, setAiLimit] = useState<LimitDraft>({ usd: "", days: DEFAULT_EXPIRY_DAYS });
@@ -160,6 +168,12 @@ export function Studio({
         <div>
           <h1 className="page__title">Agent Studio</h1>
           <p className="page__lead">Shape your agent and watch the last 30 days replay with your exact settings.</p>
+          {template && (
+            <p className="studio-template">
+              <i className="ph ph-copy" aria-hidden="true" />
+              Starting from the rules of <Link href={`/agents/${template.id}`}>{template.name}</Link>. Change anything, then give it your own name.
+            </p>
+          )}
         </div>
       </div>
 
