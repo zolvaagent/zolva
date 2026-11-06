@@ -25,9 +25,11 @@ export type SwapPreset = { token: Hex; amount: string; title: string; note: stri
 type Props = {
   address: string;
   loginMethod: "privy" | "wallet" | null;
-  /** Opens the dialog; the parent controls when. */
-  open: boolean;
-  onClose: () => void;
+  /** Opens the dialog; the parent controls when. Ignored when inline. */
+  open?: boolean;
+  onClose?: () => void;
+  /** Renders as a card on the page (/swap) instead of a dialog. */
+  inline?: boolean;
   preset?: SwapPreset;
   /** Called with the swap's hash once it confirmed. */
   onSwapped?: (txHash: Hex) => Promise<void> | void;
@@ -45,7 +47,8 @@ function display(raw: string | bigint, decimals: number, digits = 6): string {
  * Uniswap's QuoterV2, an exact approval if needed, then SwapRouter02, each signed by the user
  * (Privy's window for email and Google accounts, the browser wallet otherwise).
  */
-export function SwapDialog({ address, loginMethod, open, onClose, preset, onSwapped }: Props) {
+export function SwapDialog({ address, loginMethod, open: openProp = false, onClose, preset, onSwapped, inline = false }: Props) {
+  const open = inline || openProp;
   const { privy } = useAuth();
   const dialog = useRef<HTMLDialogElement>(null);
   const [tokens, setTokens] = useState<SwapToken[] | null>(null);
@@ -62,9 +65,10 @@ export function SwapDialog({ address, loginMethod, open, onClose, preset, onSwap
   const [done, setDone] = useState<Hex | null>(null);
 
   useEffect(() => {
+    if (inline) return;
     if (open) dialog.current?.showModal();
     else dialog.current?.close();
-  }, [open]);
+  }, [open, inline]);
 
   useEffect(() => {
     if (!open || tokens) return;
@@ -124,7 +128,14 @@ export function SwapDialog({ address, loginMethod, open, onClose, preset, onSwap
     if (busy) return;
     setDone(null);
     setError(null);
-    onClose();
+    onClose?.();
+  };
+
+  // On the page: start a new swap after one went through.
+  const again = () => {
+    setDone(null);
+    setError(null);
+    setAmount("");
   };
 
   // Email and Google accounts sign in Privy's window; wallet logins in the browser wallet.
@@ -133,11 +144,11 @@ export function SwapDialog({ address, loginMethod, open, onClose, preset, onSwap
       const handle = privy();
       if (!handle) throw new WalletError("The secure wallet window is still loading. Try again in a moment.");
       // Our dialog sits in the top layer; close it so Privy's window is visible, then reopen.
-      dialog.current?.close();
+      if (!inline) dialog.current?.close();
       try {
         return await handle.sendTransaction(address, to, data);
       } finally {
-        dialog.current?.showModal();
+        if (!inline) dialog.current?.showModal();
       }
     }
     if (!hasInjectedWallet()) throw new WalletError("Open Zolva in a browser with your wallet (MetaMask, Rabby or Coinbase Wallet) to swap.");
@@ -195,6 +206,115 @@ export function SwapDialog({ address, loginMethod, open, onClose, preset, onSwap
   const marketOptions: SelectOption<Hex>[] = (tokens ?? []).filter((token) => token.address !== USDG).map((token) => ({ value: token.address, label: token.symbol, hint: token.name }));
   const canSwap = Boolean(quote) && !short && !quoting && !busy && (!farFromClose || accepted);
 
+  const body = (
+    <div className={inline ? "stack" : "modal__body"}>
+      {!inline && (
+        <>
+          <span className="choice__glyph" aria-hidden="true">
+            <i className="ph ph-arrows-left-right" />
+          </span>
+          <h2 className="modal__title" id="swap-title">
+            {preset?.title ?? "Swap"}
+          </h2>
+          <p className="muted" style={{ fontSize: 14, lineHeight: "20px" }}>
+            {preset?.note ?? "Swap from your own wallet on Uniswap, Robinhood Chain. You sign it; Zolva never holds your tokens."}
+          </p>
+        </>
+      )}
+      {!preset && (
+        <div className="tabs" role="tablist" aria-label="Buy or sell" style={{ width: "fit-content" }}>
+          {(["buy", "sell"] as const).map((key) => (
+            <button key={key} className="tab" role="tab" type="button" aria-selected={side === key} onClick={() => setSide(key)} disabled={Boolean(busy)}>
+              {key === "buy" ? "Buy with USDG" : "Sell for USDG"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!preset && marketOptions.length > 0 && market && <Select variant="block" value={market} options={marketOptions} onChange={setMarket} label="Market" />}
+
+      <label className="ai-limit__field">
+        <span className="ai-limit__label">
+          {tokenIn ? `${tokenIn.symbol} to ${side === "buy" ? "spend" : "sell"}` : "Amount"}
+          {balance !== null && tokenIn && (
+            <button className="text-link" type="button" style={{ marginLeft: 8, fontSize: 12 }} onClick={() => setAmount(formatUnits(BigInt(balance), tokenIn.decimals))} disabled={Boolean(busy) || Boolean(preset)}>
+              Balance {display(balance, tokenIn.decimals)}
+            </button>
+          )}
+        </span>
+        <input className="input" inputMode="decimal" placeholder="0" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))} disabled={Boolean(busy) || Boolean(preset)} />
+      </label>
+
+      <Select variant="block" value={slippageBps} options={SLIPPAGE_OPTIONS} onChange={setSlippageBps} label="Slippage" />
+
+      <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>
+        <div className="growth__row" style={{ padding: 0, border: 0 }}>
+          <span className="muted">You get about</span>
+          <strong>{quoting ? "Quoting…" : quote && tokenOut ? `${display(quote.amountOut, tokenOut.decimals)} ${tokenOut.symbol}` : "—"}</strong>
+        </div>
+        {quote && tokenOut && (
+          <>
+            <div className="growth__row" style={{ padding: 0, border: 0 }}>
+              <span className="muted">At least</span>
+              <span>
+                {display(quote.minOut, tokenOut.decimals)} {tokenOut.symbol}
+              </span>
+            </div>
+            <div className="growth__row" style={{ padding: 0, border: 0 }}>
+              <span className="muted">Price</span>
+              <span>
+                {formatPrice(quote.price)} per {other?.symbol} · pool fee {(quote.fee / 10_000).toFixed(2)}%
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {short && <p className="field-error">Your wallet holds less than this amount.</p>}
+      {farFromClose && (
+        <label className="check" style={{ fontSize: 14 }}>
+          <input type="checkbox" checked={accepted} onChange={(event) => setAcceptedKey(event.target.checked ? key : null)} />
+          <span>
+            This price is {((quote?.deviationBps ?? 0) / 100).toFixed(1)}% away from the latest hourly close. Swap anyway.
+          </span>
+        </label>
+      )}
+      <p className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
+        Needs a little ETH on Robinhood Chain for gas. A first swap of a token asks for an exact approval first, then the swap.
+      </p>
+      {(error ?? current?.error) && (
+        <p className="field-error" role="alert">
+          {error ?? current?.error}
+        </p>
+      )}
+      {done && (
+        <a className="text-link" href={`${EXPLORER_URL}/tx/${done}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14 }}>
+          Swapped. View it on Blockscout
+        </a>
+      )}
+      <div className="modal__actions">
+        {inline ? (
+          done && (
+            <button className="button button--ghost" type="button" onClick={again}>
+              New swap
+            </button>
+          )
+        ) : (
+          <button className="button button--ghost" type="button" onClick={close} disabled={Boolean(busy)}>
+            {done ? "Close" : "Cancel"}
+          </button>
+        )}
+        {!done && (
+          <button className="button button--primary" type="button" onClick={swap} disabled={!canSwap}>
+            {busy ?? (quote && amountIn !== null && BigInt(quote.allowance ?? "0") < amountIn ? `Approve and ${side}` : side === "buy" ? "Buy" : "Sell")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  if (inline) return <div className="card swap-card">{body}</div>;
+
   return (
     <dialog
       ref={dialog}
@@ -209,114 +329,8 @@ export function SwapDialog({ address, loginMethod, open, onClose, preset, onSwap
         if (event.target === dialog.current) close();
       }}
     >
-      <div className="modal__body">
-        <span className="choice__glyph" aria-hidden="true">
-          <i className="ph ph-arrows-left-right" />
-        </span>
-        <h2 className="modal__title" id="swap-title">
-          {preset?.title ?? "Swap"}
-        </h2>
-        <p className="muted" style={{ fontSize: 14, lineHeight: "20px" }}>
-          {preset?.note ?? "Swap from your own wallet on Uniswap, Robinhood Chain. You sign it; Zolva never holds your tokens."}
-        </p>
-
-        {!preset && (
-          <div className="tabs" role="tablist" aria-label="Buy or sell" style={{ width: "fit-content" }}>
-            {(["buy", "sell"] as const).map((key) => (
-              <button key={key} className="tab" role="tab" type="button" aria-selected={side === key} onClick={() => setSide(key)} disabled={Boolean(busy)}>
-                {key === "buy" ? "Buy with USDG" : "Sell for USDG"}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {!preset && marketOptions.length > 0 && market && <Select variant="block" value={market} options={marketOptions} onChange={setMarket} label="Market" />}
-
-        <label className="ai-limit__field">
-          <span className="ai-limit__label">
-            {tokenIn ? `${tokenIn.symbol} to ${side === "buy" ? "spend" : "sell"}` : "Amount"}
-            {balance !== null && tokenIn && (
-              <button className="text-link" type="button" style={{ marginLeft: 8, fontSize: 12 }} onClick={() => setAmount(formatUnits(BigInt(balance), tokenIn.decimals))} disabled={Boolean(busy) || Boolean(preset)}>
-                Balance {display(balance, tokenIn.decimals)}
-              </button>
-            )}
-          </span>
-          <input className="input" inputMode="decimal" placeholder="0" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))} disabled={Boolean(busy) || Boolean(preset)} />
-        </label>
-
-        <Select variant="block" value={slippageBps} options={SLIPPAGE_OPTIONS} onChange={setSlippageBps} label="Slippage" />
-
-        <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>
-          <div className="growth__row" style={{ padding: 0, border: 0 }}>
-            <span className="muted">You get about</span>
-            <strong>{quoting ? "Quoting…" : quote && tokenOut ? `${display(quote.amountOut, tokenOut.decimals)} ${tokenOut.symbol}` : "—"}</strong>
-          </div>
-          {quote && tokenOut && (
-            <>
-              <div className="growth__row" style={{ padding: 0, border: 0 }}>
-                <span className="muted">At least</span>
-                <span>
-                  {display(quote.minOut, tokenOut.decimals)} {tokenOut.symbol}
-                </span>
-              </div>
-              <div className="growth__row" style={{ padding: 0, border: 0 }}>
-                <span className="muted">Price</span>
-                <span>
-                  {formatPrice(quote.price)} per {other?.symbol} · pool fee {(quote.fee / 10_000).toFixed(2)}%
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-
-        {short && <p className="field-error">Your wallet holds less than this amount.</p>}
-        {farFromClose && (
-          <label className="check" style={{ fontSize: 14 }}>
-            <input type="checkbox" checked={accepted} onChange={(event) => setAcceptedKey(event.target.checked ? key : null)} />
-            <span>
-              This price is {((quote?.deviationBps ?? 0) / 100).toFixed(1)}% away from the latest hourly close. Swap anyway.
-            </span>
-          </label>
-        )}
-        <p className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-          Needs a little ETH on Robinhood Chain for gas. A first swap of a token asks for an exact approval first, then the swap.
-        </p>
-        {(error ?? current?.error) && (
-          <p className="field-error" role="alert">
-            {error ?? current?.error}
-          </p>
-        )}
-        {done && (
-          <a className="text-link" href={`${EXPLORER_URL}/tx/${done}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14 }}>
-            Swapped. View it on Blockscout
-          </a>
-        )}
-        <div className="modal__actions">
-          <button className="button button--ghost" type="button" onClick={close} disabled={Boolean(busy)}>
-            {done ? "Close" : "Cancel"}
-          </button>
-          {!done && (
-            <button className="button button--primary" type="button" onClick={swap} disabled={!canSwap}>
-              {busy ?? (quote && amountIn !== null && BigInt(quote.allowance ?? "0") < amountIn ? `Approve and ${side}` : side === "buy" ? "Buy" : "Sell")}
-            </button>
-          )}
-        </div>
-      </div>
+      {body}
     </dialog>
-  );
-}
-
-/** The Swap button on the Dashboard's wallet box. */
-export function SwapButton({ address, loginMethod }: { address: string; loginMethod: "privy" | "wallet" | null }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button className="button button--ghost" type="button" onClick={() => setOpen(true)}>
-        <i className="ph ph-arrows-left-right" aria-hidden="true" />
-        Swap
-      </button>
-      {open && <SwapDialog address={address} loginMethod={loginMethod} open onClose={() => setOpen(false)} />}
-    </>
   );
 }
 

@@ -3,7 +3,6 @@ import Link from "next/link";
 import { DecisionRow } from "@/components/app/AgentView";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { MembershipCard } from "@/components/app/MembershipCard";
-import { SwapButton } from "@/components/app/SwapDialog";
 import { WalletExport } from "@/components/app/WalletExport";
 import { ZolvaTopUp } from "@/components/app/ZolvaTopUp";
 import type { AgentSummary } from "@/lib/data/agents";
@@ -216,7 +215,10 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
                   : "Paper trading needs no funds. Your wallet is only used to sign in."}
               </p>
               {loginMethod === "privy" && <WalletExport address={address} liveSigner={liveSigner} />}
-              <SwapButton address={address} loginMethod={loginMethod} />
+              <Link className="button button--ghost" href="/swap">
+                <i className="ph ph-arrows-left-right" aria-hidden="true" />
+                Swap
+              </Link>
             </div>
             <LoginPrompt mode="logout" />
           </div>
