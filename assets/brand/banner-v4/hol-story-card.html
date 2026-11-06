@@ -1,0 +1,67 @@
+<!doctype html>
+<!--
+  P20 image: from one X reply to the HOL plugin catalog, in the Morpho house style.
+  Times are real (UTC, 2026-11-06): our MCP post 03:17, Kantorcodes' question 03:49, his
+  catalog guide 04:05, README/SECURITY/Dependabot commits 04:27, PR #1191 opened 04:50.
+  Scanner: plugin-scanner 3.59.0 on a clean clone, 100/100, 0 findings.
+  Render with headless Edge at 1600x900, output hol-story-card.png.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@500&display=block" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1600px; height: 900px; overflow: hidden; }
+      body { position: relative; font-family: Inter, system-ui, sans-serif; background: #c9c6ff; color: #252228; }
+      .blob { position: absolute; border-radius: 50%; filter: blur(90px); }
+      .b1 { width: 70%; height: 140%; left: -10%; top: -30%; background: #e9e8ff; }
+      .b2 { width: 60%; height: 130%; left: 40%; top: -60%; background: #7d6dff; opacity: .9; }
+      .b3 { width: 55%; height: 120%; left: 62%; top: 30%; background: #9e96ff; }
+      .b4 { width: 40%; height: 90%; left: 20%; top: 55%; background: #b5b0ff; }
+      .b6 { width: 52%; height: 95%; left: 24%; top: 6%; background: #8577ff; opacity: .85; }
+      .grain { position: absolute; inset: 0; opacity: .08; background-image: radial-gradient(rgba(37,34,40,.6) .6px, transparent .8px); background-size: 3px 3px; }
+
+      .copy { position: absolute; left: 110px; top: 50%; transform: translateY(-50%); width: 560px; }
+      .copy img { width: 52px; height: 52px; display: block; }
+      h1 { margin-top: 26px; font-size: 64px; font-weight: 600; line-height: 1.04; letter-spacing: -0.04em; }
+      .lead { margin-top: 22px; font-size: 22px; line-height: 32px; color: rgba(37,34,40,.72); }
+      .score { margin-top: 34px; display: inline-flex; align-items: center; gap: 16px; padding: 14px 22px 14px 16px; border-radius: 20px; background: rgba(255,255,255,.7); border: 1px solid rgba(255,255,255,.95); }
+      .score b { display: grid; place-items: center; width: 70px; height: 70px; border-radius: 16px; background: #1f9d5c; color: #fff; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+      .score span { font-size: 18px; line-height: 26px; }
+      .score small { display: block; font-size: 15px; color: rgba(37,34,40,.55); }
+
+      .timeline { position: absolute; left: 790px; top: 50%; transform: translateY(-50%); width: 700px; padding: 34px 38px; border-radius: 28px; background: rgba(255,255,255,.93); box-shadow: 0 40px 100px -30px rgba(60, 40, 180, .55); }
+      .timeline h2 { font-size: 15px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: rgba(37,34,40,.45); }
+      ol { list-style: none; margin-top: 18px; padding: 0; position: relative; }
+      ol::before { content: ""; position: absolute; left: 105px; top: 12px; bottom: 12px; width: 2px; background: #e4e2f3; }
+      li { display: grid; grid-template-columns: 86px 40px 1fr; align-items: start; padding: 13px 0; }
+      .t { font-family: "Geist Mono", monospace; font-size: 17px; color: rgba(37,34,40,.5); padding-top: 3px; }
+      .dot { width: 18px; height: 18px; margin: 4px 0 0 11px; border-radius: 99px; background: #fff; border: 4px solid #8577ff; position: relative; z-index: 1; }
+      li.done .dot { background: #1f9d5c; border-color: #1f9d5c; }
+      .what { font-size: 20px; line-height: 28px; }
+      .what small { display: block; font-size: 16px; line-height: 22px; color: rgba(37,34,40,.55); }
+    </style>
+  </head>
+  <body>
+    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div><div class="blob b6"></div><div class="grain"></div>
+
+    <div class="copy">
+      <img src="../logo-v2/marks/zolva-mark-ink.svg" alt="" />
+      <h1>From one reply<br />to the HOL catalog.</h1>
+      <p class="lead">An X reply on our MCP post turned into a listing in the Hashgraph Online plugin catalog, which feeds its agent registry.</p>
+      <div class="score"><b>100</b><span>HOL plugin scanner<small>out of 100 · 0 findings</small></span></div>
+    </div>
+
+    <div class="timeline">
+      <h2>Nov 6 · UTC</h2>
+      <ol>
+        <li><span class="t">03:17</span><span class="dot"></span><span class="what">Zolva ships its MCP server<small>Paper trading agents, every decision with its reason</small></span></li>
+        <li><span class="t">03:49</span><span class="dot"></span><span class="what">Kantorcodes asks about our 24h window</span></li>
+        <li><span class="t">04:05</span><span class="dot"></span><span class="what">He points us to the HOL plugin catalog</span></li>
+        <li><span class="t">04:27</span><span class="dot"></span><span class="what">Tested setup in the README, SECURITY.md, Dependabot<small>Scanner on a clean clone: 100/100</small></span></li>
+        <li class="done"><span class="t">04:50</span><span class="dot"></span><span class="what">PR #1191 opened, all checks green<small>61 minutes after his first reply</small></span></li>
+      </ol>
+    </div>
+  </body>
+</html>
