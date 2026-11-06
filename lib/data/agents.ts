@@ -128,13 +128,15 @@ export async function equityCurves(db: SupabaseClient, agentIds: string[], hours
 
 export type DecisionEvent = Decision & { ts: number; agentId: string; agentName: string; symbol: string };
 
-/** The latest buys and sells across published agents, newest first. */
+/** The latest buys and sells across published paper agents, newest first. */
 export async function recentTrades(db: SupabaseClient, limit = 14): Promise<DecisionEvent[]> {
   const [{ data, error }, symbols] = await Promise.all([
     db
       .from("trades")
-      .select("agent_id, ts, token_address, side, reason, price, agents!inner(name, published_at)")
+      .select("agent_id, ts, token_address, side, reason, price, agents!inner(name, published_at, mode)")
       .not("agents.published_at", "is", null)
+      // A published live agent has its own page, but real trades stay out of the paper feed.
+      .eq("agents.mode", "paper")
       .order("ts", { ascending: false })
       .limit(limit),
     tokenSymbols(db),

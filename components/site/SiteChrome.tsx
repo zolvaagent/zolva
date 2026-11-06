@@ -173,6 +173,7 @@ export function SiteFooter() {
             <h3>Legal</h3>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
+            <Link href="/docs/verify">Verify Zolva</Link>
           </div>
         </div>
 

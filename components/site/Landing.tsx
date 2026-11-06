@@ -8,6 +8,7 @@ import type { AgentSummary, DecisionEvent } from "@/lib/data/agents";
 import type { Market } from "@/lib/data/market";
 import type { Backtest } from "@/lib/data/showcase";
 import type { Decision } from "@/lib/engine/engine";
+import { LIVE_PROOF_HREF } from "@/lib/chain";
 import { dateAt, dayAt, marketList, percent, points, price, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
 
 type Props = {
@@ -286,9 +287,12 @@ export function Landing({ market, backtests, agents, feed }: Props) {
       <section className="panel-dark next-panel">
         <div className="container">
           <div className="section-heading section-heading--center">
-            <span className="label">Coming soon</span>
+            <span className="label">Roadmap</span>
             <Words className="section-heading__title" text="What's" highlight="next." />
-            <p className="section-heading__lead reveal">Paper trading and crypto markets are live. Real money is in testing.</p>
+            <p className="section-heading__lead reveal">
+              Live today: paper trading and crypto markets. In testing: real money, with Zolva&apos;s own wallet. Planned: the agent launchpad. Every claim we can check is on{" "}
+              <Link href="/docs/verify">Verify Zolva</Link>.
+            </p>
           </div>
           <WhatsNext />
         </div>
@@ -851,18 +855,21 @@ function WhatsNext() {
           </div>
         </div>
         <div className="next-card__body">
-          <SoonBadge label="Next up" />
+          <SoonBadge label="Planned, not built" />
           <h3>Agent launchpad</h3>
-          <p>Launch a token for your agent on Pons, right from Zolva. A contract splits the creator fees, so part of them keeps the agent&apos;s AI running.</p>
+          <p>
+            The plan: launch a token for your agent on Pons, right from Zolva, with a contract that splits the creator fees so part of them keeps the agent&apos;s AI running. The preview is a design,
+            not a working app.
+          </p>
           <ul className="next-points">
             <li style={{ "--i": 0 } as React.CSSProperties}>
               <i className="ph ph-rocket-launch" aria-hidden="true" /> Two steps from your own wallet
             </li>
             <li style={{ "--i": 1 } as React.CSSProperties}>
-              <i className="ph ph-git-fork" aria-hidden="true" /> Fee split enforced by contract, no admin
+              <i className="ph ph-git-fork" aria-hidden="true" /> Fee split to be enforced by contract, no admin
             </li>
             <li style={{ "--i": 2 } as React.CSSProperties}>
-              <i className="ph ph-users-three" aria-hidden="true" /> Anyone can launch on a published agent, its creator still earns
+              <i className="ph ph-users-three" aria-hidden="true" /> Anyone could launch on a published agent, its creator still earns
             </li>
           </ul>
         </div>
@@ -916,7 +923,8 @@ function WhatsNext() {
         </div>
         <div className="next-card__foot">
           <i className="ph ph-hourglass-medium" />
-          Now: live with our own wallet, first trades filled on chain
+          Now: live with our own wallet.{" "}
+          <Link href={LIVE_PROOF_HREF}>See every trade on chain</Link>
         </div>
       </article>
 
