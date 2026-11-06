@@ -96,6 +96,22 @@ export const env = {
     const decimals = Number(optional("ZOLVA_TOKEN_DECIMALS") ?? 18);
     return { address: address as `0x${string}`, decimals: Number.isInteger(decimals) && decimals >= 0 ? decimals : 18 };
   },
+  /**
+   * Premium API over x402 (lib/x402). Off unless X402_ENABLED is "1" and Zolva's
+   * receiving address is set; then paid endpoints answer 402 with a USDG price.
+   */
+  get x402(): { payTo: `0x${string}` } | null {
+    const payTo = optional("X402_PAY_TO")?.toLowerCase();
+    if (optional("X402_ENABLED") !== "1" || !payTo || !/^0x[0-9a-f]{40}$/.test(payTo)) return null;
+    return { payTo: payTo as `0x${string}` };
+  },
+  /** The Privy server wallet that settles x402 payments and pays their gas (scripts/x402-relayer-setup.mts). */
+  get x402Relayer(): { walletId: string; address: `0x${string}` } | null {
+    const walletId = optional("X402_RELAYER_WALLET_ID");
+    const address = optional("X402_RELAYER_ADDRESS")?.toLowerCase();
+    if (!walletId || !address || !/^0x[0-9a-f]{40}$/.test(address)) return null;
+    return { walletId, address: address as `0x${string}` };
+  },
   get privy(): { appId: string; appSecret: string } | null {
     const appId = optional("PRIVY_APP_ID");
     const appSecret = optional("PRIVY_APP_SECRET");
