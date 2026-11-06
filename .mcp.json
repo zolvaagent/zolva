@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "zolva": {
+      "type": "http",
+      "url": "https://zolvaagent.app/mcp"
+    }
+  }
+}
