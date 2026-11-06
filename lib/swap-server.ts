@@ -5,7 +5,7 @@ import { erc20Abi, type Hex, type PublicClient } from "viem";
 
 import { getMarket } from "@/lib/data/market";
 import { QUOTE_EXACT_INPUT_SINGLE_ABI, QUOTER_V2 } from "@/lib/live/contracts";
-import { minimumOut, SWAP_ROUTER_02, swapPrice, USDG, USDG_DECIMALS, type SwapQuote, type SwapToken } from "@/lib/swap";
+import { isDirect, minimumOut, QUOTE_EXACT_INPUT_ABI, referenceRate, SWAP_ROUTER_02, swapPath, swapRate, USDG, USDG_DECIMALS, type SwapQuote, type SwapToken } from "@/lib/swap";
 
 const POOL_FEE_ABI = [{ type: "function", name: "fee", stateMutability: "view", inputs: [], outputs: [{ type: "uint24" }] }] as const;
 
@@ -30,35 +30,59 @@ export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
   ];
 }
 
+/** What a wallet holds of every swap token (raw units, as strings), plus its ETH for gas (wei). */
+export async function walletBalances(chain: PublicClient, owner: Hex, tokens: SwapToken[]): Promise<{ tokens: Record<string, string>; ethWei: string }> {
+  const [eth, ...balances] = await Promise.all([
+    chain.getBalance({ address: owner }),
+    ...tokens.map((token) => chain.readContract({ address: token.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }).catch(() => 0n)),
+  ]);
+  return { tokens: Object.fromEntries(tokens.map((token, i) => [token.address, balances[i].toString()])), ethWei: eth.toString() };
+}
+
+const poolFee = (chain: PublicClient, token: SwapToken) => {
+  if (!token.pool) throw new Error(`${token.symbol} has no pool`);
+  return chain.readContract({ address: token.pool, abi: POOL_FEE_ABI, functionName: "fee" });
+};
+
 /**
- * Quotes a swap on the token's v3 USDG pool through QuoterV2 (an eth_call, nothing sent).
- * With an owner it also reads their balance and the router's allowance, so the card
- * knows whether an approval is needed first.
+ * Quotes a swap through QuoterV2 (an eth_call, nothing sent): one hop on the market's USDG
+ * pool when a side is USDG, otherwise two hops through USDG. With an owner it also reads
+ * their balance and the router's allowance, so the card knows whether to approve first.
  */
 export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapToken; tokenOut: SwapToken; amountIn: bigint; slippageBps: number; owner: Hex | null }): Promise<SwapQuote> {
   const { tokenIn, tokenOut, amountIn, owner } = options;
-  const market = tokenIn.address === USDG ? tokenOut : tokenIn;
-  if (!market.pool) throw new Error("One side of a swap must be USDG and the other a market");
-  const fee = await chain.readContract({ address: market.pool, abi: POOL_FEE_ABI, functionName: "fee" });
-  const [quote, balance, allowance] = await Promise.all([
-    chain.simulateContract({
+  let fees: number[];
+  let amountOut: bigint;
+  if (isDirect(tokenIn, tokenOut)) {
+    const market = tokenIn.address === USDG ? tokenOut : tokenIn;
+    const fee = await poolFee(chain, market);
+    const quote = await chain.simulateContract({
       address: QUOTER_V2,
       abi: QUOTE_EXACT_INPUT_SINGLE_ABI,
       functionName: "quoteExactInputSingle",
       args: [{ tokenIn: tokenIn.address, tokenOut: tokenOut.address, amountIn, fee, sqrtPriceLimitX96: 0n }],
-    }),
+    });
+    fees = [fee];
+    amountOut = quote.result[0];
+  } else {
+    const hopFees = (await Promise.all([poolFee(chain, tokenIn), poolFee(chain, tokenOut)])) as [number, number];
+    const quote = await chain.simulateContract({ address: QUOTER_V2, abi: QUOTE_EXACT_INPUT_ABI, functionName: "quoteExactInput", args: [swapPath(tokenIn.address, tokenOut.address, hopFees), amountIn] });
+    fees = hopFees;
+    amountOut = quote.result[0];
+  }
+  const [balance, allowance] = await Promise.all([
     owner ? chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) : null,
     owner ? chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "allowance", args: [owner, SWAP_ROUTER_02] }) : null,
   ]);
-  const amountOut = quote.result[0];
-  const price = swapPrice(tokenIn, tokenOut, amountIn, amountOut);
+  const rate = swapRate(tokenIn, tokenOut, amountIn, amountOut);
+  const reference = referenceRate(tokenIn, tokenOut);
   return {
     amountIn: amountIn.toString(),
     amountOut: amountOut.toString(),
     minOut: minimumOut(amountOut, options.slippageBps).toString(),
-    fee,
-    price,
-    deviationBps: market.lastClose ? Math.round(Math.abs(price / market.lastClose - 1) * 10_000) : null,
+    fees,
+    rate,
+    deviationBps: reference ? Math.round(Math.abs(rate / reference - 1) * 10_000) : null,
     balance: balance === null ? null : balance.toString(),
     allowance: allowance === null ? null : allowance.toString(),
   };
