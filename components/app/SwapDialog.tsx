@@ -1,29 +1,27 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatUnits, parseUnits, type Hex } from "viem";
 
 import { useAuth } from "@/components/ui/Providers";
-import { Select, type SelectOption } from "@/components/ui/Select";
+import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
-import { price as formatPrice } from "@/lib/format";
-import { approveCall, DEFAULT_SLIPPAGE_BPS, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
+import { usd } from "@/lib/format";
+import { approveCall, DEFAULT_SLIPPAGE_BPS, isDirect, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
 import { hasInjectedWallet, sendFromBrowserWallet, WalletError } from "@/lib/wallet-client";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const SLIPPAGE_OPTIONS: SelectOption<number>[] = [
-  { value: 50, label: "0.5% slippage" },
-  { value: 100, label: "1% slippage" },
-  { value: 200, label: "2% slippage" },
-];
+const SLIPPAGES = [50, 100, 200] as const;
+/** Below this much ETH (wei) a swap probably cannot pay its gas. */
+const LOW_GAS_WEI = 10n ** 13n;
 
 /** A fixed sale for "Sell position": the market and the quantity, sold for USDG. */
 export type SwapPreset = { token: Hex; amount: string; title: string; note: string };
 
 type Props = {
-  address: string;
+  /** The logged in wallet, or null (the card then offers Log in). */
+  address: string | null;
   loginMethod: "privy" | "wallet" | null;
   /** Opens the dialog; the parent controls when. Ignored when inline. */
   open?: boolean;
@@ -35,27 +33,41 @@ type Props = {
   onSwapped?: (txHash: Hex) => Promise<void> | void;
 };
 
-/** Trims a raw token amount to at most `digits` decimals for display. */
+type Listing = { tokens: SwapToken[]; balances: Record<string, string> | null; ethWei: string | null };
+
+/** A raw token amount for display, at most `digits` decimals. */
 function display(raw: string | bigint, decimals: number, digits = 6): string {
   const [whole, fraction = ""] = formatUnits(BigInt(raw), decimals).split(".");
   const trimmed = fraction.slice(0, digits).replace(/0+$/, "");
   return trimmed ? `${whole}.${trimmed}` : whole;
 }
 
+/** USD value of a raw amount at the token's latest hourly close; null without one. */
+function usdValue(token: SwapToken | null, raw: string | bigint | null): number | null {
+  if (!token || raw === null || token.lastClose === null) return null;
+  return (Number(raw) / 10 ** token.decimals) * token.lastClose;
+}
+
 /**
- * Swaps between USDG and one of Zolva's markets from the user's own wallet: a quote from
- * Uniswap's QuoterV2, an exact approval if needed, then SwapRouter02, each signed by the user
- * (Privy's window for email and Google accounts, the browser wallet otherwise).
+ * Swaps any two of Zolva's tokens from the user's own wallet: Sell on top, Buy below, a
+ * quote from Uniswap's QuoterV2, an exact approval if needed, then SwapRouter02 (one hop on a
+ * USDG pool, or two through USDG), each signed by the user in Privy's window or the browser
+ * wallet. Balances come from the logged in wallet.
  */
 export function SwapDialog({ address, loginMethod, open: openProp = false, onClose, preset, onSwapped, inline = false }: Props) {
   const open = inline || openProp;
-  const { privy } = useAuth();
+  const { privy, openLogin } = useAuth();
+  const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
-  const [tokens, setTokens] = useState<SwapToken[] | null>(null);
-  const [side, setSide] = useState<"buy" | "sell">(preset ? "sell" : "buy");
-  const [market, setMarket] = useState<Hex | null>(preset?.token ?? null);
+  const picker = useRef<HTMLDialogElement>(null);
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [sellToken, setSellToken] = useState<Hex | null>(preset?.token ?? USDG);
+  const [buyToken, setBuyToken] = useState<Hex | null>(preset ? USDG : null);
   const [amount, setAmount] = useState(preset?.amount ?? "");
-  const [slippageBps, setSlippageBps] = useState(DEFAULT_SLIPPAGE_BPS);
+  const [slippageBps, setSlippageBps] = useState<number>(DEFAULT_SLIPPAGE_BPS);
+  const [settings, setSettings] = useState(false);
+  const [picking, setPicking] = useState<"sell" | "buy" | null>(null);
+  const [search, setSearch] = useState("");
   // Quotes and the price warning are tied to the inputs they were made for, so changing an
   // input drops them without resetting state in an effect.
   const [result, setResult] = useState<{ key: string; quote: SwapQuote | null; error: string | null } | null>(null);
@@ -64,6 +76,9 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Hex | null>(null);
 
+  // The token list with the wallet's balances; loaded on open and again after a swap.
+  const [listingVersion, setListingVersion] = useState(0);
+
   useEffect(() => {
     if (inline) return;
     if (open) dialog.current?.showModal();
@@ -71,20 +86,25 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   }, [open, inline]);
 
   useEffect(() => {
-    if (!open || tokens) return;
+    if (!open) return;
     fetch("/api/swap")
-      .then((response) => (response.ok ? (response.json() as Promise<{ tokens: SwapToken[] }>) : Promise.reject()))
+      .then((response) => (response.ok ? (response.json() as Promise<Listing>) : Promise.reject()))
       .then((body) => {
-        setTokens(body.tokens);
-        setMarket((current) => current ?? body.tokens.find((token) => token.symbol === "ETH")?.address ?? body.tokens[1]?.address ?? null);
+        setListing(body);
+        setBuyToken((current) => current ?? body.tokens.find((token) => token.symbol === "ETH")?.address ?? body.tokens[1]?.address ?? null);
       })
-      .catch(() => setError("Loading the token list failed. Close and try again."));
-  }, [open, tokens]);
+      .catch(() => setError("Loading the tokens failed. Refresh and try again."));
+  }, [open, address, listingVersion]);
 
-  const usdg = tokens?.find((token) => token.address === USDG) ?? null;
-  const other = tokens?.find((token) => token.address === market) ?? null;
-  const tokenIn = side === "buy" ? usdg : other;
-  const tokenOut = side === "buy" ? other : usdg;
+  useEffect(() => {
+    if (picking) picker.current?.showModal();
+    else picker.current?.close();
+  }, [picking]);
+
+  const tokens = listing?.tokens ?? [];
+  const tokenIn = tokens.find((token) => token.address === sellToken) ?? null;
+  const tokenOut = tokens.find((token) => token.address === buyToken) ?? null;
+  const balanceOf = (token: SwapToken | null) => (token && listing?.balances ? (listing.balances[token.address] ?? "0") : null);
 
   let amountIn: bigint | null = null;
   try {
@@ -93,8 +113,8 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     amountIn = null;
   }
 
-  const requestQuote = useCallback(async () => {
-    if (!tokenIn || !tokenOut || amountIn === null) return null;
+  const requestQuote = async () => {
+    if (!tokenIn || !tokenOut || amountIn === null || tokenIn.address === tokenOut.address) return null;
     const response = await fetch("/api/swap", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -103,9 +123,9 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     const body = (await response.json().catch(() => ({}))) as SwapQuote & { error?: string };
     if (!response.ok) throw new WalletError(body.error ?? "No quote right now. Try again.");
     return body;
-  }, [tokenIn, tokenOut, amountIn, slippageBps]);
+  };
 
-  const key = `${side}|${market}|${amount}|${slippageBps}`;
+  const key = `${sellToken}|${buyToken}|${amount}|${slippageBps}`;
   const current = result?.key === key ? result : null;
   const quote = current?.quote ?? null;
   const quoting = amountIn !== null && current === null;
@@ -113,14 +133,14 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
 
   // A fresh quote half a second after the inputs settle.
   useEffect(() => {
-    if (!open || done || busy || amountIn === null) return;
+    if (!open || done || busy || amountIn === null || !tokenOut) return;
     const timer = setTimeout(() => {
       requestQuote()
         .then((next) => setResult({ key, quote: next, error: null }))
         .catch((cause: Error) => setResult({ key, quote: null, error: cause.message }));
     }, 500);
     return () => clearTimeout(timer);
-    // amountIn is derived from amount; depend on the inputs, not the bigint object.
+    // amountIn and tokenOut follow from the key's inputs; depend on the key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, key, done]);
 
@@ -131,15 +151,29 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     onClose?.();
   };
 
-  // On the page: start a new swap after one went through.
-  const again = () => {
-    setDone(null);
-    setError(null);
+  const flip = () => {
+    setSellToken(buyToken);
+    setBuyToken(sellToken);
     setAmount("");
+  };
+
+  const pick = (address: Hex) => {
+    // Picking the token already on the other side swaps the two sides.
+    if (picking === "sell") {
+      if (address === buyToken) setBuyToken(sellToken);
+      setSellToken(address);
+      setAmount("");
+    } else if (picking === "buy") {
+      if (address === sellToken) setSellToken(buyToken);
+      setBuyToken(address);
+    }
+    setPicking(null);
+    setSearch("");
   };
 
   // Email and Google accounts sign in Privy's window; wallet logins in the browser wallet.
   const send = async (to: Hex, data: Hex): Promise<Hex> => {
+    if (!address) throw new WalletError("Log in first.");
     if (loginMethod === "privy") {
       const handle = privy();
       if (!handle) throw new WalletError("The secure wallet window is still loading. Try again in a moment.");
@@ -168,7 +202,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   };
 
   const swap = async () => {
-    if (!tokenIn || !tokenOut || amountIn === null || !quote) return;
+    if (!address || !tokenIn || !tokenOut || amountIn === null || !quote) return;
     setError(null);
     try {
       if (BigInt(quote.allowance ?? "0") < amountIn) {
@@ -182,7 +216,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
       const fresh = await requestQuote();
       if (!fresh) return;
       setBusy("Confirm the swap in your wallet…");
-      const hash = await send(SWAP_ROUTER_02, swapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, fee: fresh.fee, recipient: address as Hex, amountIn, minOut: BigInt(fresh.minOut) }));
+      const hash = await send(SWAP_ROUTER_02, swapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, fees: fresh.fees, recipient: address as Hex, amountIn, minOut: BigInt(fresh.minOut) }));
       setBusy("Waiting for the swap…");
       await waitFor(hash, "swap");
       setResult({ key, quote: fresh, error: null });
@@ -191,6 +225,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
         setBusy("Updating the agent…");
         await onSwapped(hash);
       }
+      setListingVersion((version) => version + 1);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "";
       // An empty message means the user closed the wallet prompt.
@@ -200,126 +235,239 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     }
   };
 
-  const balance = quote?.balance ?? null;
-  const short = balance !== null && amountIn !== null && BigInt(balance) < amountIn;
+  const sellBalance = balanceOf(tokenIn);
+  const buyBalance = balanceOf(tokenOut);
+  const short = sellBalance !== null && amountIn !== null && BigInt(sellBalance) < amountIn;
+  const lowGas = listing?.ethWei != null && BigInt(listing.ethWei) < LOW_GAS_WEI;
   const farFromClose = quote?.deviationBps != null && quote.deviationBps > PRICE_WARNING_BPS;
-  const marketOptions: SelectOption<Hex>[] = (tokens ?? []).filter((token) => token.address !== USDG).map((token) => ({ value: token.address, label: token.symbol, hint: token.name }));
-  const canSwap = Boolean(quote) && !short && !quoting && !busy && (!farFromClose || accepted);
+  const needsApproval = quote !== null && amountIn !== null && BigInt(quote.allowance ?? "0") < amountIn;
+  const sellUsd = usdValue(tokenIn, amountIn);
+  const buyUsd = usdValue(tokenOut, quote?.amountOut ?? null);
+  const locked = Boolean(preset);
+
+  const setFraction = (share: 2n | 1n) => {
+    if (!tokenIn || sellBalance === null) return;
+    setAmount(formatUnits(BigInt(sellBalance) / share, tokenIn.decimals));
+  };
+
+  let action: { label: string; disabled: boolean; onClick?: () => void };
+  if (!address) action = { label: "Log in to swap", disabled: false, onClick: () => openLogin(() => router.refresh()) };
+  else if (busy) action = { label: busy, disabled: true };
+  else if (amountIn === null) action = { label: "Enter an amount", disabled: true };
+  else if (short) action = { label: `Not enough ${tokenIn?.symbol}`, disabled: true };
+  else if (lowGas) action = { label: "Needs a little ETH for gas", disabled: true };
+  else if (quoting || !quote) action = { label: quoting ? "Getting a quote…" : "No quote", disabled: true };
+  else if (farFromClose && !accepted) action = { label: "Confirm the price below", disabled: true };
+  else action = { label: needsApproval ? `Approve ${tokenIn?.symbol} and swap` : "Swap", disabled: false, onClick: swap };
+
+  const query = search.trim().toLowerCase();
+  const pickList = tokens
+    .filter((token) => !query || token.symbol.toLowerCase().includes(query) || token.name.toLowerCase().includes(query) || token.address === query)
+    .map((token) => ({ token, balance: balanceOf(token), value: usdValue(token, balanceOf(token)) }))
+    // What the wallet holds first, by value; then the rest by symbol.
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || a.token.symbol.localeCompare(b.token.symbol));
+
+  const tokenButton = (token: SwapToken | null, side: "sell" | "buy") => (
+    <button className="swapbox__token" type="button" onClick={() => setPicking(side)} disabled={locked || Boolean(busy)} aria-label={`${side === "sell" ? "Sell" : "Buy"} token: ${token?.symbol ?? "pick one"}`}>
+      {token ? <TickerAvatar symbol={token.symbol} size={28} /> : <span className="swapbox__token-empty" />}
+      <strong>{token?.symbol ?? "Select"}</strong>
+      {!locked && <i className="ph ph-caret-down" aria-hidden="true" />}
+    </button>
+  );
 
   const body = (
-    <div className={inline ? "stack" : "modal__body"}>
-      {!inline && (
-        <>
-          <span className="choice__glyph" aria-hidden="true">
-            <i className="ph ph-arrows-left-right" />
-          </span>
-          <h2 className="modal__title" id="swap-title">
-            {preset?.title ?? "Swap"}
-          </h2>
-          <p className="muted" style={{ fontSize: 14, lineHeight: "20px" }}>
-            {preset?.note ?? "Swap from your own wallet on Uniswap, Robinhood Chain. You sign it; Zolva never holds your tokens."}
-          </p>
-        </>
-      )}
-      {!preset && (
-        <div className="tabs" role="tablist" aria-label="Buy or sell" style={{ width: "fit-content" }}>
-          {(["buy", "sell"] as const).map((key) => (
-            <button key={key} className="tab" role="tab" type="button" aria-selected={side === key} onClick={() => setSide(key)} disabled={Boolean(busy)}>
-              {key === "buy" ? "Buy with USDG" : "Sell for USDG"}
+    <div className="swapbox">
+      <div className="swapbox__head">
+        <strong className="swapbox__title">{preset?.title ?? "Swap"}</strong>
+        <button className="swapbox__settings" type="button" onClick={() => setSettings((value) => !value)} aria-expanded={settings} aria-label="Slippage settings">
+          <span>{slippageBps / 100}% slippage</span>
+          <i className="ph ph-sliders-horizontal" aria-hidden="true" />
+        </button>
+      </div>
+      {preset && <p className="muted swapbox__note">{preset.note}</p>}
+      {settings && (
+        <div className="swapbox__slippage" role="group" aria-label="Slippage">
+          <span className="muted">Max slippage</span>
+          {SLIPPAGES.map((value) => (
+            <button key={value} className="swapbox__chip" type="button" aria-pressed={slippageBps === value} onClick={() => setSlippageBps(value)}>
+              {value / 100}%
             </button>
           ))}
         </div>
       )}
 
-      {!preset && marketOptions.length > 0 && market && <Select variant="block" value={market} options={marketOptions} onChange={setMarket} label="Market" />}
-
-      <label className="ai-limit__field">
-        <span className="ai-limit__label">
-          {tokenIn ? `${tokenIn.symbol} to ${side === "buy" ? "spend" : "sell"}` : "Amount"}
-          {balance !== null && tokenIn && (
-            <button className="text-link" type="button" style={{ marginLeft: 8, fontSize: 12 }} onClick={() => setAmount(formatUnits(BigInt(balance), tokenIn.decimals))} disabled={Boolean(busy) || Boolean(preset)}>
-              Balance {display(balance, tokenIn.decimals)}
-            </button>
+      <section className="swapbox__panel" aria-label="Sell">
+        <div className="swapbox__row">
+          <span className="swapbox__label">Sell</span>
+          {sellBalance !== null && tokenIn && (
+            <span className="swapbox__balance">
+              <i className="ph ph-wallet" aria-hidden="true" /> {display(sellBalance, tokenIn.decimals)} {tokenIn.symbol}
+              {!locked && (
+                <>
+                  <button className="swapbox__chip" type="button" onClick={() => setFraction(2n)} disabled={Boolean(busy)}>
+                    Half
+                  </button>
+                  <button className="swapbox__chip" type="button" onClick={() => setFraction(1n)} disabled={Boolean(busy)}>
+                    Max
+                  </button>
+                </>
+              )}
+            </span>
           )}
-        </span>
-        <input className="input" inputMode="decimal" placeholder="0" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))} disabled={Boolean(busy) || Boolean(preset)} />
-      </label>
-
-      <Select variant="block" value={slippageBps} options={SLIPPAGE_OPTIONS} onChange={setSlippageBps} label="Slippage" />
-
-      <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>
-        <div className="growth__row" style={{ padding: 0, border: 0 }}>
-          <span className="muted">You get about</span>
-          <strong>{quoting ? "Quoting…" : quote && tokenOut ? `${display(quote.amountOut, tokenOut.decimals)} ${tokenOut.symbol}` : "—"}</strong>
         </div>
-        {quote && tokenOut && (
-          <>
-            <div className="growth__row" style={{ padding: 0, border: 0 }}>
-              <span className="muted">At least</span>
-              <span>
-                {display(quote.minOut, tokenOut.decimals)} {tokenOut.symbol}
-              </span>
-            </div>
-            <div className="growth__row" style={{ padding: 0, border: 0 }}>
-              <span className="muted">Price</span>
-              <span>
-                {formatPrice(quote.price)} per {other?.symbol} · pool fee {(quote.fee / 10_000).toFixed(2)}%
-              </span>
-            </div>
-          </>
-        )}
-      </div>
+        <div className="swapbox__row">
+          <input
+            className="swapbox__amount"
+            inputMode="decimal"
+            placeholder="0.0"
+            aria-label="Amount to sell"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value.replace(/[^0-9.]/g, ""))}
+            disabled={locked || Boolean(busy)}
+          />
+          {tokenButton(tokenIn, "sell")}
+        </div>
+        <span className="swapbox__usd">{sellUsd !== null ? `≈ ${usd(sellUsd)}` : " "}</span>
+      </section>
 
-      {short && <p className="field-error">Your wallet holds less than this amount.</p>}
+      {!locked && (
+        <button className="swapbox__flip" type="button" onClick={flip} disabled={Boolean(busy)} aria-label="Swap the two tokens">
+          <i className="ph ph-arrows-down-up" aria-hidden="true" />
+        </button>
+      )}
+
+      <section className="swapbox__panel swapbox__panel--buy" aria-label="Buy">
+        <div className="swapbox__row">
+          <span className="swapbox__label">Buy</span>
+          {buyBalance !== null && tokenOut && (
+            <span className="swapbox__balance">
+              <i className="ph ph-wallet" aria-hidden="true" /> {display(buyBalance, tokenOut.decimals)} {tokenOut.symbol}
+            </span>
+          )}
+        </div>
+        <div className="swapbox__row">
+          <output className={`swapbox__amount swapbox__amount--out${quote ? "" : " swapbox__amount--empty"}`} aria-live="polite">
+            {quoting ? "…" : quote && tokenOut ? display(quote.amountOut, tokenOut.decimals) : "0.0"}
+          </output>
+          {tokenButton(tokenOut, "buy")}
+        </div>
+        <span className="swapbox__usd">{buyUsd !== null ? `≈ ${usd(buyUsd)}` : " "}</span>
+      </section>
+
+      {quote && tokenIn && tokenOut && (
+        <dl className="swapbox__details">
+          <div>
+            <dt>Rate</dt>
+            <dd>
+              1 {tokenIn.symbol} = {quote.rate >= 1 ? quote.rate.toFixed(4) : quote.rate.toPrecision(4)} {tokenOut.symbol}
+            </dd>
+          </div>
+          <div>
+            <dt>Minimum received</dt>
+            <dd>
+              {display(quote.minOut, tokenOut.decimals)} {tokenOut.symbol}
+            </dd>
+          </div>
+          <div>
+            <dt>Route</dt>
+            <dd>
+              {isDirect(tokenIn, tokenOut) ? `${tokenIn.symbol} → ${tokenOut.symbol}` : `${tokenIn.symbol} → USDG → ${tokenOut.symbol}`} · Uniswap, fee{" "}
+              {quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" + ")}
+            </dd>
+          </div>
+        </dl>
+      )}
+
       {farFromClose && (
-        <label className="check" style={{ fontSize: 14 }}>
+        <label className="check swapbox__warning">
           <input type="checkbox" checked={accepted} onChange={(event) => setAcceptedKey(event.target.checked ? key : null)} />
-          <span>
-            This price is {((quote?.deviationBps ?? 0) / 100).toFixed(1)}% away from the latest hourly close. Swap anyway.
-          </span>
+          <span>This price is {((quote?.deviationBps ?? 0) / 100).toFixed(1)}% away from the latest hourly closes. Swap anyway.</span>
         </label>
       )}
-      <p className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-        Needs a little ETH on Robinhood Chain for gas. A first swap of a token asks for an exact approval first, then the swap.
-      </p>
       {(error ?? current?.error) && (
         <p className="field-error" role="alert">
           {error ?? current?.error}
         </p>
       )}
-      {done && (
-        <a className="text-link" href={`${EXPLORER_URL}/tx/${done}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14 }}>
-          Swapped. View it on Blockscout
-        </a>
+      {done ? (
+        <div className="swapbox__done">
+          <a className="text-link" href={`${EXPLORER_URL}/tx/${done}`} target="_blank" rel="noopener noreferrer">
+            Swapped. View it on Blockscout <i className="ph ph-arrow-up-right" aria-hidden="true" />
+          </a>
+          <button
+            className="button button--ghost"
+            type="button"
+            onClick={() => {
+              if (!inline) return close();
+              setDone(null);
+              setAmount("");
+            }}
+          >
+            {inline ? "New swap" : "Close"}
+          </button>
+        </div>
+      ) : (
+        <button className="button button--primary swapbox__action" type="button" onClick={action.onClick} disabled={action.disabled}>
+          {action.label}
+        </button>
       )}
-      <div className="modal__actions">
-        {inline ? (
-          done && (
-            <button className="button button--ghost" type="button" onClick={again}>
-              New swap
-            </button>
-          )
-        ) : (
-          <button className="button button--ghost" type="button" onClick={close} disabled={Boolean(busy)}>
-            {done ? "Close" : "Cancel"}
-          </button>
-        )}
-        {!done && (
-          <button className="button button--primary" type="button" onClick={swap} disabled={!canSwap}>
-            {busy ?? (quote && amountIn !== null && BigInt(quote.allowance ?? "0") < amountIn ? `Approve and ${side}` : side === "buy" ? "Buy" : "Sell")}
-          </button>
-        )}
-      </div>
+      {!inline && !done && (
+        <button className="button button--ghost" type="button" onClick={close} disabled={Boolean(busy)}>
+          Cancel
+        </button>
+      )}
+
+      <dialog
+        ref={picker}
+        className="modal swapbox__picker"
+        aria-label="Pick a token"
+        onCancel={(event) => {
+          event.preventDefault();
+          setPicking(null);
+        }}
+        onClick={(event) => {
+          if (event.target === picker.current) setPicking(null);
+        }}
+      >
+        <div className="modal__body">
+          <h2 className="modal__title">Select a token</h2>
+          <label className="directory-search" style={{ width: "100%" }}>
+            <span className="sr-only">Search tokens</span>
+            <i className="ph ph-magnifying-glass" aria-hidden="true" />
+            <input className="input" type="search" placeholder="Name, symbol or address" value={search} onChange={(event) => setSearch(event.target.value)} />
+          </label>
+          <ul className="swapbox__list">
+            {pickList.map(({ token, balance, value }) => (
+              <li key={token.address}>
+                <button type="button" className="swapbox__item" onClick={() => pick(token.address)} aria-current={(picking === "sell" ? sellToken : buyToken) === token.address ? "true" : undefined}>
+                  <TickerAvatar symbol={token.symbol} size={36} />
+                  <span className="swapbox__item-name">
+                    <strong>{token.symbol}</strong>
+                    <span className="muted">{token.name}</span>
+                  </span>
+                  {balance !== null && BigInt(balance) > 0n && (
+                    <span className="swapbox__item-balance">
+                      <strong>{display(balance, token.decimals, 4)}</strong>
+                      {value !== null && <span className="muted">{usd(value)}</span>}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+            {!pickList.length && <li className="muted swapbox__empty">No token matches. Only Zolva&apos;s allowlisted tokens can be swapped.</li>}
+          </ul>
+        </div>
+      </dialog>
     </div>
   );
 
-  if (inline) return <div className="card swap-card">{body}</div>;
+  if (inline) return body;
 
   return (
     <dialog
       ref={dialog}
-      className="modal"
-      aria-labelledby="swap-title"
+      className="modal swapbox-modal"
+      aria-label={preset?.title ?? "Swap"}
       onCancel={(event) => {
         // Escape key. Closing for Privy's window is programmatic and does not fire this.
         event.preventDefault();
