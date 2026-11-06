@@ -80,6 +80,12 @@ export const DOC_PAGES: DocPage[] = [
     group: "Safety",
   },
   {
+    slug: "verify",
+    title: "Verify Zolva",
+    description: "What is live, in testing and planned, with a link to check each claim: code, decisions, prices, the real money wallet and official accounts.",
+    group: "Safety",
+  },
+  {
     slug: "faq",
     title: "FAQ and glossary",
     description: "Short answers to common questions, and the terms used across Zolva.",
