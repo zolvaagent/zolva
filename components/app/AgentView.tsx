@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
+import { SellPositionButton } from "@/components/app/SwapDialog";
 import { useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
 import { EXPLORER_URL } from "@/lib/chain";
@@ -49,6 +50,8 @@ type Props = {
   /** Same settings over the last 30 days, shown while the agent has no history yet. */
   preview: Preview;
   symbols: Record<string, string>;
+  /** How the viewer logged in, for signing a manual sale (live agents, owner only). */
+  loginMethod?: "privy" | "wallet" | null;
 };
 
 const RANGES = { "7d": 7 * 24, "30d": 30 * 24, all: Infinity } as const;
@@ -64,6 +67,7 @@ export function AgentView({
   prices,
   preview,
   symbols,
+  loginMethod = null,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
@@ -946,6 +950,9 @@ export function AgentView({
                           )}
                           {trade.reason === "max_hold" && (
                             <span className="pill">Max hold</span>
+                          )}
+                          {trade.reason === "manual" && (
+                            <span className="pill" title="Sold by the owner with Sell position">Manual</span>
                           )}{" "}
                           {trade.txHash && (
                             <a className="text-link" href={`${EXPLORER_URL}/tx/${trade.txHash}`} target="_blank" rel="noopener noreferrer" title="Swap on Blockscout">
@@ -1077,6 +1084,7 @@ export function AgentView({
                       <th className="num">Now</th>
                       <th className="num">P&amp;L</th>
                       <th className="num">Value</th>
+                      {isOwner && isLive && agent.trading_wallet && <th className="sr-only">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -1099,6 +1107,11 @@ export function AgentView({
                           <td className="num">
                             {usd(short ? position.quantity * (2 * position.entryPrice - now) : position.quantity * now)}
                           </td>
+                          {isOwner && isLive && agent.trading_wallet && (
+                            <td className="num">
+                              {!short && <SellPositionButton agentId={agent.id} wallet={agent.trading_wallet} loginMethod={loginMethod} token={position.token} symbol={position.symbol} quantity={position.quantity} />}
+                            </td>
+                          )}
                         </tr>
                       );
                     })}

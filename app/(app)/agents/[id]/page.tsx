@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { AgentView, type Preview } from "@/components/app/AgentView";
 import { agentParams } from "@/lib/agents/plan";
-import { getSessionAddress } from "@/lib/auth/session";
+import { getSessionAddress, LOGIN_METHOD_COOKIE } from "@/lib/auth/session";
 import { getAgentDetail, type AgentDetail } from "@/lib/data/agents";
 import { getCredits } from "@/lib/data/credits";
 import { getMarket } from "@/lib/data/market";
@@ -50,5 +51,8 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
 
   const isOwner = address === detail.agent.owner;
   const credits = isOwner && address ? await getCredits(client, address) : null;
-  return <AgentView detail={detail} isOwner={isOwner} credits={credits} prices={prices} preview={preview} symbols={symbols} />;
+  // Display only: how to sign a manual sale on a live agent (Privy window or browser wallet).
+  const method = (await cookies()).get(LOGIN_METHOD_COOKIE)?.value;
+  const loginMethod = method === "privy" || method === "wallet" ? method : null;
+  return <AgentView detail={detail} isOwner={isOwner} credits={credits} prices={prices} preview={preview} symbols={symbols} loginMethod={loginMethod} />;
 }

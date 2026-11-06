@@ -31,7 +31,7 @@ const AGENT_DETAIL_FIELDS: Field[] = [
   ["agent", "Every field above, plus settings: maxPositionPct, stopLossPct, rules (Custom agents only, otherwise null) and aiCoPilot (true or false)."],
   ["equity", "Hourly rows of [time, agent value USD, value of holding the same markets USD] for the last 7 days, oldest first."],
   ["positions", "Open positions: market, side (long or short), quantity, entryPrice, openedAt."],
-  ["trades", "The latest 50 trades: at, market, side (buy, sell, short, cover), quantity, price, costUsd, reason (signal, stop_loss, take_profit, max_hold)."],
+  ["trades", "The latest 50 trades: at, market, side (buy, sell, short, cover), quantity, price, costUsd, reason (signal, stop_loss, take_profit, max_hold, or manual when the owner of a live agent sold by hand)."],
   ["decisions", "Every decision of the last 24 hours, one per market per hour: at, market, action (buy, sell, short, cover, hold) and reasoning, in plain words."],
   ["decisionHours", "How many hours of decisions are included (24)."],
 ];
@@ -53,7 +53,7 @@ const TRADE_FIELDS: Field[] = [
   ["at", "Time of the hourly close the trade used, ISO 8601."],
   ["agentId, agentName, byZolva, strategy", "Which agent traded."],
   ["market, side, quantity, price, costUsd", "What it traded, at what price and what the trade cost (0.5% of its size, the same as every paper trade)."],
-  ["reason", "signal, stop_loss, take_profit or max_hold."],
+  ["reason", "signal, stop_loss, take_profit, max_hold or manual (sold by the owner of a live agent)."],
   ["reasoning", "The agent's own explanation of the trade."],
 ];
 

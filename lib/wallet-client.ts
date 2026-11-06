@@ -99,10 +99,11 @@ export function burnCall(burnAddress: string, raw: bigint): `0x${string}` {
 }
 
 /**
- * Sends ZOLVA to the burn address from the browser wallet (MetaMask, Rabby...), switching
- * it to Robinhood Chain first. Resolves with the transaction hash; throws WalletError.
+ * Sends one transaction from the browser wallet (MetaMask, Rabby...), switching it to
+ * Robinhood Chain first. Resolves with the hash; throws WalletError (empty message when the
+ * user closed the prompt). `failure` is the message for anything else.
  */
-export async function sendBurnFromBrowserWallet(token: string, burnAddress: string, raw: bigint): Promise<`0x${string}`> {
+export async function sendFromBrowserWallet(to: string, data: `0x${string}`, failure: string): Promise<`0x${string}`> {
   const ethereum = window.ethereum;
   if (!ethereum) throw new WalletError("No wallet found in this browser.");
   try {
@@ -118,10 +119,15 @@ export async function sendBurnFromBrowserWallet(token: string, burnAddress: stri
         params: [{ chainId, chainName: ROBINHOOD_CHAIN.name, nativeCurrency: ROBINHOOD_CHAIN.nativeCurrency, rpcUrls: ROBINHOOD_CHAIN.rpcUrls.default.http, blockExplorerUrls: [ROBINHOOD_CHAIN.blockExplorers.default.url] }],
       });
     }
-    return (await ethereum.request({ method: "eth_sendTransaction", params: [{ from, to: token, data: burnCall(burnAddress, raw) }] })) as `0x${string}`;
+    return (await ethereum.request({ method: "eth_sendTransaction", params: [{ from, to, data }] })) as `0x${string}`;
   } catch (cause) {
     if (cause instanceof WalletError) throw cause;
     if ((cause as { code?: number }).code === 4001) throw new WalletError("");
-    throw new WalletError("Sending the ZOLVA failed. Check you have ZOLVA and a little ETH for gas, then try again.");
+    throw new WalletError(failure);
   }
+}
+
+/** Sends ZOLVA to the burn address from the browser wallet. Resolves with the transaction hash; throws WalletError. */
+export async function sendBurnFromBrowserWallet(token: string, burnAddress: string, raw: bigint): Promise<`0x${string}`> {
+  return sendFromBrowserWallet(token, burnCall(burnAddress, raw), "Sending the ZOLVA failed. Check you have ZOLVA and a little ETH for gas, then try again.");
 }
