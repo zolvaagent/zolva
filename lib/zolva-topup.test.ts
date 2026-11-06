@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest";
 import { BURN_ADDRESS, burnedBy, quoteTopUp, topUpPrice } from "./zolva-topup";
 
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-const TOKEN = "0x1111111111111111111111111111111111111111";
+// Made up addresses for the tests.
+const TOKEN = `0x${"11".repeat(20)}`;
 const ME = "0x235c3ccea156dfbbc31ee37c07a7292c4506f628";
-const OTHER = "0x9999999999999999999999999999999999999999";
+const OTHER = `0x${"99".repeat(20)}`;
 
 const transfer = (token: string, from: string, to: string, value: bigint) => ({
   address: token as Hex,

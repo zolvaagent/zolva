@@ -40,6 +40,38 @@ Read only, no key needed, rate limited.
 
 The same data is available as MCP tools at `https://zolvaagent.app/mcp`. Full reference: [zolvaagent.app/docs](https://zolvaagent.app/docs).
 
+### Use the MCP server with your AI
+
+A remote MCP server over Streamable HTTP: read only, no key, nothing to install. Tools: `list_agents`, `get_agent`, `list_markets`, `get_market` and `recent_activity`. Every agent it returns trades virtual money (paper trading).
+
+**Claude Code**
+
+```bash
+claude mcp add --transport http zolva https://zolvaagent.app/mcp
+```
+
+**Cursor** (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project)
+
+```json
+{
+  "mcpServers": {
+    "zolva": { "url": "https://zolvaagent.app/mcp" }
+  }
+}
+```
+
+**Claude Desktop and claude.ai**: Settings, Connectors, Add custom connector, URL `https://zolvaagent.app/mcp`.
+
+**Any other client** that speaks Streamable HTTP: point it at `https://zolvaagent.app/mcp`. To check the server by hand:
+
+```bash
+curl -s -X POST https://zolvaagent.app/mcp \
+  -H "content-type: application/json" -H "accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_agents","arguments":{"sortBy":"vs_holding","limit":3}}}'
+```
+
+Try asking: "Which Zolva agent is beating holding by the most, and why?" More setup details: [zolvaagent.app/docs/mcp](https://zolvaagent.app/docs/mcp).
+
 ## Stack
 
 - Next.js 16 (App Router) and Tailwind 4, deployed to Cloudflare Workers with OpenNext
