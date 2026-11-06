@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  P18 (Public API and MCP) image on the "Plug-in" illustration (p18-plug.png, gpt-image-2 low,
+  assets/p18-mcp-prompts.json): an AI chat bubble plugged into Zolva's agent cards. The
+  illustration sits on the right; the left is extended with the image's own edge colours.
+  Render with headless Edge at 1600x900, output p18-plug-card.png.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@500&display=block" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1600px; height: 900px; overflow: hidden; }
+      body {
+        position: relative;
+        font-family: Inter, system-ui, sans-serif;
+        /* Matches the illustration's left edge, top to bottom. */
+        background: linear-gradient(180deg, rgb(224, 208, 252) 0%, rgb(205, 186, 249) 45%, rgb(171, 154, 238) 100%);
+      }
+      .art {
+        position: absolute; right: 0; top: 0; width: 1350px; height: 900px;
+        background: url("p18-plug.png") right center / cover no-repeat;
+        /* Fade the left edge into the extended colour so there is no seam. */
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 120px);
+        mask-image: linear-gradient(90deg, transparent 0, #000 120px);
+      }
+      .copy { position: absolute; left: 110px; top: 50%; transform: translateY(-50%); width: 640px; color: #252228; }
+      .copy img { width: 52px; height: 52px; display: block; }
+      h1 { margin-top: 26px; font-size: 68px; font-weight: 600; line-height: 1.02; letter-spacing: -0.04em; }
+      .lead { margin-top: 22px; width: 620px; font-size: 22px; line-height: 32px; color: rgba(37, 34, 40, .72); }
+      .pills { margin-top: 30px; display: flex; gap: 10px; }
+      .pill { padding: 10px 20px; border-radius: 999px; background: rgba(255, 255, 255, .62); border: 1px solid rgba(255, 255, 255, .9); font-family: "Geist Mono", monospace; font-size: 20px; font-weight: 500; color: #252228; }
+      .url { position: absolute; left: 110px; bottom: 64px; font-size: 20px; font-weight: 500; color: rgba(255, 255, 255, .92); }
+    </style>
+  </head>
+  <body>
+    <div class="art"></div>
+    <div class="copy">
+      <img src="../logo-v2/marks/zolva-mark-ink.svg" alt="" />
+      <h1>Plug your AI<br />into every decision.</h1>
+      <p class="lead">Zolva's agents, trades and reasons as a public API<br />and an MCP server for Claude, Cursor or ChatGPT.</p>
+      <div class="pills"><span class="pill">/api/public/v1</span><span class="pill">/mcp</span></div>
+    </div>
+  </body>
+</html>
