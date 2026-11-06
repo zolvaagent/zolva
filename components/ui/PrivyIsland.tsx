@@ -59,7 +59,7 @@ export default function PrivyIsland({ appId, ...bridge }: PrivyIslandProps) {
 }
 
 function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProps, "appId">) {
-  const { ready, getAccessToken, logout } = usePrivy();
+  const { ready, authenticated, getAccessToken, logout } = usePrivy();
   const { addSigners, removeSigners } = useSigners();
   const { exportWallet } = useExportWallet();
   const { sendTransaction } = useSendTransaction();
@@ -87,6 +87,15 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
         // Privy not loaded (blocked script, bad app ID): say so instead of doing nothing.
         if (!ready) return onFailure("Email and Google sign in is unavailable right now. Please use a wallet or try again later.");
         pending.current = true;
+        // A Privy session can outlive Zolva's (after logging out of Zolva only, or switching
+        // accounts). Privy then refuses to open its login window ("already logged in"), so end
+        // that session first and let the user pick the account again.
+        if (authenticated) {
+          logout()
+            .catch(() => undefined)
+            .finally(() => login({ loginMethods: ["email", "google"] }));
+          return;
+        }
         login({ loginMethods: ["email", "google"] });
       },
       logout,
@@ -104,7 +113,7 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
         return hash;
       },
     });
-  }, [onReady, onFailure, ready, login, logout, addSigners, removeSigners, exportWallet, sendTransaction]);
+  }, [onReady, onFailure, ready, authenticated, login, logout, addSigners, removeSigners, exportWallet, sendTransaction]);
 
   return null;
 }
