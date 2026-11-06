@@ -1,0 +1,47 @@
+<!doctype html>
+<!--
+  P20 image (general version): Zolva in the HOL plugin catalog, on the "Switchboard"
+  illustration (p18-switchboard.png, gpt-image-2 low, assets/p18-mcp-prompts.json): one hub
+  connected to AI chat, cursor, terminal and robot icons. The left is extended with the
+  image's own edge colours. Render with headless Edge at 1600x900, output hol-switchboard-card.png.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@500&display=block" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1600px; height: 900px; overflow: hidden; }
+      body {
+        position: relative;
+        font-family: Inter, system-ui, sans-serif;
+        color: #252228;
+        /* Matches the illustration's left edge, top to bottom. */
+        background: linear-gradient(180deg, rgb(175, 158, 240) 0%, rgb(202, 187, 244) 45%, rgb(111, 102, 208) 100%);
+      }
+      .art {
+        position: absolute; right: 0; top: 0; width: 1350px; height: 900px;
+        background: url("p18-switchboard.png") right center / cover no-repeat;
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 120px);
+        mask-image: linear-gradient(90deg, transparent 0, #000 120px);
+      }
+      .copy { position: absolute; left: 110px; top: 50%; transform: translateY(-50%); width: 640px; }
+      .copy img { width: 52px; height: 52px; display: block; }
+      h1 { margin-top: 26px; font-size: 68px; font-weight: 600; line-height: 1.02; letter-spacing: -0.04em; }
+      .lead { margin-top: 22px; width: 600px; font-size: 22px; line-height: 32px; color: rgba(37, 34, 40, .74); }
+      .row { margin-top: 30px; display: flex; gap: 12px; align-items: center; }
+      .pill { padding: 10px 20px; border-radius: 999px; background: rgba(255, 255, 255, .62); border: 1px solid rgba(255, 255, 255, .9); font-family: "Geist Mono", monospace; font-size: 20px; font-weight: 500; }
+      .badge { display: inline-flex; align-items: center; gap: 10px; padding: 6px 18px 6px 6px; border-radius: 999px; background: rgba(255, 255, 255, .62); border: 1px solid rgba(255, 255, 255, .9); font-size: 18px; font-weight: 500; }
+      .badge b { display: grid; place-items: center; height: 36px; padding: 0 12px; border-radius: 999px; background: #1f9d5c; color: #fff; font-size: 18px; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="art"></div>
+    <div class="copy">
+      <img src="../logo-v2/marks/zolva-mark-ink.svg" alt="" />
+      <h1>Now in the<br />HOL plugin catalog.</h1>
+      <p class="lead">Any AI agent can find Zolva's MCP server:<br />paper trading agents, every decision with its reason.</p>
+      <div class="row"><span class="pill">/mcp</span><span class="badge"><b>100/100</b>HOL security scan</span></div>
+    </div>
+  </body>
+</html>
