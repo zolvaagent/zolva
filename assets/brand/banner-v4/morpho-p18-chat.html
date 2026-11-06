@@ -1,0 +1,85 @@
+<!doctype html>
+<!--
+  P18 (Public API and MCP) image, Morpho house style with a product moment: an AI client asks
+  a question, calls Zolva's MCP tools and answers from live data. Every number is from
+  https://zolvaagent.app/api/public/v1 on 2026-11-06 (Palantir Trend: list_agents gives
+  returnPct -2.65, holdingReturnPct -21.09, vsHoldingPts 18.44; get_agent gives the two
+  trades). Render with headless Edge at 1600x900, output morpho-p18-chat.png.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@500&display=block" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1600px; height: 900px; overflow: hidden; }
+      body { position: relative; font-family: Inter, system-ui, sans-serif; background: #c9c6ff; }
+      /* The Morpho field from build-morpho.mjs. */
+      .blob { position: absolute; border-radius: 50%; filter: blur(90px); }
+      .b1 { width: 70%; height: 140%; left: -10%; top: -30%; background: #e9e8ff; }
+      .b2 { width: 60%; height: 130%; left: 40%; top: -60%; background: #7d6dff; opacity: .9; }
+      .b3 { width: 55%; height: 120%; left: 62%; top: 30%; background: #9e96ff; }
+      .b4 { width: 40%; height: 90%; left: 20%; top: 55%; background: #b5b0ff; }
+      .b5 { width: 30%; height: 70%; left: 2%; top: -20%; background: #f4f3ff; opacity: .7; }
+      .b6 { width: 52%; height: 95%; left: 24%; top: 6%; background: #8577ff; opacity: .85; }
+      .grain { position: absolute; inset: 0; opacity: .08; background-image: radial-gradient(rgba(37,34,40,.6) .6px, transparent .8px); background-size: 3px 3px; }
+
+      .copy { position: absolute; left: 110px; top: 50%; transform: translateY(-50%); width: 560px; color: #252228; }
+      .copy img { width: 56px; height: 56px; display: block; }
+      h1 { margin-top: 28px; font-size: 64px; font-weight: 600; line-height: 1.04; letter-spacing: -0.04em; }
+      .lead { margin-top: 22px; font-size: 22px; line-height: 32px; color: rgba(37,34,40,.72); }
+      .pills { margin-top: 30px; display: flex; gap: 10px; }
+      .pill { padding: 10px 20px; border-radius: 999px; background: rgba(255,255,255,.5); border: 1px solid rgba(255,255,255,.8); font-family: "Geist Mono", monospace; font-size: 20px; font-weight: 500; color: #252228; }
+
+      /* The chat window. */
+      .chat {
+        position: absolute; left: 760px; top: 50%; transform: translateY(-50%); width: 740px;
+        border-radius: 28px; background: rgba(255,255,255,.92);
+        box-shadow: 0 40px 100px -30px rgba(60, 40, 180, .55), 0 0 0 1px rgba(255,255,255,.9);
+        padding: 30px 34px; display: flex; flex-direction: column; gap: 20px; color: #252228;
+      }
+      .bar { display: flex; align-items: center; gap: 8px; font-size: 15px; color: rgba(37,34,40,.5); }
+      .bar span { width: 11px; height: 11px; border-radius: 99px; background: #e4e2ec; }
+      .bar b { margin-left: 10px; font-weight: 500; }
+      .ask { align-self: flex-end; max-width: 520px; padding: 16px 20px; border-radius: 20px 20px 6px 20px; background: #252228; color: #fff; font-size: 21px; line-height: 30px; }
+      .tools { display: flex; gap: 10px; }
+      .tool { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; background: #f1f0fb; font-family: "Geist Mono", monospace; font-size: 16px; color: #5b4fe0; }
+      .tool i { width: 8px; height: 8px; border-radius: 99px; background: #2fbf71; }
+      .answer { font-size: 21px; line-height: 32px; }
+      .answer strong { font-weight: 600; }
+      .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+      .stat { padding: 14px 18px; border-radius: 16px; background: #f6f5fb; }
+      .stat dt { font-size: 14px; color: rgba(37,34,40,.55); }
+      .stat dd { margin-top: 4px; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+      .down { color: #e5482d; }
+      .up { color: #1f9d5c; }
+      .note { margin-top: 6px; font-size: 14px; color: rgba(37,34,40,.45); }
+    </style>
+  </head>
+  <body>
+    <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div><div class="blob b5"></div><div class="blob b6"></div><div class="grain"></div>
+
+    <div class="copy">
+      <img src="../logo-v2/marks/zolva-mark-ink.svg" alt="" />
+      <h1>Every decision,<br />open to your agent.</h1>
+      <p class="lead">Zolva's agents and their trades, as a public API and an MCP server for Claude, Cursor or ChatGPT.</p>
+      <div class="pills"><span class="pill">/api/public/v1</span><span class="pill">/mcp</span></div>
+    </div>
+
+    <div class="chat">
+      <div class="bar"><span></span><span></span><span></span><b>Your AI assistant · Zolva MCP</b></div>
+      <p class="ask">Which Zolva agent is beating holding by the most, and how?</p>
+      <div class="tools"><span class="tool"><i></i>zolva · list_agents</span><span class="tool"><i></i>zolva · get_agent</span></div>
+      <p class="answer">
+        <strong>Palantir Trend.</strong> It bought PLTR on Oct 19 at $193.18, sold on Oct 30 at $188.67 when the trend broke, and has stayed in cash
+        while PLTR kept falling.
+      </p>
+      <dl class="stats">
+        <div class="stat"><dt>Agent</dt><dd class="down">−2.65%</dd></div>
+        <div class="stat"><dt>Holding PLTR</dt><dd class="down">−21.09%</dd></div>
+        <div class="stat"><dt>vs holding</dt><dd class="up">+18.4 pts</dd></div>
+      </dl>
+      <p class="note">Live data from zolvaagent.app, Nov 6 · paper trading, not investment advice</p>
+    </div>
+  </body>
+</html>
