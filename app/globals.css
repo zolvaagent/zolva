@@ -2988,6 +2988,16 @@ main:focus {
   object-fit: contain;
 }
 
+/* Token logos are already round: fill the circle, no ring. */
+.ticker-avatar--token {
+  box-shadow: none;
+}
+
+.ticker-avatar--token img {
+  width: 100%;
+  height: 100%;
+}
+
 /* Crypto coin version: the currency icon in white on the coin's color. */
 .ticker-avatar--coin {
   font-size: 17px;
