@@ -33,6 +33,7 @@ export default async function StatsPage() {
   const stats = await getPublicStats(db());
   const { totals } = stats;
   const now = stats.builtAt;
+  // A run is stamped with the start of the hour it traded; the tick runs once that hour closes, so count from ts + 1 h.
 
   // Uptime: hours the engine ran out of every hour since its first run (both ends included).
   const hoursSinceStart = totals.firstRun !== null && totals.lastTick !== null ? Math.floor((totals.lastTick - totals.firstRun) / 3600) + 1 : 0;
@@ -70,7 +71,7 @@ export default async function StatsPage() {
             <h2 className="card__title">Real money, on chain</h2>
             <span className="stats-live__pulse">
               <span className="stats-live__dot" aria-hidden="true" />
-              {totals.lastTick !== null ? `Last tick ${ago(totals.lastTick, now)}` : "Waiting for the first tick"}
+              {totals.lastTick !== null ? `Last tick ${ago(totals.lastTick + 3600, now)}` : "Waiting for the first tick"}
             </span>
           </div>
           <p className="muted stats-live__lead">
