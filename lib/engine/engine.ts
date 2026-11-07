@@ -19,7 +19,8 @@
  *   the market furthest below its average, so other buy signals become holds.
  * - Spike fade is the only strategy that shorts (paper only): the same one position
  *   rule, the market furthest above its average. A short sells borrowed tokens; its
- *   stop is the price rising stopLossPct above entry, and it pays SHORT_BORROW_APR.
+ *   stop is the price rising stopLossPct above entry, and it pays SHORT_BORROW_APR out of
+ *   its own locked cash (never free cash, which may not go below zero).
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
 import { decide, LOOKBACK_HOURS, type StrategyKey } from "./strategies.ts";
@@ -128,11 +129,16 @@ export function runHour(
   const deepestDip = params.strategy === "dip_hunter" && !holdsAny ? findExtreme("dip_hunter", series, index, lookback, state) : null;
   const strongestSpike = params.strategy === "spike_fade" && !holdsAny ? findExtreme("spike_fade", series, index, lookback, state) : null;
 
-  // Borrow cost on shorts, for the hour that just passed.
+  // Borrow cost on shorts, for the hour that just passed. It comes out of the short's locked
+  // cash, not out of free cash: a short can use all the cash, and cash may never go below zero.
+  // Lowering the entry by fee / (2 x quantity) lowers the short's value by exactly the fee.
   for (const token of tokens) {
     const position = positions[token];
     const price = prices[token];
-    if (position?.side === "short" && price != null) cash -= (position.quantity * price * SHORT_BORROW_APR) / (365 * 24);
+    if (position?.side === "short" && price != null) {
+      const fee = (position.quantity * price * SHORT_BORROW_APR) / (365 * 24);
+      positions[token] = { ...position, entryPrice: position.entryPrice - fee / (2 * position.quantity) };
+    }
   }
 
   for (const token of tokens) {

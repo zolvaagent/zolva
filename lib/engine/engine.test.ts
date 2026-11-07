@@ -227,6 +227,22 @@ describe("spike fade (shorts)", () => {
     expect(hour.equity).toBeCloseTo(10 * (200 - 100.3) - (10 * 100.3 * SHORT_BORROW_APR) / (365 * 24));
   });
 
+  it("pays borrow from the short itself, so an all-in short never takes cash below zero", () => {
+    // Regression (2026-11-07): Lab · Crypto Spike Fade shorted with all its cash, the hourly
+    // borrow made cash negative, and the database refused every hour after that.
+    let state: AgentState = { cash: 0, positions: { AAA: { quantity: 10, entryPrice: 100, side: "short" } } };
+    // A flat price: z stays 0, so the short neither covers nor stops and pays borrow every hour.
+    const series = { AAA: Array.from({ length: 200 }, () => 100) };
+    for (let index = 48; index < 200; index++) {
+      const hour = runHour(state, spikeFade, series, index);
+      expect(hour.state.cash).toBeGreaterThanOrEqual(0);
+      state = hour.state;
+    }
+    // 152 hours of borrow at about $100 of tokens, 10% a year, came out of the short's value.
+    expect(state.cash).toBe(0);
+    expect(state.positions.AAA.entryPrice).toBeLessThan(100);
+  });
+
   it("never holds two positions over a long run, and only shorts", () => {
     const series = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600), DDD: walk(5, 600) };
     const run = simulate({ series, params: spikeFade, capital: 10_000, fromIndex: 60 });
