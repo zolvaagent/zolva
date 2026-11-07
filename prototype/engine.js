@@ -132,11 +132,15 @@
       const deepestDip = options.strategy === "dip_hunter" && !holdsAny ? findExtreme("dip_hunter", options.tokens, positions, index, warmup) : null;
       const strongestSpike = options.strategy === "spike_fade" && !holdsAny ? findExtreme("spike_fade", options.tokens, positions, index, warmup) : null;
 
-      // Borrow cost on shorts, for the hour that just passed.
+      // Borrow cost on shorts, for the hour that just passed, paid from the short's locked cash
+      // (free cash may not go below zero): a lower entry lowers the short's value by the fee.
       for (const token of options.tokens) {
         const position = positions[token.symbol];
         const price = prices[token.symbol];
-        if (position && position.side === "short" && price != null) cash -= (position.quantity * price * SHORT_BORROW_APR) / (365 * 24);
+        if (position && position.side === "short" && price != null) {
+          const fee = (position.quantity * price * SHORT_BORROW_APR) / (365 * 24);
+          positions[token.symbol] = { ...position, entryPrice: position.entryPrice - fee / (2 * position.quantity) };
+        }
       }
 
       for (const token of options.tokens) {
