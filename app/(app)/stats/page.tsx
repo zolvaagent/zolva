@@ -24,7 +24,9 @@ function ago(ts: number, now: number): string {
   const minutes = Math.max(0, Math.floor((now - ts) / 60));
   if (minutes < 60) return minutes <= 1 ? "just now" : `${minutes} min ago`;
   const hours = Math.floor(minutes / 60);
-  return hours < 24 ? `${hours} h ago` : `${Math.floor(hours / 24)} days ago`;
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day ago" : `${days} days ago`;
 }
 
 export default async function StatsPage() {
@@ -107,7 +109,7 @@ export default async function StatsPage() {
         <section className="card stats-activity" aria-label="Decisions per day">
           <div className="card-head">
             <h2 className="card__title">Decisions per day</h2>
-            <span className="muted stats-activity__range">Last {Math.min(STATS_DAYS, stats.daily.length)} days</span>
+            <span className="muted stats-activity__range">{stats.daily.length >= STATS_DAYS ? `Last ${STATS_DAYS} days` : stats.daily.length > 0 ? `Since ${dayAt(stats.daily[0].ts)}` : ""}</span>
           </div>
           <div className="stats-bars" role="img" aria-label={`Daily decisions over the last ${stats.daily.length} days, peaking at ${whole(busiestDay)}`}>
             {stats.daily.map((day, i) => (
