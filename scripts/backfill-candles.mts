@@ -9,6 +9,9 @@
  * (token, hour), so running it again only fills gaps. Also sets
  * tokens.history_start to each token's first stored hour.
  *
+ * Lighter perps (venue lighter) come from Lighter's public API instead, with hourly
+ * funding, from PERPS_HISTORY_START on.
+ *
  * Runs with plain Node 24 (built-in TypeScript type stripping, no build step).
  */
 import { readFileSync } from "node:fs";
@@ -24,9 +27,24 @@ import {
   toCandleRow,
   type Candle,
 } from "../lib/prices/geckoterminal.ts";
+import { fetchLighterHours, LIGHTER_MAX_HOURS_PER_CALL, type LighterRow } from "../lib/prices/lighter.ts";
 
 const MAX_PAGES_PER_TOKEN = 6; // 6 x 1000 hours is far more than any pool's age today
 const UPSERT_CHUNK = 500;
+const HOUR_MS = 3_600_000;
+/** Lighter's Robinhood Chain perps have hourly history from about 2026-06-26. */
+const PERPS_HISTORY_START = Date.UTC(2026, 5, 26);
+
+/** Every complete hour of one Lighter perp since PERPS_HISTORY_START, oldest first. */
+async function lighterHistory(address: string, marketId: number): Promise<LighterRow[]> {
+  const now = Math.floor(Date.now() / HOUR_MS) * HOUR_MS;
+  const rows: LighterRow[] = [];
+  for (let from = PERPS_HISTORY_START; from < now; from += LIGHTER_MAX_HOURS_PER_CALL * HOUR_MS) {
+    rows.push(...(await fetchLighterHours(address, marketId, from, Math.min(from + LIGHTER_MAX_HOURS_PER_CALL * HOUR_MS, now))));
+    await sleep(1100); // Lighter allows 60 requests a minute; each page is two
+  }
+  return rows;
+}
 
 function readDevVars(): Record<string, string> {
   const text = readFileSync(new URL("../.dev.vars", import.meta.url), "utf8");
@@ -51,12 +69,24 @@ async function main() {
   });
 
   const only = new Set(process.argv.slice(2).map((symbol) => symbol.toUpperCase()));
-  const { data: tokens, error } = await db.from("tokens").select("address, symbol, price_pool").eq("enabled", true).order("symbol");
+  const { data: tokens, error } = await db.from("tokens").select("address, symbol, price_pool, venue, lighter_market_id").eq("enabled", true).order("symbol");
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
   const selected = tokens.filter((token) => !only.size || only.has(token.symbol));
 
   let total = 0;
   for (const token of selected) {
+    if (token.venue === "lighter") {
+      const rows = await lighterHistory(token.address, Number(token.lighter_market_id));
+      for (let start = 0; start < rows.length; start += UPSERT_CHUNK) {
+        const { error: upsertError } = await db.from("candles").upsert(rows.slice(start, start + UPSERT_CHUNK), { onConflict: "token_address,ts" });
+        if (upsertError) throw new Error(`${token.symbol}: ${upsertError.message}`);
+      }
+      if (rows.length) await db.from("tokens").update({ history_start: rows[0].ts }).eq("address", token.address);
+      total += rows.length;
+      const withFunding = rows.filter((row) => row.funding_rate !== null).length;
+      console.log(`${token.symbol.padEnd(9)} ${String(rows.length).padStart(5)} hours  ${rows[0]?.ts.slice(0, 16) ?? "none"} to ${rows.at(-1)?.ts.slice(0, 16) ?? "none"}  (${withFunding} with funding)`);
+      continue;
+    }
     const candles: Candle[] = [];
     let before: number | undefined;
     for (let page = 0; page < MAX_PAGES_PER_TOKEN; page++) {

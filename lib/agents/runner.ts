@@ -22,11 +22,13 @@ export type RunnerResult = {
  * running this twice (or two ticks at once) cannot double-trade.
  */
 export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult> {
-  const market = await getMarket(db);
+  // Perps included: Lab agents trade them on paper.
+  const market = await getMarket(db, { perps: true });
   const result: RunnerResult = { agents: 0, hoursWritten: 0, hoursSkipped: 0, failed: [], copilot: [] };
   if (!market.hours) return result;
   const latestTs = market.startTs + (market.hours - 1) * 3600;
   const closes = Object.fromEntries(market.tokens.map((token) => [token.address, token.closes]));
+  const funding = Object.fromEntries(market.tokens.filter((token) => token.funding).map((token) => [token.address, token.funding!]));
   const symbols = Object.fromEntries(market.tokens.map((token) => [token.address, token.symbol]));
 
   const { data: agents, error } = await db
@@ -50,7 +52,7 @@ export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult>
   for (const agent of agents as CopilotAgent[]) {
     try {
       const own = (positions as (PositionRow & { agent_id: string })[]).filter((position) => position.agent_id === agent.id);
-      const series = { startTs: market.startTs, closes };
+      const series = { startTs: market.startTs, closes, funding };
       const planned = planAgentHours(agent, own, series, latestTs);
       const { writes, note } = await withCopilot(db, agent, own, { ...series, symbols }, latestTs, planned);
       if (note) result.copilot.push({ agentId: agent.id, note });

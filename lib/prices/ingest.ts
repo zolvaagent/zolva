@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { env } from "@/lib/env";
 import { completeHoursOnly, fetchHourlyCandles, repairBatch, REQUEST_SPACING_MS, sleep, toCandleRow } from "@/lib/prices/geckoterminal";
+import { fetchLighterHours } from "@/lib/prices/lighter";
 import { blockBefore, checkAgainstFeeds, createChainClient, readFeedPrices, readPrices, type PricePool } from "@/lib/prices/onchain";
 
 const HOUR_MS = 3_600_000;
@@ -34,6 +35,8 @@ export type IngestResult = {
   warnings: { step: string; error: string }[];
   /** Pool closes not stored because they disagreed with Chainlink; that hour is retried next tick. */
   rejected: { symbol: string; hour: string; pool: number; feed: number }[];
+  /** Lighter perps candles written (last day, rewritten every tick). */
+  perpsCandles: number;
 };
 
 /**
@@ -49,20 +52,25 @@ export type IngestResult = {
  * 2. GeckoTerminal repair (best effort): two tokens, in rotation, get real
  *    open/high/low/close candles for the last day. GeckoTerminal often
  *    answers 429 to Cloudflare's shared IPs; then this is skipped, not retried.
+ * 3. Lighter perps (paper only, venue 'lighter'): the last day of candles and
+ *    hourly funding from Lighter's public API (lib/prices/lighter.ts).
  *
  * Safe to run twice in the same hour.
  */
 export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Date.now()): Promise<IngestResult> {
-  const { data: tokens, error } = await db
+  const { data: allTokens, error } = await db
     .from("tokens")
-    .select("address, symbol, price_pool, pool_kind, stock_is_token0, token_decimals, history_start, chainlink_feed")
+    .select("address, symbol, price_pool, pool_kind, stock_is_token0, token_decimals, history_start, chainlink_feed, venue, lighter_market_id")
     .eq("enabled", true)
     .order("symbol");
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
+  // Perps come from Lighter's API (step 3); the chain and GeckoTerminal steps are for DEX tokens.
+  const tokens = allTokens.filter((token) => token.venue !== "lighter");
+  const perps = allTokens.filter((token) => token.venue === "lighter");
 
   const currentHourStart = Math.floor(nowMs / HOUR_MS) * HOUR_MS;
   const result: IngestResult = {
-    tokens: tokens.length,
+    tokens: allTokens.length,
     snapshotHour: new Date(currentHourStart - HOUR_MS).toISOString(),
     hoursFilled: [],
     snapshots: 0,
@@ -71,6 +79,7 @@ export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Da
     failed: [],
     warnings: [],
     rejected: [],
+    perpsCandles: 0,
   };
   const symbolOf = new Map(tokens.map((token) => [token.address, token.symbol]));
   const feedOf = new Map(tokens.filter((token) => token.chainlink_feed).map((token) => [token.address, token.chainlink_feed as string]));
@@ -133,6 +142,21 @@ export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Da
       result.repairedCandles += candles.length;
     } catch (cause) {
       result.warnings.push({ step: `repair ${token.symbol}`, error: cause instanceof Error ? cause.message : String(cause) });
+    }
+  }
+
+  // 3. Lighter perps (paper only): the last day of complete hours with funding, every tick.
+  // Lighter's closed hours are final, so rewriting them is harmless and fills any gap.
+  for (const token of perps) {
+    try {
+      const rows = await fetchLighterHours(token.address, Number(token.lighter_market_id), currentHourStart - CATCH_UP_HOURS * HOUR_MS, currentHourStart);
+      if (!rows.length) throw new Error("no complete hours returned");
+      const { error: perpsError } = await db.from("candles").upsert(rows, { onConflict: "token_address,ts" });
+      if (perpsError) throw new Error(perpsError.message);
+      result.perpsCandles += rows.length;
+    } catch (cause) {
+      // Only perps agents depend on this; DEX agents and prices are unaffected.
+      result.failed.push({ step: `lighter ${token.symbol}`, error: cause instanceof Error ? cause.message : String(cause) });
     }
   }
 

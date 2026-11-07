@@ -32,7 +32,7 @@ export const INDICATORS: Record<IndicatorKind, { label: string; unit: Unit; peri
   high: { label: "Highest", unit: "price", periods: [12, 24, 48, 72] },
   low: { label: "Lowest", unit: "price", periods: [12, 24, 48, 72] },
   change: { label: "Change", unit: "pct", periods: [1, 4, 12, 24, 48, 72] },
-  zscore: { label: "Z score", unit: "z", periods: [24, 48, 72] },
+  zscore: { label: "Z score", unit: "z", periods: [24, 48, 72, 96] },
   rsi: { label: "RSI", unit: "rsi", periods: [14, 24] },
 };
 

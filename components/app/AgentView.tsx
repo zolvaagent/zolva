@@ -284,6 +284,11 @@ export function AgentView({
               Live · real money
             </span>
           )}
+          {agent.params.venue === "perps" && (
+            <span className="pill pill--accent" title="Paper trades on Lighter perps (Robinhood Chain): 0.05% per trade plus hourly funding, no leverage">
+              Perps · paper
+            </span>
+          )}
           {summary.isHouse && <span className="pill">by Zolva</span>}
           {isOwner && !summary.isHouse && (
             <span className="pill">

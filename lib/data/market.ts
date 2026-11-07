@@ -8,6 +8,8 @@ import { buildCloseSeries, HOUR_SECONDS, OUTLIER_WINDOW, type CloseCandle } from
 export const MARKET_HOURS = 900;
 
 export type AssetClass = "stock" | "crypto";
+/** uniswap: stock and crypto tokens on the DEX; lighter: perps (paper only, Lab agents). */
+export type MarketVenue = "uniswap" | "lighter";
 
 export type MarketToken = {
   address: string;
@@ -18,6 +20,9 @@ export type MarketToken = {
   firstIndex: number | null;
   /** One cleaned close per hour (forward-filled, outliers removed); null before the first price. */
   closes: (number | null)[];
+  venue: MarketVenue;
+  /** Perps only: funding per hour as a signed fraction (positive: longs pay); null when unknown. */
+  funding?: (number | null)[];
 };
 
 export type Market = {
@@ -27,7 +32,7 @@ export type Market = {
   tokens: MarketToken[];
 };
 
-type RawToken = { address: string; symbol: string; name: string; assetClass?: AssetClass; candles: [number, number][] };
+type RawToken = { address: string; symbol: string; name: string; assetClass?: AssetClass; venue?: MarketVenue; candles: [number, number, (number | null)?][] };
 
 // Prices change once an hour; keep a built snapshot for a few minutes per Worker isolate.
 const CACHE_MS = 5 * 60 * 1000;
@@ -36,8 +41,17 @@ let cached: { at: number; market: Market } | null = null;
 /**
  * The last MARKET_HOURS hourly closes of every enabled token, aligned to the
  * same hours and cleaned exactly like the live engine sees them.
+ *
+ * Perps (venue lighter) are left out unless `perps` is set: they are paper only and so
+ * far run only for Lab agents, so market lists, the Studio, Swap and the APIs never
+ * show them. The agent runner and agent pages ask for them.
  */
-export async function getMarket(db: SupabaseClient): Promise<Market> {
+export async function getMarket(db: SupabaseClient, options: { perps?: boolean } = {}): Promise<Market> {
+  const market = await loadMarket(db);
+  return options.perps ? market : { ...market, tokens: market.tokens.filter((token) => token.venue !== "lighter") };
+}
+
+async function loadMarket(db: SupabaseClient): Promise<Market> {
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.market;
 
   const latest = await latestCandleTime(db);
@@ -53,12 +67,30 @@ export async function getMarket(db: SupabaseClient): Promise<Market> {
     const candles: CloseCandle[] = token.candles.map(([time, close]) => ({ time: Number(time), close: Number(close) }));
     const series = buildCloseSeries(candles, startTs, latest);
     const firstIndex = series.closes.findIndex((close) => close !== null);
-    return { address: token.address, symbol: token.symbol, name: token.name, assetClass: token.assetClass ?? "stock", firstIndex: firstIndex === -1 ? null : firstIndex, closes: series.closes };
+    const venue = token.venue ?? "uniswap";
+    return {
+      address: token.address,
+      symbol: token.symbol,
+      name: token.name,
+      assetClass: token.assetClass ?? "stock",
+      firstIndex: firstIndex === -1 ? null : firstIndex,
+      closes: series.closes,
+      venue,
+      ...(venue === "lighter" ? { funding: fundingSeries(token.candles, startTs, latest) } : {}),
+    };
   });
 
   const market = { startTs, hours: MARKET_HOURS, tokens };
   cached = { at: Date.now(), market };
   return market;
+}
+
+/** Funding per hour from startTs to latest (inclusive); hours without a stored rate are null. */
+function fundingSeries(candles: RawToken["candles"], startTs: number, latest: number): (number | null)[] {
+  const byTime = new Map(candles.map(([time, , rate]) => [Number(time), rate == null ? null : Number(rate)]));
+  const out: (number | null)[] = [];
+  for (let time = startTs; time <= latest; time += HOUR_SECONDS) out.push(byTime.get(time) ?? null);
+  return out;
 }
 
 /** Start of the newest stored hour (unix seconds), or null with no data. */

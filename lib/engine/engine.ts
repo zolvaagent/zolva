@@ -21,6 +21,10 @@
  *   rule, the market furthest above its average. A short sells borrowed tokens; its
  *   stop is the price rising stopLossPct above entry, and it pays SHORT_BORROW_APR out of
  *   its own locked cash (never free cash, which may not go below zero).
+ * - Perps agents (venue "perps", Lighter on Robinhood Chain, paper only) pay PERPS_COST_RATE
+ *   per fill instead of COST_RATE, and the market's hourly funding instead of the borrow
+ *   rate. Funding also comes out of (or into) the position itself: a long loses quantity, a
+ *   short's entry moves, so cash never goes below zero. Research: docs/perps-research.md.
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
 import { decide, LOOKBACK_HOURS, type StrategyKey } from "./strategies.ts";
@@ -28,6 +32,15 @@ import { decide, LOOKBACK_HOURS, type StrategyKey } from "./strategies.ts";
 export const COST_RATE = 0.005;
 /** Yearly borrow rate charged hourly on open shorts (Morpho was near 0% on 2026-11-03; cautious). */
 export const SHORT_BORROW_APR = 0.1;
+/** Cost per fill on Lighter perps: 0% fees today, 0.05% kept for slippage and a fee change. */
+export const PERPS_COST_RATE = 0.0005;
+
+export type Venue = "dex" | "perps";
+
+/** Cost per fill for an agent's venue. */
+export function costRateFor(venue: Venue | undefined): number {
+  return venue === "perps" ? PERPS_COST_RATE : COST_RATE;
+}
 
 export type AgentParams = {
   /** A preset, or "custom" with the user's own rules. */
@@ -37,6 +50,8 @@ export type AgentParams = {
   maxPositionPct: number;
   /** Sell when a position is this far below its entry price (a short: above), 0 to 100. */
   stopLossPct: number;
+  /** Where the agent trades: Uniswap stock and crypto tokens (default) or Lighter perps. */
+  venue?: Venue;
 };
 
 export type Position = {
@@ -73,6 +88,11 @@ export type RunHourOptions = {
    * time always execute.
    */
   veto?: ReadonlyMap<string, string>;
+  /**
+   * Perps only: funding per token and hour as a signed fraction (positive: longs pay
+   * shorts), aligned with the closes. A missing hour counts as zero.
+   */
+  funding?: Record<string, (number | null)[]>;
 };
 
 export type Fill = {
@@ -118,6 +138,7 @@ export function runHour(
   const equityBefore = equityAt(state, prices);
   const maxShare = params.maxPositionPct / 100;
   const stopDistance = params.stopLossPct / 100;
+  const cost = costRateFor(params.venue);
 
   let cash = state.cash;
   const positions: Record<string, Position> = { ...state.positions };
@@ -129,13 +150,24 @@ export function runHour(
   const deepestDip = params.strategy === "dip_hunter" && !holdsAny ? findExtreme("dip_hunter", series, index, lookback, state) : null;
   const strongestSpike = params.strategy === "spike_fade" && !holdsAny ? findExtreme("spike_fade", series, index, lookback, state) : null;
 
-  // Borrow cost on shorts, for the hour that just passed. It comes out of the short's locked
-  // cash, not out of free cash: a short can use all the cash, and cash may never go below zero.
-  // Lowering the entry by fee / (2 x quantity) lowers the short's value by exactly the fee.
+  // Carrying costs for the hour that just passed, paid by the position itself, never from free
+  // cash (a position can use all the cash, and cash may never go below zero).
+  // - DEX shorts pay the borrow rate: lowering the entry by fee / (2 x quantity) lowers the
+  //   short's value by exactly the fee.
+  // - Perps pay or receive funding: payment = quantity x price x rate, positive rate from longs
+  //   to shorts. A long's quantity shrinks by the payment; a short's entry moves by half of it.
   for (const token of tokens) {
     const position = positions[token];
     const price = prices[token];
-    if (position?.side === "short" && price != null) {
+    if (!position || price == null) continue;
+    if (params.venue === "perps") {
+      const rate = options.funding?.[token]?.[index] ?? 0;
+      if (rate === 0) continue;
+      positions[token] =
+        position.side === "short"
+          ? { ...position, entryPrice: position.entryPrice + (price * rate) / 2 }
+          : { ...position, quantity: position.quantity * (1 - rate) };
+    } else if (position.side === "short") {
       const fee = (position.quantity * price * SHORT_BORROW_APR) / (365 * 24);
       positions[token] = { ...position, entryPrice: position.entryPrice - fee / (2 * position.quantity) };
     }
@@ -152,7 +184,7 @@ export function runHour(
     }
 
     if (position?.side === "short" && price >= position.entryPrice * (1 + stopDistance)) {
-      const fill = coverAll(token, position, price, "stop_loss");
+      const fill = coverAll(token, position, price, "stop_loss", cost);
       cash += position.quantity * (2 * position.entryPrice - price) - fill.costUsd;
       delete positions[token];
       fills.push(fill);
@@ -165,7 +197,7 @@ export function runHour(
     }
 
     if (position && position.side !== "short" && price <= position.entryPrice * (1 - stopDistance)) {
-      const fill = sellAll(token, position, price, "stop_loss");
+      const fill = sellAll(token, position, price, "stop_loss", cost);
       cash += fill.quantity * price - fill.costUsd;
       delete positions[token];
       fills.push(fill);
@@ -187,7 +219,7 @@ export function runHour(
             ? { reason: "max_hold", reasoning: `Held for ${rules.maxHoldHours} hours, the maximum. Selling.` }
             : null;
       if (exit) {
-        const fill = sellAll(token, position, price, exit.reason);
+        const fill = sellAll(token, position, price, exit.reason, cost);
         cash += fill.quantity * price - fill.costUsd;
         delete positions[token];
         fills.push(fill);
@@ -229,12 +261,12 @@ export function runHour(
         decisions.push({ token, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
         continue;
       }
-      const quantity = (notional * (1 - COST_RATE)) / price;
+      const quantity = (notional * (1 - cost)) / price;
       cash -= notional;
       positions[token] = { quantity, entryPrice: price, openedAt: hourTime, side: "short" };
-      fills.push({ token, side: "short", quantity, price, costUsd: notional * COST_RATE, reason: "signal" });
+      fills.push({ token, side: "short", quantity, price, costUsd: notional * cost, reason: "signal" });
     } else if (signal.action === "cover" && position) {
-      const fill = coverAll(token, position, price, "signal");
+      const fill = coverAll(token, position, price, "signal", cost);
       cash += position.quantity * (2 * position.entryPrice - price) - fill.costUsd;
       delete positions[token];
       fills.push(fill);
@@ -244,13 +276,13 @@ export function runHour(
         decisions.push({ token, action: "hold", reasoning: "Signal to buy, but no cash left. Holding." });
         continue;
       }
-      const quantity = (notional * (1 - COST_RATE)) / price;
+      const quantity = (notional * (1 - cost)) / price;
       cash -= notional;
       // Entry price includes the cost, so stops and PnL measure what was actually paid.
       positions[token] = { quantity, entryPrice: notional / quantity, openedAt: hourTime };
-      fills.push({ token, side: "buy", quantity, price, costUsd: notional * COST_RATE, reason: "signal" });
+      fills.push({ token, side: "buy", quantity, price, costUsd: notional * cost, reason: "signal" });
     } else if (signal.action === "sell" && position) {
-      const fill = sellAll(token, position, price, "signal");
+      const fill = sellAll(token, position, price, "signal", cost);
       cash += fill.quantity * price - fill.costUsd;
       delete positions[token];
       fills.push(fill);
@@ -288,14 +320,14 @@ function findExtreme(
   return best?.token ?? null;
 }
 
-function coverAll(token: string, position: Position, price: number, reason: Fill["reason"]): Fill {
+function coverAll(token: string, position: Position, price: number, reason: Fill["reason"], cost: number): Fill {
   const gross = position.quantity * price;
-  return { token, side: "cover", quantity: position.quantity, price, costUsd: gross * COST_RATE, reason, entryPrice: position.entryPrice };
+  return { token, side: "cover", quantity: position.quantity, price, costUsd: gross * cost, reason, entryPrice: position.entryPrice };
 }
 
-function sellAll(token: string, position: Position, price: number, reason: Fill["reason"]): Fill {
+function sellAll(token: string, position: Position, price: number, reason: Fill["reason"], cost: number): Fill {
   const gross = position.quantity * price;
-  return { token, side: "sell", quantity: position.quantity, price, costUsd: gross * COST_RATE, reason, entryPrice: position.entryPrice };
+  return { token, side: "sell", quantity: position.quantity, price, costUsd: gross * cost, reason, entryPrice: position.entryPrice };
 }
 
 /** Cash plus positions at the given prices (a short: locked cash plus gain); a token without a price is valued at its entry. */
@@ -339,6 +371,8 @@ export function simulate(options: {
   toIndex?: number;
   /** Hour start per index (unix seconds); defaults to index x 3600. */
   times?: number[];
+  /** Perps funding per token and hour (see RunHourOptions.funding). */
+  funding?: Record<string, (number | null)[]>;
 }): SimulationResult {
   const tokens = Object.keys(options.series);
   const lastIndex = options.toIndex ?? options.series[tokens[0]].length - 1;
@@ -347,17 +381,18 @@ export function simulate(options: {
   const fills: (Fill & { index: number })[] = [];
 
   for (let index = options.fromIndex; index <= lastIndex; index++) {
-    const hour = runHour(state, options.params, options.series, index, options.times?.[index] ?? index * 3600);
+    const hour = runHour(state, options.params, options.series, index, options.times?.[index] ?? index * 3600, { funding: options.funding });
     state = hour.state;
     fills.push(...hour.fills.map((fill) => ({ ...fill, index })));
     runs.push({ index, equity: hour.equity, cash: state.cash, decisions: hour.decisions });
   }
 
   const finalEquity = runs.length ? runs[runs.length - 1].equity : options.capital;
+  const cost = costRateFor(options.params.venue);
   const profits = fills
     .filter((fill) => fill.side === "sell" || fill.side === "cover")
     .map((fill) =>
-      fill.side === "sell" ? fill.price * (1 - COST_RATE) - (fill.entryPrice ?? fill.price) : (fill.entryPrice ?? fill.price) - fill.price * (1 + COST_RATE),
+      fill.side === "sell" ? fill.price * (1 - cost) - (fill.entryPrice ?? fill.price) : (fill.entryPrice ?? fill.price) - fill.price * (1 + cost),
     );
   return {
     runs,
@@ -372,7 +407,7 @@ export function simulate(options: {
 }
 
 /** Equal-weight buy and hold of the same tokens, paying the cost once, for comparison. */
-export function buyAndHold(series: Record<string, (number | null)[]>, capital: number, fromIndex: number, toIndex?: number) {
+export function buyAndHold(series: Record<string, (number | null)[]>, capital: number, fromIndex: number, toIndex?: number, cost: number = COST_RATE) {
   const tokens = Object.keys(series);
   const lastIndex = toIndex ?? series[tokens[0]].length - 1;
   const share = capital / tokens.length;
@@ -382,7 +417,7 @@ export function buyAndHold(series: Record<string, (number | null)[]>, capital: n
     for (const token of tokens) {
       const start = series[token][fromIndex];
       const now = series[token][index];
-      equity += start && now ? share * (1 - COST_RATE) * (now / start) : share;
+      equity += start && now ? share * (1 - cost) * (now / start) : share;
     }
     curve.push(equity);
   }

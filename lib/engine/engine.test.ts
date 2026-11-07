@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 
 import { describe, expect, it } from "vitest";
 
-import { buyAndHold, COST_RATE, maxDrawdown, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
+import { buyAndHold, COST_RATE, costRateFor, maxDrawdown, PERPS_COST_RATE, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
+import type { Rules } from "./rules";
 import { decide, LOOKBACK_HOURS } from "./strategies";
 
 const momentum: AgentParams = { strategy: "momentum", maxPositionPct: 50, stopLossPct: 8 };
@@ -148,6 +149,68 @@ describe("parity with the prototype engine", () => {
       expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
     });
   }
+
+  it("matches trades and return for a perps agent with funding", () => {
+    const series: Record<string, number[]> = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600) };
+    // Funding that changes sign over time, about 0.001% to 0.003% an hour.
+    const funding = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => Math.sin(i / 17 + t) * 0.00003)]));
+    const params: AgentParams = { strategy: "custom", rules: deepDip, maxPositionPct: 33, stopLossPct: 5, venue: "perps" };
+    const ours = simulate({ series, params, capital: 10_000, fromIndex: 120, funding });
+    const theirs = prototype.simulate({
+      tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, funding: funding[symbol] })),
+      strategy: "custom",
+      rules: deepDip,
+      venue: "perps",
+      capital: 10_000,
+      maxPositionPct: 33,
+      stopLossPct: 5,
+      fromIndex: 120,
+    });
+    expect(ours.fills.length).toBeGreaterThan(0);
+    expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(
+      theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`),
+    );
+    expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+  });
+});
+
+/** The deep dip rule that passed the perps search (docs/perps-research.md). */
+const deepDip: Rules = {
+  entry: { join: "all", conditions: [{ left: { kind: "zscore", hours: 96 }, op: "below", right: { kind: "value", value: -2.5 } }] },
+  exit: { join: "any", conditions: [{ left: { kind: "zscore", hours: 96 }, op: "above", right: { kind: "value", value: 0.5 } }] },
+  takeProfitPct: null,
+  maxHoldHours: null,
+};
+
+describe("perps", () => {
+  const perps: AgentParams = { strategy: "mean_reversion", maxPositionPct: 50, stopLossPct: 8, venue: "perps" };
+  const noisyThenDip = [...Array.from({ length: 48 }, (_, i) => 100 + (i % 2 ? 1 : -1)), 95];
+
+  it("pays PERPS_COST_RATE instead of COST_RATE", () => {
+    const hour = runHour({ cash: 1000, positions: {} }, perps, { AAA: noisyThenDip }, 48);
+    expect(hour.fills[0].costUsd).toBeCloseTo(500 * PERPS_COST_RATE, 9);
+    expect(costRateFor("perps")).toBe(PERPS_COST_RATE);
+    expect(costRateFor(undefined)).toBe(COST_RATE);
+  });
+
+  it("takes funding from a long's quantity and pays it to a short's entry, never from cash", () => {
+    const state: AgentState = { cash: 0, positions: { AAA: { quantity: 10, entryPrice: 100 }, BBB: { quantity: 10, entryPrice: 100, side: "short" } } };
+    const series = { AAA: flat(49), BBB: flat(49) };
+    const hour = runHour(state, { ...perps, strategy: "momentum" }, series, 48, 48 * 3600, { funding: { AAA: [...flat(48, 0), 0.001], BBB: [...flat(48, 0), 0.001] } });
+    expect(hour.state.cash).toBe(0);
+    expect(hour.state.positions.AAA.quantity).toBeCloseTo(9.99, 9); // the long paid 10 x 100 x 0.1% = $1
+    expect(hour.equity).toBeCloseTo(2000, 9); // the short received the same $1
+  });
+
+  it("charges no borrow on perps shorts and no funding on DEX agents", () => {
+    const short: AgentState = { cash: 0, positions: { AAA: { quantity: 10, entryPrice: 100, side: "short" } } };
+    const perpsHour = runHour(short, { ...perps, strategy: "spike_fade" }, { AAA: flat(49) }, 48);
+    expect(perpsHour.equity).toBeCloseTo(1000, 9);
+    const dexHour = runHour({ cash: 0, positions: { AAA: { quantity: 10, entryPrice: 100 } } }, { ...perps, venue: "dex" }, { AAA: flat(49) }, 48, 48 * 3600, {
+      funding: { AAA: flat(49, 0.01) },
+    });
+    expect(dexHour.state.positions.AAA.quantity).toBe(10);
+  });
 });
 
 describe("dip hunter", () => {

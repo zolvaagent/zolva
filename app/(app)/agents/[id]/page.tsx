@@ -8,7 +8,7 @@ import { getSessionAddress, LOGIN_METHOD_COOKIE } from "@/lib/auth/session";
 import { getAgentDetail, type AgentDetail } from "@/lib/data/agents";
 import { getCredits } from "@/lib/data/credits";
 import { getMarket } from "@/lib/data/market";
-import { buyAndHold, simulate } from "@/lib/engine/engine";
+import { buyAndHold, costRateFor, simulate } from "@/lib/engine/engine";
 import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: PageProps<"/agents/[id]">): P
 export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
   const client = db();
   const { id } = await params;
-  const [detail, address, market] = await Promise.all([getAgentDetail(client, id), getSessionAddress(), getMarket(client)]);
+  const [detail, address, market] = await Promise.all([getAgentDetail(client, id), getSessionAddress(), getMarket(client, { perps: true })]);
   // A private agent looks like it does not exist to everyone but its owner.
   if (!detail || !canView(detail, address)) notFound();
 
@@ -41,10 +41,14 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
   let preview: Preview = null;
   if (!detail.runs.length) {
     const fromIndex = market.hours - 30 * 24;
-    const series = Object.fromEntries(detail.agent.token_addresses.map((address) => [address, market.tokens.find((token) => token.address === address)?.closes ?? []]));
+    const own = detail.agent.token_addresses.map((address) => market.tokens.find((token) => token.address === address));
+    const series = Object.fromEntries(detail.agent.token_addresses.map((address, i) => [address, own[i]?.closes ?? []]));
+    // Perps agents also pay funding (missing for DEX tokens, which the engine ignores).
+    const funding = Object.fromEntries(detail.agent.token_addresses.map((address, i) => [address, own[i]?.funding ?? []]));
     if (Object.values(series).every((closes) => closes[fromIndex - 80] != null)) {
-      const result = simulate({ series, params: agentParams(detail.agent), capital: detail.summary.startCapital, fromIndex, times: market.tokens[0].closes.map((_, i) => market.startTs + i * 3600) });
-      const hold = buyAndHold(series, detail.summary.startCapital, fromIndex);
+      const params = agentParams(detail.agent);
+      const result = simulate({ series, params, capital: detail.summary.startCapital, fromIndex, times: market.tokens[0].closes.map((_, i) => market.startTs + i * 3600), funding });
+      const hold = buyAndHold(series, detail.summary.startCapital, fromIndex, undefined, costRateFor(params.venue));
       preview = { startTs: market.startTs + fromIndex * 3600, equity: result.runs.map((run) => run.equity), hold: hold.curve, returnPct: result.returnPct, holdReturnPct: hold.returnPct };
     }
   }

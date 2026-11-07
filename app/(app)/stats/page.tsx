@@ -5,7 +5,7 @@ import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { Odometer } from "@/components/ui/Words";
 import { EXPLORER_URL, LIVE_PROOF_HREF, LIVE_TRADING_WALLET } from "@/lib/chain";
 import { getPublicStats, STATS_DAYS } from "@/lib/data/stats";
-import { dayAt, shortAddress, STRATEGY_NAMES, usd } from "@/lib/format";
+import { dayAt, isPerpSymbol, shortAddress, STRATEGY_NAMES, usd } from "@/lib/format";
 import { db } from "@/lib/supabase";
 
 export const metadata: Metadata = {
@@ -144,7 +144,8 @@ export default async function StatsPage() {
           <ul className="stats-ranks">
             {stats.topTokens.map((token) => (
               <li key={token.symbol}>
-                <Link className="stats-ranks__row" href={`/markets/${token.symbol}`}>
+                {/* Perps have no market page yet (paper only, Lab agents). */}
+                <Link className="stats-ranks__row" href={isPerpSymbol(token.symbol) ? "/markets" : `/markets/${token.symbol}`}>
                   <TickerAvatar symbol={token.symbol} size={28} />
                   <strong>{token.symbol}</strong>
                   <span className="stats-ranks__track" aria-hidden="true">

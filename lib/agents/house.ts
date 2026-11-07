@@ -5,6 +5,7 @@
  * backtests, so what visitors see matches what actually runs.
  */
 import { RULE_TEMPLATES, type Rules } from "../engine/rules.ts";
+import type { Venue } from "../engine/engine.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
 /** Owner address of the house agents (not a real wallet; nobody can sign for it). */
@@ -28,6 +29,20 @@ export type HouseAgent = {
   symbols: string[];
   maxPositionPct: number;
   stopLossPct: number;
+  /** Missing: the DEX. */
+  venue?: Venue;
+};
+
+/**
+ * Buy a deep dip against the 96h average (z under -2.5), sell once the price is back
+ * above it (z 0.5). Found in the perps rule search: positive in all 3 training folds
+ * and in the held-out month on BTC, ETH and SOL perps (docs/perps-research.md).
+ */
+export const DEEP_DIP_96: Rules = {
+  entry: { join: "all", conditions: [{ left: { kind: "zscore", hours: 96 }, op: "below", right: { kind: "value", value: -2.5 } }] },
+  exit: { join: "any", conditions: [{ left: { kind: "zscore", hours: 96 }, op: "above", right: { kind: "value", value: 0.5 } }] },
+  takeProfitPct: null,
+  maxHoldHours: null,
 };
 
 export const HOUSE_AGENTS: HouseAgent[] = [
@@ -106,4 +121,16 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     stopLossPct: 10,
   },
   { owner: LAB_WALLETS[3], name: "Lab · Crypto Spike Fade", strategy: "spike_fade", symbols: ["ETH", "BTC"], maxPositionPct: 100, stopLossPct: 10 },
+  {
+    // Perps on Lighter (Robinhood Chain), paper only: the one rule that passed the perps
+    // search and its held-out month (docs/perps-research.md, "Rule search").
+    owner: LAB_WALLETS[3],
+    name: "Lab · Perps Deep Dip",
+    strategy: "custom",
+    rules: DEEP_DIP_96,
+    symbols: ["BTC-PERP", "ETH-PERP", "SOL-PERP"],
+    maxPositionPct: 33,
+    stopLossPct: 5,
+    venue: "perps",
+  },
 ];

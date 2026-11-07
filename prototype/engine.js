@@ -24,6 +24,9 @@
   const COST_RATE = 0.005;
   const WARMUP_HOURS = 48;
   const SHORT_BORROW_APR = 0.1;
+  // Perps (Lighter on Robinhood Chain, paper only): 0.05% per fill, and hourly funding
+  // instead of the borrow rate, paid by the position itself (docs/perps-research.md).
+  const PERPS_COST_RATE = 0.0005;
 
   const STRATEGIES = {
     momentum: {
@@ -107,8 +110,12 @@
    * @param {number} options.stopLossPct        stop distance below entry, 0 to 100
    * @param {number} options.fromIndex          first hour the agent may act on
    * @param {number} [options.toIndex]          last hour (inclusive), defaults to the latest
+   * @param {"dex"|"perps"} [options.venue]      perps: PERPS_COST_RATE and each token's funding
+   *                                             (token.funding, signed fraction per hour, positive: longs pay)
    */
   function simulate(options) {
+    const perps = options.venue === "perps";
+    const cost = perps ? PERPS_COST_RATE : COST_RATE;
     // "custom" runs the user's rules (options.rules); the presets keep their own code.
     const custom = options.strategy === "custom";
     const strategy = STRATEGIES[options.strategy];
@@ -134,10 +141,20 @@
 
       // Borrow cost on shorts, for the hour that just passed, paid from the short's locked cash
       // (free cash may not go below zero): a lower entry lowers the short's value by the fee.
+      // Perps pay or receive funding the same way: a long's quantity shrinks by the payment, a
+      // short's entry moves by half of it.
       for (const token of options.tokens) {
         const position = positions[token.symbol];
         const price = prices[token.symbol];
-        if (position && position.side === "short" && price != null) {
+        if (!position || price == null) continue;
+        if (perps) {
+          const rate = (token.funding && token.funding[index]) || 0;
+          if (rate === 0) continue;
+          positions[token.symbol] =
+            position.side === "short"
+              ? { ...position, entryPrice: position.entryPrice + (price * rate) / 2 }
+              : { ...position, quantity: position.quantity * (1 - rate) };
+        } else if (position.side === "short") {
           const fee = (position.quantity * price * SHORT_BORROW_APR) / (365 * 24);
           positions[token.symbol] = { ...position, entryPrice: position.entryPrice - fee / (2 * position.quantity) };
         }
@@ -154,7 +171,7 @@
         }
 
         if (position && position.side === "short" && price >= position.entryPrice * (1 + stopDistance)) {
-          cash += cover(trades, index, token.symbol, position, price, "stop_loss");
+          cash += cover(trades, index, token.symbol, position, price, "stop_loss", cost);
           delete positions[token.symbol];
           decisions.push({
             symbol: token.symbol,
@@ -165,7 +182,7 @@
         }
 
         if (position && position.side !== "short" && price <= position.entryPrice * (1 - stopDistance)) {
-          cash += sell(trades, index, token.symbol, position, price, "stop_loss");
+          cash += sell(trades, index, token.symbol, position, price, "stop_loss", cost);
           delete positions[token.symbol];
           decisions.push({
             symbol: token.symbol,
@@ -180,13 +197,13 @@
           const takeProfit = options.rules.takeProfitPct;
           const maxHold = options.rules.maxHoldHours;
           if (takeProfit && price >= position.entryPrice * (1 + takeProfit / 100)) {
-            cash += sell(trades, index, token.symbol, position, price, "take_profit");
+            cash += sell(trades, index, token.symbol, position, price, "take_profit", cost);
             delete positions[token.symbol];
             decisions.push({ symbol: token.symbol, action: "sell", reasoning: `Take profit hit: ${formatPercent(price / position.entryPrice - 1)} from entry. Selling everything.` });
             continue;
           }
           if (maxHold && index - position.openedIndex >= maxHold) {
-            cash += sell(trades, index, token.symbol, position, price, "max_hold");
+            cash += sell(trades, index, token.symbol, position, price, "max_hold", cost);
             delete positions[token.symbol];
             decisions.push({ symbol: token.symbol, action: "sell", reasoning: `Held for ${maxHold} hours, the maximum. Selling.` });
             continue;
@@ -214,12 +231,12 @@
             decisions.push({ symbol: token.symbol, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
             continue;
           }
-          const quantity = (notional * (1 - COST_RATE)) / price;
+          const quantity = (notional * (1 - cost)) / price;
           cash -= notional;
           positions[token.symbol] = { quantity, entryPrice: price, openedIndex: index, side: "short" };
-          trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: notional * COST_RATE, reason: "signal" });
+          trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: notional * cost, reason: "signal" });
         } else if (decision.action === "cover") {
-          cash += cover(trades, index, token.symbol, position, price, "signal");
+          cash += cover(trades, index, token.symbol, position, price, "signal", cost);
           delete positions[token.symbol];
         } else if (decision.action === "buy") {
           const notional = Math.min(cash, equityBefore * maxShare);
@@ -227,13 +244,13 @@
             decisions.push({ symbol: token.symbol, action: "hold", reasoning: "Signal to buy, but no cash left. Holding." });
             continue;
           }
-          const quantity = (notional * (1 - COST_RATE)) / price;
+          const quantity = (notional * (1 - cost)) / price;
           cash -= notional;
           // Entry price includes the cost, so stops and PnL measure what was actually paid.
           positions[token.symbol] = { quantity, entryPrice: notional / quantity, openedIndex: index };
-          trades.push({ index, symbol: token.symbol, side: "buy", quantity, price, costUsd: notional * COST_RATE, reason: "signal" });
+          trades.push({ index, symbol: token.symbol, side: "buy", quantity, price, costUsd: notional * cost, reason: "signal" });
         } else if (decision.action === "sell") {
-          cash += sell(trades, index, token.symbol, position, price, "signal");
+          cash += sell(trades, index, token.symbol, position, price, "signal", cost);
           delete positions[token.symbol];
         }
         decisions.push({ symbol: token.symbol, action: decision.action, reasoning: decision.reasoning, indicators: decision.indicators });
@@ -244,7 +261,7 @@
 
     const equities = runs.map((run) => run.equity);
     const finalEquity = equities[equities.length - 1] ?? options.capital;
-    const closedTrades = pairRoundTrips(trades);
+    const closedTrades = pairRoundTrips(trades, cost);
     return {
       runs,
       trades,
@@ -295,23 +312,23 @@
     return { curve, returnPct: (curve[curve.length - 1] / capital - 1) * 100 };
   }
 
-  function sell(trades, index, symbol, position, price, reason) {
+  function sell(trades, index, symbol, position, price, reason, cost) {
     const gross = position.quantity * price;
-    trades.push({ index, symbol, side: "sell", quantity: position.quantity, price, costUsd: gross * COST_RATE, reason, entryPrice: position.entryPrice });
-    return gross * (1 - COST_RATE);
+    trades.push({ index, symbol, side: "sell", quantity: position.quantity, price, costUsd: gross * cost, reason, entryPrice: position.entryPrice });
+    return gross * (1 - cost);
   }
 
   /** Closes a short: returns the cash it locked plus its gain, minus the cost. */
-  function cover(trades, index, symbol, position, price, reason) {
+  function cover(trades, index, symbol, position, price, reason, cost) {
     const gross = position.quantity * price;
-    trades.push({ index, symbol, side: "cover", quantity: position.quantity, price, costUsd: gross * COST_RATE, reason, entryPrice: position.entryPrice });
-    return position.quantity * (2 * position.entryPrice - price) - gross * COST_RATE;
+    trades.push({ index, symbol, side: "cover", quantity: position.quantity, price, costUsd: gross * cost, reason, entryPrice: position.entryPrice });
+    return position.quantity * (2 * position.entryPrice - price) - gross * cost;
   }
 
-  function pairRoundTrips(trades) {
+  function pairRoundTrips(trades, cost) {
     return trades
       .filter((trade) => trade.side === "sell" || trade.side === "cover")
-      .map((trade) => (trade.side === "sell" ? trade.price * (1 - COST_RATE) - trade.entryPrice : trade.entryPrice - trade.price * (1 + COST_RATE)));
+      .map((trade) => (trade.side === "sell" ? trade.price * (1 - cost) - trade.entryPrice : trade.entryPrice - trade.price * (1 + cost)));
   }
 
   function equityAt(cash, positions, prices) {
@@ -368,7 +385,7 @@
     high: { label: "Highest", unit: "price", periods: [12, 24, 48, 72] },
     low: { label: "Lowest", unit: "price", periods: [12, 24, 48, 72] },
     change: { label: "Change", unit: "pct", periods: [1, 4, 12, 24, 48, 72] },
-    zscore: { label: "Z score", unit: "z", periods: [24, 48, 72] },
+    zscore: { label: "Z score", unit: "z", periods: [24, 48, 72, 96] },
     rsi: { label: "RSI", unit: "rsi", periods: [14, 24] },
   };
 

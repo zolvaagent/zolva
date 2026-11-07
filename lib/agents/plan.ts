@@ -3,7 +3,7 @@
  * database), so the hourly runner and the tests share it. The runner then
  * writes each planned hour atomically with the `apply_agent_hour` function.
  */
-import { COST_RATE, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions } from "../engine/engine.ts";
+import { costRateFor, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions, type Venue } from "../engine/engine.ts";
 import type { Rules } from "../engine/rules.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
@@ -20,6 +20,8 @@ export type AgentRow = {
     rules?: Rules;
     /** Close of each token at launch, for the buy and hold comparison. */
     start_prices: Record<string, number>;
+    /** Missing on agents made before perps: the DEX. */
+    venue?: Venue;
   };
   token_addresses: string[];
   start_capital: number;
@@ -34,6 +36,8 @@ export type MarketSeries = {
   /** Start of the hour at index 0, unix seconds. */
   startTs: number;
   closes: Record<string, (number | null)[]>;
+  /** Perps funding per token and hour (signed fraction, positive: longs pay), aligned with closes. */
+  funding?: Record<string, (number | null)[]>;
 };
 
 export type HourWrite = {
@@ -52,6 +56,7 @@ export function agentParams(agent: AgentRow): AgentParams {
     rules: agent.params.rules,
     maxPositionPct: Number(agent.params.max_position_pct),
     stopLossPct: Number(agent.params.stop_loss_pct),
+    venue: agent.params.venue,
   };
 }
 
@@ -72,7 +77,11 @@ export function planAgentHours(
   if (firstTs > latestTs) return [];
 
   const series: Record<string, (number | null)[]> = {};
-  for (const address of agent.token_addresses) series[address] = market.closes[address] ?? [];
+  const funding: Record<string, (number | null)[]> = {};
+  for (const address of agent.token_addresses) {
+    series[address] = market.closes[address] ?? [];
+    funding[address] = market.funding?.[address] ?? [];
+  }
 
   let state: AgentState = {
     cash: Number(agent.cash),
@@ -94,7 +103,7 @@ export function planAgentHours(
   for (let ts = firstTs; ts <= latestTs; ts += HOUR) {
     const index = (ts - market.startTs) / HOUR;
     if (index < 0) continue;
-    const hour = runHour(state, params, series, index, ts, copilot && copilot.ts === ts ? { veto: copilot.veto } : {});
+    const hour = runHour(state, params, series, index, ts, { funding, ...(copilot && copilot.ts === ts ? { veto: copilot.veto } : {}) });
     state = hour.state;
     writes.push({
       ts: new Date(ts * 1000).toISOString(),
@@ -140,11 +149,12 @@ export function liveEquity(cash: number, positions: PositionRow[], series: Recor
 /** Equal-weight buy and hold of the agent's tokens since launch, paying the cost once. */
 export function holdEquity(agent: AgentRow, series: Record<string, (number | null)[]>, index: number): number {
   const share = Number(agent.start_capital) / agent.token_addresses.length;
+  const cost = costRateFor(agent.params.venue);
   let equity = 0;
   for (const address of agent.token_addresses) {
     const start = agent.params.start_prices?.[address];
     const now = series[address]?.[index];
-    equity += start && now ? share * (1 - COST_RATE) * (now / start) : share;
+    equity += start && now ? share * (1 - cost) * (now / start) : share;
   }
   return equity;
 }

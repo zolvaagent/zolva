@@ -20,9 +20,11 @@ const COIN_LOGOS: Record<string, { src: string; background?: string }> = {
 };
 
 export function TickerAvatar({ symbol, size }: { symbol: string; size?: number }) {
-  const coinLogo = COIN_LOGOS[symbol];
-  const logo = coinLogo ?? STOCK_LOGOS[symbol];
-  const coin = CRYPTO_ICONS[symbol];
+  // A perp (BTC-PERP) shows its underlying's icon.
+  const base = symbol.replace(/-PERP$/, "");
+  const coinLogo = COIN_LOGOS[base];
+  const logo = coinLogo ?? STOCK_LOGOS[base];
+  const coin = CRYPTO_ICONS[base];
   const sizing = size ? { width: size, height: size } : {};
   if (coin) {
     return (

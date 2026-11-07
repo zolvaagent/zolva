@@ -6,13 +6,16 @@ See [mvp-plan.md](mvp-plan.md) for scope and decisions.
 
 Everything still open, in priority order. Details are in the sections below.
 
-**Perps (draft plan 2026-11-07, [perps-plan.md](perps-plan.md), waiting for owner go)**
+**Perps ([perps-plan.md](perps-plan.md), [perps-research.md](perps-research.md))**
 - [x] Phase 0: research Lighter, Arcus and other venues that list stock perps. Done 2026-11-07, gate passed with Lighter RH (71 perps on Robinhood Chain, 0% fees, USDG, keys can't send funds to others): [perps-research.md](perps-research.md)
 - [ ] Owner: read Lighter's terms of use and confirm the owner's region is allowed (before Phase 3)
 - [x] Phase 1: backtest on Lighter RH candles and real funding (scripts/research-perps.mts). Done 2026-11-07: gate FAILED. Scalping (1 to 2 h holds) loses; mean reversion loses in strong trends; closest is Dip + fade on crypto (positive 4 of 5 windows, 10% worst drop). See perps-research.md
 - [x] Perps trend filter backtest (2026-11-07): helps crypto at 5% only (Dip + fade +12.2%, worst drop 6%, -2.8% in the rising month; Swing +23.3%), but 3% and 8% are worse, so it may be overfit. Stocks: noise. Gate still failed
 - [x] Rule search with a held-out month (2026-11-07, scripts/research-perps-search.mts): 5,580 combinations, 323 robust on training; of 3 locked in, only **deep dip on BTC ETH SOL** (z < -2.5 vs 96h average, sell at z >= 0.5, 5% stop) passed the held-out month (+1.7% vs holding -14.1%, drop 4.4%). Long only, ~2 trades a week
-- [ ] ~2026-11-28: re-run on fresh hours only: the deep dip rule above, plus the frozen Dip + fade and Swing (BTC ETH SOL, TREND_FILTER=0.05) (WINDOWS=21:0 after refreshing the cache). Pass, then Phase 2; fail, then perps stay parked
+- [x] Phase 2 code (2026-11-07, not committed or deployed yet): perps as markets with venue `lighter` (`lighter:<id>`, symbols end in -PERP), migration 20261107000200_lighter_perps.sql (tokens.venue and lighter_market_id, candles.funding_rate, BTC/ETH/SOL-PERP, agents_venue_guard: one venue per agent, perps never live, candle_closes with venue and funding). Engine: venue perps pays PERPS_COST_RATE 0.05% and hourly funding taken from the position itself (prototype parity + tests); z score 96h in custom rules. Hourly ingest step 3 reads Lighter's last day (lib/prices/lighter.ts); `npm run backfill -- BTC-PERP ETH-PERP SOL-PERP` loads history. getMarket hides perps unless asked (runner and agent pages ask), so market lists, Studio, Swap and the APIs do not show them. Lab · Perps Deep Dip in LAB_AGENTS (seed:house). Engine check on Lighter history (scripts/research-perps-engine-check.mts): +13.9% training, +2.7% held-out month, matching the search
+- [ ] Phase 2 go live (owner approval): apply the migration, backfill perps, deploy, `npm run seed:house`, then watch 2 to 3 weeks against the backtest
+- [ ] Follow-up: public_stats counts perps in "markets" (stats page says 25 while /markets lists 22)
+- [ ] ~2026-11-28: re-run on fresh hours only: the deep dip rule above, plus the frozen Dip + fade and Swing (BTC ETH SOL, TREND_FILTER=0.05) (WINDOWS=21:0 after refreshing the cache), next to the Lab agent's live paper record
 - [ ] Scalping on the DEX: not viable at 0.3 to 0.5% per trade (2026-11-07); revisit only with perps
 
 **Before announcing wider**
