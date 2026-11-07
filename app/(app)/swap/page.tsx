@@ -16,10 +16,6 @@ export default async function SwapPage() {
   return (
     <div className="container page swap-page">
       <SwapWorkspace address={address} loginMethod={loginMethod} />
-      <p className="swap-page__note">
-        Swaps run on Uniswap on Robinhood Chain, from your own wallet: you sign every one, Zolva never holds your tokens. Only Zolva&apos;s allowlisted tokens, never a lookalike. To sell a
-        live agent&apos;s holding, use Sell on the agent&apos;s page so its records stay in step.
-      </p>
     </div>
   );
 }

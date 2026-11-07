@@ -6543,15 +6543,6 @@ button.text-link {
   gap: var(--space-200);
 }
 
-.swap-page__note {
-  max-width: 480px;
-  color: var(--color-text-faint);
-  font-size: 12px;
-  line-height: 16px;
-  text-align: center;
-  text-wrap: pretty;
-}
-
 .swapbox {
   position: relative;
   display: flex;

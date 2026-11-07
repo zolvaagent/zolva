@@ -9,6 +9,8 @@ import { STOCK_LOGOS } from "@/lib/stock-logos";
 const CRYPTO_ICONS: Record<string, { icon: string; background: string }> = {
   BTC: { icon: "ph-currency-btc", background: "#f7931a" },
   ETH: { icon: "ph-currency-eth", background: "#627eea" },
+  // USDG (Global Dollar), the dollar side of every pool. A plain dollar mark until we have its official logo.
+  USDG: { icon: "ph-currency-dollar", background: "#1f8a5b" },
 };
 
 export function TickerAvatar({ symbol, size }: { symbol: string; size?: number }) {
