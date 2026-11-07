@@ -18,6 +18,8 @@ const NAV = [
   { href: "/swap", label: "Swap", icon: "arrows-left-right", tabbar: false },
   { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
   { href: "/activity", label: "Activity", icon: "pulse" },
+  // Sidebar only, like Swap.
+  { href: "/stats", label: "Stats", icon: "chart-bar", tabbar: false },
 ];
 
 function isCurrent(pathname: string, href: string) {

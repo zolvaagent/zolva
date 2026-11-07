@@ -7032,3 +7032,263 @@ button.text-link {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ---------- Stats page ---------- */
+
+.stats-page__band {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.stats-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-200);
+}
+
+@media (min-width: 960px) {
+  .stats-page__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stats-live {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-200);
+}
+
+.stats-live .card-head {
+  margin-bottom: 0;
+}
+
+.stats-live__lead {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.stats-live__pulse {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.stats-live__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-gain);
+  box-shadow: 0 0 0 4px var(--color-gain-soft);
+  animation: stats-pulse 2s var(--ease-out-expo) infinite;
+}
+
+@keyframes stats-pulse {
+  50% {
+    box-shadow: 0 0 0 1px var(--color-gain-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stats-live__dot {
+    animation: none;
+  }
+}
+
+.stats-live__list,
+.stats-ranks {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stats-live__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-100);
+  padding: var(--space-100);
+  margin: 0 calc(var(--space-100) * -1);
+  border-radius: var(--radius-xl);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--duration-micro) var(--ease-out-expo);
+}
+
+.stats-live__row:hover {
+  background: var(--color-bg-subtle);
+}
+
+.stats-live__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.stats-live__text .muted {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.stats-live__usd {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-activity__range {
+  font-size: 13px;
+}
+
+/* Daily decision bars: plain flex columns, today in the brand color. */
+.stats-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 160px;
+}
+
+.stats-bars__bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 3px 3px 0 0;
+  background: var(--color-tint-strong);
+  transition: background var(--duration-micro) var(--ease-out-expo);
+}
+
+.stats-bars__bar:hover,
+.stats-bars__bar--today {
+  background: var(--color-purple-rich);
+}
+
+.stats-bars__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-75);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.stats-activity__grid {
+  margin-top: var(--space-200);
+}
+
+.stats-ranks__row {
+  display: grid;
+  grid-template-columns: auto 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-100);
+  padding: var(--space-75) var(--space-100);
+  margin: 0 calc(var(--space-100) * -1);
+  border-radius: var(--radius-xl);
+  color: inherit;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+a.stats-ranks__row {
+  transition: background var(--duration-micro) var(--ease-out-expo);
+}
+
+a.stats-ranks__row:hover {
+  background: var(--color-bg-subtle);
+}
+
+/* Strategy rows have no avatar: the name takes the first two columns. */
+li.stats-ranks__row {
+  grid-template-columns: 128px minmax(0, 1fr) auto;
+}
+
+.stats-ranks__track {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+  overflow: hidden;
+}
+
+.stats-ranks__track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-purple-rich);
+}
+
+.stats-ranks__value {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stats-infra {
+  margin-top: var(--space-600);
+}
+
+.stats-infra__title {
+  margin-bottom: var(--space-200);
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.stats-infra__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-200);
+}
+
+@media (min-width: 640px) {
+  .stats-infra__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .stats-infra__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.stats-infra__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  padding: var(--space-300);
+  border-radius: var(--radius-3xl);
+  background: var(--color-bg-subtle);
+  color: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  text-decoration: none;
+}
+
+.stats-infra__item .ph {
+  margin-bottom: var(--space-100);
+  font-size: 24px;
+  color: var(--color-purple-rich);
+}
+
+.stats-infra__item strong {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.stats-infra__item--link {
+  transition: background var(--duration-micro) var(--ease-out-expo);
+}
+
+.stats-infra__item--link:hover {
+  background: var(--color-tint);
+}
+
+.stats-infra__note {
+  margin-top: var(--space-200);
+  font-size: 13px;
+  line-height: 20px;
+}
