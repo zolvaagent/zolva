@@ -9,12 +9,19 @@ import { STOCK_LOGOS } from "@/lib/stock-logos";
 const CRYPTO_ICONS: Record<string, { icon: string; background: string }> = {
   BTC: { icon: "ph-currency-btc", background: "#f7931a" },
   ETH: { icon: "ph-currency-eth", background: "#627eea" },
-  // USDG (Global Dollar), the dollar side of every pool. A plain dollar mark until we have its official logo.
-  USDG: { icon: "ph-currency-dollar", background: "#1f8a5b" },
+};
+
+/**
+ * Coins with an official token logo file. USDG (Global Dollar): the 32x32 token logo from
+ * globaldollar.com/brand, which asks partners to use only that file.
+ */
+const COIN_LOGOS: Record<string, { src: string; background?: string }> = {
+  USDG: { src: "/img/coins/USDG.png", background: "transparent" },
 };
 
 export function TickerAvatar({ symbol, size }: { symbol: string; size?: number }) {
-  const logo = STOCK_LOGOS[symbol];
+  const coinLogo = COIN_LOGOS[symbol];
+  const logo = coinLogo ?? STOCK_LOGOS[symbol];
   const coin = CRYPTO_ICONS[symbol];
   const sizing = size ? { width: size, height: size } : {};
   if (coin) {
@@ -26,7 +33,7 @@ export function TickerAvatar({ symbol, size }: { symbol: string; size?: number }
   }
   if (logo) {
     return (
-      <span className="ticker-avatar ticker-avatar--logo" style={{ ...sizing, background: logo.background ?? "#fff" }} aria-hidden="true">
+      <span className={`ticker-avatar ticker-avatar--logo${coinLogo ? " ticker-avatar--token" : ""}`} style={{ ...sizing, background: logo.background ?? "#fff" }} aria-hidden="true">
         <img src={logo.src} alt="" loading="lazy" decoding="async" />
       </span>
     );
