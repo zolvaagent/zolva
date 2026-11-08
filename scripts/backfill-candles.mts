@@ -69,7 +69,11 @@ async function main() {
   });
 
   const only = new Set(process.argv.slice(2).map((symbol) => symbol.toUpperCase()));
-  const { data: tokens, error } = await db.from("tokens").select("address, symbol, price_pool, venue, lighter_market_id").eq("enabled", true).order("symbol");
+  // Symbols named on the command line are loaded even while disabled (new markets are filled
+  // before they are switched on); without names, every enabled token.
+  let query = db.from("tokens").select("address, symbol, price_pool, venue, lighter_market_id").order("symbol");
+  if (!only.size) query = query.eq("enabled", true);
+  const { data: tokens, error } = await query;
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
   const selected = tokens.filter((token) => !only.size || only.has(token.symbol));
 

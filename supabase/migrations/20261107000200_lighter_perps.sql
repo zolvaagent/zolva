@@ -27,11 +27,14 @@ alter table candles add column funding_rate numeric;
 alter table candles drop constraint candles_source_check;
 alter table candles add constraint candles_source_check check (source in ('ohlcv', 'snapshot', 'onchain', 'lighter'));
 
+-- Added disabled: code deployed before this migration would read them as DEX pools. They
+-- are enabled (update tokens set enabled = true where venue = 'lighter') once the code that
+-- knows the venue is live.
 insert into tokens (address, symbol, name, price_pool, pool_kind, stock_is_token0, token_decimals, verified_official, enabled, asset_class, venue, lighter_market_id)
 values
-  ('lighter:1', 'BTC-PERP', 'Bitcoin perp (Lighter)', 'lighter:1', 'lighter', true, 18, false, true, 'crypto', 'lighter', 1),
-  ('lighter:0', 'ETH-PERP', 'Ether perp (Lighter)', 'lighter:0', 'lighter', true, 18, false, true, 'crypto', 'lighter', 0),
-  ('lighter:3', 'SOL-PERP', 'Solana perp (Lighter)', 'lighter:3', 'lighter', true, 18, false, true, 'crypto', 'lighter', 3);
+  ('lighter:1', 'BTC-PERP', 'Bitcoin perp (Lighter)', 'lighter:1', 'lighter', true, 18, false, false, 'crypto', 'lighter', 1),
+  ('lighter:0', 'ETH-PERP', 'Ether perp (Lighter)', 'lighter:0', 'lighter', true, 18, false, false, 'crypto', 'lighter', 0),
+  ('lighter:3', 'SOL-PERP', 'Solana perp (Lighter)', 'lighter:3', 'lighter', true, 18, false, false, 'crypto', 'lighter', 3);
 
 -- An agent's venue (params.venue, 'dex' when missing) must match every one of its markets,
 -- and perps stay paper only.
