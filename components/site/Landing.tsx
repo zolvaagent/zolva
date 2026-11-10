@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import { GoToAppButton } from "@/components/site/SiteChrome";
 import { LineChart } from "@/components/ui/LineChart";
@@ -21,7 +22,7 @@ type Props = {
 const FAQ = [
   [
     "Is real money involved?",
-    "Not yet for users. Every agent trades virtual dollars at real Robinhood Chain prices, and signing in never moves funds from your wallet. We are testing real money trading with our own wallet first.",
+    "Start on paper. Test your agent's strategy with virtual dollars at real Robinhood Chain prices, then take it to real money once it proves itself. Real money trading already runs on Zolva's own wallet and opens to users next. Signing in never moves funds from your wallet.",
   ],
   ["What are stock tokens?", "Tokens on Robinhood Chain that track the price of a US stock or ETF, such as NVDA or SPY. They trade around the clock, including weekends."],
   ["Can agents trade crypto?", "Yes. ETH and BTC, priced every hour from their onchain pools and checked against Chainlink. Mix them with stocks in one agent."],
@@ -478,7 +479,7 @@ function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
           </div>
           <div className="phone__tile phone__tile--accent">
             <div className="muted">{secondWin.label}</div>
-            <div className="phone__big gain" style={{ textAlign: "left", fontSize: "calc(var(--phone-w) * 0.11)" }}>
+            <div className="phone__big phone__big--pop gain" style={{ textAlign: "left", fontSize: "calc(var(--phone-w) * 0.11)" }}>
               {secondWin.value}
             </div>
             <div className="muted">{secondWin.detail}</div>
@@ -491,7 +492,7 @@ function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
             <span>Max per stock</span>
             <strong style={{ color: "var(--color-text)" }}>{second.config.maxPositionPct}%</strong>
           </div>
-          <div className="phone__button">Launch agent</div>
+          <div className="phone__button phone__button--shine">Launch agent</div>
         </div>
       </div>
 
@@ -502,15 +503,15 @@ function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
             <span className="phone__title">{top.config.name}</span>
             <span className="pill pill--accent">Backtest</span>
           </div>
-          <img className="phone__icon" src="/img/icons/agent.png" alt="" />
+          <img className="phone__icon phone__icon--float" src="/img/icons/agent.png" alt="" />
           <div className="phone__caption">{topWin.label}</div>
-          <div className="phone__big gain">{topWin.value}</div>
+          <div className="phone__big phone__big--pop gain">{topWin.value}</div>
           <div className="phone__caption">{topWin.detail}</div>
           <svg viewBox="0 0 100 40" preserveAspectRatio="none" style={{ height: "calc(var(--phone-w) * 0.2)" }}>
-            <polyline points={sparkline(equity, 40, 4)} fill="none" stroke="var(--color-purple-rich)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+            <polyline className="phone__spark" pathLength={1} points={sparkline(equity, 40, 4)} fill="none" stroke="var(--color-purple-rich)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
           </svg>
           {lastRun && (
-            <div className="phone__tile">
+            <div className="phone__tile phone__tile--latest">
               <div className="muted" style={{ marginBottom: "calc(var(--phone-w) * 0.015)" }}>
                 Latest decision
               </div>
@@ -527,7 +528,7 @@ function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
           {status}
           <div className="phone__title">Decision log</div>
           {log.map((item, i) => (
-            <div key={i} className="phone__tile">
+            <div key={i} className={`phone__tile phone__tile--log${i === 0 ? " phone__tile--new" : ""}`} style={{ "--i": i } as CSSProperties}>
               <div className="phone__row" style={{ marginBottom: "calc(var(--phone-w) * 0.01)" }}>
                 <span className={`decision__action decision__action--${item.action}`} style={{ fontSize: "calc(var(--phone-w) * 0.032)" }}>
                   {item.action}

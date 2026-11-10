@@ -964,6 +964,111 @@ main:focus {
   transform: none;
 }
 
+/*
+ * Hero phone details, played once the phones are in view (.is-visible from Motion): the
+ * equity line draws, the headline numbers pop, the decision log fills in one entry at a
+ * time, then a few calm loops keep the screens alive. All off for reduced motion.
+ */
+.phone__spark {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+
+.phones.is-visible .phone__spark {
+  animation: draw 1600ms var(--ease-out-expo) 700ms forwards;
+}
+
+.phone__big--pop {
+  opacity: 0;
+  transform: translateY(8px) scale(0.92);
+}
+
+.phones.is-visible .phone__big--pop {
+  animation: phone-pop 900ms var(--ease-spring) 900ms forwards;
+}
+
+@keyframes phone-pop {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.phones.is-visible .phone__icon--float {
+  animation: float 3.2s ease-in-out 1.6s infinite;
+}
+
+.phone__tile--log,
+.phone__tile--latest {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.phones.is-visible .phone__tile--log {
+  animation: phone-pop 700ms var(--ease-out-expo) calc(1100ms + var(--i, 0) * 220ms) forwards;
+}
+
+.phones.is-visible .phone__tile--latest {
+  animation: phone-pop 700ms var(--ease-out-expo) 1500ms forwards;
+}
+
+/* The newest decision keeps a soft "just in" glow. */
+.phones.is-visible .phone__tile--new {
+  animation:
+    phone-pop 700ms var(--ease-out-expo) 1100ms forwards,
+    phone-glow 2.8s ease-in-out 2.2s infinite;
+}
+
+@keyframes phone-glow {
+  50% {
+    box-shadow: 0 0 0 2px var(--color-tint-strong);
+  }
+}
+
+.phone__button--shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.phone__button--shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.35) 50%, transparent 70%);
+  transform: translateX(-120%);
+}
+
+.phones.is-visible .phone__button--shine::after {
+  animation: phone-shine 3.6s ease-in-out 2s infinite;
+}
+
+@keyframes phone-shine {
+  40%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone__spark,
+  .phone__big--pop,
+  .phone__tile--log,
+  .phone__tile--latest {
+    opacity: 1;
+    transform: none;
+    stroke-dashoffset: 0;
+  }
+
+  .phones.is-visible .phone__spark,
+  .phones.is-visible .phone__big--pop,
+  .phones.is-visible .phone__icon--float,
+  .phones.is-visible .phone__tile--log,
+  .phones.is-visible .phone__tile--latest,
+  .phones.is-visible .phone__button--shine::after {
+    animation: none;
+  }
+}
+
 .phone--center {
   z-index: 2;
   left: 50%;
