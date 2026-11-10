@@ -784,7 +784,8 @@ export function LeaderTable({ agents }: { agents: AgentSummary[] }) {
 function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
   // Same rule as the hero phones: lead with the good news that is really there, never a red loss.
   const runner = ranked[1] ?? top;
-  const third = ranked[2] ?? runner;
+  // The front card needs a third agent that is also ahead; with only two, it shows the top one again.
+  const third = ranked.slice(2).find((backtest) => winScore(backtest) > 0) ?? top;
   const runnerWin = phoneWin(runner);
   const thirdWin = phoneWin(third);
   const lastDecision = third.result.runs[third.result.runs.length - 1]?.decisions[0];
@@ -842,7 +843,7 @@ function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
             <img src="/img/icons/agent.png" alt="" width={36} height={36} />
             <span>{third.config.name}</span>
           </div>
-          <div className="closing__big gain">{thirdWin.value}</div>
+          <div className={`closing__big ${third === top ? tone(top.result.returnPct) : "gain"}`}>{third === top ? percent(top.result.returnPct) : thirdWin.value}</div>
           {lastDecision && (
             <div className="decision">
               <span className={`decision__action decision__action--${lastDecision.action}`}>{lastDecision.action}</span>
