@@ -15,9 +15,9 @@ export const metadata: Metadata = {
   // Absolute URLs in share cards point at the main domain.
   metadataBase: new URL("https://zolvaagent.app"),
   // The home tab reads "Zolva | <slogan>"; other pages stay "<page> · Zolva".
-  title: { default: "Zolva | Trading agents that show their work", template: "%s · Zolva" },
+  title: { default: "Zolva | Open trading-agent infrastructure on Robinhood Chain", template: "%s · Zolva" },
   description:
-    "Build a trading agent in plain words. It trades stock tokens, ETH and BTC on Robinhood Chain and explains every decision. Paper trading, no code.",
+    "Explore tokenized stocks, crypto, and perps. Build strategies, replay them against hourly market history, and inspect every paper-trading decision.",
   applicationName: "Zolva",
   icons: {
     // Logo set from scripts/render-brand.mjs; the SVG stays sharp at every tab size.
@@ -33,15 +33,15 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Zolva",
     url: "/",
-    title: "Zolva | Trading agents that show their work",
-    description: "No code trading agents for stock tokens, ETH and BTC on Robinhood Chain. Every decision explained.",
-    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Zolva: trading agents that show their work" }],
+    title: "Zolva | Open trading-agent infrastructure on Robinhood Chain",
+    description: "Explore tokenized stocks, crypto, and perps. Build strategies, replay them against hourly market history, and inspect every paper-trading decision.",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "Zolva: open trading-agent infrastructure on Robinhood Chain" }],
   },
   twitter: {
     card: "summary_large_image",
     site: "@zolva_agent",
-    title: "Zolva | Trading agents that show their work",
-    description: "No code trading agents for stock tokens, ETH and BTC on Robinhood Chain. Every decision explained.",
+    title: "Zolva | Open trading-agent infrastructure on Robinhood Chain",
+    description: "Explore tokenized stocks, crypto, and perps. Build strategies, replay them against hourly market history, and inspect every paper-trading decision.",
     images: ["/og.png"],
   },
 };
