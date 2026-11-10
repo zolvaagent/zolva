@@ -10,6 +10,7 @@ import { Select, type SelectOption } from "@/components/ui/Select";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { PromptWriter, type CustomMode, type Generated } from "@/components/app/PromptWriter";
 import { AiCopilotPicker, type CreditsView, type LimitDraft } from "@/components/app/AiCopilot";
+import { LiveSetup, liveReady, type LiveStatusView } from "@/components/app/LiveSetup";
 import { DEFAULT_EXPIRY_DAYS, parseAiLimit, suggestedLimitUsd } from "@/lib/ai/limits";
 import { aiModel } from "@/lib/ai/models";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
@@ -68,6 +69,13 @@ export function Studio({
   const [rules, setRules] = useState<Rules>(clone(template?.rules ?? RULE_TEMPLATES.momentum));
   const [symbols, setSymbols] = useState<string[]>(templateSymbols.length ? templateSymbols : [startStock]);
   const [capital, setCapital] = useState(10_000);
+  // Real money: the mode, the wallet status from LiveSetup and the USDG the agent starts with.
+  const [mode, setMode] = useState<"paper" | "live">("paper");
+  const [liveStatus, setLiveStatus] = useState<LiveStatusView | null>(null);
+  const [liveCapital, setLiveCapital] = useState(50);
+  const live = mode === "live";
+  const liveCap = liveStatus ? Math.max(10, Math.min(liveStatus.maxCapitalUsd, Math.floor(liveStatus.usdg))) : 100;
+  const agentCapital = live ? Math.min(liveCapital, liveCap) : capital;
   const [maxPositionPct, setMaxPositionPct] = useState(template?.maxPositionPct ?? 33);
   const [stopLossPct, setStopLossPct] = useState(template?.stopLossPct ?? 8);
   const [showErrors, setShowErrors] = useState(false);
@@ -95,28 +103,28 @@ export function Studio({
     const result = simulate({
       series,
       params: { strategy, rules: strategy === "custom" ? rules : undefined, maxPositionPct, stopLossPct },
-      capital,
+      capital: agentCapital,
       fromIndex,
       times: market.tokens[0].closes.map((_, i) => market.startTs + i * 3600),
     });
-    const hold = buyAndHold(series, capital, fromIndex);
+    const hold = buyAndHold(series, agentCapital, fromIndex);
     return { result, hold, edge: result.returnPct - hold.returnPct };
-  }, [symbols, strategy, rules, maxPositionPct, stopLossPct, capital, market, fromIndex, ruleErrors.length]);
+  }, [symbols, strategy, rules, maxPositionPct, stopLossPct, agentCapital, market, fromIndex, ruleErrors.length]);
 
   const toggleSymbol = (symbol: string) => setSymbols((list) => (list.includes(symbol) ? list.filter((item) => item !== symbol) : list.length >= 3 ? list : [...list, symbol]));
 
   const launchRef = useRef<HTMLDialogElement>(null);
-  const [launch, setLaunch] = useState<{ busy: boolean; error: string | null; terms: boolean; residence: boolean }>({ busy: false, error: null, terms: false, residence: false });
+  const [launch, setLaunch] = useState<{ busy: boolean; error: string | null; terms: boolean; residence: boolean; risk: boolean }>({ busy: false, error: null, terms: false, residence: false, risk: false });
 
   const openLaunch = () => {
     setShowErrors(true);
-    if (!name.trim() || !symbols.length || ruleErrors.length || aiLimitError) {
+    if (!name.trim() || !symbols.length || ruleErrors.length || (!live && aiLimitError)) {
       const target = !name.trim() ? "agent-name" : !symbols.length ? "token-grid" : ruleErrors.length ? "rule-builder" : "ai-label";
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     const show = () => {
-      setLaunch({ busy: false, error: null, terms: false, residence: false });
+      setLaunch({ busy: false, error: null, terms: false, residence: false, risk: false });
       launchRef.current?.showModal();
     };
     if (!address) openLogin(show);
@@ -124,8 +132,8 @@ export function Studio({
   };
 
   const submitLaunch = async () => {
-    if (!launch.terms || !launch.residence) {
-      setLaunch((state) => ({ ...state, error: "Please tick both boxes to continue." }));
+    if (!launch.terms || !launch.residence || (live && !launch.risk)) {
+      setLaunch((state) => ({ ...state, error: live ? "Please tick all three boxes to continue." : "Please tick both boxes to continue." }));
       return;
     }
     setLaunch((state) => ({ ...state, busy: true, error: null }));
@@ -137,13 +145,15 @@ export function Studio({
         strategy,
         rules: strategy === "custom" ? rules : undefined,
         tokens: symbols.map((symbol) => market.tokens.find((token) => token.symbol === symbol)!.address),
-        capital,
+        capital: agentCapital,
         maxPositionPct,
         stopLossPct,
         acceptTerms: true,
-        aiModel: aiModelId,
-        aiLimitUsd: aiModelId ? Number(aiLimit.usd) : undefined,
-        aiExpiryDays: aiModelId ? aiLimit.days : undefined,
+        mode,
+        // Real money agents trade on their rules alone.
+        aiModel: live ? null : aiModelId,
+        aiLimitUsd: aiModelId && !live ? Number(aiLimit.usd) : undefined,
+        aiExpiryDays: aiModelId && !live ? aiLimit.days : undefined,
         // Only a prompt that actually produced these rules is kept.
         strategyPrompt: strategy === "custom" && customMode === "prompt" ? generated?.prompt : undefined,
       }),
@@ -154,7 +164,7 @@ export function Studio({
       return;
     }
     launchRef.current?.close();
-    toast("Agent launched. It stays private until you publish it to the leaderboard.");
+    toast(live ? "Real money agent launched. Its first decision comes at the top of the next hour." : "Agent launched. It stays private until you publish it to the leaderboard.");
     router.push(`/agents/${body.id}`);
     router.refresh();
   };
@@ -193,25 +203,25 @@ export function Studio({
             </div>
             <div className="choice-grid">
               <label className="choice">
-                <input type="radio" name="mode" value="paper" checked readOnly />
+                <input type="radio" name="mode" value="paper" checked={!live} onChange={() => setMode("paper")} />
                 <span className="choice__glyph" aria-hidden="true">
                   <i className="ph ph-flask" />
                 </span>
                 <span className="choice__title">Paper trading</span>
                 <span className="choice__text">Virtual money at real Robinhood Chain prices. Free, nothing to deposit.</span>
               </label>
-              {/* Real money is a confirmed goal but not built yet: shown so people know it is coming, never selectable. */}
-              <label className="choice choice--soon" aria-disabled="true">
-                <input type="radio" name="mode" value="live" disabled />
+              <label className="choice">
+                <input type="radio" name="mode" value="live" checked={live} onChange={() => setMode("live")} />
                 <span className="choice__glyph" aria-hidden="true">
                   <i className="ph ph-wallet" />
                 </span>
                 <span className="choice__title">
-                  Real money <span className="pill pill--accent">Soon</span>
+                  Real money
                 </span>
-                <span className="choice__text">Your agent trades from your own wallet, within limits you set. Not available yet.</span>
+                <span className="choice__text">Your agent trades USDG from your own wallet on Uniswap, within limits, and you can stop it any time.</span>
               </label>
             </div>
+            {live && <LiveSetup onStatus={setLiveStatus} />}
           </div>
 
           <div className="form-section" role="radiogroup" aria-labelledby="strategy-label">
@@ -243,6 +253,7 @@ export function Studio({
           )}
           {strategy === "custom" && <RuleBuilder rules={rules} onChange={setRules} errors={showErrors ? ruleErrors : []} />}
 
+          {!live && (
           <AiCopilotPicker
             value={aiModelId}
             onChange={chooseAiModel}
@@ -254,6 +265,7 @@ export function Studio({
             }}
             limitError={showErrors ? aiLimitError : null}
           />
+          )}
 
           <div className="form-section">
             <div className="form-section__label">
@@ -298,6 +310,27 @@ export function Studio({
             {showErrors && !symbols.length && <span className="field-error">Pick at least one stock or coin.</span>}
           </div>
 
+          {live ? (
+          <div className="form-section">
+            <label className="form-section__label" htmlFor="live-capital">
+              Real capital <span className="form-section__hint">USDG from your wallet, $10 to ${liveCap}</span>
+            </label>
+            <input
+              className="input mono"
+              id="live-capital"
+              type="number"
+              min={10}
+              max={liveCap}
+              step={1}
+              value={liveCapital}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                if (Number.isFinite(value)) setLiveCapital(Math.max(0, value));
+              }}
+            />
+            {showErrors && (liveCapital < 10 || liveCapital > liveCap) && <span className="field-error">Pick between $10 and ${liveCap}.</span>}
+          </div>
+          ) : (
           <div className="form-section">
             <label className="form-section__label" htmlFor="capital">
               Virtual capital <span className="form-section__hint">Play money, in USD</span>
@@ -316,6 +349,7 @@ export function Studio({
               }}
             />
           </div>
+          )}
 
           <div className="form-section">
             <label className="form-section__label" htmlFor="max-position">
@@ -370,8 +404,21 @@ export function Studio({
           <h2 className="modal__title" id="launch-title">
             Launch {name.trim()}
           </h2>
-          <p className="muted">It trades virtual money only. Its first decision comes at the top of the next hour.</p>
-          {activeCount >= MAX_ACTIVE ? (
+          <p className="muted">
+            {live
+              ? `It trades ${usd(agentCapital)} of real USDG from your wallet on Uniswap. Its first decision comes at the top of the next hour.`
+              : "It trades virtual money only. Its first decision comes at the top of the next hour."}
+          </p>
+          {live ? (
+            <div className="verdict">
+              <i className={`ph ${liveReady(liveStatus) ? "ph-wallet" : "ph-warning-circle loss"}`} />
+              <span>
+                {liveReady(liveStatus)
+                  ? "One real money agent at a time. Stop it or sell its holdings from its page whenever you want."
+                  : "Finish the real money steps first: allow Zolva, then fund your wallet with USDG and a little ETH."}
+              </span>
+            </div>
+          ) : activeCount >= MAX_ACTIVE ? (
             <div className="verdict">
               <i className="ph ph-warning-circle loss" />
               <span>You already run {MAX_ACTIVE} agents, the most at once. Pause one in your dashboard to launch another.</span>
@@ -390,10 +437,16 @@ export function Studio({
               I accept the{" "}
               <a href="/terms" target="_blank">
                 terms
-              </a>{" "}
-              and understand this is paper trading with virtual money.
+              </a>
+              {live ? "." : " and understand this is paper trading with virtual money."}
             </span>
           </label>
+          {live && (
+            <label className="check">
+              <input type="checkbox" checked={launch.risk} onChange={(event) => setLaunch((state) => ({ ...state, risk: event.target.checked }))} />
+              <span>I understand this trades my own money, that I can lose some or all of it, and that past results and backtests do not predict future returns.</span>
+            </label>
+          )}
           <label className="check">
             <input type="checkbox" checked={launch.residence} onChange={(event) => setLaunch((state) => ({ ...state, residence: event.target.checked }))} />
             <span>I am not a US person and not resident in a sanctioned country.</span>
@@ -403,8 +456,8 @@ export function Studio({
             <button className="button button--ghost" type="button" onClick={() => launchRef.current?.close()}>
               Cancel
             </button>
-            <button className="button button--primary" type="submit" disabled={launch.busy || activeCount >= MAX_ACTIVE}>
-              {launch.busy ? "Launching…" : "Launch agent"}
+            <button className="button button--primary" type="submit" disabled={launch.busy || (live ? !liveReady(liveStatus) || agentCapital < 10 : activeCount >= MAX_ACTIVE)}>
+              {launch.busy ? "Launching…" : live ? "Launch with real money" : "Launch agent"}
             </button>
           </div>
         </form>

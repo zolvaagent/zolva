@@ -19,3 +19,15 @@ export function isBlockedCountry(country: string | null): boolean {
 }
 
 export const BLOCKED_MESSAGE = "Zolva is not available in your country. Stock tokens are not offered to US persons or in sanctioned countries.";
+
+/**
+ * Real money adds the countries that restrict stock tokens (see the note above). Paper
+ * trading stays open there; only live agents and the live wallet setup are refused.
+ */
+export const LIVE_BLOCKED_COUNTRIES = new Set([...BLOCKED_COUNTRIES, "GB", "CA", "CH", "AE"]);
+
+export function isLiveBlockedCountry(country: string | null): boolean {
+  return country !== null && LIVE_BLOCKED_COUNTRIES.has(country);
+}
+
+export const LIVE_BLOCKED_MESSAGE = "Real money trading is not available in your country. Paper trading stays open.";

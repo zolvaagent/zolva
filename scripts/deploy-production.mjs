@@ -80,6 +80,8 @@ async function main() {
       ...(dev.OPENROUTER_API_KEY ? { OPENROUTER_API_KEY: dev.OPENROUTER_API_KEY } : {}),
       // Optional: Zolva's Privy signer key for live agents. Live trading also needs live_settings.enabled.
       ...(dev.PRIVY_AUTHORIZATION_KEY ? { PRIVY_AUTHORIZATION_KEY: dev.PRIVY_AUTHORIZATION_KEY } : {}),
+      // Self-serve real money: the signer users add to their wallet (lib/live/onboard.ts).
+      ...(dev.PRIVY_SIGNER_ID ? { PRIVY_SIGNER_ID: dev.PRIVY_SIGNER_ID } : {}),
       // Optional: the ZOLVA token for holder tiers. Without it every account stays on Free.
       ...(dev.ZOLVA_TOKEN_ADDRESS ? { ZOLVA_TOKEN_ADDRESS: dev.ZOLVA_TOKEN_ADDRESS, ZOLVA_TOKEN_DECIMALS: dev.ZOLVA_TOKEN_DECIMALS ?? "18" } : {}),
       // Optional: public links for the token's docs card (npm run token:launch writes them).

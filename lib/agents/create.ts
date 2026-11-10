@@ -31,7 +31,12 @@ export type CreateAgentInput = {
   aiExpiryDays?: unknown;
   /** Custom strategies made in prompt mode: the user's own words, read by the co-pilot. */
   strategyPrompt?: unknown;
+  /** "paper" (default) or "live" for real money from the owner's own wallet. */
+  mode?: unknown;
 };
+
+/** What a live launch needs from the chain, read by the route: the owner's USDG balance. */
+export type LiveLaunch = { usdg: number };
 
 export class AgentInputError extends Error {}
 
@@ -42,7 +47,9 @@ const STRATEGIES = ["momentum", "mean_reversion", "custom"] as const;
  * The agent starts at the newest stored hour, so its first decision is made
  * by the next hourly tick, never on the past.
  */
-export async function createAgent(db: SupabaseClient, owner: string, input: CreateAgentInput): Promise<{ id: string }> {
+export async function createAgent(db: SupabaseClient, owner: string, input: CreateAgentInput, live?: LiveLaunch): Promise<{ id: string }> {
+  const mode = input.mode === "live" ? "live" : "paper";
+  if (mode === "live" && !live) throw new AgentInputError("Real money needs your wallet balance; please try again.");
   const name = typeof input.name === "string" ? input.name.trim().replace(/\s+/g, " ") : "";
   if (name.length < 1 || name.length > 40) throw new AgentInputError("Give your agent a name of up to 40 characters.");
 
@@ -63,6 +70,7 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   // Only models from our list; whether credits cover it is checked every hour.
   const aiModelId = typeof input.aiModel === "string" && input.aiModel ? input.aiModel : null;
   if (aiModelId && !aiModel(aiModelId)) throw new AgentInputError("Pick an AI model from the list, or turn the co-pilot off.");
+  if (aiModelId && mode === "live") throw new AgentInputError("Real money agents trade on their rules alone. Turn the AI co-pilot off to launch.");
   let aiLimit: AiLimit | null = null;
   if (aiModelId) {
     const parsed = parseAiLimit(input.aiLimitUsd, input.aiExpiryDays);
@@ -73,7 +81,15 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   const capital = Number(input.capital);
   const maxPositionPct = Number(input.maxPositionPct);
   const stopLossPct = Number(input.stopLossPct);
-  if (!Number.isFinite(capital) || capital < 1000 || capital > 1_000_000) throw new AgentInputError("Capital must be between $1,000 and $1,000,000.");
+  if (mode === "paper" && (!Number.isFinite(capital) || capital < 1000 || capital > 1_000_000)) throw new AgentInputError("Capital must be between $1,000 and $1,000,000.");
+  if (mode === "live") {
+    // Real money: at least $10, at most the global cap (the database checks it too), and no
+    // more than the USDG the wallet holds right now.
+    const { data: settings } = await db.from("live_settings").select("max_agent_capital_usd").eq("id", 1).single();
+    const cap = Number(settings?.max_agent_capital_usd ?? 0);
+    if (!Number.isFinite(capital) || capital < 10 || capital > cap) throw new AgentInputError(`Real money capital must be between $10 and ${cap}.`);
+    if (capital > live!.usdg) throw new AgentInputError(`Your wallet holds ${live!.usdg.toFixed(2)} USDG. Add more, or lower the capital.`);
+  }
   if (!Number.isInteger(maxPositionPct) || maxPositionPct < 10 || maxPositionPct > 100) throw new AgentInputError("Max per stock must be between 10% and 100%.");
   if (!Number.isInteger(stopLossPct) || stopLossPct < 2 || stopLossPct > 25) throw new AgentInputError("Stop loss must be between 2% and 25%.");
 
@@ -84,6 +100,11 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   const market = await getMarket(db);
   const lastIndex = market.hours - 1;
   const lookback = rules ? rulesLookback(rules) : LOOKBACK_HOURS;
+  // Live agents swap on Uniswap v3 pools only (what SwapRouter02 and the wallet policy allow).
+  if (mode === "live") {
+    const { data: v3 } = await db.from("tokens").select("address").eq("enabled", true).eq("pool_kind", "v3").in("address", tokens);
+    if ((v3?.length ?? 0) !== tokens.length) throw new AgentInputError("One of the picked markets cannot be traded with real money yet. Pick another one.");
+  }
   const startPrices: Record<string, number> = {};
   for (const address of tokens) {
     const token = market.tokens.find((item) => item.address === address);
@@ -106,7 +127,8 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
       start_capital: capital,
       cash: capital,
       status: "active",
-      mode: "paper",
+      mode,
+      ...(mode === "live" ? { trading_wallet: owner } : {}),
       ai_model: aiModelId,
       ai_limit_micro: aiLimit?.limitMicro ?? null,
       ai_limit_expires_at: aiLimit?.expiresAt ?? null,
@@ -117,6 +139,9 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
     .single();
 
   if (error) {
+    if (mode === "live" && error.message.includes("active_agent_limit")) throw new AgentInputError("You already run a real money agent. Pause it in your dashboard to launch another.");
+    if (error.message.includes("live_wallet_not_allowed")) throw new AgentInputError("Allow Zolva to trade from your wallet first.");
+    if (error.message.includes("live_capital_over_cap")) throw new AgentInputError("That capital is above the real money limit.");
     if (error.message.includes("active_agent_limit")) {
       throw new AgentInputError(`You already run ${activeLimitIn(error.message)} agents, the most at once. Pause one in your dashboard to launch another.`);
     }

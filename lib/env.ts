@@ -81,6 +81,10 @@ export const env = {
   get liveSignCheck(): boolean {
     return optional("LIVE_SIGN_CHECK") === "1";
   },
+  /** Zolva's Privy signer (key quorum) that self-serve live wallets add, with their own policy. */
+  get privySignerId(): string | null {
+    return optional("PRIVY_SIGNER_ID");
+  },
   get liveSigner(): { signerId: string; policyId: string } | null {
     const signerId = optional("PRIVY_SIGNER_ID");
     const policyId = optional("PRIVY_LIVE_POLICY_ID");
