@@ -1296,6 +1296,24 @@ main:focus {
   }
 }
 
+/* How it works: four steps, two by two on tablets, one row on wide screens. */
+.grid-steps {
+  display: grid;
+  gap: var(--space-200);
+}
+
+@media (min-width: 640px) {
+  .grid-steps {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1100px) {
+  .grid-steps {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
 .feature {
   display: flex;
   flex-direction: column;
@@ -1339,6 +1357,27 @@ main:focus {
   color: var(--color-text-muted);
   font-size: 15px;
   line-height: 145%;
+}
+
+/* A step that is not built yet: see-through, so it reads as a preview. */
+.feature--soon {
+  opacity: 0.55;
+  transition: opacity 300ms var(--ease-out-expo), background-color 300ms var(--ease-out-expo);
+}
+
+.feature--soon:hover {
+  opacity: 0.8;
+}
+
+.feature__soon {
+  margin-left: var(--space-75);
+  padding: 2px var(--space-75);
+  border-radius: var(--radius-full);
+  background: var(--color-tint);
+  color: var(--color-purple-rich);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
 }
 
 /* "Honest by default" stat tiles */

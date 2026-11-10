@@ -35,6 +35,8 @@ const FAQ = [
 export function Landing({ market, backtests, agents, feed }: Props) {
   const ranked = [...backtests].sort((a, b) => b.result.returnPct - a.result.returnPct);
   const top = ranked[0];
+  // The hero phones open on wins: agents up over 30 days first, then those furthest ahead of holding.
+  const showcase = [...backtests].sort((a, b) => winScore(b) - winScore(a));
   const running = agents.filter((agent) => agent.status === "active");
   const leaders = [...running].sort((a, b) => b.returnPct - a.returnPct);
   const decisionsExplained = agents.reduce((sum, agent) => sum + agent.runs * agent.tokens.length, 0);
@@ -65,7 +67,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
             </div>
           </section>
         </div>
-        {top && <Phones top={top} backtests={ranked} />}
+        {showcase[0] && <Phones top={showcase[0]} backtests={showcase} />}
       </div>
 
       <div className="container">
@@ -161,10 +163,11 @@ export function Landing({ market, backtests, agents, feed }: Props) {
             <Words className="section-heading__title" text="From idea to" highlight="running agent." />
             <p className="section-heading__lead reveal">No code, no formulas, no deposit. Shape it, check it, launch it.</p>
           </div>
-          <div className="grid-3">
-            <Feature icon="backtest" step="Step 1" title="Replay the last 30 days" text="Pick a strategy or write your own rules, choose up to three stocks and a stop loss. The Studio replays real hourly prices with your exact settings, instantly." />
+          <div className="grid-steps">
+            <Feature icon="backtest" step="Step 1" title="Replay the last 30 days" text="Pick a strategy or write your own rules, choose up to three markets and a stop loss. The Studio replays real hourly prices with your exact settings, instantly." />
             <Feature icon="agent" step="Step 2" title="Launch your agent" text="Sign one free message with your wallet. Your agent checks prices every hour and writes down why it acted." />
-            <Feature icon="leaderboard" step="Step 3" title="Climb the leaderboard" text="Every agent has a public page, ranked by return and by how far it beats holding. Run up to five at once." />
+            <Feature icon="leaderboard" step="Step 3" title="Find what makes money" text="Your agent trades every hour on real market prices. See which rules turn a profit and beat simply holding, then run more agents on the winners." />
+            <Feature icon="tokenize" step="Step 4" title="Tokenize your agent" text="Turn a strategy with a track record into a token others can follow." soon />
           </div>
         </div>
       </section>
@@ -336,11 +339,15 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Feature({ icon, step, title, text }: { icon: string; step: string; title: string; text: string }) {
+/** A how it works step. `soon` shows a teaser for something not built yet, faded with a Soon pill. */
+function Feature({ icon, step, title, text, soon = false }: { icon: string; step: string; title: string; text: string; soon?: boolean }) {
   return (
-    <article className="feature reveal" style={{ background: "var(--color-surface)" }}>
+    <article className={`feature reveal${soon ? " feature--soon" : ""}`} style={{ background: "var(--color-surface)" }}>
       <img className="feature__icon" src={`/img/icons/${icon}.png`} alt="" width={64} height={64} />
-      <span className="feature__step">{step}</span>
+      <span className="feature__step">
+        {step}
+        {soon && <span className="feature__soon">Soon</span>}
+      </span>
       <h3>{title}</h3>
       <p>{text}</p>
     </article>
@@ -413,6 +420,20 @@ function StrategyCard(props: { href: string; icon: string; label: string; title:
   );
 }
 
+/** Ranks a backtest for the hero: any gain beats any lead over holding, then by size. */
+const winScore = (backtest: Backtest) => (backtest.result.returnPct > 0 ? 1_000_000 + backtest.result.returnPct : backtest.result.returnPct - backtest.holdReturnPct);
+
+/**
+ * The number a phone leads with, always the good news that is actually there: the return when
+ * the agent made money, otherwise how far it stayed ahead of simply holding. Never a red loss.
+ */
+function phoneWin(backtest: Backtest): { value: string; label: string; detail: string } {
+  const { returnPct } = backtest.result;
+  const lead = returnPct - backtest.holdReturnPct;
+  if (returnPct > 0) return { value: percent(returnPct), label: "Last 30 days", detail: lead > 0 ? `${points(lead)} versus holding` : "Paper trading" };
+  return { value: points(lead), label: "Ahead of holding, 30 days", detail: `Holding ${percent(backtest.holdReturnPct)}, agent ${percent(returnPct)}` };
+}
+
 function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
   const status = (
     <>
@@ -428,6 +449,8 @@ function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
   const equity = top.result.runs.map((run) => run.equity);
   const lastRun = top.result.runs[top.result.runs.length - 1];
   const second = backtests[1] ?? top;
+  const topWin = phoneWin(top);
+  const secondWin = phoneWin(second);
   const log = backtests
     .flatMap((backtest) =>
       backtest.result.runs.flatMap((run) => run.decisions.filter((decision) => decision.action !== "hold").map((decision) => ({ ...decision, ts: top.startTs + (run.index - top.result.runs[0].index) * 3600 }))),
@@ -454,11 +477,11 @@ function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
             ))}
           </div>
           <div className="phone__tile phone__tile--accent">
-            <div className="muted">Last 30 days</div>
-            <div className={`phone__big ${tone(second.result.returnPct)}`} style={{ textAlign: "left", fontSize: "calc(var(--phone-w) * 0.11)" }}>
-              {percent(second.result.returnPct)}
+            <div className="muted">{secondWin.label}</div>
+            <div className="phone__big gain" style={{ textAlign: "left", fontSize: "calc(var(--phone-w) * 0.11)" }}>
+              {secondWin.value}
             </div>
-            <div className="muted">Holding {percent(second.holdReturnPct)}</div>
+            <div className="muted">{secondWin.detail}</div>
           </div>
           <div className="phone__row muted">
             <span>Stop loss</span>
@@ -480,9 +503,9 @@ function Phones({ top, backtests }: { top: Backtest; backtests: Backtest[] }) {
             <span className="pill pill--accent">Backtest</span>
           </div>
           <img className="phone__icon" src="/img/icons/agent.png" alt="" />
-          <div className="phone__caption">Last 30 days</div>
-          <div className={`phone__big ${tone(top.result.returnPct)}`}>{percent(top.result.returnPct)}</div>
-          <div className="phone__caption">{points(top.result.returnPct - top.holdReturnPct)} versus holding</div>
+          <div className="phone__caption">{topWin.label}</div>
+          <div className="phone__big gain">{topWin.value}</div>
+          <div className="phone__caption">{topWin.detail}</div>
           <svg viewBox="0 0 100 40" preserveAspectRatio="none" style={{ height: "calc(var(--phone-w) * 0.2)" }}>
             <polyline points={sparkline(equity, 40, 4)} fill="none" stroke="var(--color-purple-rich)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
           </svg>

@@ -1,0 +1,14 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "medium",
+    "background": "opaque",
+    "aspect_ratio": "1:1",
+    "output_format": "png"
+  },
+  "style": "A single glossy 3D icon for a premium fintech app, in the style of Aave's app icons: soft clay-like 3D render, smooth rounded forms, soft diffused studio light from the top left, gentle lavender (#9896ff to #e5e5ff) as the main color with small warm yellow (#ffc42c) accents and crisp white highlights. Centered with generous empty space around it, isolated on a plain, perfectly flat pure white (#ffffff) background that touches every edge of the image. No text, no letters, no numbers, no ground shadow, no background plate, no border.",
+  "icons": {
+    "tokenize": "Subject: a glossy lavender coin standing slightly tilted, its face embossed with a simple small robot head with a dark visor, a few tiny sparkles and a short upward arrow trail behind it, like a token being launched. One small warm yellow accent."
+  },
+  "note": "Step 4 (Tokenize your agent, coming soon) icon for the landing How it works section, 2026-11-10, medium, about $0.05. Run: PROMPTS=assets/tokenize-icon-prompts.json OUT_DIR=public/img/icons node scripts/generate-icons.mjs"
+}
