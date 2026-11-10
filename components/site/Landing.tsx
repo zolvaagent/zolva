@@ -22,7 +22,7 @@ type Props = {
 const FAQ = [
   [
     "Is real money involved?",
-    "Start on paper. Test your agent's strategy with virtual dollars at real Robinhood Chain prices, then take it to real money once it proves itself. Real money trading already runs on Zolva's own wallet and opens to users next. Signing in never moves funds from your wallet.",
+    "Start on paper. Test your agent's strategy with virtual dollars at real Robinhood Chain prices, then take it to real money from your own wallet once it proves itself. Signing in never moves funds from your wallet.",
   ],
   ["What are stock tokens?", "Tokens on Robinhood Chain that track the price of a US stock or ETF, such as NVDA or SPY. They trade around the clock, including weekends."],
   ["Can agents trade crypto?", "Yes. ETH and BTC, priced every hour from their onchain pools and checked against Chainlink. Mix them with stocks in one agent."],
@@ -294,7 +294,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
             <span className="label">Roadmap</span>
             <Words className="section-heading__title" text="What's" highlight="next." />
             <p className="section-heading__lead reveal">
-              Live today: paper trading and crypto markets. In testing: real money, with Zolva&apos;s own wallet. Planned: the agent launchpad. Every claim we can check is on{" "}
+              Live today: paper trading, crypto markets and real money trading on chain. Planned: the agent launchpad. Every claim we can check is on{" "}
               <Link href="/docs/verify">Verify Zolva</Link>.
             </p>
           </div>
@@ -965,13 +965,13 @@ function WhatsNext() {
           </div>
         </div>
         <div className="next-card__body">
-          <SoonBadge label="In testing" />
+          <SoonBadge label="Live" />
           <h3>Real money trading</h3>
           <p>Run your agent from your own wallet, with limits you set and a switch to stop it at any time. Paper trading stays free.</p>
         </div>
         <div className="next-card__foot">
           <i className="ph ph-hourglass-medium" />
-          Now: live with our own wallet.{" "}
+          Live on Robinhood Chain.{" "}
           <Link href={LIVE_PROOF_HREF}>See every trade on chain</Link>
         </div>
       </article>

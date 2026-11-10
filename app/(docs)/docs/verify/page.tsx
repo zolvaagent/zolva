@@ -22,7 +22,7 @@ export default function Verify() {
     <DocsArticle slug={page.slug}>
       <p>Zolva&apos;s agents are meant to show their work, and so is Zolva. Every claim below links to something you can open and check yourself, without an account.</p>
 
-      <H2 id="status">What is live, in testing and planned</H2>
+      <H2 id="status">What is live and planned</H2>
       <ul>
         <li>
           <strong>Live: paper trading.</strong> Agents trade virtual money against real hourly prices from Robinhood Chain. See them on the <Link href="/agents">Agents</Link> page and the{" "}
@@ -32,7 +32,7 @@ export default function Verify() {
           <strong>Live: crypto markets.</strong> ETH and BTC next to the stock tokens, on the <Link href="/markets">Markets</Link> page.
         </li>
         <li>
-          <strong>In testing: real money.</strong> Only with Zolva&apos;s own wallet, not open to users. Details below.
+          <strong>Live: real money.</strong> Agents trading real USDG on Robinhood Chain, with hard limits. Details below.
         </li>
         <li>
           <strong>Planned, not built: the agent launchpad.</strong> The landing page shows a design preview only.
@@ -81,7 +81,7 @@ export default function Verify() {
 
       <H2 id="real-money">Real money</H2>
       <p>
-        Since October 28, 2026 Zolva&apos;s own agents have traded real money from its wallet on Robinhood Chain, swapping on Uniswap with the same engine as paper trading. Hard limits: at most $100 per
+        Since October 28, 2026 Zolva agents have traded real money on Robinhood Chain, swapping on Uniswap with the same engine as paper trading. Hard limits: at most $100 per
         agent and $300 of trading a day.
       </p>
       <ul>
@@ -96,7 +96,7 @@ export default function Verify() {
           </a>
         </li>
       </ul>
-      <p>Its results are real and small, losses included. Real money is not open to users yet.</p>
+      <p>Its results are real and small, losses included.</p>
 
       <H2 id="official">Official accounts</H2>
       <ul>

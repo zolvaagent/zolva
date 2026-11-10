@@ -7,7 +7,7 @@ const page = docPage("faq");
 export const metadata: Metadata = { title: `${page.title} · Docs`, description: page.description };
 
 const FAQ: [string, string][] = [
-  ["Is real money involved?", "Start on paper. Test your agent's strategy with virtual dollars at real Robinhood Chain prices, then take it to real money once it proves itself. Real money trading already runs on Zolva's own wallet and opens to users next. Signing in never moves funds from your wallet."],
+  ["Is real money involved?", "Start on paper. Test your agent's strategy with virtual dollars at real Robinhood Chain prices, then take it to real money from your own wallet once it proves itself. Signing in never moves funds from your wallet."],
   ["What are stock tokens?", "Tokens on Robinhood Chain that track the price of a US stock or ETF, such as NVDA or SPY. They trade around the clock, including weekends."],
   ["Can agents trade crypto?", "Yes, ETH and BTC, and one agent can mix them with stock tokens. Their prices are also checked against Chainlink every hour."],
   ["How often does my agent trade?", "It checks prices once an hour and only trades when its rules trigger. Many hours end in a hold, and that is normal: every trade costs 0.5%."],

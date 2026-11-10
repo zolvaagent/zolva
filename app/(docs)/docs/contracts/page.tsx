@@ -55,7 +55,7 @@ export default function Contracts() {
   const creditsPayTo = env.creditsPayTo;
 
   const own: Row[] = [
-    { name: "Real money trading wallet", address: LIVE_TRADING_WALLET, note: "Zolva's own live agent trades from here. Every trade is a transaction you can open." },
+    { name: "Real money trading wallet", address: LIVE_TRADING_WALLET, note: "The live real money agent trades from here. Every trade is a transaction you can open." },
     ...(x402PayTo ? [{ name: "Payments received", address: x402PayTo, note: "Receives USDG for Premium API calls (x402)." }] : []),
     ...(creditsPayTo && creditsPayTo !== x402PayTo ? [{ name: "Credit top-ups received", address: creditsPayTo, note: "Receives USDG paid for AI credits." }] : []),
     ...(relayer ? [{ name: "x402 relayer", address: relayer.address, note: "Settles x402 payments and pays their gas. It can only move USDG to the payments address." }] : []),

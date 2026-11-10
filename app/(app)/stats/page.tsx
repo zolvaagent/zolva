@@ -76,7 +76,7 @@ export default async function StatsPage() {
             </span>
           </div>
           <p className="muted stats-live__lead">
-            Zolva&apos;s own agent trades real USDG from wallet{" "}
+            A live agent trades real USDG from wallet{" "}
             <a className="text-link" href={`${EXPLORER_URL}/address/${LIVE_TRADING_WALLET}`} target="_blank" rel="noopener noreferrer">
               {shortAddress(LIVE_TRADING_WALLET)}
             </a>
@@ -197,7 +197,7 @@ export default async function StatsPage() {
           <Infra icon="plugs-connected" value={whole(totals.x402Payments)} label={x402Label(totals)} href="/docs/premium-api" />
         </div>
         <p className="muted stats-infra__note">
-          Paper agents trade simulated money at real prices from the chain. Real money trades are Zolva&apos;s own. <Link className="text-link" href="/docs/verify">How to verify any of this</Link>
+          Paper agents trade simulated money at real prices from the chain. <Link className="text-link" href="/docs/verify">How to verify any of this</Link>
         </p>
       </section>
     </div>

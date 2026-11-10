@@ -94,7 +94,7 @@ export const DOC_PAGES: DocPage[] = [
   {
     slug: "verify",
     title: "Verify Zolva",
-    description: "What is live, in testing and planned, with a link to check each claim: code, decisions, prices, the real money wallet and official accounts.",
+    description: "What is live and planned, with a link to check each claim: code, decisions, prices, the real money wallet and official accounts.",
     group: "Safety",
   },
   {
