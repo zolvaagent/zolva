@@ -1,6 +1,7 @@
 /**
  * ZOLVA launch switch, owner only. Checks the token on chain and on GeckoTerminal, writes its
- * settings into .dev.vars, fills the contract address into the launch tweet drafts and, with
+ * settings into .dev.vars, fills the contract address into the launch tweet drafts
+ * (docs/x/launchday.md and tweets.md) and, with
  * --deploy, deploys and checks the live docs page:
  *
  *   npm run token:launch -- <contract address> [--trade-url=https://...] [--deploy]
@@ -19,7 +20,8 @@ import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { createPublicClient, erc20Abi, getAddress, http, isAddress } from "viem";
 
 const DEV_VARS = new URL("../.dev.vars", import.meta.url);
-const TWEETS = new URL("../docs/x/tweets.md", import.meta.url);
+// Tweet drafts with the CA placeholder (docs/x is gitignored, so either file may be missing).
+const TWEET_FILES = ["../docs/x/launchday.md", "../docs/x/tweets.md"].map((path) => new URL(path, import.meta.url));
 const SITE = "https://zolvaagent.app";
 const GECKO = "https://api.geckoterminal.com/api/v2/networks/robinhood";
 const EXPECTED_SYMBOL = "ZOLVA";
@@ -102,10 +104,16 @@ async function main() {
   console.log(`Wrote ${Object.keys(values).join(", ")} to .dev.vars (old copy in .dev.vars.bak)`);
 
   // 4. Launch tweet drafts.
-  const tweets = readFileSync(TWEETS, "utf8");
-  if (tweets.includes(CA_PLACEHOLDER)) {
-    writeFileSync(TWEETS, tweets.replaceAll(CA_PLACEHOLDER, getAddress(address)));
-    console.log("Filled the contract address into docs/x/tweets.md");
+  for (const file of TWEET_FILES) {
+    let text: string;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    if (!text.includes(CA_PLACEHOLDER)) continue;
+    writeFileSync(file, text.replaceAll(CA_PLACEHOLDER, getAddress(address)));
+    console.log(`Filled the contract address into docs/x/${file.pathname.split("/").pop()}`);
   }
 
   if (!deploy) {
