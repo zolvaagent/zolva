@@ -1,0 +1,27 @@
+{
+  "name": "zolva",
+  "version": "1.0.0",
+  "description": "Read-only MCP server for Zolva, open trading-agent infrastructure on Robinhood Chain: public agents, markets and activity, with the reason behind every buy, sell and hold. No API key.",
+  "author": {
+    "name": "Zolva",
+    "url": "https://zolvaagent.app"
+  },
+  "homepage": "https://zolvaagent.app",
+  "repository": "https://github.com/zolvaagent/zolva",
+  "documentationUrl": "https://zolvaagent.app/docs/mcp",
+  "license": "MIT",
+  "icon": "./assets/brand/logo-v2/x-avatar-400.png",
+  "keywords": [
+    "mcp",
+    "trading-agents",
+    "robinhood-chain",
+    "tokenized-stocks",
+    "stock-tokens",
+    "crypto",
+    "perps",
+    "backtesting",
+    "x402",
+    "ai-agents"
+  ],
+  "mcpServers": "./.mcp.json"
+}
