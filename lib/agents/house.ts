@@ -133,4 +133,16 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     stopLossPct: 5,
     venue: "perps",
   },
+  {
+    // The same rule on five crypto perps the search never saw, to gather trades faster:
+    // +19.4% from Jul 8 to Nov 10 and +10.8% in the last 30 days while holding fell 16%.
+    owner: LAB_WALLETS[3],
+    name: "Lab · Perps Deep Dip Alts",
+    strategy: "custom",
+    rules: DEEP_DIP_96,
+    symbols: ["HYPE-PERP", "ZEC-PERP", "XRP-PERP", "LIT-PERP", "NEAR-PERP"],
+    maxPositionPct: 20,
+    stopLossPct: 5,
+    venue: "perps",
+  },
 ];

@@ -275,3 +275,29 @@ parked.
   honest test is fresh hours after 2026-11-07.
 
 **Next:** Phase 2 for this one rule, or wait for the 2026-11-28 re-test on fresh hours.
+
+## The deep dip rule on other perps (2026-11-10)
+
+`scripts/research-perps-engine-check.mts` runs the real engine with the frozen rule
+(DEEP_DIP_96, 5% stop) from 2026-07-08 (after warm-up) to 2026-11-10. The other groups are
+markets the rule search never saw.
+
+| Markets | Whole period | First half | Second half | Last 30 days | Worst drop | Round trips | Holding, last 30d |
+|---|---|---|---|---|---|---|---|
+| BTC ETH SOL (the Lab agent) | +14.6% | +10.8% | +3.6% | -0.1% | 6.6% | 42 | -15.3% |
+| **HYPE ZEC XRP LIT NEAR** (new) | **+19.4%** | +7.1% | +11.5% | **+10.8%** | 9.1% | 54 | -16.1% |
+| All 8 crypto perps | +18.0% | +8.4% | +8.9% | +6.9% | 8.4% | 96 | -15.8% |
+| 9 stock and index perps | -3.3% | -0.8% | -2.3% | -2.9% | 5.4% | 113 | -6.3% |
+| Gold and silver (from 2026-09-01) | -3.2% | +0.8% | -4.0% | -5.9% | 10.1% | 23 | -7.1% |
+
+**Reading**
+- On five crypto perps it had never seen, the rule was positive in both halves and in
+  the last 30 days, while holding them fell 16%. This is the strongest evidence so far that
+  the rule is not fitted to BTC, ETH and SOL.
+- It does not carry over to stocks or metals. It made many trades there, but small losses.
+- BTC, ETH and SOL alone had a flat last month (-0.1%). The earlier held-out figure (+1.7%)
+  ended on 2026-11-07; the following days were slightly negative.
+
+**Plan:** a second Lab agent on HYPE ZEC XRP LIT NEAR (max 20% each, 5% stop). Together
+with the first one, that is about 7 round trips a week, so 30 or more within 4 to 5 weeks.
+Stocks and metals stay out.

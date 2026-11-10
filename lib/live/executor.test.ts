@@ -1,7 +1,17 @@
 import { encodeAbiParameters, InvalidParamsRpcError, pad, RpcRequestError, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { amountReceived, deviationBps, impliedPrice, message, minimumOut } from "./executor";
+import { amountReceived, APPROVE_GAS_FLOOR, approveGasLimit, deviationBps, impliedPrice, message, minimumOut } from "./executor";
+
+describe("approveGasLimit", () => {
+  it("pads the estimate by 30% when L1 fees push it up", () => {
+    expect(approveGasLimit(200_000n)).toBe(260_000n);
+  });
+
+  it("never goes below the old fixed limit", () => {
+    expect(approveGasLimit(46_000n)).toBe(APPROVE_GAS_FLOOR);
+  });
+});
 
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const NVDA = "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec" as Hex;

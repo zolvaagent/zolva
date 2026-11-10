@@ -87,6 +87,20 @@ export function amountReceived(logs: Pick<Log, "address" | "data" | "topics">[],
   return total;
 }
 
+/** Never below the old fixed approve limit, which worked whenever L1 fees were calm. */
+export const APPROVE_GAS_FLOOR = 100_000n;
+
+/**
+ * Gas limit for an approve: the node's estimate plus 30%, like the swap. Robinhood Chain
+ * (Arbitrum based) counts the L1 data cost in gas, so the same approve needs more gas when
+ * L1 fees rise. A fixed 100k was rejected as "intrinsic gas too low" (2026-11-05), which
+ * is the likely cause of the earlier "Missing or invalid parameters" approve failures too.
+ */
+export function approveGasLimit(estimate: bigint): bigint {
+  const padded = (estimate * 13n) / 10n;
+  return padded > APPROVE_GAS_FLOOR ? padded : APPROVE_GAS_FLOOR;
+}
+
 async function signAndSend(ctx: LiveContext, to: Hex, data: Hex, gas: bigint): Promise<Hex> {
   const [nonce, fees] = await Promise.all([ctx.chain.getTransactionCount({ address: ctx.wallet, blockTag: "pending" }), ctx.chain.estimateFeesPerGas()]);
   const signed = await ctx.privy
@@ -161,7 +175,8 @@ export async function executeSwap(ctx: LiveContext, order: SwapOrder, onSubmitte
     const allowance = await ctx.chain.readContract({ address: order.tokenIn, abi: erc20Abi, functionName: "allowance", args: [ctx.wallet, SWAP_ROUTER_02] });
     if (allowance < order.amountIn) {
       const approve = encodeFunctionData({ abi: ERC20_APPROVE_ABI, functionName: "approve", args: [SWAP_ROUTER_02, order.amountIn] });
-      const hash = await signAndSend(ctx, order.tokenIn, approve, 100_000n);
+      const estimate = await ctx.chain.estimateGas({ account: ctx.wallet, to: order.tokenIn, data: approve });
+      const hash = await signAndSend(ctx, order.tokenIn, approve, approveGasLimit(estimate));
       const receipt = await ctx.chain.waitForTransactionReceipt({ hash, timeout: 120_000 });
       if (receipt.status !== "success") return { ok: false, stage: "approve", error: "approve reverted", txHash: hash };
     }
