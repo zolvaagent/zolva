@@ -323,7 +323,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
       </section>
 
       <section className="section">
-        <div className="container">{top && <Closing top={top} ranked={ranked} />}</div>
+        <div className="container">{showcase[0] && <Closing top={showcase[0]} ranked={showcase} />}</div>
       </section>
     </>
   );
@@ -782,8 +782,12 @@ export function LeaderTable({ agents }: { agents: AgentSummary[] }) {
 }
 
 function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
+  // Same rule as the hero phones: lead with the good news that is really there, never a red loss.
   const runner = ranked[1] ?? top;
-  const lastDecision = top.result.runs[top.result.runs.length - 1]?.decisions[0];
+  const third = ranked[2] ?? runner;
+  const runnerWin = phoneWin(runner);
+  const thirdWin = phoneWin(third);
+  const lastDecision = third.result.runs[third.result.runs.length - 1]?.decisions[0];
   return (
     <div className="closing reveal">
       <div className="closing__copy">
@@ -818,9 +822,9 @@ function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
             <img src="/img/icons/backtest.png" alt="" width={36} height={36} />
             <span>Backtest</span>
           </div>
-          <div className={`closing__big ${tone(runner.result.returnPct)}`}>{percent(runner.result.returnPct)}</div>
+          <div className="closing__big gain">{runnerWin.value}</div>
           <div className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
-            {STRATEGY_NAMES[runner.config.strategy]} on {runner.config.symbols.join(", ")}. Holding {percent(runner.holdReturnPct)}
+            {STRATEGY_NAMES[runner.config.strategy]} on {runner.config.symbols.join(", ")}. {runnerWin.detail}
           </div>
         </div>
         <div className="closing__card closing__card--mid">
@@ -828,7 +832,7 @@ function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
             <img src="/img/icons/leaderboard.png" alt="" width={36} height={36} />
             <span>Versus holding</span>
           </div>
-          <div className={`closing__big ${tone(top.result.returnPct - top.holdReturnPct)}`}>{points(top.result.returnPct - top.holdReturnPct)}</div>
+          <div className="closing__big gain">{points(top.result.returnPct - top.holdReturnPct)}</div>
           <div className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
             {top.config.name}, last 30 days
           </div>
@@ -836,9 +840,9 @@ function Closing({ top, ranked }: { top: Backtest; ranked: Backtest[] }) {
         <div className="closing__card closing__card--front">
           <div className="closing__card-head">
             <img src="/img/icons/agent.png" alt="" width={36} height={36} />
-            <span>{top.config.name}</span>
+            <span>{third.config.name}</span>
           </div>
-          <div className={`closing__big ${tone(top.result.returnPct)}`}>{percent(top.result.returnPct)}</div>
+          <div className="closing__big gain">{thirdWin.value}</div>
           {lastDecision && (
             <div className="decision">
               <span className={`decision__action decision__action--${lastDecision.action}`}>{lastDecision.action}</span>

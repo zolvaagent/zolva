@@ -8,5 +8,5 @@ export const X_URL = `https://x.com/${X_HANDLE}`;
  */
 export const SOCIAL_LINKS: { label: string; href: string | null; icon: string }[] = [
   { label: "X", href: X_URL, icon: "ph-x-logo" },
-  { label: "GitHub", href: "https://github.com/zolvaagent/zolva", icon: "ph-github-logo" },
+  { label: "GitHub", href: "https://github.com/zolvaagent/", icon: "ph-github-logo" },
 ];
