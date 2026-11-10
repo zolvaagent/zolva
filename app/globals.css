@@ -2481,6 +2481,30 @@ main:focus {
   line-height: 20px;
 }
 
+/* The decision log can hold many markets per hour (Dip Hunter: 14): cap its height and
+   scroll inside the card, with a fade at the bottom while more is below. */
+.log-scroll {
+  max-height: 560px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--space-600)), transparent);
+}
+
+.log-scroll:focus-visible {
+  outline: 2px solid var(--color-purple-rich);
+  outline-offset: 2px;
+}
+
+.log-scroll--end {
+  mask-image: none;
+}
+
+/* The latest decision card in the side column. */
+.log-scroll--short {
+  max-height: 400px;
+}
+
 .log-run {
   display: flex;
   flex-direction: column;

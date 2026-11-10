@@ -884,23 +884,25 @@ export function AgentView({
                 <span className="pill">Latest hours</span>
               )}
             </div>
-            {logRuns.map((run) => (
-              <div key={run.ts} className="log-run">
-                <span className="log-run__time">
-                  {dateAt(run.ts)}
-                  {isMarketHours(run.ts) ? "" : " · DEX hours"}
-                </span>
-                {run.decisions.map((decision, i) => (
-                  <DecisionRow
-                    key={i}
-                    symbol={symbolOf(decision.token)}
-                    action={decision.action}
-                    reasoning={decision.reasoning}
-                    ai={decision.ai}
-                  />
-                ))}
-              </div>
-            ))}
+            <ScrollArea label="Decision log entries">
+              {logRuns.map((run) => (
+                <div key={run.ts} className="log-run">
+                  <span className="log-run__time">
+                    {dateAt(run.ts)}
+                    {isMarketHours(run.ts) ? "" : " · DEX hours"}
+                  </span>
+                  {run.decisions.map((decision, i) => (
+                    <DecisionRow
+                      key={i}
+                      symbol={symbolOf(decision.token)}
+                      action={decision.action}
+                      reasoning={decision.reasoning}
+                      ai={decision.ai}
+                    />
+                  ))}
+                </div>
+              ))}
+            </ScrollArea>
           </div>
 
           <div className="card">
@@ -910,7 +912,9 @@ export function AgentView({
                 className="muted"
                 style={{ fontSize: 14, lineHeight: "20px" }}
               >
-                {isLive ? `${summary.trades} total, real fills, gas included` : `${summary.trades} total, 0.5% cost each`}
+                {isLive
+                  ? `${summary.trades} total, real fills, gas included`
+                  : `${summary.trades} total, ${agent.params.venue === "perps" ? "0.05% cost each plus hourly funding" : "0.5% cost each"}`}
               </span>
             </div>
             {trades.length ? (
@@ -1059,15 +1063,17 @@ export function AgentView({
             >
               {dateAt(lastRun.ts)}
             </span>
-            {lastRun.decisions.map((decision, i) => (
-              <DecisionRow
-                key={i}
-                symbol={symbolOf(decision.token)}
-                action={decision.action}
-                reasoning={decision.reasoning}
-                ai={decision.ai}
-              />
-            ))}
+            <ScrollArea label="Latest decision per market" className="log-scroll--short stack stack--tight">
+              {lastRun.decisions.map((decision, i) => (
+                <DecisionRow
+                  key={i}
+                  symbol={symbolOf(decision.token)}
+                  action={decision.action}
+                  reasoning={decision.reasoning}
+                  ai={decision.ai}
+                />
+              ))}
+            </ScrollArea>
           </div>
           <div className="card">
             <div className="card-head">
@@ -1197,6 +1203,32 @@ export function DecisionRow({
           </span>
         )}
       </span>
+    </div>
+  );
+}
+
+/**
+ * A card section with a capped height that scrolls on its own (decision lists can run to
+ * 14 markets an hour). A fade at the bottom shows there is more, until the end is reached
+ * or everything fits. Focusable so keyboard users can scroll it.
+ */
+function ScrollArea({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
+  const [atEnd, setAtEnd] = useState(false);
+  const check = (element: HTMLDivElement | null) => {
+    if (!element || element.scrollHeight === 0) return;
+    const end = element.scrollTop + element.clientHeight >= element.scrollHeight - 8;
+    if (end !== atEnd) setAtEnd(end);
+  };
+  return (
+    <div
+      className={`log-scroll ${className}${atEnd ? " log-scroll--end" : ""}`}
+      role="region"
+      aria-label={label}
+      tabIndex={0}
+      ref={check}
+      onScroll={(event) => check(event.currentTarget)}
+    >
+      {children}
     </div>
   );
 }
