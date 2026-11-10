@@ -11,9 +11,9 @@ import { SOCIAL_LINKS } from "@/lib/social";
 const LINKS = [
   { href: "/markets", label: "Markets" },
   { href: "/leaderboard", label: "Leaderboard" },
-  { href: "/studio", label: "Studio" },
+  { href: "/swap", label: "Swap" },
   { href: "/docs", label: "Docs" },
-  { href: "/app", label: "Dashboard" },
+  { href: "/stats", label: "Stats" },
 ];
 
 /**
