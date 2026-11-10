@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { Odometer } from "@/components/ui/Words";
@@ -113,14 +114,21 @@ export default async function StatsPage() {
             <span className="muted stats-activity__range">{stats.daily.length >= STATS_DAYS ? `Last ${STATS_DAYS} days` : stats.daily.length > 0 ? `Since ${dayAt(stats.daily[0].ts)}` : ""}</span>
           </div>
           <div className="stats-bars" role="img" aria-label={`Daily decisions over the last ${stats.daily.length} days, peaking at ${whole(busiestDay)}`}>
-            {stats.daily.map((day, i) => (
-              <span
-                key={day.ts}
-                className={`stats-bars__bar${i === stats.daily.length - 1 ? " stats-bars__bar--today" : ""}`}
-                style={{ height: `${Math.max(4, (day.decisions / busiestDay) * 100)}%` }}
-                title={`${dayAt(day.ts)}: ${whole(day.decisions)} decisions, ${whole(day.trades)} trades`}
-              />
-            ))}
+            {stats.daily.map((day, i) => {
+              const last = i === stats.daily.length - 1;
+              // Tooltips near the edges hang inward so they stay inside the card.
+              const edge = i < 3 ? " stats-bars__col--start" : i > stats.daily.length - 4 ? " stats-bars__col--end" : "";
+              return (
+                <span key={day.ts} className={`stats-bars__col${edge}`} style={{ "--bar": `${Math.max(4, (day.decisions / busiestDay) * 100)}%` } as CSSProperties}>
+                  <span className={`stats-bars__bar${last ? " stats-bars__bar--today" : ""}`} />
+                  <span className="stats-bars__tip" aria-hidden="true">
+                    <strong>{last ? "Today, so far" : dayAt(day.ts)}</strong>
+                    <span>{whole(day.decisions)} decisions</span>
+                    <span>{whole(day.trades)} trades</span>
+                  </span>
+                </span>
+              );
+            })}
           </div>
           <div className="stats-bars__axis muted">
             <span>{stats.daily.length > 0 ? dayAt(stats.daily[0].ts) : ""}</span>

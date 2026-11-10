@@ -7204,17 +7204,80 @@ button.text-link {
   height: 160px;
 }
 
-.stats-bars__bar {
+/* Each day is a full height column, so the whole column is the hover target, not just the bar. */
+.stats-bars__col {
+  position: relative;
+  display: flex;
   flex: 1;
+  align-items: flex-end;
   min-width: 0;
+  height: 100%;
+}
+
+.stats-bars__bar {
+  width: 100%;
+  height: var(--bar);
   border-radius: 3px 3px 0 0;
   background: var(--color-tint-strong);
   transition: background var(--duration-micro) var(--ease-out-expo);
 }
 
-.stats-bars__bar:hover,
+.stats-bars__col:hover .stats-bars__bar,
 .stats-bars__bar--today {
   background: var(--color-purple-rich);
+}
+
+/* The day's numbers, floating just above its bar. */
+.stats-bars__tip {
+  position: absolute;
+  bottom: calc(var(--bar) + var(--space-75));
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-25);
+  padding: var(--space-75) var(--space-100);
+  border-radius: var(--radius-lg);
+  background: var(--color-text);
+  color: var(--color-on-text);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px -8px var(--color-shadow-strong);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 4px);
+  transition: opacity var(--duration-micro) var(--ease-out-expo), transform var(--duration-micro) var(--ease-out-expo);
+}
+
+.stats-bars__tip strong {
+  font-weight: 500;
+}
+
+.stats-bars__tip span {
+  opacity: 0.75;
+}
+
+.stats-bars__col--start .stats-bars__tip {
+  left: 0;
+  transform: translate(0, 4px);
+}
+
+.stats-bars__col--end .stats-bars__tip {
+  left: auto;
+  right: 0;
+  transform: translate(0, 4px);
+}
+
+.stats-bars__col:hover .stats-bars__tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.stats-bars__col--start:hover .stats-bars__tip,
+.stats-bars__col--end:hover .stats-bars__tip {
+  transform: translate(0, 0);
 }
 
 .stats-bars__axis {
