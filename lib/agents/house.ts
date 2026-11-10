@@ -120,7 +120,23 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     maxPositionPct: 100,
     stopLossPct: 10,
   },
+  // Spot short (simulated borrow). Paused on 2026-11-10 when spot became long only; kept for
+  // its record. The database now refuses new spot shorts (agents_spot_no_shorts), so this
+  // entry only matches the existing row and is never created again.
   { owner: LAB_WALLETS[3], name: "Lab · Crypto Spike Fade", strategy: "spike_fade", symbols: ["ETH", "BTC"], maxPositionPct: 100, stopLossPct: 10 },
+  {
+    // Its replacement: the same preset and settings on BTC and ETH perps, where a short is
+    // native (0.05% per trade plus funding, no borrow rate). Engine check on Lighter history
+    // Jul 8 to Nov 10: +5.0% (holding +18.4%), +7.2% in the last 30 days (holding -12.3%),
+    // worst drop 20.7% in the July to August rise.
+    owner: LAB_WALLETS[3],
+    name: "Lab · Perps Spike Fade",
+    strategy: "spike_fade",
+    symbols: ["ETH-PERP", "BTC-PERP"],
+    maxPositionPct: 100,
+    stopLossPct: 10,
+    venue: "perps",
+  },
   {
     // Perps on Lighter (Robinhood Chain), paper only: the one rule that passed the perps
     // search and its held-out month (docs/perps-research.md, "Rule search").

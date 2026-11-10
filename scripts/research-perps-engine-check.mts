@@ -3,7 +3,7 @@
  * tick) on Lighter RH history with the frozen deep dip rule (DEEP_DIP_96, 5% stop), to check
  * it matches the rule search and to try it on other perps (docs/perps-research.md).
  *
- *   [MARKETS=BTC:1,ETH:0,SOL:3] [FROM=2026-07-01] [MAX_PCT=33] [UNTIL=<ms>]
+ *   [STRATEGY=deep_dip|spike_fade] [MARKETS=BTC:1,ETH:0,SOL:3] [FROM=2026-07-01] [MAX_PCT=33] [STOP=5] [UNTIL=<ms>]
  *   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/research-perps-engine-check.mts
  *
  * MARKETS are symbol:Lighter market id pairs; every market needs a price at FROM (the
@@ -17,7 +17,13 @@ import { HOUR_MS, loadMarket } from "./lighter-history.mts";
 const UNTIL = Number(process.env.UNTIL ?? Math.floor(Date.now() / HOUR_MS) * HOUR_MS);
 const FROM = Date.parse(`${process.env.FROM ?? "2026-07-01"}T00:00:00Z`);
 const MARKETS = Object.fromEntries((process.env.MARKETS ?? "BTC:1,ETH:0,SOL:3").split(",").map((pair) => pair.split(":")).map(([symbol, id]) => [symbol, Number(id)]));
-const params: AgentParams = { strategy: "custom", rules: DEEP_DIP_96, maxPositionPct: Number(process.env.MAX_PCT ?? 33), stopLossPct: 5, venue: "perps" };
+// deep_dip: the frozen rule (custom, DEEP_DIP_96); spike_fade: the short preset (48h z above 2.5).
+const params: AgentParams = {
+  ...(process.env.STRATEGY === "spike_fade" ? { strategy: "spike_fade" as const } : { strategy: "custom" as const, rules: DEEP_DIP_96 }),
+  maxPositionPct: Number(process.env.MAX_PCT ?? 33),
+  stopLossPct: Number(process.env.STOP ?? 5),
+  venue: "perps",
+};
 const WARMUP = 168;
 
 async function main() {
@@ -34,7 +40,7 @@ async function main() {
   const last = hours.length - 1;
   const middle = Math.floor((WARMUP + last) / 2);
   const day = (index: number) => new Date(hours[index]).toISOString().slice(5, 10);
-  console.log(`${Object.keys(MARKETS).join(" ")}, max ${params.maxPositionPct}% each`);
+  console.log(`${params.strategy === "spike_fade" ? "spike fade" : "deep dip"} on ${Object.keys(MARKETS).join(" ")}, max ${params.maxPositionPct}% each, stop ${params.stopLossPct}%`);
   for (const [label, from, to] of [
     ["whole period", WARMUP, last],
     ["first half", WARMUP, middle],
