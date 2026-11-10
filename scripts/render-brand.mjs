@@ -116,6 +116,8 @@ render("public/img/brand/zolva-mark-small.png", { size: 128, path: full, rounded
 render("public/img/brand/favicon-48.png", { size: 48, path: small, rounded: true });
 render("public/img/brand/apple-touch-icon.png", { size: 180, path: full, rounded: false });
 render("assets/brand/logo-v2/x-avatar-400.png", { size: 400, path: full, rounded: false, fill: 0.56 });
+// DexScreener token icon (2026-11-10): the X avatar at 512, square (DexScreener rounds it).
+render("assets/brand/dex/dex-icon-512.png", { size: 512, path: full, rounded: false, fill: 0.56 });
 render("assets/brand/logo-v2/token-1000.png", { size: 1000, path: full, rounded: false, fill: 0.6 });
 render("assets/brand/logo-v2/token-1000-bright.png", { size: 1000, path: full, rounded: false, fill: 0.6, background: G1_BRIGHT });
 
