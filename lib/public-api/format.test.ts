@@ -140,6 +140,8 @@ const row: MarketRow = {
   pool: "0xpool",
   poolKind: "v3",
   verifiedOfficial: true,
+  venue: "uniswap",
+  funding: null,
 };
 
 describe("publicMarket", () => {

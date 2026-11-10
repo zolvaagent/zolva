@@ -13,13 +13,13 @@ export const dynamic = "force-dynamic";
 
 export default async function MarketsPage() {
   const client = db();
-  const { rows, asOf, marketOpen: open } = await getMarketOverview(client);
+  const { rows, asOf, marketOpen: open } = await getMarketOverview(client, { perps: true });
   return (
     <div className="container page">
       <div className="page__head">
         <div>
           <h1 className="page__title">Markets</h1>
-          <p className="page__lead">Every stock token and coin your agents can trade, priced each hour from its USDG pool on Robinhood Chain.</p>
+          <p className="page__lead">Every stock token, coin and perp on Robinhood Chain that Zolva agents trade, priced each hour: tokens from their USDG pools, perps from Lighter.</p>
         </div>
       </div>
       <p className="market-status">

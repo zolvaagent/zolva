@@ -5,7 +5,7 @@ import { useMemo, useState, type ReactNode } from "react";
 
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import type { MarketRow } from "@/lib/data/markets";
-import { percent, price, sparkline, tone } from "@/lib/format";
+import { fundingYearly, percent, price, sparkline, tone } from "@/lib/format";
 
 const VIEWS = [
   ["all", "All"],
@@ -30,11 +30,15 @@ export function Spark({ values, height = 32 }: { values: number[]; height?: numb
   );
 }
 
-/** Asset classes on the page, each with its own wording. */
+/** Market groups on the page, each with its own wording. Perps are Lighter perps (paper, Lab agents only). */
 const ASSETS = {
   stock: { label: "Stocks", noun: "stock", column: "Stock", placeholder: "Search NVDA, Tesla…", example: "a ticker like NVDA or a name like Tesla" },
   crypto: { label: "Crypto", noun: "coin", column: "Coin", placeholder: "Search ETH, Bitcoin…", example: "ETH or Bitcoin" },
+  perps: { label: "Perps", noun: "perp", column: "Perp", placeholder: "Search BTC-PERP, Solana…", example: "BTC-PERP or Solana" },
 } as const;
+
+const inGroup = (row: MarketRow, asset: Asset) => (asset === "perps" ? row.venue === "lighter" : row.venue !== "lighter" && row.assetClass === asset);
+
 
 type Asset = keyof typeof ASSETS;
 
@@ -51,7 +55,7 @@ export function Markets({ rows }: { rows: MarketRow[] }) {
     </div>
   );
   // key resets the filters and search when switching between stocks and crypto.
-  return <MarketList key={asset} asset={asset} rows={rows.filter((row) => row.assetClass === asset)} leading={assetTabs} />;
+  return <MarketList key={asset} asset={asset} rows={rows.filter((row) => inGroup(row, asset))} leading={assetTabs} />;
 }
 
 function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[]; leading: ReactNode }) {
@@ -118,6 +122,11 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
                     <th className="num">24h</th>
                     <th className="num">7d</th>
                     <th>Last 7 days</th>
+                    {asset === "perps" && (
+                      <th className="num" title="Funding at the last hour, as a yearly rate. Positive: longs pay shorts.">
+                        Funding
+                      </th>
+                    )}
                     <th className="num">Agents</th>
                     <th className="col-wide">
                       <span className="sr-only">Build</span>
@@ -149,11 +158,18 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
                       <td className="markets-table__spark">
                         <Spark values={row.stats.week} />
                       </td>
+                      {asset === "perps" && <td className="num">{fundingYearly(row.funding?.lastYearly)}</td>}
                       <td className="num">{row.agents || <span className="muted">0</span>}</td>
                       <td className="num col-wide">
-                        <Link className="button button--ghost button--small" href={`/studio?stock=${row.symbol}`}>
-                          Build agent
-                        </Link>
+                        {row.venue === "lighter" ? (
+                          <span className="pill" title="Perps run on paper with Zolva's Lab agents for now; the Studio builds spot agents">
+                            Lab only
+                          </span>
+                        ) : (
+                          <Link className="button button--ghost button--small" href={`/studio?stock=${row.symbol}`}>
+                            Build agent
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   ))}

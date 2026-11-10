@@ -30,16 +30,16 @@ export const dateAt = (unixSeconds: number) => `${dateFormat.format(unixSeconds 
 /** "Oct 15" from unix seconds. */
 export const dayAt = (unixSeconds: number) => dayFormat.format(unixSeconds * 1000);
 
+/** Lighter perps (paper only, Lab agents). The database makes every perp symbol end in -PERP and no other symbol (tokens_venue_shape). */
+export const isPerpSymbol = (symbol: string) => symbol.endsWith("-PERP");
+
+/** A perp's funding as a yearly rate, signed: positive means longs pay shorts. */
+export const fundingYearly = (value: number | null | undefined) => (value == null ? "–" : `${percent(value * 100)}/yr`);
+
 /**
  * An agent's markets for a list or table: the first three, then a count, so a dip hunter
  * with 14 markets fits one line ("AAPL, AMZN, BTC +11 more"). Put the full list in a title.
  */
-/**
- * Lighter perps (paper only, Lab agents) have no market page yet. The database makes every
- * perp symbol end in -PERP and no other symbol (tokens_venue_shape).
- */
-export const isPerpSymbol = (symbol: string) => symbol.endsWith("-PERP");
-
 export function marketList(symbols: string[], shown = 3): string {
   return symbols.length > shown ? `${symbols.slice(0, shown).join(", ")} +${symbols.length - shown} more` : symbols.join(", ");
 }

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { hourlyReports, REASON_LABELS, SIDE_VERBS, type ActivityHour, type ActivityTrade, type HourReport } from "@/lib/activity";
-import { dateAt, isPerpSymbol, price, STRATEGY_NAMES, usd } from "@/lib/format";
+import { dateAt, price, STRATEGY_NAMES, usd } from "@/lib/format";
 
 const FILTERS = [
   ["all", "All agents"],
@@ -44,13 +44,9 @@ function TradeRow({ trade }: { trade: ActivityTrade }) {
           <Link href={`/agents/${trade.agentId}`}>{trade.agentName}</Link>
           {trade.isHouse && <span className="pill">by Zolva</span>}{" "}
           <span className={trade.side === "buy" || trade.side === "cover" ? "gain" : "loss"}>{SIDE_VERBS[trade.side]}</span>{" "}
-          {isPerpSymbol(trade.symbol) ? (
+          <Link href={`/markets/${trade.symbol}`}>
             <strong>{trade.symbol}</strong>
-          ) : (
-            <Link href={`/markets/${trade.symbol}`}>
-              <strong>{trade.symbol}</strong>
-            </Link>
-          )}
+          </Link>
         </p>
         <p className="activity-trade__why">
           <span className="pill pill--accent">{REASON_LABELS[trade.reason]}</span> {trade.reasoning ?? `${SIDE_VERBS[trade.side][0].toUpperCase()}${SIDE_VERBS[trade.side].slice(1)}.`}

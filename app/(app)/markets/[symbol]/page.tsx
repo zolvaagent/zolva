@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/markets/[symbol]">): Promise<Metadata> {
   const client = db();
-  const detail = await getMarketDetail(client, (await params).symbol);
+  const detail = await getMarketDetail(client, (await params).symbol, { perps: true });
   if (!detail) return { title: "Stock not found" };
   const { symbol, name, stats } = detail.row;
   return { title: `${symbol} price`, description: `${name} (${symbol}) token on Robinhood Chain: ${price(stats.price)}, hourly chart, and the Zolva agents trading it.` };
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PageProps<"/markets/[symbol]"
 
 export default async function MarketPage({ params }: PageProps<"/markets/[symbol]">) {
   const client = db();
-  const detail = await getMarketDetail(client, (await params).symbol);
+  const detail = await getMarketDetail(client, (await params).symbol, { perps: true });
   if (!detail) notFound();
   return (
     <div className="container page">

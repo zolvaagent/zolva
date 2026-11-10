@@ -8,7 +8,7 @@ import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { MarketRow } from "@/lib/data/markets";
-import { dateAt, percent, points, price, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
+import { dateAt, fundingYearly, percent, points, price, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const RANGES = [
   { key: "24h", label: "24h", hours: 24, step: 1 },
@@ -38,6 +38,8 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
   const rangeChange = values.length > 1 ? (values[values.length - 1] / values[0] - 1) * 100 : null;
   const { stats } = row;
   const poolUrl = `https://www.geckoterminal.com/robinhood/pools/${row.pool}`;
+  const perps = row.venue === "lighter";
+  const base = row.symbol.replace(/-PERP$/, "");
 
   return (
     <div className="stack">
@@ -59,6 +61,9 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
             <span className={tone(stats.change24h ?? 0)}>{signed(stats.change24h)} in 24h</span>
           </div>
           <div className="agent-head__meta">
+            {perps ? (
+              <span className="pill pill--accent">Perp · Lighter</span>
+            ) : null}
             {row.assetClass === "crypto" ? (
               <span className="pill pill--running">Trades 24/7</span>
             ) : (
@@ -68,10 +73,16 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
           </div>
         </div>
         <div className="hero__actions">
-          <Link className="button button--primary" href={`/studio?stock=${row.symbol}`}>
-            Build an agent for {row.symbol}
-            <i className="ph ph-arrow-right" />
-          </Link>
+          {perps ? (
+            <span className="pill" title="The Studio builds spot agents; perps run on paper with Zolva's Lab agents for now">
+              Lab agents only for now
+            </span>
+          ) : (
+            <Link className="button button--primary" href={`/studio?stock=${row.symbol}`}>
+              Build an agent for {row.symbol}
+              <i className="ph ph-arrow-right" />
+            </Link>
+          )}
         </div>
       </div>
 
@@ -112,7 +123,14 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
             <Stat label="7 day high" value={price(stats.high7d)} />
             <Stat label="7 day low" value={price(stats.low7d)} />
             <Stat label="Agents trading it" value={row.agents} />
-            <Stat label="Pool" value={`Uniswap ${row.poolKind}`} />
+            {perps ? (
+              <>
+                <Stat label="Funding now" value={fundingYearly(row.funding?.lastYearly)} />
+                <Stat label="Funding, 7 day average" value={fundingYearly(row.funding?.weekYearly)} />
+              </>
+            ) : (
+              <Stat label="Pool" value={`Uniswap ${row.poolKind}`} />
+            )}
           </div>
         </div>
 
@@ -146,10 +164,12 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
               </div>
             ) : (
               <div className="empty" style={{ padding: "var(--space-300) 0" }}>
-                <p>No agent trades {row.symbol} yet. Yours could be the first.</p>
-                <Link className="button button--ghost button--small" href={`/studio?stock=${row.symbol}`}>
-                  Open the Studio
-                </Link>
+                <p>{perps ? `No Lab agent trades ${row.symbol} yet.` : `No agent trades ${row.symbol} yet. Yours could be the first.`}</p>
+                {!perps && (
+                  <Link className="button button--ghost button--small" href={`/studio?stock=${row.symbol}`}>
+                    Open the Studio
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -158,6 +178,17 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
             <h2 className="card__title" style={{ marginBottom: "var(--space-200)" }}>
               About this price
             </h2>
+            {perps ? (
+              <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>
+                <p className="muted">
+                  {row.symbol} is a perpetual future on Lighter&apos;s exchange on Robinhood Chain, settled in USDG. Zolva reads its hourly close and funding from Lighter&apos;s public API. A perp follows {base}&apos;s index price and can be held long or short; funding moves money between the two sides every hour (positive: longs pay shorts).
+                </p>
+                <p className="muted">Zolva&apos;s perps agents trade on paper only, with no leverage: 0.05% per trade plus the real hourly funding.</p>
+                <a className="text-link" href={`https://robinhoodchain.lighter.xyz/trade/${base}`} target="_blank" rel="noopener noreferrer">
+                  {base} perp on Lighter <i className="ph ph-arrow-up-right" />
+                </a>
+              </div>
+            ) : (
             <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>
               {row.assetClass === "crypto" ? (
                 <p className="muted">
@@ -186,6 +217,7 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
                 <p className="note">This token address is not yet checked against Robinhood&apos;s official Stock Token list.</p>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>

@@ -41,8 +41,8 @@ export function TickerAvatar({ symbol, size }: { symbol: string; size?: number }
     );
   }
   return (
-    <span className="ticker-avatar" style={{ background: tickerColor(symbol), ...sizing, ...(size ? { fontSize: Math.round(size / 3.2) } : {}) }} aria-hidden="true">
-      {symbol.slice(0, 4)}
+    <span className="ticker-avatar" style={{ background: tickerColor(base), ...sizing, ...(size ? { fontSize: Math.round(size / 3.2) } : {}) }} aria-hidden="true">
+      {base.slice(0, 4)}
     </span>
   );
 }
