@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 
 import { Callout, DocsArticle, H2 } from "@/components/site/Docs";
+import { TokenAddress } from "@/components/site/TokenAddress";
 import { docPage } from "@/lib/docs";
 import { usd } from "@/lib/format";
 import { GRACE_DAYS, TIERS } from "@/lib/tiers";
 import { MAX_BURN_AGE_SECONDS, MIN_TOPUP_USD, ZOLVA_BONUS } from "@/lib/zolva-topup";
+import { zolvaTokenCard } from "@/lib/zolva-token";
 
 const page = docPage("token");
 export const metadata: Metadata = { title: `${page.title} · Docs`, description: page.description };
+// The contract address comes from the Worker's env, which is not there at build time.
+export const dynamic = "force-dynamic";
 
 const ROWS: [string, (key: keyof typeof TIERS) => string][] = [
   ["Holds", (key) => (TIERS[key].minUsd ? `ZOLVA worth ${usd(TIERS[key].minUsd)}+` : "No ZOLVA needed")],
@@ -17,9 +21,19 @@ const ROWS: [string, (key: keyof typeof TIERS) => string][] = [
 ];
 
 export default function Token() {
+  const token = zolvaTokenCard();
   return (
     <DocsArticle slug={page.slug}>
-      <Callout kind="note">The ZOLVA token has not launched yet. Everything below starts when it does; until then every account is on Free.</Callout>
+      {token ? (
+        <>
+          <TokenAddress token={token} />
+          <Callout kind="warn" title="Check the address">
+            This is the only official ZOLVA contract. Any other token using the Zolva name is not ours.
+          </Callout>
+        </>
+      ) : (
+        <Callout kind="note">The ZOLVA token has not launched yet. Everything below starts when it does; until then every account is on Free.</Callout>
+      )}
 
       <H2 id="tiers">What holding ZOLVA does</H2>
       <p>

@@ -4,6 +4,7 @@ import { DecisionRow } from "@/components/app/AgentView";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { MembershipCard } from "@/components/app/MembershipCard";
 import { WalletExport } from "@/components/app/WalletExport";
+import { UsdgTopUp } from "@/components/app/UsdgTopUp";
 import { ZolvaTopUp } from "@/components/app/ZolvaTopUp";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { Decision } from "@/lib/engine/engine";
@@ -252,7 +253,10 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
             <p className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
               Spent only when an agent&apos;s AI co-pilot reviews a trade. If credits run out, agents keep trading on their rules.
             </p>
-            <ZolvaTopUp address={address} loginMethod={loginMethod} />
+            <div className="topup-actions">
+              <UsdgTopUp address={address} loginMethod={loginMethod} />
+              <ZolvaTopUp address={address} loginMethod={loginMethod} />
+            </div>
           </div>
 
           <div className="card stack stack--tight">

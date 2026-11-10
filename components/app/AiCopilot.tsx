@@ -123,7 +123,9 @@ export function AiCopilotPicker({
         ) : (
           <span>New accounts get $0.50 of free AI credits for Lite models.</span>
         )}
-        <span className="pill pill--accent">Top up soon</span>
+        <a className="text-link" href="/app" target="_blank" rel="noopener noreferrer">
+          Top up
+        </a>
       </div>
       <p className="note" style={{ margin: 0 }}>
         Estimates assume about 30 reviews a month.

@@ -93,9 +93,14 @@ export async function linkExtraWallet<T>(account: string): Promise<T> {
   }
 }
 
+/** ERC-20 transfer(to, raw) calldata. */
+export function transferCall(to: string, raw: bigint): `0x${string}` {
+  return encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to as `0x${string}`, raw] });
+}
+
 /** The ERC-20 call that sends `raw` base units to the burn address. */
 export function burnCall(burnAddress: string, raw: bigint): `0x${string}` {
-  return encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [burnAddress as `0x${string}`, raw] });
+  return transferCall(burnAddress, raw);
 }
 
 /**

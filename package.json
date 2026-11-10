@@ -24,7 +24,8 @@
     "x402:setup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-relayer-setup.mts",
     "x402:pay": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-pay-test.mts",
     "x402:export-relayer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-relayer-export.mts",
-    "x402:export-rule": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-relayer-export-rule.mts"
+    "x402:export-rule": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-relayer-export-rule.mts",
+    "token:launch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/token-launch.mts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

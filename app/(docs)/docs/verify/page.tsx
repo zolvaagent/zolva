@@ -2,17 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Callout, DocsArticle, H2 } from "@/components/site/Docs";
-import { EXPLORER_URL, LIVE_PROOF_HREF, LIVE_TRADING_WALLET } from "@/lib/chain";
+import { TokenAddress } from "@/components/site/TokenAddress";
+import { EXPLORER_URL, LIVE_EARLIER_AGENT_HREF, LIVE_PROOF_HREF, LIVE_TRADING_WALLET } from "@/lib/chain";
 import { docPage } from "@/lib/docs";
 import { X_HANDLE, X_URL } from "@/lib/social";
+import { zolvaTokenCard } from "@/lib/zolva-token";
 
 const page = docPage("verify");
 export const metadata: Metadata = { title: `${page.title} · Docs`, description: page.description };
+// The token section reads the contract address from the Worker's env, not there at build time.
+export const dynamic = "force-dynamic";
 
 const GITHUB_URL = "https://github.com/zolvaagent/zolva";
 
 /** Every public claim Zolva makes, next to where anyone can check it. Keep it in step with the landing roadmap. */
 export default function Verify() {
+  const token = zolvaTokenCard();
   return (
     <DocsArticle slug={page.slug}>
       <p>Zolva&apos;s agents are meant to show their work, and so is Zolva. Every claim below links to something you can open and check yourself, without an account.</p>
@@ -33,7 +38,15 @@ export default function Verify() {
           <strong>Planned, not built: the agent launchpad.</strong> The landing page shows a design preview only.
         </li>
         <li>
-          <strong>Not launched: the ZOLVA token.</strong> See <Link href="/docs/token">ZOLVA token</Link>.
+          {token ? (
+            <>
+              <strong>Live: the ZOLVA token.</strong> Its only official address is below; what it does is on <Link href="/docs/token">ZOLVA token</Link>.
+            </>
+          ) : (
+            <>
+              <strong>Not launched: the ZOLVA token.</strong> See <Link href="/docs/token">ZOLVA token</Link>.
+            </>
+          )}
         </li>
       </ul>
 
@@ -68,12 +81,13 @@ export default function Verify() {
 
       <H2 id="real-money">Real money</H2>
       <p>
-        Since October 28, 2026 one agent has traded real money from Zolva&apos;s own wallet on Robinhood Chain, swapping on Uniswap with the same engine as paper trading. Hard limits: at most $100 per
+        Since October 28, 2026 Zolva&apos;s own agents have traded real money from its wallet on Robinhood Chain, swapping on Uniswap with the same engine as paper trading. Hard limits: at most $100 per
         agent and $300 of trading a day.
       </p>
       <ul>
         <li>
-          The agent, with every fill linked to its transaction: <Link href={LIVE_PROOF_HREF}>Live CRCL RDDT GME</Link>
+          The running agent, with every fill linked to its transaction: <Link href={LIVE_PROOF_HREF}>Live BTC ETH</Link>. The earlier one, paused since November 6:{" "}
+          <Link href={LIVE_EARLIER_AGENT_HREF}>Live CRCL RDDT GME</Link>
         </li>
         <li>
           The trading wallet on Blockscout:{" "}
@@ -96,9 +110,20 @@ export default function Verify() {
           Code: <a href={GITHUB_URL}>github.com/zolvaagent/zolva</a>
         </li>
       </ul>
-      <Callout kind="warn" title="No token yet">
-        There is no ZOLVA token today. Any token using the Zolva name is not ours. When it launches, its contract address will be posted on this page and from @{X_HANDLE}.
-      </Callout>
+      {token ? (
+        <>
+          <H2 id="token">The ZOLVA token</H2>
+          <TokenAddress token={token} />
+          <Callout kind="warn" title="Only this address">
+            Any other token using the Zolva name is not ours. The same address is pinned on @{X_HANDLE}. All of Zolva&apos;s addresses are on{" "}
+            <Link href="/docs/contracts">Contracts</Link>.
+          </Callout>
+        </>
+      ) : (
+        <Callout kind="warn" title="No token yet">
+          There is no ZOLVA token today. Any token using the Zolva name is not ours. When it launches, its contract address will be posted on this page and from @{X_HANDLE}.
+        </Callout>
+      )}
     </DocsArticle>
   );
 }

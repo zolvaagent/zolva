@@ -82,6 +82,11 @@ async function main() {
       ...(dev.PRIVY_AUTHORIZATION_KEY ? { PRIVY_AUTHORIZATION_KEY: dev.PRIVY_AUTHORIZATION_KEY } : {}),
       // Optional: the ZOLVA token for holder tiers. Without it every account stays on Free.
       ...(dev.ZOLVA_TOKEN_ADDRESS ? { ZOLVA_TOKEN_ADDRESS: dev.ZOLVA_TOKEN_ADDRESS, ZOLVA_TOKEN_DECIMALS: dev.ZOLVA_TOKEN_DECIMALS ?? "18" } : {}),
+      // Optional: public links for the token's docs card (npm run token:launch writes them).
+      ...(dev.ZOLVA_POOL_ADDRESS ? { ZOLVA_POOL_ADDRESS: dev.ZOLVA_POOL_ADDRESS } : {}),
+      ...(dev.ZOLVA_TRADE_URL ? { ZOLVA_TRADE_URL: dev.ZOLVA_TRADE_URL } : {}),
+      // Optional: where USDG credit top-ups go. Without it they go to X402_PAY_TO.
+      ...(dev.CREDITS_PAY_TO ? { CREDITS_PAY_TO: dev.CREDITS_PAY_TO } : {}),
       ...(dev.AI_DAILY_BUDGET_USD ? { AI_DAILY_BUDGET_USD: dev.AI_DAILY_BUDGET_USD } : {}),
       // Optional: the premium API over x402 (npm run x402:setup). Closed (503) unless X402_ENABLED is 1.
       ...(dev.X402_PAY_TO && dev.X402_RELAYER_WALLET_ID && dev.X402_RELAYER_ADDRESS

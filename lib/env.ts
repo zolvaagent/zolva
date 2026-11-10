@@ -97,6 +97,18 @@ export const env = {
     return { address: address as `0x${string}`, decimals: Number.isInteger(decimals) && decimals >= 0 ? decimals : 18 };
   },
   /**
+   * Public links for the launched ZOLVA token (scripts/token-launch.mts writes both): its main
+   * pool (GeckoTerminal page) and the page where people trade it (Pons). Either may be null.
+   */
+  get zolvaLinks(): { pool: `0x${string}` | null; tradeUrl: string | null } {
+    const pool = optional("ZOLVA_POOL_ADDRESS")?.toLowerCase();
+    const tradeUrl = optional("ZOLVA_TRADE_URL");
+    return {
+      pool: pool && /^0x[0-9a-f]{40}$/.test(pool) ? (pool as `0x${string}`) : null,
+      tradeUrl: tradeUrl && /^https:\/\//.test(tradeUrl) ? tradeUrl : null,
+    };
+  },
+  /**
    * Premium API over x402 (lib/x402). Off unless X402_ENABLED is "1" and Zolva's
    * receiving address is set; then paid endpoints answer 402 with a USDG price.
    */
@@ -104,6 +116,14 @@ export const env = {
     const payTo = optional("X402_PAY_TO")?.toLowerCase();
     if (optional("X402_ENABLED") !== "1" || !payTo || !/^0x[0-9a-f]{40}$/.test(payTo)) return null;
     return { payTo: payTo as `0x${string}` };
+  },
+  /**
+   * Where USDG credit top-ups are paid (lib/usdg-topup.ts): CREDITS_PAY_TO, or else Zolva's
+   * x402 receiving address. Null when neither is set: then the USDG top-up stays off.
+   */
+  get creditsPayTo(): `0x${string}` | null {
+    const payTo = (optional("CREDITS_PAY_TO") ?? optional("X402_PAY_TO"))?.toLowerCase();
+    return payTo && /^0x[0-9a-f]{40}$/.test(payTo) ? (payTo as `0x${string}`) : null;
   },
   /** The Privy server wallet that settles x402 payments and pays their gas (scripts/x402-relayer-setup.mts). */
   get x402Relayer(): { walletId: string; address: `0x${string}` } | null {

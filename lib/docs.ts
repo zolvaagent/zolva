@@ -80,6 +80,12 @@ export const DOC_PAGES: DocPage[] = [
     group: "Token",
   },
   {
+    slug: "contracts",
+    title: "Contracts",
+    description: "Every address Zolva uses on Robinhood Chain: the ZOLVA token, Zolva's wallets and the contracts it calls, each linked to Blockscout.",
+    group: "Token",
+  },
+  {
     slug: "guardrails",
     title: "Guardrails",
     description: "Every limit that keeps an agent in check, what pausing does, and what is coming next.",
