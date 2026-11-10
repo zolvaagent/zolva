@@ -186,7 +186,7 @@ export default async function StatsPage() {
           <Infra icon="chart-line" value={whole(totals.candles)} label={`hourly prices read on chain over ${priceDays} days`} />
           <Infra icon="shield-check" value="Chainlink" label="cross check on every ETH and BTC price" />
           <Infra icon="brain" value={whole(totals.aiReviews + totals.aiStrategies)} label="AI reviews and strategies written" />
-          <Infra icon="plugs-connected" value="API + MCP" label="public data, paid x402 endpoints and an MCP server" href="/docs/premium-api" />
+          <Infra icon="plugs-connected" value={whole(totals.x402Payments)} label={x402Label(totals)} href="/docs/premium-api" />
         </div>
         <p className="muted stats-infra__note">
           Paper agents trade simulated money at real prices from the chain. Real money trades are Zolva&apos;s own. <Link className="text-link" href="/docs/verify">How to verify any of this</Link>
@@ -194,6 +194,18 @@ export default async function StatsPage() {
       </section>
     </div>
   );
+}
+
+/**
+ * Paid Premium API calls settled in USDG. Our own test payments are named as such, so the number
+ * never reads as outside use.
+ */
+function x402Label({ x402Payments, x402TestPayments, x402Usdg }: { x402Payments: number; x402TestPayments: number; x402Usdg: number }): string {
+  const settled = `paid x402 API calls, ${x402Usdg.toLocaleString("en-US", { maximumFractionDigits: 3 })} USDG settled on chain`;
+  if (x402Payments === 0) return "paid x402 API calls settled in USDG on chain, none yet";
+  if (x402TestPayments === x402Payments) return `${settled}, all our own tests so far`;
+  if (x402TestPayments === 0) return settled;
+  return `${settled}, ${whole(x402TestPayments)} of them our own tests`;
 }
 
 function BigStat({ label, value }: { label: string; value: string }) {
