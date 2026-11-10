@@ -48,12 +48,12 @@ export function Landing({ market, backtests, agents, feed }: Props) {
           <section className="hero">
             <Link className="hero__badge" href="/leaderboard">
               <img src="/img/brand/zolva-mark-small.png" alt="" width={24} height={24} />
-              Paper trading on Robinhood Chain
+              Open trading-agent infrastructure on Robinhood Chain
               <i className="ph ph-caret-right" />
             </Link>
             <Words as="h1" className="hero__title" text="Trading agents for" highlight="stocks and crypto" />
             <p className="hero__lead reveal">
-              Build an agent for NVDA, Tesla or ETH in minutes. See how it would have traded the last 30 days before it touches a single virtual dollar.
+              Explore tokenized stocks, crypto, and perps. Build strategies, replay them against hourly market history, and inspect every paper-trading decision.
             </p>
             <div className="hero__actions reveal">
               <Link className="button button--primary button--large" href="/studio">
@@ -112,7 +112,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
                 text="Buys after a rise of more than 3% in a day and sells once the trend breaks. Made for stocks on the move."
                 symbols={["NVDA", "PLTR", "TSLA"]}
                 total={market.tokens.length}
-                backtest={backtests.find((item) => item.config.strategy === "momentum")}
+                backtest={bestOf(ranked, "momentum")}
               />
               <StrategyCard
                 href="/studio?strategy=mean_reversion"
@@ -122,7 +122,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
                 text="Waits for unusual drops and sells the rebound once the price is back to normal. Made for choppy markets."
                 symbols={["META", "SPY", "GME"]}
                 total={market.tokens.length}
-                backtest={backtests.find((item) => item.config.strategy === "mean_reversion")}
+                backtest={bestOf(ranked, "mean_reversion")}
               />
               <StrategyCard
                 href="/studio?strategy=custom"
@@ -132,7 +132,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
                 text="Combine price lines, averages, z scores and RSI into your own buy and sell rules. Add a take profit and a max holding time."
                 symbols={["Any", "of", "20"]}
                 total={market.tokens.length}
-                backtest={backtests.find((item) => item.config.strategy === "custom")}
+                backtest={bestOf(ranked, "custom")}
               />
             </div>
           </div>
@@ -356,8 +356,18 @@ function Proof({ value, text }: { value: string; text: string }) {
   );
 }
 
+/** The house agent with the best 30 day return for a strategy (`ranked` is sorted best first). */
+const bestOf = (ranked: Backtest[], strategy: string) => ranked.find((item) => item.config.strategy === strategy);
+
+/**
+ * A strategy with its best house backtest. The card shows a return only when it is positive,
+ * otherwise the lead over holding when there is one, and otherwise invites a replay: it never
+ * shows a loss as the headline number, but it never invents a gain either.
+ */
 function StrategyCard(props: { href: string; icon: string; label: string; title: string; text: string; symbols: string[]; total: number; backtest?: Backtest }) {
   const { backtest } = props;
+  // The chips name the markets of the agent shown, so the name, markets and number belong together.
+  const symbols = backtest ? backtest.config.symbols : props.symbols;
   return (
     <Link className="strategy-card reveal" href={props.href}>
       <div>
@@ -368,7 +378,7 @@ function StrategyCard(props: { href: string; icon: string; label: string; title:
       </div>
       <div className="stack stack--tight">
         <div className="token-stack">
-          {props.symbols.map((symbol) => (
+          {symbols.map((symbol) => (
             <span key={symbol} className="token-dot">
               {symbol}
             </span>
@@ -380,8 +390,22 @@ function StrategyCard(props: { href: string; icon: string; label: string; title:
             <strong>{backtest ? backtest.config.name : "Your rules"}</strong>
           </span>
           <span style={{ textAlign: "right" }}>
-            Return
-            <strong>{backtest ? percent(backtest.result.returnPct) : "Replay first"}</strong>
+            {backtest && backtest.result.returnPct > 0 ? (
+              <>
+                Return
+                <strong>{percent(backtest.result.returnPct)}</strong>
+              </>
+            ) : backtest && backtest.result.returnPct > backtest.holdReturnPct ? (
+              <>
+                Vs holding
+                <strong>{points(backtest.result.returnPct - backtest.holdReturnPct)}</strong>
+              </>
+            ) : (
+              <>
+                Last 30 days
+                <strong>Replay it</strong>
+              </>
+            )}
           </span>
         </div>
       </div>
