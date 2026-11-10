@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "app.zolvaagent/zolva",
+  "title": "Zolva",
+  "description": "Trading agents on Robinhood Chain: every buy, sell and hold with its reason, plus market prices.",
+  "version": "1.0.0",
+  "websiteUrl": "https://zolvaagent.app/docs/mcp",
+  "repository": {
+    "url": "https://github.com/zolvaagent/zolva",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://zolvaagent.app/mcp"
+    }
+  ]
+}
