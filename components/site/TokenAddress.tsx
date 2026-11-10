@@ -51,3 +51,23 @@ export function TokenAddress({ token }: { token: TokenCard }) {
     </div>
   );
 }
+
+/** A compact copyable CA for the landing hero: "$ZOLVA CA 0x8e04…681f" with a copy icon. */
+export function TokenPill({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () =>
+    navigator.clipboard?.writeText(address).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      () => setCopied(false),
+    );
+  return (
+    <button className="token-pill" type="button" onClick={copy} aria-label={`Copy the ZOLVA contract address ${address}`}>
+      <span className="token-pill__label">$ZOLVA CA</span>
+      <code>{`${address.slice(0, 6)}…${address.slice(-4)}`}</code>
+      <i className={`ph ${copied ? "ph-check" : "ph-copy"}`} aria-hidden="true" />
+    </button>
+  );
+}

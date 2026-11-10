@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 
 import { GoToAppButton } from "@/components/site/SiteChrome";
+import { TokenPill } from "@/components/site/TokenAddress";
 import { LineChart } from "@/components/ui/LineChart";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { Odometer, Tagline, Words } from "@/components/ui/Words";
@@ -17,6 +18,8 @@ type Props = {
   backtests: Backtest[];
   agents: AgentSummary[];
   feed: DecisionEvent[];
+  /** The ZOLVA contract address once launched (env), shown as a copyable pill in the hero. */
+  ca?: string | null;
 };
 
 const FAQ = [
@@ -33,7 +36,7 @@ const FAQ = [
   ["Who can use Zolva?", "Anyone outside the United States and sanctioned countries. Stock tokens are not offered to US persons."],
 ];
 
-export function Landing({ market, backtests, agents, feed }: Props) {
+export function Landing({ market, backtests, agents, feed, ca }: Props) {
   const ranked = [...backtests].sort((a, b) => b.result.returnPct - a.result.returnPct);
   const top = ranked[0];
   // The hero phones open on wins: agents up over 30 days first, then those furthest ahead of holding.
@@ -66,6 +69,7 @@ export function Landing({ market, backtests, agents, feed }: Props) {
                 See live agents
               </Link>
             </div>
+            {ca && <TokenPill address={ca} />}
           </section>
         </div>
         {showcase[0] && <Phones top={showcase[0]} backtests={showcase} />}

@@ -7679,3 +7679,32 @@ li.stats-ranks__row {
   gap: var(--space-100);
   font-size: 13px;
 }
+
+/* Landing hero: the copyable ZOLVA contract address. */
+.token-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
+  margin-top: var(--space-300);
+  padding: var(--space-75) var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--duration-micro) var(--ease-out-expo);
+}
+
+.token-pill:hover {
+  background: var(--color-bg-subtle);
+}
+
+.token-pill__label {
+  color: var(--color-purple-rich);
+  font-weight: 600;
+}
+
+.token-pill code {
+  font-family: "Geist Mono", ui-monospace, monospace;
+}
