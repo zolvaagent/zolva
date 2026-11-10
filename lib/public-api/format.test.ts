@@ -29,6 +29,8 @@ const summary: AgentSummary = {
   maxDrawdownPct: 1.234,
   trades: 6,
   runs: 200,
+  venue: "spot",
+  shorts: false,
   createdAt: NOW - 200 * HOUR,
   lastTs: NOW - HOUR,
   published: true,

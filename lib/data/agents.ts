@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { isHouseOwner } from "@/lib/agents/house";
 import type { AgentRow } from "@/lib/agents/plan";
 import type { Decision } from "@/lib/engine/engine";
+import { isPerpSymbol } from "@/lib/format";
 
 export type TokenRef = { address: string; symbol: string };
 
@@ -30,7 +31,13 @@ export type AgentSummary = {
   lastTs: number | null;
   /** On the leaderboard and other public lists. House agents always are. */
   published: boolean;
+  /** spot: tokens on the DEX; perps: Lighter perps (paper only). */
+  venue: AgentVenue;
+  /** Opens short positions (Spike fade). */
+  shorts: boolean;
 };
+
+export type AgentVenue = "spot" | "perps";
 
 let symbolCache: Map<string, string> | null = null;
 
@@ -66,6 +73,7 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
     const start = Number(row.start_capital);
     const returnPct = (Number(row.equity) / start - 1) * 100;
     const holdPct = (Number(row.hold_equity) / start - 1) * 100;
+    const tokens = row.token_addresses.map((address) => ({ address, symbol: symbols.get(address) ?? "?" }));
     return {
       id: row.id,
       owner: row.owner,
@@ -73,7 +81,7 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
       name: row.name,
       strategy: row.strategy,
       status: row.status,
-      tokens: row.token_addresses.map((address) => ({ address, symbol: symbols.get(address) ?? "?" })),
+      tokens,
       startCapital: start,
       equity: Number(row.equity),
       holdEquity: Number(row.hold_equity),
@@ -85,6 +93,9 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
       createdAt: Date.parse(row.created_at) / 1000,
       lastTs: row.last_ts ? Date.parse(row.last_ts) / 1000 : null,
       published: row.published_at !== null,
+      // An agent trades one venue only (agents_venue_guard), so one perp means a perps agent.
+      venue: tokens.some((token) => isPerpSymbol(token.symbol)) ? "perps" : "spot",
+      shorts: row.strategy === "spike_fade",
     };
   });
 }
@@ -264,8 +275,6 @@ export const STUDIO_MAX_MARKETS = 3;
 
 export type AgentCard = {
   summary: AgentSummary;
-  /** "stock" and/or "crypto", from the agent's markets. */
-  assetClasses: string[];
   /** What the agent holds right now. */
   holdings: { symbol: string; side: "long" | "short" }[];
   /** One decision from the latest hour: a trade when there was one, otherwise a hold. */
@@ -289,13 +298,12 @@ export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
     lastHours.length ? db.from("agent_runs").select("agent_id, ts, decisions").in("agent_id", ids).in("ts", lastHours) : Promise.resolve({ data: [], error: null }),
     db.from("positions").select("agent_id, token_address, side").in("agent_id", ids),
     db.from("trades").select("agent_id, ts, token_address, side").in("agent_id", ids).gte("ts", tradesSince).order("ts", { ascending: false }).limit(1000),
-    db.from("tokens").select("address, symbol, asset_class"),
+    db.from("tokens").select("address, symbol"),
     equityCurves(db, ids),
   ]);
   for (const result of [runs, positions, trades, tokens]) if (result.error) throw new Error(`Loading agent cards failed: ${result.error.message}`);
 
   const symbolOf = new Map((tokens.data ?? []).map((token) => [token.address as string, token.symbol as string]));
-  const classOf = new Map((tokens.data ?? []).map((token) => [token.address as string, (token.asset_class as string | null) ?? "stock"]));
 
   const latestRun = new Map<string, { ts: number; decisions: Decision[] }>();
   for (const run of runs.data ?? []) {
@@ -323,12 +331,12 @@ export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
     const decision = run && (run.decisions.find((item) => item.action !== "hold") ?? run.decisions[0]);
     return {
       summary,
-      assetClasses: [...new Set(summary.tokens.map((token) => classOf.get(token.address) ?? "stock"))],
       holdings: holdingsOf.get(summary.id) ?? [],
       latest: run && decision ? { ts: run.ts, symbol: symbolOf.get(decision.token) ?? "?", action: decision.action, reasoning: decision.reasoning } : null,
       lastTrade: lastTradeOf.get(summary.id) ?? null,
       curve: curves.get(summary.id) ?? [],
-      copyable: (STUDIO_STRATEGIES as readonly string[]).includes(summary.strategy) && summary.tokens.length <= STUDIO_MAX_MARKETS,
+      // The Studio builds spot agents only.
+      copyable: summary.venue === "spot" && (STUDIO_STRATEGIES as readonly string[]).includes(summary.strategy) && summary.tokens.length <= STUDIO_MAX_MARKETS,
     };
   });
 }
@@ -339,7 +347,8 @@ export async function getAgentTemplate(db: SupabaseClient, id: string): Promise<
   const { data: agent, error } = await db.from("agents").select("name, strategy, params, token_addresses, published_at, mode").eq("id", id).maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);
   // Private and live agents are never copied.
-  if (!agent || agent.published_at === null || agent.mode !== "paper") return null;
+  // The Studio builds spot agents only, so perps agents cannot be copied.
+  if (!agent || agent.published_at === null || agent.mode !== "paper" || agent.params?.venue === "perps") return null;
   if (!(STUDIO_STRATEGIES as readonly string[]).includes(agent.strategy) || agent.token_addresses.length > STUDIO_MAX_MARKETS) return null;
   const symbols = await tokenSymbols(db);
   return {

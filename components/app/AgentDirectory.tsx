@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { AgentKindPills, matchesVenue, VENUE_FILTERS, type VenueFilter } from "@/components/app/AgentKind";
 import type { AgentCard } from "@/lib/data/agents";
 import { marketList, percent, points, sparkline, STRATEGY_NAMES, tone } from "@/lib/format";
 
@@ -10,12 +11,6 @@ const SORTS = [
   ["traded", "Traded last"],
   ["newest", "Newest"],
   ["return", "Highest return"],
-] as const;
-
-const ASSETS = [
-  ["all", "All"],
-  ["stock", "Stocks"],
-  ["crypto", "Crypto"],
 ] as const;
 
 const SIDE_LABELS = { buy: "Bought", sell: "Sold", short: "Shorted", cover: "Covered" } as const;
@@ -32,14 +27,14 @@ function ago(ts: number): string {
 /** Every public agent as a card: what it holds now, its latest reasoning, and a way to copy it. */
 export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
   const [sort, setSort] = useState<(typeof SORTS)[number][0]>("traded");
-  const [asset, setAsset] = useState<(typeof ASSETS)[number][0]>("all");
+  const [venue, setVenue] = useState<VenueFilter>("all");
   const [query, setQuery] = useState("");
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = cards.filter(
       (card) =>
-        (asset === "all" || card.assetClasses.includes(asset)) &&
+        matchesVenue(card.summary, venue) &&
         (!needle ||
           card.summary.name.toLowerCase().includes(needle) ||
           (STRATEGY_NAMES[card.summary.strategy] ?? "").toLowerCase().includes(needle) ||
@@ -51,7 +46,7 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
       return: (a: AgentCard, b: AgentCard) => b.summary.returnPct - a.summary.returnPct,
     };
     return list.sort(sorters[sort]);
-  }, [cards, sort, asset, query]);
+  }, [cards, sort, venue, query]);
 
   return (
     <>
@@ -64,9 +59,9 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
           ))}
         </div>
         <div className="directory-tools">
-          <div className="tabs" role="tablist" aria-label="Markets">
-            {ASSETS.map(([key, label]) => (
-              <button key={key} className="tab" role="tab" type="button" aria-selected={asset === key} onClick={() => setAsset(key)}>
+          <div className="tabs" role="tablist" aria-label="Spot or perps">
+            {VENUE_FILTERS.map(([key, label]) => (
+              <button key={key} className="tab" role="tab" type="button" aria-selected={venue === key} onClick={() => setVenue(key)}>
                 {label}
               </button>
             ))}
@@ -91,7 +86,7 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
                 type="button"
                 onClick={() => {
                   setQuery("");
-                  setAsset("all");
+                  setVenue("all");
                 }}
               >
                 Clear filters
@@ -130,7 +125,10 @@ function DirectoryCard({ card }: { card: AgentCard }) {
             {STRATEGY_NAMES[summary.strategy] ?? summary.strategy} · {marketList(symbols)}
           </p>
         </div>
-        {summary.isHouse && <span className="pill">by Zolva</span>}
+        <span className="pill-row">
+          <AgentKindPills agent={summary} />
+          {summary.isHouse && <span className="pill">by Zolva</span>}
+        </span>
       </div>
 
       <div className="directory-card__numbers">

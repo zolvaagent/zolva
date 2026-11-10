@@ -3,20 +3,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { AgentKindPills, matchesVenue, VENUE_FILTERS, type VenueFilter } from "@/components/app/AgentKind";
 import type { AgentSummary } from "@/lib/data/agents";
 import { marketList, percent, points, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const SORTS = [
   ["return", "Highest return"],
-  ["edge", "Beat holding most"],
+  ["edge", "Beat holding"],
   ["drawdown", "Smallest drop"],
-] as const;
-
-const FILTERS = [
-  ["all", "All"],
-  ["momentum", "Momentum"],
-  ["mean_reversion", "Mean reversion"],
-  ["custom", "Custom"],
 ] as const;
 
 function age(createdAt: number): string {
@@ -27,10 +21,10 @@ function age(createdAt: number): string {
 /** `viewer` is the signed-in address, so their own agents get a "Your agent" label. */
 export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[]; viewer?: string | null }) {
   const [sort, setSort] = useState<(typeof SORTS)[number][0]>("return");
-  const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("all");
+  const [filter, setFilter] = useState<VenueFilter>("all");
 
   const rows = useMemo(() => {
-    const list = agents.filter((agent) => filter === "all" || agent.strategy === filter);
+    const list = agents.filter((agent) => matchesVenue(agent, filter));
     const sorters = {
       return: (a: AgentSummary, b: AgentSummary) => b.returnPct - a.returnPct,
       edge: (a: AgentSummary, b: AgentSummary) => b.edge - a.edge,
@@ -49,8 +43,8 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
             </button>
           ))}
         </div>
-        <div className="tabs" role="tablist" aria-label="Strategy">
-          {FILTERS.map(([key, label]) => (
+        <div className="tabs" role="tablist" aria-label="Spot or perps">
+          {VENUE_FILTERS.map(([key, label]) => (
             <button key={key} className="tab" role="tab" type="button" aria-selected={filter === key} onClick={() => setFilter(key)}>
               {label}
             </button>
@@ -79,7 +73,7 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                     <th>#</th>
                     <th>Agent</th>
                     <th>Strategy</th>
-                    <th>Stocks</th>
+                    <th>Markets</th>
                     <th className="num">Return</th>
                     <th className="num">vs holding</th>
                     <th className="num">Worst drop</th>
@@ -98,6 +92,9 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                             by Zolva
                           </span>
                         )}
+                        <span className="pill-row">
+                          <AgentKindPills agent={agent} />
+                        </span>
                         {agent.owner === viewer && (
                           <span className="pill pill--accent" style={{ marginLeft: 6 }}>
                             Your agent
@@ -128,6 +125,9 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                 <span className="rank">{i + 1}</span>
                 <span>
                   <strong>{agent.name}</strong>
+                  <span className="pill-row">
+                    <AgentKindPills agent={agent} />
+                  </span>
                   <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
                     {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
                   </div>

@@ -642,6 +642,19 @@ main:focus {
   white-space: nowrap;
 }
 
+/* A few pills next to a name (Perps, Short, by Zolva); nothing when empty. */
+.pill-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-50);
+  margin-left: var(--space-75);
+  vertical-align: middle;
+}
+
+.pill-row:empty {
+  display: none;
+}
+
 .pill--running {
   background: var(--color-gain-soft);
   color: var(--color-gain);
