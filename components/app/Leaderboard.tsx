@@ -92,16 +92,15 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                             by Zolva
                           </span>
                         )}
-                        <span className="pill-row">
-                          <AgentKindPills agent={agent} />
-                        </span>
                         {agent.owner === viewer && (
                           <span className="pill pill--accent" style={{ marginLeft: 6 }}>
                             Your agent
                           </span>
                         )}
-                        <div className="muted mono" style={{ fontSize: 12, lineHeight: "16px" }}>
-                          {agent.isHouse ? "House agent" : shortAddress(agent.owner)}
+                        {/* Perps and Short sit on the second line, so a long name never pushes them into the next column. */}
+                        <div className="leaderboard__sub">
+                          <span className="muted mono">{agent.isHouse ? "House agent" : shortAddress(agent.owner)}</span>
+                          <AgentKindPills agent={agent} />
                         </div>
                       </td>
                       <td>{STRATEGY_NAMES[agent.strategy]}</td>

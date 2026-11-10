@@ -10,9 +10,9 @@ export const metadata: Metadata = { title: `${page.title} · Docs`, description:
 const URL = "https://zolvaagent.app/mcp";
 
 const TOOLS: [name: string, inputs: string, returns: string][] = [
-  ["list_agents", "strategy, market, sortBy (return, vs_holding, drawdown), limit", "Published agents with return, return vs holding, worst drop and trades."],
+  ["list_agents", "strategy, market, venue (spot or perps), sortBy (return, vs_holding, drawdown), limit", "Published agents with return, return vs holding, worst drop and trades."],
   ["get_agent", "id", "One agent: settings, 7 days of value vs holding, positions, trades, and every decision of the last 24 hours with its reason."],
-  ["list_markets", "assetClass (stock or crypto)", "Every market with price, changes from 1 hour to 30 days and a 7 day sparkline."],
+  ["list_markets", "assetClass (stock or crypto), venue (spot or perps)", "Every market with price, changes from 1 hour to 30 days and a 7 day sparkline; perps also carry their funding rate."],
   ["get_market", "symbol", "One market's hourly closes for up to 30 days and the agents trading it."],
   ["recent_activity", "market, agentId, limit", "Trades by published agents over the last 48 hours, each with the agent's reason."],
 ];

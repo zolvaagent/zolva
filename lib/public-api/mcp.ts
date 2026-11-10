@@ -15,7 +15,8 @@ import { AGENT_SORTS, filterAgents, filterByAssetClass, filterTrades } from "./t
  */
 
 const INSTRUCTIONS = [
-  "Zolva runs trading agents for tokenized US stocks and crypto (ETH, BTC) on Robinhood Chain. Every agent here trades virtual money (paper trading).",
+  "Zolva runs trading agents for tokenized US stocks and crypto (ETH, BTC) on Robinhood Chain, plus research agents on Lighter perps (BTC-PERP and others). Every agent here trades virtual money (paper trading).",
+  "Spot agents buy and sell tokens (long only). Perps agents (venue perps) can be long or short, with no leverage, and pay or earn hourly funding.",
   "Each agent decides once an hour and explains every buy, sell, short, cover or hold in plain words; get_agent returns the last 24 hours of those reasons.",
   "Compare an agent's return with holding the same markets (vsHoldingPts) before calling it good. Results are hypothetical and not investment advice.",
 ].join(" ");
@@ -35,7 +36,8 @@ export function createMcpServer(): McpServer {
       description: "Published Zolva agents with their return, return vs simply holding the same markets, worst drop and trade count. Paper trading only.",
       inputSchema: {
         strategy: z.enum(["momentum", "mean_reversion", "dip_hunter", "spike_fade", "custom"]).optional().describe("Only agents using this strategy"),
-        market: z.string().max(12).optional().describe("Only agents watching this market symbol, such as NVDA or ETH"),
+        market: z.string().max(17).optional().describe("Only agents watching this market symbol, such as NVDA, ETH or BTC-PERP"),
+        venue: z.enum(["spot", "perps"]).optional().describe("Only spot agents (tokens, long only) or only perps agents (Lighter, long or short)"),
         sortBy: z.enum(AGENT_SORTS).optional().describe("return (default, highest first), vs_holding (most ahead of holding first) or drawdown (smallest worst drop first)"),
         limit: z.number().int().min(1).max(50).optional().describe("How many agents to return, default 20"),
       },
@@ -66,13 +68,16 @@ export function createMcpServer(): McpServer {
     "list_markets",
     {
       title: "List markets",
-      description: "Every market Zolva prices on Robinhood Chain: latest hourly price, 1 hour to 30 day changes, a 7 day sparkline and how many agents trade it.",
-      inputSchema: { assetClass: z.enum(["stock", "crypto"]).optional().describe("Only stocks or only crypto") },
+      description: "Every market Zolva prices on Robinhood Chain: latest hourly price, 1 hour to 30 day changes, a 7 day sparkline and how many agents trade it. Perps (venue perps, symbols like BTC-PERP) also carry their funding rate.",
+      inputSchema: {
+        assetClass: z.enum(["stock", "crypto"]).optional().describe("Only stocks or only crypto"),
+        venue: z.enum(["spot", "perps"]).optional().describe("Only spot tokens or only Lighter perps"),
+      },
       annotations: READ_ONLY,
     },
-    async ({ assetClass }) => {
+    async ({ assetClass, venue }) => {
       const body = await cachedBody("markets", TTL.markets, marketsBody);
-      return json({ ...body, markets: filterByAssetClass(body?.markets ?? [], assetClass) });
+      return json({ ...body, markets: filterByAssetClass(body?.markets ?? [], assetClass, venue) });
     },
   );
 
@@ -81,7 +86,7 @@ export function createMcpServer(): McpServer {
     {
       title: "Get market",
       description: "One market: up to 30 days of hourly closes and the published agents trading it.",
-      inputSchema: { symbol: z.string().min(1).max(12).describe("Market symbol, such as NVDA, SPY or ETH") },
+      inputSchema: { symbol: z.string().min(1).max(17).describe("Market symbol, such as NVDA, SPY, ETH or BTC-PERP") },
       annotations: READ_ONLY,
     },
     async ({ symbol }) => {
@@ -96,7 +101,7 @@ export function createMcpServer(): McpServer {
       title: "Recent trades",
       description: "Trades by published agents over the last 48 hours, newest first, each with the agent's own reason.",
       inputSchema: {
-        market: z.string().max(12).optional().describe("Only trades in this market"),
+        market: z.string().max(17).optional().describe("Only trades in this market, such as NVDA or BTC-PERP"),
         agentId: z.string().uuid().optional().describe("Only trades by this agent"),
         limit: z.number().int().min(1).max(200).optional().describe("How many trades to return, default 50"),
       },

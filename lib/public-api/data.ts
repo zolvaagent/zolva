@@ -27,13 +27,14 @@ export async function agentBody(id: string) {
 }
 
 export async function marketsBody() {
-  const overview = await getMarketOverview(db());
+  const overview = await getMarketOverview(db(), { perps: true });
   return { markets: overview.rows.map(publicMarket), asOf: new Date(overview.asOf * 1000).toISOString(), usMarketOpen: overview.marketOpen };
 }
 
 export async function marketBody(symbol: string) {
-  if (!/^[A-Za-z0-9]{1,12}$/.test(symbol)) return null;
-  const detail = await getMarketDetail(db(), symbol);
+  // Letters and digits, plus the -PERP suffix of Lighter perps (BTC-PERP).
+  if (!/^[A-Za-z0-9]{1,12}(-PERP)?$/i.test(symbol)) return null;
+  const detail = await getMarketDetail(db(), symbol, { perps: true });
   return detail ? publicMarketDetail(detail) : null;
 }
 

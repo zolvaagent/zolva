@@ -12,11 +12,20 @@ const CRYPTO_ICONS: Record<string, { icon: string; background: string }> = {
 };
 
 /**
- * Coins with an official token logo file. USDG (Global Dollar): the 32x32 token logo from
- * globaldollar.com/brand, which asks partners to use only that file.
+ * Coins with a logo file. USDG (Global Dollar): the 32x32 token logo from
+ * globaldollar.com/brand, which asks partners to use only that file. The coins behind
+ * Lighter perps (SOL, HYPE, LIT, NEAR, XRP, ZEC): 250x250 images from CoinGecko's coin
+ * pages (2026-11-10), checked by eye. `fill: false` keeps a bare mark (no round badge of
+ * its own) inside the circle with some padding instead of filling it.
  */
-const COIN_LOGOS: Record<string, { src: string; background?: string }> = {
+const COIN_LOGOS: Record<string, { src: string; background?: string; fill?: boolean }> = {
   USDG: { src: "/img/coins/USDG.png", background: "transparent" },
+  SOL: { src: "/img/coins/SOL.png", background: "#000000", fill: false },
+  HYPE: { src: "/img/coins/HYPE.jpg", background: "#0f1a1f" },
+  LIT: { src: "/img/coins/LIT.png", background: "#000000" },
+  NEAR: { src: "/img/coins/NEAR.jpg", background: "#00ec97" },
+  XRP: { src: "/img/coins/XRP.png", fill: false },
+  ZEC: { src: "/img/coins/ZEC.png", background: "transparent" },
 };
 
 export function TickerAvatar({ symbol, size }: { symbol: string; size?: number }) {
@@ -35,7 +44,7 @@ export function TickerAvatar({ symbol, size }: { symbol: string; size?: number }
   }
   if (logo) {
     return (
-      <span className={`ticker-avatar ticker-avatar--logo${coinLogo ? " ticker-avatar--token" : ""}`} style={{ ...sizing, background: logo.background ?? "#fff" }} aria-hidden="true">
+      <span className={`ticker-avatar ticker-avatar--logo${coinLogo && coinLogo.fill !== false ? " ticker-avatar--token" : ""}`} style={{ ...sizing, background: logo.background ?? "#fff" }} aria-hidden="true">
         <img src={logo.src} alt="" loading="lazy" decoding="async" />
       </span>
     );

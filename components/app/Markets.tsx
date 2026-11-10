@@ -30,14 +30,16 @@ export function Spark({ values, height = 32 }: { values: number[]; height?: numb
   );
 }
 
-/** Market groups on the page, each with its own wording. Perps are Lighter perps (paper, Lab agents only). */
+/**
+ * Market groups on the page, each with its own wording. Crypto holds the coins on the DEX
+ * and the Lighter perps (paper, Lab agents only), which all have assetClass crypto.
+ */
 const ASSETS = {
   stock: { label: "Stocks", noun: "stock", column: "Stock", placeholder: "Search NVDA, Tesla…", example: "a ticker like NVDA or a name like Tesla" },
-  crypto: { label: "Crypto", noun: "coin", column: "Coin", placeholder: "Search ETH, Bitcoin…", example: "ETH or Bitcoin" },
-  perps: { label: "Perps", noun: "perp", column: "Perp", placeholder: "Search BTC-PERP, Solana…", example: "BTC-PERP or Solana" },
+  crypto: { label: "Crypto", noun: "coin", column: "Coin", placeholder: "Search ETH, Bitcoin, SOL-PERP…", example: "ETH, Bitcoin or SOL-PERP" },
 } as const;
 
-const inGroup = (row: MarketRow, asset: Asset) => (asset === "perps" ? row.venue === "lighter" : row.venue !== "lighter" && row.assetClass === asset);
+const inGroup = (row: MarketRow, asset: Asset) => row.assetClass === asset;
 
 
 type Asset = keyof typeof ASSETS;
@@ -122,7 +124,7 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
                     <th className="num">24h</th>
                     <th className="num">7d</th>
                     <th>Last 7 days</th>
-                    {asset === "perps" && (
+                    {asset === "crypto" && (
                       <th className="num" title="Funding at the last hour, as a yearly rate. Positive: longs pay shorts.">
                         Funding
                       </th>
@@ -158,7 +160,7 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
                       <td className="markets-table__spark">
                         <Spark values={row.stats.week} />
                       </td>
-                      {asset === "perps" && <td className="num">{fundingYearly(row.funding?.lastYearly)}</td>}
+                      {asset === "crypto" && <td className="num">{fundingYearly(row.funding?.lastYearly)}</td>}
                       <td className="num">{row.agents || <span className="muted">0</span>}</td>
                       <td className="num col-wide">
                         {row.venue === "lighter" ? (

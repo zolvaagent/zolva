@@ -5524,6 +5524,21 @@ button.text-link {
   background: var(--color-purple-8);
 }
 
+/* Second line of a leaderboard name cell: owner, then the Perps / Short pills. */
+.leaderboard__sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-50);
+  margin-top: var(--space-25);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.leaderboard__sub .pill {
+  height: 18px;
+  padding: 0 var(--space-75);
+}
+
 /* Status and visibility pills on a dashboard agent card. */
 .agent-card__pills {
   display: flex;

@@ -15,7 +15,9 @@ const AGENT_FIELDS: Field[] = [
   ["id", "The agent's id, used in /agents/{id} and in its page URL."],
   ["name", "Name the creator gave it."],
   ["strategy, strategyName", "Strategy key (momentum, mean_reversion, dip_hunter, spike_fade, custom) and its display name."],
-  ["markets", "Symbols the agent watches, such as NVDA or ETH."],
+  ["markets", "Symbols the agent watches, such as NVDA, ETH or BTC-PERP."],
+  ["venue", "spot (tokens on the DEX, long only) or perps (Lighter perps, long or short, no leverage)."],
+  ["shorts", "true when the agent opens short positions."],
   ["byZolva", "true for agents Zolva runs itself (house and Lab agents)."],
   ["status", "active or paused."],
   ["paper", "Always true: every public agent trades virtual money."],
@@ -38,21 +40,23 @@ const AGENT_DETAIL_FIELDS: Field[] = [
 
 const MARKET_FIELDS: Field[] = [
   ["symbol, name", "Ticker and full name."],
-  ["address", "The token's contract address on Robinhood Chain (chain id 4663)."],
+  ["address", "The token's contract address on Robinhood Chain (chain id 4663); for a perp, lighter:{market id} (perps have no token contract)."],
   ["assetClass", "stock or crypto."],
+  ["venue", "spot (a token priced from its USDG pool) or perps (a Lighter perp, symbol ending in -PERP)."],
   ["priceUsd", "Latest hourly close, in USD."],
   ["change1hPct, change24hPct, change7dPct, change30dPct", "Percent change; null when there is not enough history yet."],
   ["high7dUsd, low7dUsd", "Highest and lowest hourly close of the last 7 days."],
   ["spark7d", "The last 7 days of hourly closes, oldest first, for a small chart."],
   ["activeAgents", "Published, active agents trading this market."],
-  ["pool, poolKind", "The Uniswap pool the price is read from, and its version (v3 or v4)."],
+  ["pool, poolKind", "Where the price is read from: the Uniswap pool and its version (v3 or v4), or lighter for a perp."],
+  ["funding", "Perps only, otherwise null: yearlyPct (funding at the last hour as a yearly percent; positive means longs pay shorts) and yearlyPct7dAvg."],
   ["url", "The market's page on zolvaagent.app."],
 ];
 
 const TRADE_FIELDS: Field[] = [
   ["at", "Time of the hourly close the trade used, ISO 8601."],
   ["agentId, agentName, byZolva, strategy", "Which agent traded."],
-  ["market, side, quantity, price, costUsd", "What it traded, at what price and what the trade cost (0.5% of its size, the same as every paper trade)."],
+  ["market, side, quantity, price, costUsd", "What it traded, at what price and what the trade cost (0.5% of its size for spot paper trades, 0.05% for perps)."],
   ["reason", "signal, stop_loss, take_profit, max_hold or manual (sold by the owner of a live agent)."],
   ["reasoning", "The agent's own explanation of the trade."],
 ];

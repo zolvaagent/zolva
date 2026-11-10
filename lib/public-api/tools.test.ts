@@ -27,6 +27,12 @@ describe("filterAgents", () => {
     expect(filterAgents(agents, { market: "eth" }).map((item) => item.id)).toEqual(["c", "b"]);
   });
 
+  it("filters by venue: spot or perps", () => {
+    const mixed = [{ ...agents[0], venue: "spot" }, { ...agent("d", "custom", ["BTC-PERP"], 0, 0, 0), venue: "perps" }] as PublicAgent[];
+    expect(filterAgents(mixed, { venue: "perps" }).map((item) => item.id)).toEqual(["d"]);
+    expect(filterAgents(mixed, { market: "btc-perp" }).map((item) => item.id)).toEqual(["d"]);
+  });
+
   it("limits the count without changing the input", () => {
     expect(filterAgents(agents, { limit: 1 })).toHaveLength(1);
     expect(agents.map((item) => item.id)).toEqual(["a", "b", "c"]);
@@ -38,6 +44,9 @@ describe("filterByAssetClass", () => {
     const markets = [{ symbol: "NVDA", assetClass: "stock" }, { symbol: "ETH", assetClass: "crypto" }];
     expect(filterByAssetClass(markets)).toHaveLength(2);
     expect(filterByAssetClass(markets, "crypto").map((market) => market.symbol)).toEqual(["ETH"]);
+    const withPerps = [...markets.map((market) => ({ ...market, venue: "spot" })), { symbol: "ETH-PERP", assetClass: "crypto", venue: "perps" }];
+    expect(filterByAssetClass(withPerps, "crypto", "perps").map((market) => market.symbol)).toEqual(["ETH-PERP"]);
+    expect(filterByAssetClass(withPerps, undefined, "spot")).toHaveLength(2);
   });
 });
 

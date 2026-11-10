@@ -32,6 +32,9 @@ export function publicAgent(agent: AgentSummary) {
     strategy: agent.strategy,
     strategyName: STRATEGY_NAMES[agent.strategy] ?? agent.strategy,
     markets: agent.tokens.map((token) => token.symbol),
+    // spot: tokens on the DEX, long only; perps: Lighter perps (paper, no leverage).
+    venue: agent.venue,
+    shorts: agent.shorts,
     byZolva: agent.isHouse,
     status: agent.status,
     paper: true as const,
@@ -112,6 +115,8 @@ export function publicMarket(row: MarketRow) {
     name: row.name,
     address: row.address,
     assetClass: row.assetClass,
+    // spot: a token priced from its USDG pool; perps: a Lighter perp (no token contract).
+    venue: row.venue === "lighter" ? ("perps" as const) : ("spot" as const),
     priceUsd: round(stats.price, 6),
     change1hPct: stats.change1h === null ? null : round(stats.change1h, 2),
     change24hPct: stats.change24h === null ? null : round(stats.change24h, 2),
@@ -124,6 +129,13 @@ export function publicMarket(row: MarketRow) {
     activeAgents: row.agents,
     pool: row.pool,
     poolKind: row.poolKind,
+    // Perps only: funding as a yearly percent (positive: longs pay shorts), at the last hour and over 7 days.
+    funding: row.funding
+      ? {
+          yearlyPct: row.funding.lastYearly === null ? null : round(row.funding.lastYearly * 100, 2),
+          yearlyPct7dAvg: row.funding.weekYearly === null ? null : round(row.funding.weekYearly * 100, 2),
+        }
+      : null,
     url: `${SITE}/markets/${row.symbol}`,
   };
 }
