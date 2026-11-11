@@ -537,33 +537,30 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
           <div>
             <dt>Route</dt>
             <dd>
-              {quote.route === "zolva" ? (
+              {quote.route === "zolva"
+                ? [tokenIn.symbol, ...(quote.fees.length ? ["ETH"] : []), tokenOut.symbol].join(" → ")
+                : isDirect(tokenIn, tokenOut)
+                  ? `${tokenIn.symbol} → ${tokenOut.symbol}`
+                  : `${tokenIn.symbol} → USDG → ${tokenOut.symbol}`}
+            </dd>
+          </div>
+          <div>
+            <dt>Fees</dt>
+            <dd title={quote.route === "zolva" ? PONS_FEE_NOTE : undefined}>
+              {quote.route === "zolva" ? "Pons ~3%" : `Pool ${quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" + ")}`}
+              {quote.zolvaFee && (
                 <>
-                  {[tokenIn.symbol, ...(quote.fees.length ? ["ETH"] : []), tokenOut.symbol].join(" → ")} · {quote.fees.length ? "Uniswap v3 + v4" : "Uniswap v4"} (Pons pool)
-                </>
-              ) : (
-                <>
-                  {isDirect(tokenIn, tokenOut) ? `${tokenIn.symbol} → ${tokenOut.symbol}` : `${tokenIn.symbol} → USDG → ${tokenOut.symbol}`} · Uniswap, fee{" "}
-                  {quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" + ")}
+                  {" · "}Zolva {quote.zolvaFee.bps / 100}%
+                  {quote.zolvaFee.burn && (
+                    <>
+                      {" "}
+                      <i className="ph-fill ph-fire" aria-hidden="true" /> burnt
+                    </>
+                  )}
                 </>
               )}
             </dd>
           </div>
-          {quote.route === "zolva" && (
-            <div>
-              <dt>Pons fee</dt>
-              <dd>{PONS_FEE_NOTE}</dd>
-            </div>
-          )}
-          {quote.zolvaFee && (
-            <div>
-              <dt>Zolva fee</dt>
-              <dd>
-                {quote.zolvaFee.bps / 100}% ({display(quote.zolvaFee.amount, tokenOut.decimals)} {tokenOut.symbol}) ·{" "}
-                {quote.zolvaFee.burn ? "burnt in this swap" : "funds $ZOLVA buyback and burn"}
-              </dd>
-            </div>
-          )}
           {(tokenIn.listed === false || tokenOut.listed === false) && (
             <div>
               <dt>Note</dt>
