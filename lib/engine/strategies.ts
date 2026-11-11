@@ -12,14 +12,19 @@
  * time: the engine lets it buy only the deepest dip, and only while it holds nothing
  * (see runHour). Research: docs/down-market-research.md.
  *
- * spike_fade is mean reversion turned upside down and the only strategy that shorts:
- * it shorts the market furthest above its average, one position at a time, and covers
- * when the price falls back. Paper only. Research: docs/shorting-research.md.
+ * spike_fade is mean reversion turned upside down: it shorts the market furthest above its
+ * average, one position at a time, and covers when the price falls back. Paper only.
+ * Research: docs/shorting-research.md.
+ *
+ * dip_fade goes long and short: one long slot (the deepest dip) and one short slot (the
+ * highest spike) at the same time, with a 7 day trend filter: no short while a market is up
+ * more than 5% over 7 days, no long while it is down more than 5%. Perps only, paper only.
+ * Research: docs/perps-research.md, "Long and short in one agent".
  */
-export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter" | "spike_fade";
+export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter" | "spike_fade" | "dip_fade";
 
 export type Signal = {
-  /** short opens a short position, cover closes it (spike_fade only). */
+  /** short opens a short position, cover closes it (spike_fade and dip_fade only). */
   action: "buy" | "sell" | "short" | "cover" | "hold";
   reasoning: string;
   indicators: Record<string, number>;
@@ -49,21 +54,69 @@ export const SPIKE_FADE = {
   exitZ: -0.5,
 } as const;
 
+export const DIP_FADE = {
+  /** Hours the trend filter looks back (7 days); also dip_fade's history before its first decision. */
+  trendHours: 168,
+  /** No short while up more than this over trendHours, no long while down more than this. */
+  trendLimit: 0.05,
+} as const;
+
 export const STRATEGY_LABELS: Record<StrategyKey, string> = {
   momentum: "Momentum",
   mean_reversion: "Mean reversion",
   dip_hunter: "Dip hunter",
   spike_fade: "Spike fade",
+  dip_fade: "Dip + fade",
 };
+
+/** Hours of history a preset needs before its first decision. */
+export function presetLookback(strategy: StrategyKey): number {
+  return strategy === "dip_fade" ? DIP_FADE.trendHours : LOOKBACK_HOURS;
+}
 
 /**
  * @param window       closes, oldest first, ending with the current hour; at least LOOKBACK_HOURS + 1 long, no nulls
  * @param hasPosition  whether the agent holds this token now (for spike_fade: is short it)
+ * @param side         dip_fade only: the side of the position held in this token
  */
-export function decide(strategy: StrategyKey, window: number[], hasPosition: boolean): Signal {
+export function decide(strategy: StrategyKey, window: number[], hasPosition: boolean, side?: "long" | "short"): Signal {
   if (strategy === "momentum") return momentum(window, hasPosition);
   if (strategy === "spike_fade") return spikeFade(window, hasPosition);
+  if (strategy === "dip_fade") return dipFade(window, hasPosition ? (side ?? "long") : null);
   return meanReversion(window, hasPosition);
+}
+
+/**
+ * Dip + fade on one market: the mean reversion signal for a long, the spike fade signal for a
+ * short, each blocked when the 7 day trend runs against it. The window must hold at least
+ * DIP_FADE.trendHours + 1 closes.
+ */
+function dipFade(window: number[], held: "long" | "short" | null): Signal {
+  const price = window[window.length - 1];
+  const trend = price / window[window.length - 1 - DIP_FADE.trendHours] - 1;
+  if (held === "long") {
+    const signal = meanReversion(window, true);
+    return { ...signal, indicators: { ...signal.indicators, trend7d: trend } };
+  }
+  if (held === "short") {
+    const signal = spikeFade(window, true);
+    return { ...signal, indicators: { ...signal.indicators, trend7d: trend } };
+  }
+  const dip = meanReversion(window, false);
+  const spike = spikeFade(window, false);
+  const indicators = { ...dip.indicators, trend7d: trend };
+  const week = formatPercent(trend);
+  if (dip.action === "buy") {
+    return trend >= -DIP_FADE.trendLimit
+      ? { ...dip, indicators }
+      : { action: "hold", indicators, reasoning: `${dip.reasoning.replace(" Buying the dip.", "")} But it is ${week} over 7 days: no long against the trend.` };
+  }
+  if (spike.action === "short") {
+    return trend <= DIP_FADE.trendLimit
+      ? { ...spike, indicators }
+      : { action: "hold", indicators, reasoning: `${spike.reasoning.replace(" Shorting the spike.", "")} But it is ${week} over 7 days: no short against the trend.` };
+  }
+  return { action: "hold", indicators, reasoning: `Price is within the normal range (z ${dip.indicators.zScore.toFixed(2)}). Waiting for a dip or a spike.` };
 }
 
 function momentum(window: number[], hasPosition: boolean): Signal {

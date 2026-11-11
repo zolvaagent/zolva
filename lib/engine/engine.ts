@@ -17,17 +17,20 @@
  * - Every fill pays COST_RATE (fees + slippage).
  * - Dip hunter holds one position at a time: while it holds nothing it buys only
  *   the market furthest below its average, so other buy signals become holds.
- * - Spike fade is the only strategy that shorts (paper only): the same one position
- *   rule, the market furthest above its average. A short sells borrowed tokens; its
+ * - Spike fade shorts (paper only): the same one position rule, the market furthest above
+ *   its average. A short sells borrowed tokens; its
  *   stop is the price rising stopLossPct above entry, and it pays SHORT_BORROW_APR out of
  *   its own locked cash (never free cash, which may not go below zero).
  * - Perps agents (venue "perps", Lighter on Robinhood Chain, paper only) pay PERPS_COST_RATE
  *   per fill instead of COST_RATE, and the market's hourly funding instead of the borrow
  *   rate. Funding also comes out of (or into) the position itself: a long loses quantity, a
  *   short's entry moves, so cash never goes below zero. Research: docs/perps-research.md.
+ * - Dip + fade (perps, paper only) runs both one position rules side by side: at most one
+ *   long (the deepest dip) and one short (the highest spike), each only while that side is
+ *   empty, with the 7 day trend filter in strategies.ts.
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
-import { decide, LOOKBACK_HOURS, type StrategyKey } from "./strategies.ts";
+import { decide, presetLookback, type StrategyKey } from "./strategies.ts";
 
 export const COST_RATE = 0.005;
 /** Yearly borrow rate charged hourly on open shorts (Morpho was near 0% on 2026-11-03; cautious). */
@@ -132,7 +135,7 @@ export function runHour(
 ): HourResult {
   const rules = params.strategy === "custom" ? params.rules : undefined;
   if (params.strategy === "custom" && !rules) throw new Error("Custom strategy without rules");
-  const lookback = rules ? rulesLookback(rules) : LOOKBACK_HOURS;
+  const lookback = rules ? rulesLookback(rules) : presetLookback(params.strategy as StrategyKey);
   const tokens = Object.keys(series);
   const prices: Record<string, number | null> = Object.fromEntries(tokens.map((token) => [token, series[token][index] ?? null]));
   const equityBefore = equityAt(state, prices);
@@ -144,11 +147,17 @@ export function runHour(
   const positions: Record<string, Position> = { ...state.positions };
   const decisions: Decision[] = [];
   const fills: Fill[] = [];
-  // Dip hunter: decided before the loop, from the positions held at the start of the hour,
-  // so a sell this hour frees the slot for the next hour, not this one.
-  const holdsAny = Object.keys(state.positions).length > 0;
-  const deepestDip = params.strategy === "dip_hunter" && !holdsAny ? findExtreme("dip_hunter", series, index, lookback, state) : null;
-  const strongestSpike = params.strategy === "spike_fade" && !holdsAny ? findExtreme("spike_fade", series, index, lookback, state) : null;
+  // One position strategies: decided before the loop, from the positions held at the start of
+  // the hour, so a sell this hour frees the slot for the next hour, not this one. Dip + fade
+  // has one slot per side.
+  const held = Object.values(state.positions);
+  const holdsAny = held.length > 0;
+  const holdsLong = held.some((position) => position.side !== "short");
+  const holdsShort = held.some((position) => position.side === "short");
+  const dipFade = params.strategy === "dip_fade";
+  const preset = params.strategy as StrategyKey;
+  const deepestDip = (params.strategy === "dip_hunter" && !holdsAny) || (dipFade && !holdsLong) ? findExtreme(preset, "buy", series, index, lookback, state) : null;
+  const strongestSpike = (params.strategy === "spike_fade" && !holdsAny) || (dipFade && !holdsShort) ? findExtreme(preset, "short", series, index, lookback, state) : null;
 
   // Carrying costs for the hour that just passed, paid by the position itself, never from free
   // cash (a position can use all the cash, and cash may never go below zero).
@@ -230,7 +239,7 @@ export function runHour(
 
     const signal = rules
       ? evaluateRules(rules, window as number[], Boolean(position))
-      : decide(params.strategy as StrategyKey, window as number[], Boolean(position));
+      : decide(preset, window as number[], Boolean(position), position?.side === "short" ? "short" : "long");
 
     const wantsTrade = signal.action === "buy" || signal.action === "short" || ((signal.action === "sell" || signal.action === "cover") && position);
     const passed = wantsTrade ? options.veto?.get(token) : undefined;
@@ -239,8 +248,10 @@ export function runHour(
       continue;
     }
 
-    if (signal.action === "buy" && params.strategy === "dip_hunter" && token !== deepestDip) {
-      const reasoning = holdsAny
+    if (signal.action === "buy" && (params.strategy === "dip_hunter" || dipFade) && token !== deepestDip) {
+      const reasoning = dipFade && holdsLong
+        ? `${signal.reasoning.replace(" Buying the dip.", "")} Already long another market: one long at a time.`
+        : !dipFade && holdsAny
         ? `${signal.reasoning.replace(" Buying the dip.", "")} Already holding another market: one position at a time.`
         : `${signal.reasoning.replace(" Buying the dip.", "")} Another market dipped deeper: buying that one instead.`;
       decisions.push({ token, action: "hold", reasoning, indicators: signal.indicators });
@@ -248,7 +259,9 @@ export function runHour(
     }
 
     if (signal.action === "short" && token !== strongestSpike) {
-      const reasoning = holdsAny
+      const reasoning = dipFade && holdsShort
+        ? `${signal.reasoning.replace(" Shorting the spike.", "")} Already short another market: one short at a time.`
+        : !dipFade && holdsAny
         ? `${signal.reasoning.replace(" Shorting the spike.", "")} Already in another market: one position at a time.`
         : `${signal.reasoning.replace(" Shorting the spike.", "")} Another market spiked higher: shorting that one instead.`;
       decisions.push({ token, action: "hold", reasoning, indicators: signal.indicators });
@@ -295,19 +308,21 @@ export function runHour(
 }
 
 /**
- * The one market a one-position strategy may enter this hour, among those not held:
- * dip hunter's lowest z score below its entry level, spike fade's highest above it.
+ * The one market a one-position strategy may enter this hour, among those not held: for a
+ * buy the lowest z score below the entry level (dip hunter, dip + fade's long), for a short
+ * the highest above it (spike fade, dip + fade's short). A market whose signal is blocked
+ * (dip + fade's trend filter) is not a candidate.
  */
 function findExtreme(
-  strategy: "dip_hunter" | "spike_fade",
+  strategy: StrategyKey,
+  entry: "buy" | "short",
   series: Record<string, (number | null)[]>,
   index: number,
   lookback: number,
   state: AgentState,
 ): string | null {
-  const entry = strategy === "dip_hunter" ? "buy" : "short";
-  // Spike fade wants the highest z score: compare on the flipped sign.
-  const sign = strategy === "dip_hunter" ? 1 : -1;
+  // A short wants the highest z score: compare on the flipped sign.
+  const sign = entry === "buy" ? 1 : -1;
   let best: { token: string; score: number } | null = null;
   for (const token of Object.keys(series)) {
     if (state.positions[token]) continue;

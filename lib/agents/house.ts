@@ -190,4 +190,19 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     aiLimitUsd: 1,
     aiUntil: "2026-12-31T23:59:59Z",
   },
+  {
+    // Long and short in one agent (2026-11-11): one long slot and one short slot with the 7
+    // day trend filter, on all eight crypto perps, half the agent per side. Engine check on
+    // Lighter history Jul 8 to Nov 11: +27.3% (holding +31.5%), worst drop 9.6%, 71 round
+    // trips; +14.8% in the last 30 days while holding fell 21%. The filter and the basket were
+    // picked on that same data, so this paper agent is the out-of-sample test
+    // (docs/perps-research.md, "Long and short in one agent").
+    owner: LAB_WALLETS[4],
+    name: "Lab · Perps Dip + Fade",
+    strategy: "dip_fade",
+    symbols: ["BTC-PERP", "ETH-PERP", "SOL-PERP", "HYPE-PERP", "ZEC-PERP", "XRP-PERP", "LIT-PERP", "NEAR-PERP"],
+    maxPositionPct: 50,
+    stopLossPct: 10,
+    venue: "perps",
+  },
 ];

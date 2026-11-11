@@ -28,6 +28,9 @@ const STOP = 0.1;
 /** Lighter RH market ids (orderBookDetails, 2026-11-07). */
 const GROUPS: Record<string, Record<string, number>> = {
   crypto: { BTC: 1, ETH: 0, SOL: 3 },
+  // The five other crypto perps Zolva lists (2026-11-11), and all eight together.
+  alts: { HYPE: 2, ZEC: 4, LIT: 5, XRP: 6, NEAR: 7 },
+  crypto8: { BTC: 1, ETH: 0, HYPE: 2, SOL: 3, ZEC: 4, LIT: 5, XRP: 6, NEAR: 7 },
   stocks: {
     SPY: 26, QQQ: 25, NVDA: 15, TSLA: 16, PLTR: 34, CRCL: 24, SPCX: 18, AAPL: 10,
     MSFT: 14, GOOGL: 12, AMZN: 11, META: 13, COIN: 23, AMD: 29, MU: 31,

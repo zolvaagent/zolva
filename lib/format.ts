@@ -51,7 +51,7 @@ export function marketList(symbols: string[], shown = 3): string {
   return symbols.length > shown ? `${symbols.slice(0, shown).join(", ")} +${symbols.length - shown} more` : symbols.join(", ");
 }
 
-export const STRATEGY_NAMES: Record<string, string> = { momentum: "Momentum", mean_reversion: "Mean reversion", dip_hunter: "Dip hunter", spike_fade: "Spike fade", custom: "Custom" };
+export const STRATEGY_NAMES: Record<string, string> = { momentum: "Momentum", mean_reversion: "Mean reversion", dip_hunter: "Dip hunter", spike_fade: "Spike fade", dip_fade: "Dip + fade", custom: "Custom" };
 
 /** US regular session is roughly 13:30 to 20:00 UTC on weekdays; outside it prices come from DEX trading only. */
 export function isMarketHours(unixSeconds: number): boolean {

@@ -102,7 +102,7 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
       published: row.published_at !== null,
       // An agent trades one venue only (agents_venue_guard), so one perp means a perps agent.
       venue: tokens.some((token) => isPerpSymbol(token.symbol)) ? "perps" : "spot",
-      shorts: row.strategy === "spike_fade",
+      shorts: row.strategy === "spike_fade" || row.strategy === "dip_fade",
       live: row.mode === "live",
     };
   });

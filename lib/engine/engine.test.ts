@@ -318,3 +318,65 @@ describe("spike fade (shorts)", () => {
     }
   });
 });
+
+describe("dip + fade", () => {
+  const dipFade: AgentParams = { strategy: "dip_fade", maxPositionPct: 50, stopLossPct: 10, venue: "perps" };
+  // A flat, noisy week around 100 (so the trend filter allows both sides), then the given move.
+  // Moves stay under 4%: the week starts at 101, so a bigger drop would count as a 7 day fall of over 5%.
+  const calmThen = (move: number, base = 100) => [...Array.from({ length: 169 }, (_, i) => base + (i % 2 ? 1 : -1)), base * (1 + move)];
+
+  it("opens one long and one short in the same hour", () => {
+    const series = { AAA: calmThen(-0.04), BBB: calmThen(0.04), CCC: calmThen(-0.03), DDD: calmThen(0) };
+    const hour = runHour({ cash: 1000, positions: {} }, dipFade, series, 169);
+    expect(hour.fills.map((fill) => `${fill.side}:${fill.token}`).sort()).toEqual(["buy:AAA", "short:BBB"]);
+    expect(hour.decisions.find((decision) => decision.token === "CCC")?.reasoning).toContain("Another market dipped deeper");
+    expect(hour.state.positions.BBB.side).toBe("short");
+    expect(hour.state.cash).toBeCloseTo(0, 6); // 50% each side
+  });
+
+  it("keeps one long at a time but still shorts while long", () => {
+    const series = { AAA: calmThen(-0.04), BBB: calmThen(0.04), CCC: calmThen(0) };
+    const held: AgentState = { cash: 500, positions: { CCC: { quantity: 5, entryPrice: 100 } } };
+    const hour = runHour(held, dipFade, series, 169);
+    expect(hour.fills.map((fill) => `${fill.side}:${fill.token}`)).toEqual(["short:BBB"]);
+    expect(hour.decisions.find((decision) => decision.token === "AAA")?.reasoning).toContain("one long at a time");
+  });
+
+  it("will not short a market up more than 5% over 7 days, nor buy one down more than 5%", () => {
+    // A steady 10% rise over the week, then a spike; a steady 10% fall, then a dip.
+    const rising = [...Array.from({ length: 169 }, (_, i) => 100 * (1 + (0.1 * i) / 168) + (i % 2 ? 0.2 : -0.2)), 116];
+    const falling = [...Array.from({ length: 169 }, (_, i) => 100 * (1 - (0.1 * i) / 168) + (i % 2 ? 0.2 : -0.2)), 84];
+    expect(decide("dip_fade", rising, false).action).toBe("hold");
+    expect(decide("dip_fade", rising, false).reasoning).toContain("no short against the trend");
+    expect(decide("dip_fade", falling, false).action).toBe("hold");
+    expect(decide("dip_fade", falling, false).reasoning).toContain("no long against the trend");
+  });
+
+  it("closes a short when the price falls back and a long when it recovers", () => {
+    const noisy = Array.from({ length: 169 }, (_, i) => 100 + (i % 2 ? 1 : -1));
+    expect(decide("dip_fade", [...noisy, 98], true, "short").action).toBe("cover");
+    expect(decide("dip_fade", [...noisy, 101], true, "long").action).toBe("sell");
+  });
+
+  it("matches the prototype engine on perps with funding", () => {
+    const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+      simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string }[] };
+    };
+    const series: Record<string, number[]> = { AAA: walk(7, 900), BBB: walk(42, 900), CCC: walk(99, 900), DDD: walk(5, 900), EEE: walk(1234, 900) };
+    const funding = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => Math.sin(i / 17 + t) * 0.00003)]));
+    const ours = simulate({ series, params: dipFade, capital: 10_000, fromIndex: 200, funding });
+    const theirs = prototype.simulate({
+      tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, funding: funding[symbol] })),
+      strategy: "dip_fade",
+      venue: "perps",
+      capital: 10_000,
+      maxPositionPct: 50,
+      stopLossPct: 10,
+      fromIndex: 200,
+    });
+    expect(ours.fills.some((fill) => fill.side === "short")).toBe(true);
+    expect(ours.fills.some((fill) => fill.side === "buy")).toBe(true);
+    expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
+    expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+  });
+});

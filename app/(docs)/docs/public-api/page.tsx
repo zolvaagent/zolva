@@ -14,7 +14,7 @@ type Field = [name: string, description: string];
 const AGENT_FIELDS: Field[] = [
   ["id", "The agent's id, used in /agents/{id} and in its page URL."],
   ["name", "Name the creator gave it."],
-  ["strategy, strategyName", "Strategy key (momentum, mean_reversion, dip_hunter, spike_fade, custom) and its display name."],
+  ["strategy, strategyName", "Strategy key (momentum, mean_reversion, dip_hunter, spike_fade, dip_fade, custom) and its display name."],
   ["markets", "Symbols the agent watches, such as NVDA, ETH or BTC-PERP."],
   ["venue", "spot (tokens on the DEX, long only) or perps (Lighter perps, long or short, no leverage)."],
   ["shorts", "true when the agent opens short positions."],

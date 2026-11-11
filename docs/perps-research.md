@@ -301,3 +301,36 @@ markets the rule search never saw.
 **Plan:** a second Lab agent on HYPE ZEC XRP LIT NEAR (max 20% each, 5% stop). Together
 with the first one, that is about 7 round trips a week, so 30 or more within 4 to 5 weeks.
 Stocks and metals stay out.
+
+## Long and short in one agent, all 8 crypto perps (2026-11-11)
+
+Owner question: is there an agent that opens both long and short? Not yet (spike fade only
+shorts; everything else only buys). `scripts/research-perps.mts` already had the two shapes
+from docs/shorting-research.md; groups `alts` (HYPE ZEC LIT XRP NEAR) and `crypto8` (all eight)
+were added. 1x, 10% stop, 0.05% per trade, real hourly funding, Lighter history from Jul 8.
+
+- **Dip + fade**: two slots, one long (deepest dip, z < -2.5 vs the 48h average, out at z >= 0.5)
+  and one short (highest spike, z > 2.5, out at z <= -0.5).
+- **Swing**: one slot, either side, the most extreme market beyond |z| 2.5.
+- **Trend filter 5%**: no short while the market is up more than 5% over 7 days, no long while
+  it is down more than 5%.
+
+All eight crypto perps (window: return, worst drop; holding in brackets):
+
+| Window | Holding | Dip + fade | Dip + fade, trend 5% | Swing | Swing, trend 5% |
+|---|---|---|---|---|---|
+| Jul 8 to Nov 11 (126 d) | +37.8% | +23.2%, 19.1% | **+29.6%, 9.7%** | +25.9%, 42.7% | +30.5%, 22.1% |
+| Last 30 d | -20.1% | +4.3% | **+14.8%, 3.6%** | +27.2% | +28.5%, 6.2% |
+| 30 to 60 d ago | +21.4% | -12.7% | **+0.6%, 8.1%** | -38.0% | -9.9%, 22.1% |
+| 60 to 90 d ago | +53.9% | +11.3% | **+5.8%, 8.7%** | +25.7% | -5.1% |
+| 90 to 126 d ago | -2.3% | +19.1% | **+4.1%, 9.7%** | +22.0% | +14.4% |
+
+**Reading**
+- Swing earns the most in falling months but shorts straight into rallies: -38% with a 43% drop
+  in the Sep to Oct rise. The trend filter halves that, still a 22% drop. Too risky.
+- **Dip + fade with the 5% trend filter on all eight is the only long-and-short shape that was
+  positive in every window with a worst drop under 10%** (72 trades). It trails holding in the
+  two rising months and beats it in the two falling ones.
+- Caveat: the 5% filter and the 8-market basket were picked after seeing this data, so this is
+  in-sample. BTC ETH SOL alone: +12.1% (drop 6.0%) with the filter; the alts alone +17.0% (drop
+  10.0%). Next step, if built: a paper Lab agent as the out-of-sample test, not real money.

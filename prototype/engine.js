@@ -13,6 +13,10 @@
 //                   time, the market with the highest z score; cover when z is back to <= -0.5.
 //                   A short's stop is the price rising stopLossPct above entry; shorts pay a
 //                   10% yearly borrow rate, charged hourly.
+//   Dip + fade:     long and short at once (perps, paper only): one long slot (the lowest z under
+//                   -2.5, out at z >= 0.5) and one short slot (the highest z over 2.5, out at
+//                   z <= -0.5), no long while down more than 5% over 7 days, no short while up
+//                   more than 5%. Needs 168 hours of history.
 //
 // Thresholds were tuned on 30 days of real data (2026-10-15). Faster settings
 // (24h average, 1% entry) traded 100+ times a month and lost to the 0.5% cost.
@@ -27,6 +31,9 @@
   // Perps (Lighter on Robinhood Chain, paper only): 0.05% per fill, and hourly funding
   // instead of the borrow rate, paid by the position itself (docs/perps-research.md).
   const PERPS_COST_RATE = 0.0005;
+  // Dip + fade's trend filter: 7 days back, 5% either way.
+  const TREND_HOURS = 168;
+  const TREND_LIMIT = 0.05;
 
   const STRATEGIES = {
     momentum: {
@@ -101,10 +108,41 @@
     },
   };
 
+  // held: null, "long" or "short" (the position in this market).
+  STRATEGIES.dip_fade = {
+    label: "Dip + fade",
+    decide(window, price, held) {
+      const trend = price / window[window.length - 1 - TREND_HOURS] - 1;
+      if (held === "long") {
+        const signal = STRATEGIES.mean_reversion.decide(window, price, true);
+        return { ...signal, indicators: { ...signal.indicators, trend7d: trend } };
+      }
+      if (held === "short") {
+        const signal = STRATEGIES.spike_fade.decide(window, price, true);
+        return { ...signal, indicators: { ...signal.indicators, trend7d: trend } };
+      }
+      const dip = STRATEGIES.mean_reversion.decide(window, price, false);
+      const spike = STRATEGIES.spike_fade.decide(window, price, false);
+      const indicators = { ...dip.indicators, trend7d: trend };
+      const week = formatPercent(trend);
+      if (dip.action === "buy") {
+        return trend >= -TREND_LIMIT
+          ? { ...dip, indicators }
+          : { action: "hold", indicators, reasoning: `${dip.reasoning.replace(" Buying the dip.", "")} But it is ${week} over 7 days: no long against the trend.` };
+      }
+      if (spike.action === "short") {
+        return trend <= TREND_LIMIT
+          ? { ...spike, indicators }
+          : { action: "hold", indicators, reasoning: `${spike.reasoning.replace(" Shorting the spike.", "")} But it is ${week} over 7 days: no short against the trend.` };
+      }
+      return { action: "hold", indicators, reasoning: `Price is within the normal range (z ${dip.indicators.zScore.toFixed(2)}). Waiting for a dip or a spike.` };
+    },
+  };
+
   /**
    * @param {object} options
    * @param {{symbol: string, closes: (number|null)[]}[]} options.tokens  aligned hourly closes
-   * @param {"momentum"|"mean_reversion"|"dip_hunter"|"spike_fade"|"custom"} options.strategy
+   * @param {"momentum"|"mean_reversion"|"dip_hunter"|"spike_fade"|"dip_fade"|"custom"} options.strategy
    * @param {number} options.capital            starting virtual USD
    * @param {number} options.maxPositionPct     max share of equity per token, 0 to 100
    * @param {number} options.stopLossPct        stop distance below entry, 0 to 100
@@ -119,7 +157,7 @@
     // "custom" runs the user's rules (options.rules); the presets keep their own code.
     const custom = options.strategy === "custom";
     const strategy = STRATEGIES[options.strategy];
-    const warmup = custom ? rulesLookback(options.rules) : WARMUP_HOURS;
+    const warmup = custom ? rulesLookback(options.rules) : options.strategy === "dip_fade" ? TREND_HOURS : WARMUP_HOURS;
     const lastIndex = options.toIndex ?? options.tokens[0].closes.length - 1;
     const maxShare = options.maxPositionPct / 100;
     const stopDistance = options.stopLossPct / 100;
@@ -134,10 +172,17 @@
       for (const token of options.tokens) prices[token.symbol] = token.closes[index];
       const equityBefore = equityAt(cash, positions, prices);
       const decisions = [];
-      // Dip hunter: decided from the positions held at the start of the hour.
-      const holdsAny = Object.keys(positions).length > 0;
-      const deepestDip = options.strategy === "dip_hunter" && !holdsAny ? findExtreme("dip_hunter", options.tokens, positions, index, warmup) : null;
-      const strongestSpike = options.strategy === "spike_fade" && !holdsAny ? findExtreme("spike_fade", options.tokens, positions, index, warmup) : null;
+      // One position strategies: decided from the positions held at the start of the hour.
+      // Dip + fade has one slot per side.
+      const held = Object.values(positions);
+      const holdsAny = held.length > 0;
+      const holdsLong = held.some((position) => position.side !== "short");
+      const holdsShort = held.some((position) => position.side === "short");
+      const dipFade = options.strategy === "dip_fade";
+      const deepestDip =
+        (options.strategy === "dip_hunter" && !holdsAny) || (dipFade && !holdsLong) ? findExtreme(options.strategy, "buy", options.tokens, positions, index, warmup) : null;
+      const strongestSpike =
+        (options.strategy === "spike_fade" && !holdsAny) || (dipFade && !holdsShort) ? findExtreme(options.strategy, "short", options.tokens, positions, index, warmup) : null;
 
       // Borrow cost on shorts, for the hour that just passed, paid from the short's locked cash
       // (free cash may not go below zero): a lower entry lowers the short's value by the fee.
@@ -210,16 +255,24 @@
           }
         }
 
-        const decision = custom ? evaluateRules(options.rules, window, Boolean(position)) : strategy.decide(window, price, Boolean(position));
-        if (decision.action === "buy" && options.strategy === "dip_hunter" && token.symbol !== deepestDip) {
-          const reasoning = holdsAny
+        const decision = custom
+          ? evaluateRules(options.rules, window, Boolean(position))
+          : dipFade
+            ? strategy.decide(window, price, position ? (position.side === "short" ? "short" : "long") : null)
+            : strategy.decide(window, price, Boolean(position));
+        if (decision.action === "buy" && (options.strategy === "dip_hunter" || dipFade) && token.symbol !== deepestDip) {
+          const reasoning = dipFade && holdsLong
+            ? `${decision.reasoning.replace(" Buying the dip.", "")} Already long another market: one long at a time.`
+            : !dipFade && holdsAny
             ? `${decision.reasoning.replace(" Buying the dip.", "")} Already holding another market: one position at a time.`
             : `${decision.reasoning.replace(" Buying the dip.", "")} Another market dipped deeper: buying that one instead.`;
           decisions.push({ symbol: token.symbol, action: "hold", reasoning, indicators: decision.indicators });
           continue;
         }
         if (decision.action === "short" && token.symbol !== strongestSpike) {
-          const reasoning = holdsAny
+          const reasoning = dipFade && holdsShort
+            ? `${decision.reasoning.replace(" Shorting the spike.", "")} Already short another market: one short at a time.`
+            : !dipFade && holdsAny
             ? `${decision.reasoning.replace(" Shorting the spike.", "")} Already in another market: one position at a time.`
             : `${decision.reasoning.replace(" Shorting the spike.", "")} Another market spiked higher: shorting that one instead.`;
           decisions.push({ symbol: token.symbol, action: "hold", reasoning, indicators: decision.indicators });
@@ -276,19 +329,19 @@
   }
 
   /**
-   * The one market a one-position strategy may enter this hour, among those not held:
-   * dip hunter's lowest z score below its entry level, spike fade's highest above it.
+   * The one market a one-position strategy may enter this hour, among those not held: for a
+   * buy the lowest z score below the entry level (dip hunter, dip + fade's long), for a short
+   * the highest above it (spike fade, dip + fade's short).
    */
-  function findExtreme(strategyKey, tokens, positions, index, warmup) {
-    const entry = strategyKey === "dip_hunter" ? "buy" : "short";
-    const sign = strategyKey === "dip_hunter" ? 1 : -1;
+  function findExtreme(strategyKey, entry, tokens, positions, index, warmup) {
+    const sign = entry === "buy" ? 1 : -1;
     let best = null;
     for (const token of tokens) {
       if (positions[token.symbol]) continue;
       const price = token.closes[index];
       const window = token.closes.slice(Math.max(0, index - warmup), index + 1);
       if (price == null || window.length <= warmup || window.some((value) => value == null)) continue;
-      const decision = STRATEGIES[strategyKey].decide(window, price, false);
+      const decision = STRATEGIES[strategyKey].decide(window, price, strategyKey === "dip_fade" ? null : false);
       const score = sign * decision.indicators.zScore;
       if (decision.action === entry && (!best || score < best.score)) best = { symbol: token.symbol, score };
     }

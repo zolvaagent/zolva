@@ -35,7 +35,7 @@ export function createMcpServer(): McpServer {
       title: "List agents",
       description: "Published Zolva agents with their return, return vs simply holding the same markets, worst drop and trade count. Paper trading only.",
       inputSchema: {
-        strategy: z.enum(["momentum", "mean_reversion", "dip_hunter", "spike_fade", "custom"]).optional().describe("Only agents using this strategy"),
+        strategy: z.enum(["momentum", "mean_reversion", "dip_hunter", "spike_fade", "dip_fade", "custom"]).optional().describe("Only agents using this strategy"),
         market: z.string().max(17).optional().describe("Only agents watching this market symbol, such as NVDA, ETH or BTC-PERP"),
         venue: z.enum(["spot", "perps"]).optional().describe("Only spot agents (tokens, long only) or only perps agents (Lighter, long or short)"),
         sortBy: z.enum(AGENT_SORTS).optional().describe("return (default, highest first), vs_holding (most ahead of holding first) or drawdown (smallest worst drop first)"),
