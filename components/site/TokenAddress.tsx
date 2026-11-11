@@ -42,6 +42,11 @@ export function TokenAddress({ token }: { token: TokenCard }) {
             GeckoTerminal <i className="ph ph-arrow-up-right" aria-hidden="true" />
           </a>
         )}
+        {token.pool && (
+          <a className="text-link" href={`https://dexscreener.com/robinhood/${token.pool}`} target="_blank" rel="noopener noreferrer">
+            DexScreener <i className="ph ph-arrow-up-right" aria-hidden="true" />
+          </a>
+        )}
         {token.tradeUrl && (
           <a className="text-link" href={token.tradeUrl} target="_blank" rel="noopener noreferrer">
             Trade on Pons <i className="ph ph-arrow-up-right" aria-hidden="true" />

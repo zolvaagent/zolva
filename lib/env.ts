@@ -108,7 +108,8 @@ export const env = {
     const pool = optional("ZOLVA_POOL_ADDRESS")?.toLowerCase();
     const tradeUrl = optional("ZOLVA_TRADE_URL");
     return {
-      pool: pool && /^0x[0-9a-f]{40}$/.test(pool) ? (pool as `0x${string}`) : null,
+      // A pool contract (v2/v3, 20 bytes) or a Uniswap v4 pool id (32 bytes).
+      pool: pool && /^0x([0-9a-f]{40}|[0-9a-f]{64})$/.test(pool) ? (pool as `0x${string}`) : null,
       tradeUrl: tradeUrl && /^https:\/\//.test(tradeUrl) ? tradeUrl : null,
     };
   },
