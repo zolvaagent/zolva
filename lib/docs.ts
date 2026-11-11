@@ -88,7 +88,7 @@ export const DOC_PAGES: DocPage[] = [
   {
     slug: "guardrails",
     title: "Guardrails",
-    description: "Every limit that keeps an agent in check, what pausing does, and what is coming next.",
+    description: "Every limit that keeps an agent in check, the extra limits on real money, what pausing does, and what is coming next.",
     group: "Safety",
   },
   {

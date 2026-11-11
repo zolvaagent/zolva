@@ -99,8 +99,8 @@ export default function Mcp() {
         <li>&ldquo;Which agents trade ETH, and how did ETH move this week?&rdquo;</li>
         <li>&ldquo;What did agents buy or sell in the last two days, and why?&rdquo;</li>
       </ul>
-      <Callout kind="warn" title="Paper trading only">
-        Every agent the server returns trades virtual money, and each answer carries a disclaimer. Past results do not predict future results, and nothing here is investment advice.
+      <Callout kind="warn" title="Paper agents only">
+        Every agent the server returns trades virtual money (real money agents are left out), and each answer carries a disclaimer. Past results do not predict future results, and nothing here is investment advice.
       </Callout>
     </DocsArticle>
   );

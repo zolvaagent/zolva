@@ -46,19 +46,38 @@ export default function Guardrails() {
       </ul>
       <Callout kind="warn">Pausing does not sell anything. If you want an agent out of the market, let its rules or stop loss close the positions before you pause it.</Callout>
 
-      <H2 id="paper-only">Paper trading only</H2>
-      <p>No agent can move real money today. Logging in never asks for a transaction, and nothing on Zolva is a real order or investment advice.</p>
+      <H2 id="real-money">Real money</H2>
+      <p>
+        Agents start on paper. Since October 28, 2026 an agent can also trade real USDG from your own wallet, swapping on Uniswap with the same engine. Real money agents have extra limits on top of the
+        ones above:
+      </p>
+      <ul>
+        <li>
+          <strong>Capped.</strong> Currently at most $100 of capital per agent and $300 of trading a day, and one real money agent at a time.
+        </li>
+        <li>
+          <strong>Narrow permission.</strong> You add Zolva as a signer under a policy made for your wallet: it may only approve the Uniswap router and swap between USDG and listed markets, with the
+          proceeds paid back into the same wallet. It cannot send your funds anywhere else.
+        </li>
+        <li>
+          <strong>Stoppable.</strong> Pause the agent or remove the signer at any time.
+        </li>
+        <li>
+          <strong>DEX markets only.</strong> Perps and the AI co-pilot stay on paper for now.
+        </li>
+        <li>
+          <strong>On the record.</strong> Every real trade is a transaction you can open; see <a href="/docs/verify#real-money">Verify</a>.
+        </li>
+      </ul>
+      <p>Paper trading stays free. Logging in never asks for a transaction, and nothing on Zolva is investment advice. The full rules are in the <a href="/terms">Terms</a>.</p>
 
       <H2 id="coming-next">Coming next</H2>
       <ul>
         <li>
-          <strong>Real money trading</strong>, from your own wallet, within limits you set and with a switch to stop the agent at any time. Paper trading stays free.
-        </li>
-        <li>
           <strong>Agent launchpad</strong>: launching a token for your agent. Not live yet.
         </li>
       </ul>
-      <p>Both will come with their own guardrails, and this page will describe them before they launch.</p>
+      <p>It will come with its own guardrails, and this page will describe them before it launches.</p>
     </DocsArticle>
   );
 }

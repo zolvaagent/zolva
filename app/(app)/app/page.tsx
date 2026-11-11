@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { Dashboard } from "@/components/app/Dashboard";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { getSessionAddress, LOGIN_METHOD_COOKIE } from "@/lib/auth/session";
-import { equityCurves, listAgents, listAgentsByOwner, tokenSymbols } from "@/lib/data/agents";
+import { equityCurves, listAgents, listAgentsByOwner, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES, tokenSymbols } from "@/lib/data/agents";
 import { getCredits } from "@/lib/data/credits";
 import { storedTier } from "@/lib/membership";
 import { TIERS } from "@/lib/tiers";
@@ -61,5 +61,12 @@ export default async function DashboardPage() {
   }
 
   const top = everyone.filter((agent) => agent.status === "active").sort((a, b) => b.returnPct - a.returnPct).slice(0, 3);
-  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} loginMethod={loginMethod} liveSigner={Boolean(liveWallet.data)} maxActive={TIERS[tier].activeAgents} />;
+  // For a new account: the best public spot agent the Studio can copy, with at least 3 days on the record.
+  // The Studio page itself refuses private and real money agents, so the link can never copy one.
+  const starter = agents.length
+    ? null
+    : (everyone
+        .filter((agent) => agent.status === "active" && agent.published && agent.venue === "spot" && agent.runs >= 72 && agent.tokens.length <= STUDIO_MAX_MARKETS && (STUDIO_STRATEGIES as readonly string[]).includes(agent.strategy))
+        .sort((a, b) => b.returnPct - a.returnPct)[0] ?? null);
+  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} loginMethod={loginMethod} liveSigner={Boolean(liveWallet.data)} maxActive={TIERS[tier].activeAgents} starter={starter} />;
 }

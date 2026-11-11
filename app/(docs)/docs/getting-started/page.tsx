@@ -26,8 +26,8 @@ export default function GettingStarted() {
         the starting capital, from $1,000 to $1,000,000.
       </p>
       <Callout title="Why paper first">
-        A strategy that sounds good can still lose money. Paper trading gives every agent a real, hour by hour track record before anyone trusts it with money. Real money trading is planned, with limits you
-        set, but it is not available yet.
+        A strategy that sounds good can still lose money. Paper trading gives every agent a real, hour by hour track record before anyone trusts it with money. Once it proves itself, you can run an agent
+        with real USDG from your own wallet, with hard limits. See <Link href="/docs/guardrails#real-money">real money</Link>.
       </Callout>
 
       <H2 id="log-in">Log in</H2>

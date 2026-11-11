@@ -12,7 +12,7 @@ export function LegalPage({ title, updated = "October 15, 2026", children }: { t
         <h1 className="page__title" style={{ color: "var(--color-text)" }}>
           {title}
         </h1>
-        <p>Last updated {updated}. This is a plain language draft and needs legal review before real money is involved.</p>
+        <p>Last updated {updated}. This is written in plain language and has not yet had a full legal review.</p>
         {children}
       </div>
     </div>

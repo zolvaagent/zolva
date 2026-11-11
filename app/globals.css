@@ -7845,3 +7845,46 @@ li.stats-ranks__row {
 .token-pill code {
   font-family: "Geist Mono", ui-monospace, monospace;
 }
+
+/* Studio "Start from" presets: each card's last 30 days and holding the same markets. */
+.preset__result {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-100);
+  margin-top: var(--space-75);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.preset__result strong {
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+/* Dashboard for an account with no agents yet: one clear next step. */
+.first-agent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-300);
+  margin-bottom: var(--space-300);
+}
+
+.first-agent__text {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+}
+
+.first-agent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-100);
+}
+
+.first-agent--slim {
+  gap: var(--space-200);
+  padding: var(--space-200) var(--space-300);
+}

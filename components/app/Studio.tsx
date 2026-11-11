@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth, useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
@@ -17,6 +17,8 @@ import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
 import { dayAt, percent, usd } from "@/lib/format";
+import { track } from "@/lib/funnel";
+import { openingPreset, PRESET_MAX_POSITION_PCT, PRESET_STOP_LOSS_PCT, scorePresets, suggestedName, type ScoredPreset } from "@/lib/studio/presets";
 import type { Market } from "@/lib/data/market";
 
 const BACKTEST_HOURS = 30 * 24;
@@ -62,12 +64,18 @@ export function Studio({
   const startStrategy: Strategy = initialStrategy === "mean_reversion" || initialStrategy === "custom" ? initialStrategy : "momentum";
   const startStock = market.tokens.find((token) => token.symbol === initialStock?.toUpperCase())?.symbol ?? "NVDA";
 
+  // Until the user types a name, the agent is named after its markets and strategy.
   const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+  // Three fixed starting points with their real last 30 days. A plain visit to the Studio (no
+  // template, no strategy or market in the link) opens on the best of them.
+  const presets = useMemo(() => scorePresets(market), [market]);
+  const opening = !template && !initialStrategy && !initialStock ? openingPreset(presets) : null;
   // A template only keeps markets that still trade here.
   const templateSymbols = template?.symbols.filter((symbol) => market.tokens.some((token) => token.symbol === symbol)) ?? [];
-  const [strategy, setStrategy] = useState<Strategy>(template?.strategy ?? startStrategy);
+  const [strategy, setStrategy] = useState<Strategy>(template?.strategy ?? opening?.strategy ?? startStrategy);
   const [rules, setRules] = useState<Rules>(clone(template?.rules ?? RULE_TEMPLATES.momentum));
-  const [symbols, setSymbols] = useState<string[]>(templateSymbols.length ? templateSymbols : [startStock]);
+  const [symbols, setSymbols] = useState<string[]>(templateSymbols.length ? templateSymbols : opening ? [...opening.symbols] : [startStock]);
   const [capital, setCapital] = useState(10_000);
   // Real money: the mode, the wallet status from LiveSetup and the USDG the agent starts with.
   const [mode, setMode] = useState<"paper" | "live">("paper");
@@ -76,8 +84,18 @@ export function Studio({
   const live = mode === "live";
   const liveCap = liveStatus ? Math.max(10, Math.min(liveStatus.maxCapitalUsd, Math.floor(liveStatus.usdg))) : 100;
   const agentCapital = live ? Math.min(liveCapital, liveCap) : capital;
-  const [maxPositionPct, setMaxPositionPct] = useState(template?.maxPositionPct ?? 33);
-  const [stopLossPct, setStopLossPct] = useState(template?.stopLossPct ?? 8);
+  const [maxPositionPct, setMaxPositionPct] = useState(template?.maxPositionPct ?? PRESET_MAX_POSITION_PCT);
+  const [stopLossPct, setStopLossPct] = useState(template?.stopLossPct ?? PRESET_STOP_LOSS_PCT);
+  const agentName = nameTouched ? name : suggestedName(strategy, symbols);
+  // Funnel: one view per visit to the Studio.
+  useEffect(() => track("studio_view", template ? "template" : undefined), [template]);
+  const applyPreset = (preset: ScoredPreset) => {
+    track("preset_pick", preset.id);
+    setStrategy(preset.strategy);
+    setSymbols([...preset.symbols]);
+    setMaxPositionPct(PRESET_MAX_POSITION_PCT);
+    setStopLossPct(PRESET_STOP_LOSS_PCT);
+  };
   const [showErrors, setShowErrors] = useState(false);
   const [aiModelId, setAiModelId] = useState<string | null>(null);
   const [aiLimit, setAiLimit] = useState<LimitDraft>({ usd: "", days: DEFAULT_EXPIRY_DAYS });
@@ -118,8 +136,8 @@ export function Studio({
 
   const openLaunch = () => {
     setShowErrors(true);
-    if (!name.trim() || !symbols.length || ruleErrors.length || (!live && aiLimitError)) {
-      const target = !name.trim() ? "agent-name" : !symbols.length ? "token-grid" : ruleErrors.length ? "rule-builder" : "ai-label";
+    if (!agentName.trim() || !symbols.length || ruleErrors.length || (!live && aiLimitError)) {
+      const target = !agentName.trim() ? "agent-name" : !symbols.length ? "token-grid" : ruleErrors.length ? "rule-builder" : "ai-label";
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
@@ -127,6 +145,7 @@ export function Studio({
       setLaunch({ busy: false, error: null, terms: false, residence: false, risk: false });
       launchRef.current?.showModal();
     };
+    track("launch_click", address ? undefined : "logged_out");
     if (!address) openLogin(show);
     else show();
   };
@@ -141,7 +160,7 @@ export function Studio({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name,
+        name: agentName.trim(),
         strategy,
         rules: strategy === "custom" ? rules : undefined,
         tokens: symbols.map((symbol) => market.tokens.find((token) => token.symbol === symbol)!.address),
@@ -164,12 +183,13 @@ export function Studio({
       return;
     }
     launchRef.current?.close();
+    track("launch_ok", mode);
     toast(live ? "Real money agent launched. Its first decision comes at the top of the next hour." : "Agent launched. It stays private until you publish it to the leaderboard.");
     router.push(`/agents/${body.id}`);
     router.refresh();
   };
 
-  const nameMissing = showErrors && !name.trim();
+  const nameMissing = showErrors && !agentName.trim();
   const last = market.hours - 1;
 
   return (
@@ -189,11 +209,47 @@ export function Studio({
 
       <div className="studio">
         <form className="card" noValidate onSubmit={(event) => event.preventDefault()}>
+          {!template && presets.length > 0 && (
+            <div className="form-section" role="radiogroup" aria-labelledby="preset-label">
+              <div className="form-section__label" id="preset-label">
+                Start from <span className="form-section__hint">Last 30 days with each one&apos;s settings, then change anything</span>
+              </div>
+              <div className="choice-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
+                {presets.map((preset) => {
+                  const picked = strategy === preset.strategy && symbols.length === preset.symbols.length && preset.symbols.every((symbol) => symbols.includes(symbol));
+                  return (
+                    <label key={preset.id} className="choice">
+                      <input type="radio" name="preset" value={preset.id} checked={picked} onChange={() => applyPreset(preset)} />
+                      <span className="choice__title">{preset.title}</span>
+                      <span className="choice__text">{preset.text}</span>
+                      <span className="preset__result">
+                        <strong className={preset.returnPct > 0.05 ? "gain" : preset.returnPct < -0.05 ? "loss" : ""}>{percent(preset.returnPct)}</strong>
+                        <span className="muted">holding {percent(preset.holdPct)}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="form-section">
             <label className="form-section__label" htmlFor="agent-name">
               Name <span className="form-section__hint">Shown on the leaderboard</span>
             </label>
-            <input className="input" id="agent-name" maxLength={40} placeholder="Night Owl NVDA" value={name} autoComplete="off" aria-invalid={nameMissing} onChange={(event) => setName(event.target.value)} />
+            <input
+              className="input"
+              id="agent-name"
+              maxLength={40}
+              placeholder="Night Owl NVDA"
+              value={agentName}
+              autoComplete="off"
+              aria-invalid={nameMissing}
+              onChange={(event) => {
+                setNameTouched(true);
+                setName(event.target.value);
+              }}
+            />
             {nameMissing && <span className="field-error">Give your agent a name first.</span>}
           </div>
 
@@ -404,7 +460,7 @@ export function Studio({
         >
           <img className="modal__icon" src="/img/brand/zolva-mark.png" alt="" width={56} height={56} />
           <h2 className="modal__title" id="launch-title">
-            Launch {name.trim()}
+            Launch {agentName.trim()}
           </h2>
           <p className="muted">
             {live

@@ -116,8 +116,8 @@ export default function PublicApi() {
           <strong>Times</strong> are ISO 8601 in UTC. <strong>Prices</strong> are numbers in USD. <strong>Percentages</strong> are numbers in percent (2.5 means 2.5%).
         </li>
       </ul>
-      <Callout kind="warn" title="Paper trading only">
-        Every agent in the API trades virtual money, and each agent result says so with <code>paper: true</code> and a <code>disclaimer</code>. Past results do not predict future results, and nothing here
+      <Callout kind="warn" title="Paper agents only">
+        Every agent in the API trades virtual money (real money agents are left out), and each agent result says so with <code>paper: true</code> and a <code>disclaimer</code>. Past results do not predict future results, and nothing here
         is investment advice. Keep that clear wherever you show the numbers.
       </Callout>
 

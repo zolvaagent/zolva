@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useRef, useState, useSyncExtern
 import type { PrivyHandle } from "@/components/ui/PrivyIsland";
 import { shortAddress } from "@/lib/format";
 import { hasInjectedWallet, signInWithWallet, WalletError } from "@/lib/wallet-client";
+import { track } from "@/lib/funnel";
 
 type Auth = {
   /** Signed-in wallet address (lowercase) or null. */
@@ -79,6 +80,7 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
     setLoginState({ busy: false, error: null });
     loginRef.current?.close();
     toast(`Logged in as ${shortAddress(signedIn)}`);
+    track("login_ok");
     router.refresh();
     afterLogin.current?.();
     afterLogin.current = null;

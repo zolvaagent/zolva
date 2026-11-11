@@ -5,6 +5,7 @@ import { DecisionRow } from "@/components/app/AgentView";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { MembershipCard } from "@/components/app/MembershipCard";
 import { WalletExport } from "@/components/app/WalletExport";
+import { TrackedLink } from "@/components/ui/TrackedLink";
 import { UsdgTopUp } from "@/components/app/UsdgTopUp";
 import { ZolvaTopUp } from "@/components/app/ZolvaTopUp";
 import type { AgentSummary } from "@/lib/data/agents";
@@ -28,6 +29,8 @@ type Props = {
   liveSigner: boolean;
   /** Running agents allowed at once: 5, or more for ZOLVA holders (lib/tiers.ts). */
   maxActive: number;
+  /** A public paper agent a new account can start from ("Use these rules"), or null. */
+  starter: AgentSummary | null;
 };
 
 function greeting() {
@@ -35,7 +38,7 @@ function greeting() {
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Dashboard({ address, agents, curves, latest, top, credits, loginMethod, liveSigner, maxActive }: Props) {
+export function Dashboard({ address, agents, curves, latest, top, credits, loginMethod, liveSigner, maxActive, starter }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
   const totalStart = agents.reduce((sum, agent) => sum + agent.startCapital, 0);
   const totalNow = agents.reduce((sum, agent) => sum + agent.equity, 0);
@@ -56,6 +59,27 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
         </Link>
       </div>
 
+      {/* A new account has nothing to total yet: point it at its first launch instead. */}
+      {agents.length === 0 ? (
+        <div className="card first-agent">
+          <img src="/img/icons/agent.png" alt="" width={72} height={72} />
+          <div className="first-agent__text">
+            <h2 className="card__title">Launch your first agent</h2>
+            <p className="muted">Pick a starting point, check its last 30 days, then launch. Paper trading is free and takes about a minute.</p>
+          </div>
+          <div className="first-agent__actions">
+            <TrackedLink className="button button--primary" href="/studio" event="first_agent_cta" detail="dashboard_studio">
+              Open the Studio
+            </TrackedLink>
+            {starter && (
+              <TrackedLink className="button" href={`/studio?from=${starter.id}`} title={`Start from the rules of ${starter.name}`} event="first_agent_cta" detail="dashboard_copy">
+                <i className="ph ph-copy" aria-hidden="true" />
+                Copy {starter.name}
+              </TrackedLink>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="dash-stats">
         <div className="dash-stat dash-stat--accent">
           <span className="stat__label">Paper balance</span>
@@ -84,6 +108,7 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
           </span>
         </div>
       </div>
+      )}
 
       <div className="dash-layout">
         <div className="stack">

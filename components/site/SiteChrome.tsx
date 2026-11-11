@@ -178,7 +178,7 @@ export function SiteFooter() {
         </div>
 
         <div className="footer__bottom">
-          <span>© 2026 Zolva. Paper trading only. Nothing here is investment advice.</span>
+          <span>© 2026 Zolva. Trading can lose money. Nothing here is investment advice.</span>
           <span>Not available to US persons or residents of sanctioned countries.</span>
         </div>
       </div>
