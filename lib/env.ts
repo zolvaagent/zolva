@@ -114,6 +114,17 @@ export const env = {
     };
   },
   /**
+   * Zolva's swap fee (lib/swap-zolva.ts SwapFee), in basis points: 0 or unset is off, at most 100.
+   * On ZOLVA buys the fee is burnt; on the other fee pairs it goes to SWAP_FEE_RECIPIENT, and
+   * without a valid recipient those pairs pay no fee. Stock and imported tokens never pay it.
+   */
+  get swapFee(): { bps: number; recipient: `0x${string}` | null } | null {
+    const bps = Number(optional("SWAP_FEE_BPS") ?? 0);
+    if (!Number.isInteger(bps) || bps <= 0 || bps > 100) return null;
+    const recipient = optional("SWAP_FEE_RECIPIENT")?.toLowerCase();
+    return { bps, recipient: recipient && /^0x[0-9a-f]{40}$/.test(recipient) ? (recipient as `0x${string}`) : null };
+  },
+  /**
    * Premium API over x402 (lib/x402). Off unless X402_ENABLED is "1" and Zolva's
    * receiving address is set; then paid endpoints answer 402 with a USDG price.
    */

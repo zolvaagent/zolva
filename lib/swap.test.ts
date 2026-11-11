@@ -2,7 +2,7 @@ import { decodeFunctionData, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { ERC20_APPROVE_ABI, EXACT_INPUT_SINGLE_ABI } from "./live/contracts";
-import { approveCall, EXACT_INPUT_ABI, isAddressQuery, isDirect, minimumOut, pickPool, referenceRate, SWAP_ROUTER_02, swapCall, swapPath, swapRate, USDG, type SwapToken } from "./swap";
+import { approveCall, EXACT_INPUT_ABI, feePair, isAddressQuery, isDirect, minimumOut, pickPool, referenceRate, SWAP_ROUTER_02, swapCall, swapPath, swapRate, USDG, type SwapToken } from "./swap";
 
 describe("isAddressQuery", () => {
   it("accepts a full address, with spaces around it, in any case", () => {
@@ -89,5 +89,24 @@ describe("approveCall and swapCall", () => {
     expect(params.path).toBe(swapPath(eth.address, nvda.address, [100, 3000]));
     expect(params.recipient.toLowerCase()).toBe(me);
     expect(params).toMatchObject({ amountIn: 10n ** 18n, amountOutMinimum: 10n * 10n ** 18n });
+  });
+});
+
+describe("feePair", () => {
+  const btc: SwapToken = { ...eth, address: "0x00000000000000000000000000000000000000b1", symbol: "BTC", assetClass: "crypto" };
+  const cryptoEth: SwapToken = { ...eth, assetClass: "crypto" };
+  const stock: SwapToken = { ...nvda, assetClass: "stock" };
+  const zolva: SwapToken = { address: "0x8e04549484d0612be8373a0263b11928a5f7681f", symbol: "ZOLVA", name: "Zolva Agent", decimals: 18, pool: null, lastClose: null, verified: true };
+  const imported: SwapToken = { ...nvda, listed: false, assetClass: undefined };
+  it("charges between USDG, crypto markets and ZOLVA", () => {
+    expect(feePair(usdg, cryptoEth)).toBe(true);
+    expect(feePair(cryptoEth, btc)).toBe(true);
+    expect(feePair(usdg, zolva)).toBe(true);
+    expect(feePair(zolva, cryptoEth)).toBe(true);
+  });
+  it("never charges stock or imported tokens", () => {
+    expect(feePair(usdg, stock)).toBe(false);
+    expect(feePair(stock, cryptoEth)).toBe(false);
+    expect(feePair(usdg, imported)).toBe(false);
   });
 });

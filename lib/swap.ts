@@ -74,7 +74,19 @@ export type SwapToken = {
   listed?: boolean;
   /** Zolva's own token: shown with a Verified badge and swapped on its Pons pool (lib/swap-zolva.ts). */
   verified?: boolean;
+  /** "crypto" (ETH, BTC) or "stock" for listed markets; decides whether Zolva's swap fee applies. */
+  assetClass?: "crypto" | "stock";
 };
+
+/**
+ * Whether a pair pays Zolva's swap fee: only when both sides are USDG, a crypto market (ETH,
+ * BTC) or ZOLVA. Stock tokens never do, and neither do imported tokens (they may be stock tokens
+ * too, like TTWO).
+ */
+export function feePair(tokenIn: SwapToken, tokenOut: SwapToken): boolean {
+  const eligible = (token: SwapToken) => token.address === USDG || token.verified === true || (token.listed !== false && token.assetClass === "crypto");
+  return eligible(tokenIn) && eligible(tokenOut);
+}
 
 /** Uniswap v3 factory on Robinhood Chain (SwapRouter02.factory()). */
 export const V3_FACTORY = "0x1f7d7550b1b028f7571e69a784071f0205fd2efa";
@@ -118,9 +130,14 @@ export type SwapQuote = {
    * the token's approval of Permit2 and `permit2Allowance` what Permit2 lets the router take
    * (0 once expired); `wethUsdgFee` is the v3 WETH/USDG fee tier the call must use.
    */
-  route?: "v3" | "zolva";
+  route?: "v3" | "zolva" | "v3-fee";
   permit2Allowance?: string | null;
   wethUsdgFee?: number;
+  /**
+   * Zolva's fee on this swap, already taken off amountOut and minOut: bps, where it goes (the dead
+   * address when it is burnt), and the amount in tokenOut. Null: no fee.
+   */
+  zolvaFee?: { bps: number; to: Hex; burn: boolean; amount: string } | null;
 };
 
 /** Quote minus the slippage allowance, rounded down. */
@@ -146,6 +163,11 @@ export function isDirect(tokenIn: SwapToken, tokenOut: SwapToken): boolean {
 /** Uniswap v3 path for a two-hop swap through USDG: tokenIn, fee, USDG, fee, tokenOut. */
 export function swapPath(tokenIn: Hex, tokenOut: Hex, fees: [number, number]): Hex {
   return encodePacked(["address", "uint24", "address", "uint24", "address"], [tokenIn, fees[0], USDG, fees[1], tokenOut]);
+}
+
+/** The packed v3 path for a quote's hops: direct, or through USDG. */
+export function v3PathFor(tokenIn: Hex, tokenOut: Hex, fees: number[]): Hex {
+  return fees.length === 1 ? encodePacked(["address", "uint24", "address"], [tokenIn, fees[0], tokenOut]) : swapPath(tokenIn, tokenOut, fees as [number, number]);
 }
 
 /** The exact approval for this swap (never unlimited): of SwapRouter02, or of Permit2 for ZOLVA swaps. */

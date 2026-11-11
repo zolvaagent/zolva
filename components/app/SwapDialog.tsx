@@ -8,8 +8,8 @@ import { useAuth } from "@/components/ui/Providers";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
 import { usd } from "@/lib/format";
-import { approveCall, DEFAULT_SLIPPAGE_BPS, isAddressQuery, isDirect, MAX_IMPORTED, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
-import { PERMIT2, permit2ApproveCall, PONS_FEE_NOTE, UNIVERSAL_ROUTER, zolvaLeg, zolvaSwapCall } from "@/lib/swap-zolva";
+import { approveCall, v3PathFor, DEFAULT_SLIPPAGE_BPS, isAddressQuery, isDirect, MAX_IMPORTED, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
+import { PERMIT2, permit2ApproveCall, PONS_FEE_NOTE, UNIVERSAL_ROUTER, v3FeeSwapCall, zolvaLeg, zolvaSwapCall } from "@/lib/swap-zolva";
 import { hasInjectedWallet, sendFromBrowserWallet, WalletError } from "@/lib/wallet-client";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -300,7 +300,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     if (!address || !tokenIn || !tokenOut || amountIn === null || !quote) return;
     setError(null);
     try {
-      const viaPermit2 = quote.route === "zolva";
+      const viaPermit2 = quote.route === "zolva" || quote.route === "v3-fee";
       if (BigInt(quote.allowance ?? "0") < amountIn) {
         setBusy(`Approve ${tokenIn.symbol} in your wallet…`);
         // ZOLVA swaps pull tokens through Permit2, so Permit2 is what gets approved (exact amount).
@@ -320,10 +320,16 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
       if (!fresh) return;
       setBusy("Confirm the swap in your wallet…");
       const leg = zolvaLeg(tokenIn.address, tokenOut.address);
-      const hash =
-        viaPermit2 && leg && fresh.wethUsdgFee !== undefined
-          ? await send(UNIVERSAL_ROUTER, zolvaSwapCall({ leg, amountIn, minOut: BigInt(fresh.minOut), wethUsdgFee: fresh.wethUsdgFee, deadline: nowSeconds() + 10 * 60 }))
-          : await send(SWAP_ROUTER_02, swapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, fees: fresh.fees, recipient: address as Hex, amountIn, minOut: BigInt(fresh.minOut) }));
+      const fee = fresh.zolvaFee ? { bps: fresh.zolvaFee.bps, to: fresh.zolvaFee.to } : null;
+      const deadline = nowSeconds() + 10 * 60;
+      let hash: Hex;
+      if (fresh.route === "zolva" && leg && fresh.wethUsdgFee !== undefined) {
+        hash = await send(UNIVERSAL_ROUTER, zolvaSwapCall({ leg, amountIn, minOut: BigInt(fresh.minOut), wethUsdgFee: fresh.wethUsdgFee, deadline, fee }));
+      } else if (fresh.route === "v3-fee") {
+        hash = await send(UNIVERSAL_ROUTER, v3FeeSwapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, path: v3PathFor(tokenIn.address, tokenOut.address, fresh.fees), amountIn, minOut: BigInt(fresh.minOut), fee, deadline }));
+      } else {
+        hash = await send(SWAP_ROUTER_02, swapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, fees: fresh.fees, recipient: address as Hex, amountIn, minOut: BigInt(fresh.minOut) }));
+      }
       setBusy("Waiting for the swap…");
       await waitFor(hash, "swap");
       setResult({ key, quote: fresh, error: null });
@@ -348,7 +354,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   const lowGas = listing?.ethWei != null && BigInt(listing.ethWei) < LOW_GAS_WEI;
   const farFromClose = quote?.deviationBps != null && quote.deviationBps > PRICE_WARNING_BPS;
   const needsApproval =
-    quote !== null && amountIn !== null && (BigInt(quote.allowance ?? "0") < amountIn || (quote.route === "zolva" && BigInt(quote.permit2Allowance ?? "0") < amountIn));
+    quote !== null && amountIn !== null && (BigInt(quote.allowance ?? "0") < amountIn || (quote.route !== undefined && quote.route !== "v3" && BigInt(quote.permit2Allowance ?? "0") < amountIn));
   const sellUsd = usdValue(tokenIn, amountIn);
   const buyUsd = usdValue(tokenOut, quote?.amountOut ?? null);
   const locked = Boolean(preset);
@@ -545,8 +551,17 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
           </div>
           {quote.route === "zolva" && (
             <div>
-              <dt>Fee</dt>
+              <dt>Pons fee</dt>
               <dd>{PONS_FEE_NOTE}</dd>
+            </div>
+          )}
+          {quote.zolvaFee && (
+            <div>
+              <dt>Zolva fee</dt>
+              <dd>
+                {quote.zolvaFee.bps / 100}% ({display(quote.zolvaFee.amount, tokenOut.decimals)} {tokenOut.symbol}) ·{" "}
+                {quote.zolvaFee.burn ? "burnt in this swap" : "funds $ZOLVA buyback and burn"}
+              </dd>
             </div>
           )}
           {(tokenIn.listed === false || tokenOut.listed === false) && (

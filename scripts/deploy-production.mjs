@@ -87,6 +87,9 @@ async function main() {
       // Optional: public links for the token's docs card (npm run token:launch writes them).
       ...(dev.ZOLVA_POOL_ADDRESS ? { ZOLVA_POOL_ADDRESS: dev.ZOLVA_POOL_ADDRESS } : {}),
       ...(dev.ZOLVA_TRADE_URL ? { ZOLVA_TRADE_URL: dev.ZOLVA_TRADE_URL } : {}),
+      // Optional: Zolva's swap fee (basis points) and the wallet that collects it for buybacks.
+      ...(dev.SWAP_FEE_BPS ? { SWAP_FEE_BPS: dev.SWAP_FEE_BPS } : {}),
+      ...(dev.SWAP_FEE_RECIPIENT ? { SWAP_FEE_RECIPIENT: dev.SWAP_FEE_RECIPIENT } : {}),
       // Optional: where USDG credit top-ups go. Without it they go to X402_PAY_TO.
       ...(dev.CREDITS_PAY_TO ? { CREDITS_PAY_TO: dev.CREDITS_PAY_TO } : {}),
       ...(dev.AI_DAILY_BUDGET_USD ? { AI_DAILY_BUDGET_USD: dev.AI_DAILY_BUDGET_USD } : {}),

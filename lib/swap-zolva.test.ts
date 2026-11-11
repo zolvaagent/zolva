@@ -2,7 +2,7 @@ import { decodeAbiParameters, decodeFunctionData, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { USDG } from "./live/contracts";
-import { EXECUTE_ABI, PERMIT2_ABI, PERMIT2_TTL_SECONDS, permit2ApproveCall, poolId, UNIVERSAL_ROUTER, WETH, ZOLVA, ZOLVA_POOL_ID, ZOLVA_POOL_KEY, zolvaLeg, zolvaSwapCall } from "./swap-zolva";
+import { afterFee, DEAD, EXECUTE_ABI, PERMIT2_ABI, v3FeeSwapCall, PERMIT2_TTL_SECONDS, permit2ApproveCall, poolId, UNIVERSAL_ROUTER, WETH, ZOLVA, ZOLVA_POOL_ID, ZOLVA_POOL_KEY, zolvaLeg, zolvaSwapCall } from "./swap-zolva";
 
 const decode = (data: Hex) => {
   const { args } = decodeFunctionData({ abi: EXECUTE_ABI, data });
@@ -88,5 +88,37 @@ describe("permit2ApproveCall", () => {
   it("approves the router for exactly the amount, for 30 minutes", () => {
     const { args } = decodeFunctionData({ abi: PERMIT2_ABI, data: permit2ApproveCall(ZOLVA, 5n, 1_000) });
     expect(args).toEqual([expect.stringMatching(new RegExp(ZOLVA, "i")), expect.stringMatching(new RegExp(UNIVERSAL_ROUTER, "i")), 5n, 1_000 + PERMIT2_TTL_SECONDS]);
+  });
+});
+
+describe("Zolva's swap fee", () => {
+  const base = { amountIn: 10_000_000n, minOut: 123n, wethUsdgFee: 100, deadline: 1_800_000_000 };
+  const wallet = "0x3333333333333333333333333333333333333333" as Hex;
+
+  it("takes floor(amount * bps / 10000) off what the user receives", () => {
+    expect(afterFee(1_000_000n, { bps: 25, to: DEAD })).toBe(997_500n);
+    expect(afterFee(999n, { bps: 25, to: DEAD })).toBe(997n);
+    expect(afterFee(1_000_000n, null)).toBe(1_000_000n);
+  });
+
+  it("burns on ZOLVA buys: ZOLVA into the router, a portion to the dead address, the rest to the user", () => {
+    const { commands, inputs } = decode(zolvaSwapCall({ ...base, leg: { buy: true, other: "usdg" }, fee: { bps: 25, to: DEAD } }));
+    expect(commands).toBe("0x02000c100604");
+    const [token, to, bips] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], inputs[4]);
+    expect([token.toLowerCase(), to.toLowerCase(), bips]).toEqual([ZOLVA, DEAD, 25n]);
+    const [swept, recipient, minOut] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], inputs[5]);
+    expect([swept.toLowerCase(), recipient, minOut]).toEqual([ZOLVA, "0x0000000000000000000000000000000000000001", 123n]);
+  });
+
+  it("sends the fee to the fee wallet on ZOLVA sells, then the rest to the user", () => {
+    expect(decode(zolvaSwapCall({ ...base, leg: { buy: false, other: "usdg" }, fee: { bps: 25, to: wallet } })).commands).toBe("0x100b000604");
+    expect(decode(zolvaSwapCall({ ...base, leg: { buy: false, other: "weth" }, fee: { bps: 25, to: wallet } })).commands).toBe("0x100b0604");
+  });
+
+  it("swaps v3 fee pairs through the router: pull, swap, fee, rest to the user", () => {
+    const { commands, inputs } = decode(v3FeeSwapCall({ tokenIn: USDG, tokenOut: WETH, path: "0x01", amountIn: 5n, minOut: 4n, fee: { bps: 25, to: wallet }, deadline: 1 }));
+    expect(commands).toBe("0x02000604");
+    const [, to, bips] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], inputs[2]);
+    expect([to.toLowerCase(), bips]).toEqual([wallet, 25n]);
   });
 });

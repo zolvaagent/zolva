@@ -125,7 +125,7 @@ export function permit2ApproveCall(token: Hex, amount: bigint, nowSeconds: numbe
 }
 
 // Universal Router commands and v4 router actions (Commands.sol, Actions.sol).
-const CMD = { V3_SWAP_EXACT_IN: 0x00, PERMIT2_TRANSFER_FROM: 0x02, SWEEP: 0x04, WRAP_ETH: 0x0b, UNWRAP_WETH: 0x0c, V4_SWAP: 0x10 } as const;
+const CMD = { V3_SWAP_EXACT_IN: 0x00, PERMIT2_TRANSFER_FROM: 0x02, SWEEP: 0x04, PAY_PORTION: 0x06, WRAP_ETH: 0x0b, UNWRAP_WETH: 0x0c, V4_SWAP: 0x10 } as const;
 const ACT = { SWAP_EXACT_IN_SINGLE: 0x06, SETTLE: 0x0b, TAKE: 0x0e, TAKE_ALL: 0x0f } as const;
 /** Router recipients: the caller, or the router itself (ActionConstants.sol). */
 const MSG_SENDER = "0x0000000000000000000000000000000000000001";
@@ -173,38 +173,99 @@ function v4Swap(options: { buy: boolean; amountIn: bigint; minOut: bigint; takeT
 }
 
 /**
- * The Universal Router call for a ZOLVA swap, paid out to the signer. `wethUsdgFee` is the fee
- * tier of the v3 WETH/USDG pool (the "ETH" market's pool); `minOut` is in the token received.
+ * Zolva's swap fee, taken from what the swap pays out (PAY_PORTION, in basis points of the
+ * router's balance of the token received). On ZOLVA buys it goes to the dead address: an
+ * on-chain burn in the same transaction. Otherwise to Zolva's fee wallet, whose balance is used
+ * to buy back and burn ZOLVA (scripts/zolva-buyback.mts). Null: no fee on this swap.
  */
-export function zolvaSwapCall(options: { leg: ZolvaLeg; amountIn: bigint; minOut: bigint; wethUsdgFee: number; deadline: number }): Hex {
-  const { leg, amountIn, minOut } = options;
+export type SwapFee = { bps: number; to: Hex } | null;
+/** Where burnt ZOLVA goes (the same address the dev supply was burnt to). */
+export const DEAD = "0x000000000000000000000000000000000000dead";
+/** The most the fee may ever be set to (1%). */
+export const MAX_FEE_BPS = 100;
+
+/** What the user receives after the fee: PAY_PORTION takes floor(amount * bps / 10000). */
+export function afterFee(amount: bigint, fee: SwapFee): bigint {
+  return fee ? amount - (amount * BigInt(fee.bps)) / 10_000n : amount;
+}
+
+/** Builds the command list for one router call. */
+function commandList() {
   const commands: number[] = [];
   const inputs: Hex[] = [];
-  const add = (command: number, input: Hex) => {
-    commands.push(command);
-    inputs.push(input);
+  return {
+    add(command: number, input: Hex) {
+      commands.push(command);
+      inputs.push(input);
+    },
+    call(deadline: number): Hex {
+      const commandBytes = `0x${commands.map((command) => command.toString(16).padStart(2, "0")).join("")}` as Hex;
+      return encodeFunctionData({ abi: EXECUTE_ABI, functionName: "execute", args: [commandBytes, inputs, BigInt(deadline)] });
+    },
   };
+}
+
+/** Pays the fee out of the router's balance of `token`, then sends the rest to the user (at least minOut). */
+function payOut(list: ReturnType<typeof commandList>, token: Hex, fee: SwapFee, minOut: bigint) {
+  if (fee) list.add(CMD.PAY_PORTION, enc([{ type: "address" }, { type: "address" }, { type: "uint256" }], [token, fee.to, BigInt(fee.bps)]));
+  list.add(CMD.SWEEP, enc([{ type: "address" }, { type: "address" }, { type: "uint256" }], [token, MSG_SENDER, minOut]));
+}
+
+const V3_INPUT = [{ type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }, { type: "bool" }] as const;
+const PULL_INPUT = [{ type: "address" }, { type: "address" }, { type: "uint160" }] as const;
+
+/**
+ * The Universal Router call for a ZOLVA swap, paid out to the signer. `wethUsdgFee` is the fee
+ * tier of the v3 WETH/USDG pool (the "ETH" market's pool); `minOut` is in the token received,
+ * after Zolva's fee.
+ */
+export function zolvaSwapCall(options: { leg: ZolvaLeg; amountIn: bigint; minOut: bigint; wethUsdgFee: number; deadline: number; fee?: SwapFee }): Hex {
+  const { leg, amountIn, minOut } = options;
+  const fee = options.fee ?? null;
+  const list = commandList();
   if (leg.buy) {
     // The user's token comes into the router through Permit2 first. (A v3 swap with
     // payerIsUser reverted in eth_call simulations on Robinhood Chain on 2026-11-11, while
     // PERMIT2_TRANSFER_FROM and v3 swaps paid from the router's balance both went through.)
-    add(CMD.PERMIT2_TRANSFER_FROM, enc([{ type: "address" }, { type: "address" }, { type: "uint160" }], [leg.other === "usdg" ? USDG : WETH, ADDRESS_THIS, amountIn]));
+    list.add(CMD.PERMIT2_TRANSFER_FROM, enc(PULL_INPUT, [leg.other === "usdg" ? USDG : WETH, ADDRESS_THIS, amountIn]));
     if (leg.other === "usdg") {
       // USDG to WETH on the v3 pool, paid from and kept in the router.
-      add(CMD.V3_SWAP_EXACT_IN, enc([{ type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }, { type: "bool" }], [ADDRESS_THIS, CONTRACT_BALANCE, 0n, v3Path(USDG, options.wethUsdgFee, WETH), false]));
+      list.add(CMD.V3_SWAP_EXACT_IN, enc(V3_INPUT, [ADDRESS_THIS, CONTRACT_BALANCE, 0n, v3Path(USDG, options.wethUsdgFee, WETH), false]));
     }
-    add(CMD.UNWRAP_WETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, 0n]));
-    add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut, takeTo: "user" }));
+    list.add(CMD.UNWRAP_WETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, 0n]));
+    if (fee) {
+      // ZOLVA lands in the router, the fee part is burnt, the rest goes to the user.
+      list.add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut: 0n, takeTo: "router" }));
+      payOut(list, ZOLVA, fee, minOut);
+    } else {
+      list.add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut, takeTo: "user" }));
+    }
   } else {
     // ETH out of the Pons pool stays in the router, is wrapped, then sent on.
-    add(CMD.V4_SWAP, v4Swap({ buy: false, amountIn, minOut: 0n, takeTo: "router" }));
-    add(CMD.WRAP_ETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, CONTRACT_BALANCE]));
+    list.add(CMD.V4_SWAP, v4Swap({ buy: false, amountIn, minOut: 0n, takeTo: "router" }));
+    list.add(CMD.WRAP_ETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, CONTRACT_BALANCE]));
     if (leg.other === "usdg") {
-      add(CMD.V3_SWAP_EXACT_IN, enc([{ type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }, { type: "bool" }], [MSG_SENDER, CONTRACT_BALANCE, minOut, v3Path(WETH, options.wethUsdgFee, USDG), false]));
+      if (fee) {
+        list.add(CMD.V3_SWAP_EXACT_IN, enc(V3_INPUT, [ADDRESS_THIS, CONTRACT_BALANCE, 0n, v3Path(WETH, options.wethUsdgFee, USDG), false]));
+        payOut(list, USDG, fee, minOut);
+      } else {
+        list.add(CMD.V3_SWAP_EXACT_IN, enc(V3_INPUT, [MSG_SENDER, CONTRACT_BALANCE, minOut, v3Path(WETH, options.wethUsdgFee, USDG), false]));
+      }
     } else {
-      add(CMD.SWEEP, enc([{ type: "address" }, { type: "address" }, { type: "uint256" }], [WETH, MSG_SENDER, minOut]));
+      payOut(list, WETH, fee, minOut);
     }
   }
-  const commandBytes = `0x${commands.map((command) => command.toString(16).padStart(2, "0")).join("")}` as Hex;
-  return encodeFunctionData({ abi: EXECUTE_ABI, functionName: "execute", args: [commandBytes, inputs, BigInt(options.deadline)] });
+  return list.call(options.deadline);
+}
+
+/**
+ * A v3 swap through the Universal Router with Zolva's fee (used for the fee-paying pairs that are
+ * not ZOLVA: USDG, ETH and BTC with each other). `path` is the packed v3 path (one or two hops).
+ */
+export function v3FeeSwapCall(options: { tokenIn: Hex; tokenOut: Hex; path: Hex; amountIn: bigint; minOut: bigint; fee: SwapFee; deadline: number }): Hex {
+  const list = commandList();
+  list.add(CMD.PERMIT2_TRANSFER_FROM, enc(PULL_INPUT, [options.tokenIn, ADDRESS_THIS, options.amountIn]));
+  list.add(CMD.V3_SWAP_EXACT_IN, enc(V3_INPUT, [ADDRESS_THIS, CONTRACT_BALANCE, 0n, options.path, false]));
+  payOut(list, options.tokenOut, options.fee, options.minOut);
+  return list.call(options.deadline);
 }

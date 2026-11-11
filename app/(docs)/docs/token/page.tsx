@@ -102,6 +102,22 @@ export default function Token() {
         <li>The transaction needs a little ETH on Robinhood Chain for gas.</li>
       </ul>
 
+      <H2 id="swap-fee">Swap fee: buyback and burn</H2>
+      <p>
+        Swaps on Zolva between USDG, ETH, BTC and ZOLVA pay a <strong>0.25% Zolva fee</strong>, shown in the swap card before you sign. Swaps with stock
+        tokens, and with tokens you import by address, pay no Zolva fee.
+      </p>
+      <ul>
+        <li>
+          <strong>Buying ZOLVA:</strong> the fee is taken in ZOLVA and sent to the burn address in the same transaction.
+        </li>
+        <li>
+          <strong>Other fee swaps:</strong> the fee goes to Zolva&apos;s fee wallet. Its balance is used to buy ZOLVA and burn it, and every buyback is
+          listed with its transactions in the public burn log on GitHub (docs/zolva-burns.md).
+        </li>
+        <li>ZOLVA swaps also pay Pons&apos; own trading fee (about 3%), taken by the pool. Zolva does not receive it.</li>
+      </ul>
+
       <H2 id="burn">Coming later</H2>
       <ul>
         <li>Agent tokens: part of every agent token&apos;s trading fees buys ZOLVA and burns it, enforced by a contract.</li>

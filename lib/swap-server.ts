@@ -6,8 +6,8 @@ import { erc20Abi, type Hex, type PublicClient } from "viem";
 import { getMarket } from "@/lib/data/market";
 import { env } from "@/lib/env";
 import { QUOTE_EXACT_INPUT_SINGLE_ABI, QUOTER_V2 } from "@/lib/live/contracts";
-import { isDirect, minimumOut, pickPool, QUOTE_EXACT_INPUT_ABI, referenceRate, SWAP_ROUTER_02, swapPath, swapRate, USDG, USDG_DECIMALS, V3_FACTORY, V3_FEE_TIERS, type SwapQuote, type SwapToken } from "@/lib/swap";
-import { PERMIT2, PERMIT2_ABI, UNIVERSAL_ROUTER, V4_QUOTE_ABI, V4_QUOTER, WETH, ZOLVA, ZOLVA_POOL_KEY, zolvaLeg } from "@/lib/swap-zolva";
+import { feePair, isDirect, minimumOut, pickPool, QUOTE_EXACT_INPUT_ABI, referenceRate, SWAP_ROUTER_02, swapPath, swapRate, USDG, USDG_DECIMALS, V3_FACTORY, V3_FEE_TIERS, type SwapQuote, type SwapToken } from "@/lib/swap";
+import { afterFee, DEAD, PERMIT2, PERMIT2_ABI, UNIVERSAL_ROUTER, V4_QUOTE_ABI, V4_QUOTER, WETH, ZOLVA, ZOLVA_POOL_KEY, zolvaLeg } from "@/lib/swap-zolva";
 
 const POOL_FEE_ABI = [{ type: "function", name: "fee", stateMutability: "view", inputs: [], outputs: [{ type: "uint24" }] }] as const;
 
@@ -17,7 +17,7 @@ const POOL_FEE_ABI = [{ type: "function", name: "fee", stateMutability: "view", 
  */
 export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
   const [{ data, error }, market, zolvaPrice] = await Promise.all([
-    db.from("tokens").select("address, symbol, name, token_decimals, price_pool").eq("enabled", true).eq("pool_kind", "v3").order("symbol"),
+    db.from("tokens").select("address, symbol, name, token_decimals, price_pool, asset_class").eq("enabled", true).eq("pool_kind", "v3").order("symbol"),
     getMarket(db),
     db.from("zolva_prices").select("price").order("ts", { ascending: false }).limit(1).maybeSingle<{ price: number }>(),
   ]);
@@ -33,6 +33,7 @@ export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
       pool: row.price_pool.toLowerCase() as Hex,
       lastClose: closeOf.get(row.address.toLowerCase()) ?? null,
       listed: true,
+      assetClass: row.asset_class === "crypto" ? ("crypto" as const) : ("stock" as const),
     })),
     // Only when the configured token is the one the Pons pool key was pinned for.
     ...(env.zolvaToken?.address.toLowerCase() === ZOLVA
@@ -109,9 +110,32 @@ const poolFee = (chain: PublicClient, token: SwapToken) => {
  * pool when a side is USDG, otherwise two hops through USDG. With an owner it also reads
  * their balance and the router's allowance, so the card knows whether to approve first.
  */
+/**
+ * Zolva's fee for a pair (env SWAP_FEE_BPS), or null. Buying ZOLVA, it is burnt (sent to the dead
+ * address); on the other fee pairs it goes to the fee wallet, and without one there is no fee.
+ */
+function swapFeeFor(tokenIn: SwapToken, tokenOut: SwapToken): { bps: number; to: Hex; burn: boolean } | null {
+  const config = env.swapFee;
+  if (!config || !feePair(tokenIn, tokenOut)) return null;
+  if (tokenOut.address === ZOLVA) return { bps: config.bps, to: DEAD, burn: true };
+  return config.recipient ? { bps: config.bps, to: config.recipient, burn: false } : null;
+}
+
+/** Reads what a Permit2-based swap needs approved: the token's allowance of Permit2, and Permit2's unexpired allowance of the router. */
+async function permit2Approvals(chain: PublicClient, token: Hex, owner: Hex | null) {
+  const [allowance, permit] = await Promise.all([
+    owner ? chain.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, PERMIT2] }) : null,
+    owner ? chain.readContract({ address: PERMIT2, abi: PERMIT2_ABI, functionName: "allowance", args: [owner, token, UNIVERSAL_ROUTER] }) : null,
+  ]);
+  // An approval that lapses within a minute is treated as gone: the swap may land after it.
+  const permitLeft = permit && Number(permit[1]) > Date.now() / 1000 + 60 ? permit[0] : 0n;
+  return { allowance: allowance === null ? null : allowance.toString(), permit2Allowance: owner ? permitLeft.toString() : null };
+}
+
 export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapToken; tokenOut: SwapToken; amountIn: bigint; slippageBps: number; owner: Hex | null }): Promise<SwapQuote> {
   const { tokenIn, tokenOut, amountIn, owner } = options;
   if (tokenIn.address === ZOLVA || tokenOut.address === ZOLVA) return quoteZolvaSwap(chain, options);
+  const zolvaFee = swapFeeFor(tokenIn, tokenOut);
   let fees: number[];
   let amountOut: bigint;
   if (isDirect(tokenIn, tokenOut)) {
@@ -131,20 +155,34 @@ export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapTok
     fees = hopFees;
     amountOut = quote.result[0];
   }
-  const [balance, allowance] = await Promise.all([
-    owner ? chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) : null,
-    owner ? chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "allowance", args: [owner, SWAP_ROUTER_02] }) : null,
-  ]);
+  const balance = owner ? await chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) : null;
+  // The rate check compares the pool price, before Zolva's fee.
   const rate = swapRate(tokenIn, tokenOut, amountIn, amountOut);
   const reference = referenceRate(tokenIn, tokenOut);
-  return {
+  const base = {
     amountIn: amountIn.toString(),
-    amountOut: amountOut.toString(),
-    minOut: minimumOut(amountOut, options.slippageBps).toString(),
     fees,
     rate,
     deviationBps: reference ? Math.round(Math.abs(rate / reference - 1) * 10_000) : null,
     balance: balance === null ? null : balance.toString(),
+  };
+  if (zolvaFee) {
+    // A fee pair goes through the Universal Router (SwapRouter02 cannot take a fee): Permit2 approvals.
+    const net = afterFee(amountOut, zolvaFee);
+    return {
+      ...base,
+      amountOut: net.toString(),
+      minOut: minimumOut(net, options.slippageBps).toString(),
+      ...(await permit2Approvals(chain, tokenIn.address, owner)),
+      route: "v3-fee",
+      zolvaFee: { ...zolvaFee, amount: (amountOut - net).toString() },
+    };
+  }
+  const allowance = owner ? await chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "allowance", args: [owner, SWAP_ROUTER_02] }) : null;
+  return {
+    ...base,
+    amountOut: amountOut.toString(),
+    minOut: minimumOut(amountOut, options.slippageBps).toString(),
     allowance: allowance === null ? null : allowance.toString(),
   };
 }
@@ -257,26 +295,23 @@ async function quoteZolvaSwap(chain: PublicClient, options: { tokenIn: SwapToken
     amountOut = leg.other === "usdg" ? await v3(WETH, USDG, ethOut) : ethOut;
   }
 
-  const [balance, allowance, permit] = await Promise.all([
-    owner ? chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) : null,
-    owner ? chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "allowance", args: [owner, PERMIT2] }) : null,
-    owner ? chain.readContract({ address: PERMIT2, abi: PERMIT2_ABI, functionName: "allowance", args: [owner, tokenIn.address, UNIVERSAL_ROUTER] }) : null,
-  ]);
-  // An approval that lapses within a minute is treated as gone: the swap may land after it.
-  const permitLeft = permit && Number(permit[1]) > Date.now() / 1000 + 60 ? permit[0] : 0n;
+  const balance = owner ? await chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) : null;
+  const approvals = await permit2Approvals(chain, tokenIn.address, owner);
+  const zolvaFee = swapFeeFor(tokenIn, tokenOut);
+  const net = afterFee(amountOut, zolvaFee);
   return {
     amountIn: amountIn.toString(),
-    amountOut: amountOut.toString(),
-    minOut: minimumOut(amountOut, options.slippageBps).toString(),
+    amountOut: net.toString(),
+    minOut: minimumOut(net, options.slippageBps).toString(),
     fees: leg.other === "usdg" ? [wethUsdgFee] : [],
     rate: swapRate(tokenIn, tokenOut, amountIn, amountOut),
     // No "far from the hourly close" check: ZOLVA moves more than that within an hour and every
     // quote includes Pons' fee, so it would warn on every swap. The minimum out still protects it.
     deviationBps: null,
     balance: balance === null ? null : balance.toString(),
-    allowance: allowance === null ? null : allowance.toString(),
+    ...approvals,
     route: "zolva",
-    permit2Allowance: owner ? permitLeft.toString() : null,
     wethUsdgFee,
+    zolvaFee: zolvaFee ? { ...zolvaFee, amount: (amountOut - net).toString() } : null,
   };
 }
