@@ -9,7 +9,7 @@ import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
 import { usd } from "@/lib/format";
 import { approveCall, v3PathFor, DEFAULT_SLIPPAGE_BPS, isAddressQuery, isDirect, MAX_IMPORTED, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
-import { PERMIT2, permit2ApproveCall, PONS_FEE_NOTE, UNIVERSAL_ROUTER, v3FeeSwapCall, zolvaLeg, zolvaSwapCall } from "@/lib/swap-zolva";
+import { PERMIT2, permit2ApproveCall, PONS_FEE_NOTE, UNIVERSAL_ROUTER, v3FeeSwapCall, WETH, wrapCall, zolvaLeg, zolvaSwapCall } from "@/lib/swap-zolva";
 import { hasInjectedWallet, sendFromBrowserWallet, WalletError } from "@/lib/wallet-client";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -18,6 +18,8 @@ const nowSeconds = () => Math.floor(Date.now() / 1000);
 const SLIPPAGES = [50, 100, 200] as const;
 /** Below this much ETH (wei) a swap probably cannot pay its gas. */
 const LOW_GAS_WEI = 10n ** 13n;
+/** Max on native ETH keeps this much (wei, 0.0002 ETH) back for gas. */
+const GAS_RESERVE_WEI = 2n * 10n ** 14n;
 
 /** A fixed sale for "Sell position": the market and the quantity, sold for USDG. */
 export type SwapPreset = { token: Hex; amount: string; title: string; note: string };
@@ -267,7 +269,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   };
 
   // Email and Google accounts sign in Privy's window; wallet logins in the browser wallet.
-  const send = async (to: Hex, data: Hex): Promise<Hex> => {
+  const send = async (to: Hex, data: Hex, value?: bigint): Promise<Hex> => {
     if (!address) throw new WalletError("Log in first.");
     if (loginMethod === "privy") {
       const handle = privy();
@@ -275,7 +277,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
       // Our dialog sits in the top layer; close it so Privy's window is visible, then reopen.
       if (!inline) dialog.current?.close();
       try {
-        return await handle.sendTransaction(address, to, data);
+        return await handle.sendTransaction(address, to, data, value);
       } finally {
         if (!inline) dialog.current?.showModal();
       }
@@ -283,7 +285,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     if (!hasInjectedWallet()) throw new WalletError("Open Zolva in a browser with your wallet (MetaMask, Rabby or Coinbase Wallet) to swap.");
     const accounts = (await window.ethereum!.request({ method: "eth_requestAccounts" })) as string[];
     if (accounts[0]?.toLowerCase() !== address.toLowerCase()) throw new WalletError("Switch your wallet to the account you logged in with, then try again.");
-    return sendFromBrowserWallet(to, data, "The wallet did not send the transaction. Check you have a little ETH for gas, then try again.");
+    return sendFromBrowserWallet(to, data, "The wallet did not send the transaction. Check you have a little ETH for gas, then try again.", value);
   };
 
   const waitFor = async (hash: Hex, what: string) => {
@@ -322,11 +324,17 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
       const leg = zolvaLeg(tokenIn.address, tokenOut.address);
       const fee = fresh.zolvaFee ? { bps: fresh.zolvaFee.bps, to: fresh.zolvaFee.to } : null;
       const deadline = nowSeconds() + 10 * 60;
+      // Native ETH in is sent along with the call.
+      const value = tokenIn.native ? amountIn : undefined;
+      // Pools know WETH, not native ETH: the path uses WETH; the router wraps or unwraps.
+      const poolAddress = (token: SwapToken) => (token.native ? (WETH as Hex) : token.address);
       let hash: Hex;
-      if (fresh.route === "zolva" && leg && fresh.wethUsdgFee !== undefined) {
-        hash = await send(UNIVERSAL_ROUTER, zolvaSwapCall({ leg, amountIn, minOut: BigInt(fresh.minOut), wethUsdgFee: fresh.wethUsdgFee, deadline, fee }));
+      if (fresh.route === "wrap") {
+        hash = await send(WETH, wrapCall(tokenIn.native ? "wrap" : "unwrap", amountIn), value);
+      } else if (fresh.route === "zolva" && leg && fresh.wethUsdgFee !== undefined) {
+        hash = await send(UNIVERSAL_ROUTER, zolvaSwapCall({ leg, amountIn, minOut: BigInt(fresh.minOut), wethUsdgFee: fresh.wethUsdgFee, deadline, fee }), value);
       } else if (fresh.route === "v3-fee") {
-        hash = await send(UNIVERSAL_ROUTER, v3FeeSwapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, path: v3PathFor(tokenIn.address, tokenOut.address, fresh.fees), amountIn, minOut: BigInt(fresh.minOut), fee, deadline }));
+        hash = await send(UNIVERSAL_ROUTER, v3FeeSwapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, path: v3PathFor(poolAddress(tokenIn), poolAddress(tokenOut), fresh.fees), amountIn, minOut: BigInt(fresh.minOut), fee, deadline }), value);
       } else {
         hash = await send(SWAP_ROUTER_02, swapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, fees: fresh.fees, recipient: address as Hex, amountIn, minOut: BigInt(fresh.minOut) }));
       }
@@ -351,7 +359,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   const sellBalance = balanceOf(tokenIn);
   const buyBalance = balanceOf(tokenOut);
   const short = sellBalance !== null && amountIn !== null && BigInt(sellBalance) < amountIn;
-  const lowGas = listing?.ethWei != null && BigInt(listing.ethWei) < LOW_GAS_WEI;
+  const lowGas = listing?.ethWei != null && BigInt(listing.ethWei) - (tokenIn?.native && amountIn !== null ? amountIn : 0n) < LOW_GAS_WEI;
   const farFromClose = quote?.deviationBps != null && quote.deviationBps > PRICE_WARNING_BPS;
   const needsApproval =
     quote !== null && amountIn !== null && (BigInt(quote.allowance ?? "0") < amountIn || (quote.route !== undefined && quote.route !== "v3" && BigInt(quote.permit2Allowance ?? "0") < amountIn));
@@ -361,7 +369,9 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
 
   const setFraction = (share: 2n | 1n) => {
     if (!tokenIn || sellBalance === null) return;
-    setAmount(formatUnits(BigInt(sellBalance) / share, tokenIn.decimals));
+    // Native ETH also pays the gas: Max leaves a little behind.
+    const spendable = tokenIn.native ? BigInt(sellBalance) - GAS_RESERVE_WEI : BigInt(sellBalance);
+    setAmount(formatUnits(spendable > 0n ? spendable / share : 0n, tokenIn.decimals));
   };
 
   let action: { label: string; disabled: boolean; onClick?: () => void };
@@ -379,7 +389,8 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     .filter((token) => !query || token.symbol.toLowerCase().includes(query) || token.name.toLowerCase().includes(query) || token.address === query)
     .map((token) => ({ token, balance: balanceOf(token), value: usdValue(token, balanceOf(token)) }))
     // What the wallet holds first, by value; then the rest by symbol.
-    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || a.token.symbol.localeCompare(b.token.symbol));
+    // What the wallet holds first, by value; then $ZOLVA (verified); then the rest by symbol.
+    .sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || Number(b.token.verified ?? false) - Number(a.token.verified ?? false) || a.token.symbol.localeCompare(b.token.symbol));
 
   const geckoFor = (address: string) => (gecko?.address === address ? gecko.info : null);
   const tokenLogo = (token: SwapToken, size: number) => {
@@ -547,7 +558,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
           <div>
             <dt>Fees</dt>
             <dd title={quote.route === "zolva" ? PONS_FEE_NOTE : undefined}>
-              {quote.route === "zolva" ? "Pons ~3%" : `Pool ${quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" + ")}`}
+              {quote.route === "wrap" ? "None (wrapping, 1:1)" : quote.route === "zolva" ? "Pons ~3%" : `Pool ${quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" + ")}`}
               {quote.zolvaFee && (
                 <>
                   {" · "}Zolva {quote.zolvaFee.bps / 100}%

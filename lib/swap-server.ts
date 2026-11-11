@@ -7,7 +7,7 @@ import { getMarket } from "@/lib/data/market";
 import { env } from "@/lib/env";
 import { QUOTE_EXACT_INPUT_SINGLE_ABI, QUOTER_V2 } from "@/lib/live/contracts";
 import { feePair, isDirect, minimumOut, pickPool, QUOTE_EXACT_INPUT_ABI, referenceRate, SWAP_ROUTER_02, swapPath, swapRate, USDG, USDG_DECIMALS, V3_FACTORY, V3_FEE_TIERS, type SwapQuote, type SwapToken } from "@/lib/swap";
-import { afterFee, DEAD, PERMIT2, PERMIT2_ABI, UNIVERSAL_ROUTER, V4_QUOTE_ABI, V4_QUOTER, WETH, ZOLVA, ZOLVA_POOL_KEY, zolvaLeg } from "@/lib/swap-zolva";
+import { afterFee, DEAD, ETH_NATIVE, PERMIT2, PERMIT2_ABI, UNIVERSAL_ROUTER, V4_QUOTE_ABI, V4_QUOTER, WETH, ZOLVA, ZOLVA_POOL_KEY, zolvaLeg } from "@/lib/swap-zolva";
 
 const POOL_FEE_ABI = [{ type: "function", name: "fee", stateMutability: "view", inputs: [], outputs: [{ type: "uint24" }] }] as const;
 
@@ -23,12 +23,18 @@ export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
   ]);
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
   const closeOf = new Map(market.tokens.map((token) => [token.address.toLowerCase(), token.closes.at(-1) ?? null]));
+  const wethRow = data.find((row) => row.address.toLowerCase() === WETH);
   return [
     { address: USDG, symbol: "USDG", name: "Global Dollar", decimals: USDG_DECIMALS, pool: null, lastClose: 1, listed: true },
+    // Native ETH, priced and routed like the WETH market (wrapped or unwrapped inside the router).
+    ...(wethRow
+      ? [{ address: ETH_NATIVE as Hex, symbol: "ETH", name: "Ether", decimals: 18, pool: wethRow.price_pool.toLowerCase() as Hex, lastClose: closeOf.get(WETH) ?? null, listed: true, assetClass: "crypto" as const, native: true }]
+      : []),
     ...data.map((row) => ({
       address: row.address.toLowerCase() as Hex,
-      symbol: row.symbol,
-      name: row.name,
+      // The "ETH" market is the WETH token; in the swap list it is called what it is.
+      symbol: row.address.toLowerCase() === WETH ? "WETH" : row.symbol,
+      name: row.address.toLowerCase() === WETH ? "Wrapped Ether" : row.name,
       decimals: Number(row.token_decimals),
       pool: row.price_pool.toLowerCase() as Hex,
       lastClose: closeOf.get(row.address.toLowerCase()) ?? null,
@@ -95,9 +101,9 @@ export async function lookupToken(chain: PublicClient, address: Hex, listed: Swa
 export async function walletBalances(chain: PublicClient, owner: Hex, tokens: SwapToken[]): Promise<{ tokens: Record<string, string>; ethWei: string }> {
   const [eth, ...balances] = await Promise.all([
     chain.getBalance({ address: owner }),
-    ...tokens.map((token) => chain.readContract({ address: token.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }).catch(() => 0n)),
+    ...tokens.map((token) => (token.native ? Promise.resolve(0n) : chain.readContract({ address: token.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }).catch(() => 0n))),
   ]);
-  return { tokens: Object.fromEntries(tokens.map((token, i) => [token.address, balances[i].toString()])), ethWei: eth.toString() };
+  return { tokens: Object.fromEntries(tokens.map((token, i) => [token.address, (token.native ? eth : balances[i]).toString()])), ethWei: eth.toString() };
 }
 
 const poolFee = (chain: PublicClient, token: SwapToken) => {
@@ -123,6 +129,11 @@ function swapFeeFor(tokenIn: SwapToken, tokenOut: SwapToken): { bps: number; to:
 
 /** Reads what a Permit2-based swap needs approved: the token's allowance of Permit2, and Permit2's unexpired allowance of the router. */
 async function permit2Approvals(chain: PublicClient, token: Hex, owner: Hex | null) {
+  // Native ETH is sent along with the call: nothing to approve.
+  if (token === ETH_NATIVE) {
+    const unlimited = ((1n << 160n) - 1n).toString();
+    return { allowance: owner ? unlimited : null, permit2Allowance: owner ? unlimited : null };
+  }
   const [allowance, permit] = await Promise.all([
     owner ? chain.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [owner, PERMIT2] }) : null,
     owner ? chain.readContract({ address: PERMIT2, abi: PERMIT2_ABI, functionName: "allowance", args: [owner, token, UNIVERSAL_ROUTER] }) : null,
@@ -132,10 +143,26 @@ async function permit2Approvals(chain: PublicClient, token: Hex, owner: Hex | nu
   return { allowance: allowance === null ? null : allowance.toString(), permit2Allowance: owner ? permitLeft.toString() : null };
 }
 
+/** A wallet's balance of a swap token: its ETH for native ETH, otherwise the ERC-20 balance. */
+const balanceOfToken = (chain: PublicClient, token: SwapToken, owner: Hex) =>
+  token.native ? chain.getBalance({ address: owner }) : chain.readContract({ address: token.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] });
+
 export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapToken; tokenOut: SwapToken; amountIn: bigint; slippageBps: number; owner: Hex | null }): Promise<SwapQuote> {
-  const { tokenIn, tokenOut, amountIn, owner } = options;
-  if (tokenIn.address === ZOLVA || tokenOut.address === ZOLVA) return quoteZolvaSwap(chain, options);
-  const zolvaFee = swapFeeFor(tokenIn, tokenOut);
+  const { amountIn, owner } = options;
+  // ETH <-> WETH is wrapping: 1:1, no pool, no fee, no approval.
+  const pair = new Set([options.tokenIn.address, options.tokenOut.address]);
+  if (pair.has(ETH_NATIVE) && pair.has(WETH)) {
+    const balance = owner ? await balanceOfToken(chain, options.tokenIn, owner) : null;
+    const unlimited = ((1n << 160n) - 1n).toString();
+    return { amountIn: amountIn.toString(), amountOut: amountIn.toString(), minOut: amountIn.toString(), fees: [], rate: 1, deviationBps: null, balance: balance === null ? null : balance.toString(), allowance: owner ? unlimited : null, route: "wrap" };
+  }
+  if (options.tokenIn.address === ZOLVA || options.tokenOut.address === ZOLVA) return quoteZolvaSwap(chain, options);
+  const native = options.tokenIn.native || options.tokenOut.native;
+  // Pools only know WETH: price native ETH as WETH; the router call wraps or unwraps it.
+  const asWeth = (token: SwapToken) => (token.native ? { ...token, address: WETH as Hex } : token);
+  const tokenIn = asWeth(options.tokenIn);
+  const tokenOut = asWeth(options.tokenOut);
+  const zolvaFee = swapFeeFor(options.tokenIn, options.tokenOut);
   let fees: number[];
   let amountOut: bigint;
   if (isDirect(tokenIn, tokenOut)) {
@@ -155,7 +182,7 @@ export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapTok
     fees = hopFees;
     amountOut = quote.result[0];
   }
-  const balance = owner ? await chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) : null;
+  const balance = owner ? await balanceOfToken(chain, options.tokenIn, owner) : null;
   // The rate check compares the pool price, before Zolva's fee.
   const rate = swapRate(tokenIn, tokenOut, amountIn, amountOut);
   const reference = referenceRate(tokenIn, tokenOut);
@@ -166,16 +193,17 @@ export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapTok
     deviationBps: reference ? Math.round(Math.abs(rate / reference - 1) * 10_000) : null,
     balance: balance === null ? null : balance.toString(),
   };
-  if (zolvaFee) {
-    // A fee pair goes through the Universal Router (SwapRouter02 cannot take a fee): Permit2 approvals.
+  if (zolvaFee || native) {
+    // Fee pairs and native ETH go through the Universal Router (SwapRouter02 can neither take a
+    // fee nor pay out ETH here): Permit2 approvals, none for native ETH.
     const net = afterFee(amountOut, zolvaFee);
     return {
       ...base,
       amountOut: net.toString(),
       minOut: minimumOut(net, options.slippageBps).toString(),
-      ...(await permit2Approvals(chain, tokenIn.address, owner)),
+      ...(await permit2Approvals(chain, options.tokenIn.address, owner)),
       route: "v3-fee",
-      zolvaFee: { ...zolvaFee, amount: (amountOut - net).toString() },
+      zolvaFee: zolvaFee ? { ...zolvaFee, amount: (amountOut - net).toString() } : null,
     };
   }
   const allowance = owner ? await chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "allowance", args: [owner, SWAP_ROUTER_02] }) : null;
@@ -255,6 +283,7 @@ export async function walletHistory(chain: PublicClient, owner: Hex, tokens: Swa
 /** A token's hourly closes for the swap page chart: the last week, oldest first. */
 export async function tokenChart(db: SupabaseClient, address: Hex): Promise<{ startTs: number; closes: number[] } | null> {
   if (address === ZOLVA) return zolvaChart(db);
+  if (address === ETH_NATIVE) address = WETH;
   const market = await getMarket(db);
   const token = market.tokens.find((item) => item.address.toLowerCase() === address);
   if (!token) return null;
@@ -296,7 +325,7 @@ async function quoteZolvaSwap(chain: PublicClient, options: { tokenIn: SwapToken
     amountOut = leg.other === "usdg" ? await v3(WETH, USDG, ethOut) : ethOut;
   }
 
-  const balance = owner ? await chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) : null;
+  const balance = owner ? await balanceOfToken(chain, tokenIn, owner) : null;
   const approvals = await permit2Approvals(chain, tokenIn.address, owner);
   const zolvaFee = swapFeeFor(tokenIn, tokenOut);
   const net = afterFee(amountOut, zolvaFee);

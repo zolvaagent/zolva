@@ -27,7 +27,8 @@ export type PrivyHandle = {
    */
   exportWallet: (address: string) => Promise<void>;
   /** Sends a transaction from the embedded wallet on Robinhood Chain; Privy shows its own confirm window. */
-  sendTransaction: (address: string, to: string, data: `0x${string}`) => Promise<`0x${string}`>;
+  /** `value`: ETH sent along, in wei (native ETH swaps); none for plain contract calls. */
+  sendTransaction: (address: string, to: string, data: `0x${string}`, value?: bigint) => Promise<`0x${string}`>;
 };
 
 type PrivyIslandProps = {
@@ -108,8 +109,8 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
       exportWallet: async (address) => {
         await exportWallet({ address });
       },
-      sendTransaction: async (address, to, data) => {
-        const { hash } = await sendTransaction({ to, data, chainId: ROBINHOOD_CHAIN_ID }, { address });
+      sendTransaction: async (address, to, data, value) => {
+        const { hash } = await sendTransaction({ to, data, chainId: ROBINHOOD_CHAIN_ID, ...(value ? { value } : {}) }, { address });
         return hash;
       },
     });

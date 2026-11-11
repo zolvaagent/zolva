@@ -76,6 +76,8 @@ export type SwapToken = {
   verified?: boolean;
   /** "crypto" (ETH, BTC) or "stock" for listed markets; decides whether Zolva's swap fee applies. */
   assetClass?: "crypto" | "stock";
+  /** Native ETH (address ETH_NATIVE): sent along with the call, no approval; balance is the wallet's ETH. */
+  native?: boolean;
 };
 
 /**
@@ -130,7 +132,7 @@ export type SwapQuote = {
    * the token's approval of Permit2 and `permit2Allowance` what Permit2 lets the router take
    * (0 once expired); `wethUsdgFee` is the v3 WETH/USDG fee tier the call must use.
    */
-  route?: "v3" | "zolva" | "v3-fee";
+  route?: "v3" | "zolva" | "v3-fee" | "wrap";
   permit2Allowance?: string | null;
   wethUsdgFee?: number;
   /**

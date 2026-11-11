@@ -108,7 +108,7 @@ export function burnCall(burnAddress: string, raw: bigint): `0x${string}` {
  * Robinhood Chain first. Resolves with the hash; throws WalletError (empty message when the
  * user closed the prompt). `failure` is the message for anything else.
  */
-export async function sendFromBrowserWallet(to: string, data: `0x${string}`, failure: string): Promise<`0x${string}`> {
+export async function sendFromBrowserWallet(to: string, data: `0x${string}`, failure: string, value?: bigint): Promise<`0x${string}`> {
   const ethereum = window.ethereum;
   if (!ethereum) throw new WalletError("No wallet found in this browser.");
   try {
@@ -124,7 +124,8 @@ export async function sendFromBrowserWallet(to: string, data: `0x${string}`, fai
         params: [{ chainId, chainName: ROBINHOOD_CHAIN.name, nativeCurrency: ROBINHOOD_CHAIN.nativeCurrency, rpcUrls: ROBINHOOD_CHAIN.rpcUrls.default.http, blockExplorerUrls: [ROBINHOOD_CHAIN.blockExplorers.default.url] }],
       });
     }
-    return (await ethereum.request({ method: "eth_sendTransaction", params: [{ from, to, data }] })) as `0x${string}`;
+    // value: ETH sent along (native ETH swaps), as hex wei.
+    return (await ethereum.request({ method: "eth_sendTransaction", params: [{ from, to, data, ...(value ? { value: toHex(value) } : {}) }] })) as `0x${string}`;
   } catch (cause) {
     if (cause instanceof WalletError) throw cause;
     if ((cause as { code?: number }).code === 4001) throw new WalletError("");

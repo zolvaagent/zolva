@@ -54,12 +54,20 @@ export function poolId(key: typeof ZOLVA_POOL_KEY): Hex {
   return keccak256(encodeAbiParameters([{ type: "tuple", components: POOL_KEY_COMPONENTS }], [key]));
 }
 
-/** Which side of a swap ZOLVA is on, and what the other side is (USDG or WETH). */
-export type ZolvaLeg = { buy: boolean; other: "usdg" | "weth" };
+/**
+ * Native ETH in the swap list: the usual 0xEeee… stand-in address (it is not a contract). Native
+ * ETH is sent along with the router call (no approval) or paid out as ETH; WETH stays its own token.
+ */
+export const ETH_NATIVE = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+/** How the Universal Router names native ETH in its payment commands. */
+const ROUTER_ETH = NATIVE;
+
+/** Which side of a swap ZOLVA is on, and what the other side is (USDG, WETH or native ETH). */
+export type ZolvaLeg = { buy: boolean; other: "usdg" | "weth" | "eth" };
 
 /** The ZOLVA route for a pair, or null when the pair is not ZOLVA with USDG or ETH. */
 export function zolvaLeg(tokenIn: Hex, tokenOut: Hex): ZolvaLeg | null {
-  const other = (address: Hex) => (address === USDG ? "usdg" : address === WETH ? "weth" : null);
+  const other = (address: Hex) => (address === USDG ? "usdg" : address === WETH ? "weth" : address === ETH_NATIVE ? "eth" : null);
   if (tokenOut === ZOLVA && other(tokenIn)) return { buy: true, other: other(tokenIn)! };
   if (tokenIn === ZOLVA && other(tokenOut)) return { buy: false, other: other(tokenOut)! };
   return null;
@@ -224,15 +232,17 @@ export function zolvaSwapCall(options: { leg: ZolvaLeg; amountIn: bigint; minOut
   const fee = options.fee ?? null;
   const list = commandList();
   if (leg.buy) {
-    // The user's token comes into the router through Permit2 first. (A v3 swap with
-    // payerIsUser reverted in eth_call simulations on Robinhood Chain on 2026-11-11, while
-    // PERMIT2_TRANSFER_FROM and v3 swaps paid from the router's balance both went through.)
-    list.add(CMD.PERMIT2_TRANSFER_FROM, enc(PULL_INPUT, [leg.other === "usdg" ? USDG : WETH, ADDRESS_THIS, amountIn]));
-    if (leg.other === "usdg") {
-      // USDG to WETH on the v3 pool, paid from and kept in the router.
-      list.add(CMD.V3_SWAP_EXACT_IN, enc(V3_INPUT, [ADDRESS_THIS, CONTRACT_BALANCE, 0n, v3Path(USDG, options.wethUsdgFee, WETH), false]));
+    if (leg.other !== "eth") {
+      // The user's token comes into the router through Permit2 first. (A v3 swap with
+      // payerIsUser reverted in eth_call simulations on Robinhood Chain on 2026-11-11, while
+      // PERMIT2_TRANSFER_FROM and v3 swaps paid from the router's balance both went through.)
+      list.add(CMD.PERMIT2_TRANSFER_FROM, enc(PULL_INPUT, [leg.other === "usdg" ? USDG : WETH, ADDRESS_THIS, amountIn]));
+      if (leg.other === "usdg") {
+        // USDG to WETH on the v3 pool, paid from and kept in the router.
+        list.add(CMD.V3_SWAP_EXACT_IN, enc(V3_INPUT, [ADDRESS_THIS, CONTRACT_BALANCE, 0n, v3Path(USDG, options.wethUsdgFee, WETH), false]));
+      }
+      list.add(CMD.UNWRAP_WETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, 0n]));
     }
-    list.add(CMD.UNWRAP_WETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, 0n]));
     if (fee) {
       // ZOLVA lands in the router, the fee part is burnt, the rest goes to the user.
       list.add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut: 0n, takeTo: "router" }));
@@ -241,8 +251,12 @@ export function zolvaSwapCall(options: { leg: ZolvaLeg; amountIn: bigint; minOut
       list.add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut, takeTo: "user" }));
     }
   } else {
-    // ETH out of the Pons pool stays in the router, is wrapped, then sent on.
+    // ETH out of the Pons pool stays in the router; native ETH is paid out as it is.
     list.add(CMD.V4_SWAP, v4Swap({ buy: false, amountIn, minOut: 0n, takeTo: "router" }));
+    if (leg.other === "eth") {
+      payOut(list, ROUTER_ETH, fee, minOut);
+      return list.call(options.deadline);
+    }
     list.add(CMD.WRAP_ETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, CONTRACT_BALANCE]));
     if (leg.other === "usdg") {
       if (fee) {
@@ -259,13 +273,31 @@ export function zolvaSwapCall(options: { leg: ZolvaLeg; amountIn: bigint; minOut
 }
 
 /**
- * A v3 swap through the Universal Router with Zolva's fee (used for the fee-paying pairs that are
- * not ZOLVA: USDG, ETH and BTC with each other). `path` is the packed v3 path (one or two hops).
+ * A v3 swap through the Universal Router: the fee-paying pairs that are not ZOLVA (USDG, ETH and
+ * BTC with each other), and every swap with native ETH on one side (fee or not). `path` is the
+ * packed v3 path (one or two hops) with WETH standing in for native ETH. Native ETH in is sent
+ * along with the call and wrapped; native ETH out is unwrapped and paid as ETH.
  */
 export function v3FeeSwapCall(options: { tokenIn: Hex; tokenOut: Hex; path: Hex; amountIn: bigint; minOut: bigint; fee: SwapFee; deadline: number }): Hex {
   const list = commandList();
-  list.add(CMD.PERMIT2_TRANSFER_FROM, enc(PULL_INPUT, [options.tokenIn, ADDRESS_THIS, options.amountIn]));
+  if (options.tokenIn === ETH_NATIVE) list.add(CMD.WRAP_ETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, CONTRACT_BALANCE]));
+  else list.add(CMD.PERMIT2_TRANSFER_FROM, enc(PULL_INPUT, [options.tokenIn, ADDRESS_THIS, options.amountIn]));
   list.add(CMD.V3_SWAP_EXACT_IN, enc(V3_INPUT, [ADDRESS_THIS, CONTRACT_BALANCE, 0n, options.path, false]));
-  payOut(list, options.tokenOut, options.fee, options.minOut);
+  if (options.tokenOut === ETH_NATIVE) {
+    list.add(CMD.UNWRAP_WETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, 0n]));
+    payOut(list, ROUTER_ETH, options.fee, options.minOut);
+  } else {
+    payOut(list, options.tokenOut, options.fee, options.minOut);
+  }
   return list.call(options.deadline);
+}
+
+const WETH_ABI = [
+  { type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] },
+  { type: "function", name: "withdraw", stateMutability: "nonpayable", inputs: [{ name: "wad", type: "uint256" }], outputs: [] },
+] as const;
+
+/** ETH <-> WETH is wrapping, not a swap: WETH9.deposit (send the ETH along) or withdraw, 1:1, no fee. */
+export function wrapCall(direction: "wrap" | "unwrap", amount: bigint): Hex {
+  return direction === "wrap" ? encodeFunctionData({ abi: WETH_ABI, functionName: "deposit" }) : encodeFunctionData({ abi: WETH_ABI, functionName: "withdraw", args: [amount] });
 }

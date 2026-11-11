@@ -2,7 +2,7 @@ import { decodeAbiParameters, decodeFunctionData, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { USDG } from "./live/contracts";
-import { afterFee, DEAD, EXECUTE_ABI, PERMIT2_ABI, v3FeeSwapCall, PERMIT2_TTL_SECONDS, permit2ApproveCall, poolId, UNIVERSAL_ROUTER, WETH, ZOLVA, ZOLVA_POOL_ID, ZOLVA_POOL_KEY, zolvaLeg, zolvaSwapCall } from "./swap-zolva";
+import { afterFee, DEAD, ETH_NATIVE, EXECUTE_ABI, PERMIT2_ABI, v3FeeSwapCall, wrapCall, PERMIT2_TTL_SECONDS, permit2ApproveCall, poolId, UNIVERSAL_ROUTER, WETH, ZOLVA, ZOLVA_POOL_ID, ZOLVA_POOL_KEY, zolvaLeg, zolvaSwapCall } from "./swap-zolva";
 
 const decode = (data: Hex) => {
   const { args } = decodeFunctionData({ abi: EXECUTE_ABI, data });
@@ -120,5 +120,27 @@ describe("Zolva's swap fee", () => {
     expect(commands).toBe("0x02000604");
     const [, to, bips] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], inputs[2]);
     expect([to.toLowerCase(), bips]).toEqual([wallet, 25n]);
+  });
+});
+
+describe("native ETH", () => {
+  const base = { amountIn: 10n ** 15n, minOut: 7n, wethUsdgFee: 100, deadline: 1_800_000_000 };
+  it("buys ZOLVA with the ETH sent along: no pull, no unwrap, straight to the v4 swap", () => {
+    expect(decode(zolvaSwapCall({ ...base, leg: { buy: true, other: "eth" } })).commands).toBe("0x10");
+    expect(decode(zolvaSwapCall({ ...base, leg: { buy: true, other: "eth" }, fee: { bps: 25, to: DEAD } })).commands).toBe("0x100604");
+  });
+  it("sells ZOLVA for ETH paid out as ETH (router ETH is address zero)", () => {
+    const { commands, inputs } = decode(zolvaSwapCall({ ...base, leg: { buy: false, other: "eth" } }));
+    expect(commands).toBe("0x1004");
+    const [token, , minOut] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], inputs[1]);
+    expect([token, minOut]).toEqual(["0x0000000000000000000000000000000000000000", 7n]);
+  });
+  it("wraps ETH in and unwraps ETH out on v3 routes", () => {
+    expect(decode(v3FeeSwapCall({ tokenIn: ETH_NATIVE, tokenOut: USDG, path: "0x01", amountIn: 5n, minOut: 4n, fee: null, deadline: 1 })).commands).toBe("0x0b0004");
+    expect(decode(v3FeeSwapCall({ tokenIn: USDG, tokenOut: ETH_NATIVE, path: "0x01", amountIn: 5n, minOut: 4n, fee: null, deadline: 1 })).commands).toBe("0x02000c04");
+  });
+  it("wraps and unwraps 1:1 on WETH itself", () => {
+    expect(wrapCall("wrap", 5n)).toBe("0xd0e30db0");
+    expect(wrapCall("unwrap", 5n).slice(0, 10)).toBe("0x2e1a7d4d");
   });
 });

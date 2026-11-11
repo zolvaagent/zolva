@@ -9,6 +9,8 @@ import { STOCK_LOGOS } from "@/lib/stock-logos";
 const CRYPTO_ICONS: Record<string, { icon: string; background: string }> = {
   BTC: { icon: "ph-currency-btc", background: "#f7931a" },
   ETH: { icon: "ph-currency-eth", background: "#627eea" },
+  // Wrapped Ether in the swap list: the same coin, one shade darker so the two rows differ.
+  WETH: { icon: "ph-currency-eth", background: "#4a5fb8" },
 };
 
 /**
