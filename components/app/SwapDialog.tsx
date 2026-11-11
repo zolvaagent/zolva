@@ -80,8 +80,8 @@ function display(raw: string | bigint, decimals: number, digits = 6): string {
 
 /** USD value of a raw amount at the token's latest hourly close; null without one. */
 function usdValue(token: SwapToken | null, raw: string | bigint | null): number | null {
-  // ZOLVA's price is an hourly snapshot and moves a lot within the hour: no estimate beats a wrong one.
-  if (!token || raw === null || token.lastClose === null || token.verified) return null;
+  // ZOLVA and Pons tokens are priced from Pons' live price; the rest from the latest hourly close.
+  if (!token || raw === null || token.lastClose === null) return null;
   return (Number(raw) / 10 ** token.decimals) * token.lastClose;
 }
 
@@ -108,6 +108,8 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   // A pasted address: what the server found, GeckoTerminal's logo, and the token waiting for "I understand".
   const [lookup, setLookup] = useState<{ address: string; result: Lookup | null; error: string | null } | null>(null);
   const [gecko, setGecko] = useState<{ address: string; info: GeckoInfo } | null>(null);
+  // GeckoTerminal logos of imported tokens (address -> image URL), so they show their real logo.
+  const [logos, setLogos] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState<SwapToken | null>(null);
   const [understood, setUnderstood] = useState(false);
   // Quotes and the price warning are tied to the inputs they were made for, so changing an
@@ -176,6 +178,28 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   }, [picking, pasted, inList]);
 
   const tokens = listing?.tokens ?? [];
+
+  // Real logos for imported tokens (at most MAX_IMPORTED lookups, from the user's browser).
+  const importedKey = tokens
+    .filter((token) => token.listed === false)
+    .map((token) => token.address)
+    .join(",");
+  useEffect(() => {
+    if (!importedKey) return;
+    let cancelled = false;
+    for (const address of importedKey.split(",")) {
+      fetch(`https://api.geckoterminal.com/api/v2/networks/robinhood/tokens/${address}`)
+        .then((response) => (response.ok ? (response.json() as Promise<{ data?: { attributes?: { image_url?: string | null } } }>) : null))
+        .then((body) => {
+          const image = body?.data?.attributes?.image_url;
+          if (!cancelled && image && image.startsWith("https://") && !image.includes("missing")) setLogos((current) => ({ ...current, [address]: image }));
+        })
+        .catch(() => undefined);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [importedKey]);
   const tokenIn = tokens.find((token) => token.address === sellToken) ?? null;
   const tokenOut = tokens.find((token) => token.address === buyToken) ?? null;
   useEffect(() => {
@@ -395,7 +419,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
 
   const geckoFor = (address: string) => (gecko?.address === address ? gecko.info : null);
   const tokenLogo = (token: SwapToken, size: number) => {
-    const image = geckoFor(token.address)?.image;
+    const image = geckoFor(token.address)?.image ?? logos[token.address];
     // A remote logo of unknown size, shown small (a plain img, so no image host allowlist is needed).
     return image ? <img className="swapbox__logo" src={image} alt="" width={size} height={size} /> : <TickerAvatar symbol={token.symbol} size={size} />;
   };
@@ -447,7 +471,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
 
   const tokenButton = (token: SwapToken | null, side: "sell" | "buy") => (
     <button className="swapbox__token" type="button" onClick={() => setPicking(side)} disabled={locked || Boolean(busy)} aria-label={`${side === "sell" ? "Sell" : "Buy"} token: ${token?.symbol ?? "pick one"}`}>
-      {token ? <TickerAvatar symbol={token.symbol} size={28} /> : <span className="swapbox__token-empty" />}
+      {token ? tokenLogo(token, 28) : <span className="swapbox__token-empty" />}
       <strong>{token?.symbol ?? "Select"}</strong>
       {!locked && <i className="ph ph-caret-down" aria-hidden="true" />}
     </button>
@@ -675,7 +699,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
             {pickList.map(({ token, balance, value }) => (
               <li key={token.address}>
                 <button type="button" className="swapbox__item" onClick={() => pick(token.address)} aria-current={(picking === "sell" ? sellToken : buyToken) === token.address ? "true" : undefined}>
-                  <TickerAvatar symbol={token.symbol} size={36} />
+                  {tokenLogo(token, 36)}
                   <span className="swapbox__item-name">
                     <strong>
                       {token.symbol}

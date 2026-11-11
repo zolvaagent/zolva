@@ -16,10 +16,12 @@ const POOL_FEE_ABI = [{ type: "function", name: "fee", stateMutability: "view", 
  * latest hourly close, and $ZOLVA once launched (its Pons pool, priced from zolva_prices).
  */
 export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
-  const [{ data, error }, market, zolvaPrice] = await Promise.all([
+  const [{ data, error }, market, zolvaPrice, zolvaLive] = await Promise.all([
     db.from("tokens").select("address, symbol, name, token_decimals, price_pool, asset_class").eq("enabled", true).eq("pool_kind", "v3").order("symbol"),
     getMarket(db),
     db.from("zolva_prices").select("price").order("ts", { ascending: false }).limit(1).maybeSingle<{ price: number }>(),
+    // ZOLVA's price now from Pons; the hourly snapshot is the fallback.
+    env.zolvaToken?.address.toLowerCase() === ZOLVA ? ponsPriceUsd(ZOLVA) : Promise.resolve(null),
   ]);
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
   const closeOf = new Map(market.tokens.map((token) => [token.address.toLowerCase(), token.closes.at(-1) ?? null]));
@@ -43,7 +45,7 @@ export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
     })),
     // Only when the configured token is the one the Pons pool key was pinned for.
     ...(env.zolvaToken?.address.toLowerCase() === ZOLVA
-      ? [{ address: ZOLVA as Hex, symbol: "ZOLVA", name: "Zolva Agent", decimals: 18, pool: null, lastClose: zolvaPrice.data ? Number(zolvaPrice.data.price) : null, listed: true, verified: true }]
+      ? [{ address: ZOLVA as Hex, symbol: "ZOLVA", name: "Zolva Agent", decimals: 18, pool: null, lastClose: zolvaLive ?? (zolvaPrice.data ? Number(zolvaPrice.data.price) : null), listed: true, verified: true }]
       : []),
   ];
 }
@@ -88,7 +90,7 @@ export async function lookupToken(chain: PublicClient, address: Hex, listed: Swa
     .simulateContract({ address: V4_QUOTER, abi: V4_QUOTE_ABI, functionName: "quoteExactInputSingle", args: [{ poolKey: ponsPoolKey(lower), zeroForOne: true, exactAmount: 10n ** 14n, hookData: "0x" }] })
     .then((result) => result.result[0], () => 0n);
   if (ponsQuote > 0n) {
-    const token: SwapToken = { address: lower, symbol: symbol.slice(0, 16), name: name.slice(0, 48), decimals, pool: null, lastClose: null, listed: false, pons: true };
+    const token: SwapToken = { address: lower, symbol: symbol.slice(0, 16), name: name.slice(0, 48), decimals, pool: null, lastClose: await ponsPriceUsd(lower), listed: false, pons: true };
     return { kind: "token", token, routable: true, tradeUrl: official ? zolva.tradeUrl : null, official };
   }
 
@@ -105,6 +107,21 @@ export async function lookupToken(chain: PublicClient, address: Hex, listed: Swa
   const token: SwapToken = { address: lower, symbol: symbol.slice(0, 16), name: name.slice(0, 48), decimals, pool: best?.pool ?? null, lastClose: null, listed: false };
   // Zolva's own token is not an agent market, but it is not a stranger either.
   return { kind: "token", token, routable: best !== null, tradeUrl: official ? zolva.tradeUrl : null, official };
+}
+
+/**
+ * A Pons token's USD price now, from Pons' launch API (priceUsd; undocumented, like the candles),
+ * or null when Pons does not answer. Used for the dollar estimates in the swap card.
+ */
+export async function ponsPriceUsd(address: Hex): Promise<number | null> {
+  try {
+    const response = await fetch(`https://ponsfamily.com/api/launches/${address}`, { signal: AbortSignal.timeout(3000), headers: { accept: "application/json" } });
+    if (!response.ok) return null;
+    const price = Number(((await response.json()) as { priceUsd?: unknown }).priceUsd);
+    return Number.isFinite(price) && price > 0 ? price : null;
+  } catch {
+    return null;
+  }
 }
 
 /** What a wallet holds of every swap token (raw units, as strings), plus its ETH for gas (wei). */
