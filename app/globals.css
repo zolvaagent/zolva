@@ -7076,6 +7076,104 @@ button.text-link {
   font-size: 13px;
 }
 
+/* Pasted contract addresses: the looked-up token, its badges, and the import confirmation. */
+.swapbox__item:disabled {
+  cursor: default;
+}
+
+.swapbox__item:disabled:hover {
+  background: transparent;
+}
+
+.swapbox__badge {
+  display: inline-block;
+  margin-left: var(--space-75);
+  padding: 0 var(--space-75);
+  border-radius: 999px;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  vertical-align: 1px;
+}
+
+.swapbox__badge--warn {
+  background: var(--color-loss-soft);
+  color: var(--color-loss);
+}
+
+.swapbox__badge--official {
+  background: var(--color-purple-8);
+  color: var(--color-purple-rich);
+}
+
+.swapbox__badge--official i {
+  color: var(--color-gain);
+}
+
+.swapbox__logo {
+  flex: none;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.swapbox__found {
+  display: flex;
+  flex-direction: column;
+}
+
+.swapbox__noroute {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+  margin: 0 var(--space-100) var(--space-100);
+  padding: var(--space-200);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-subtle);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.swapbox__noroute-links,
+.swapbox__import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-100);
+}
+
+.swapbox__import {
+  gap: var(--space-200);
+}
+
+.swapbox__import-token {
+  display: flex;
+  align-items: center;
+  gap: var(--space-100);
+}
+
+.swapbox__import-address {
+  padding: var(--space-100) var(--space-200);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-subtle);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.swapbox__import-warning {
+  margin: 0;
+  padding: var(--space-200);
+  border-radius: var(--radius-lg);
+  background: var(--color-loss-soft);
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.swapbox__import-actions {
+  justify-content: flex-end;
+}
+
 /* /swap: the swap card with the bought token's chart and the wallet's latest transactions. */
 .swap-workspace {
   display: grid;

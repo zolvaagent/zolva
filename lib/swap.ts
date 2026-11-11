@@ -60,8 +60,34 @@ export const QUOTE_EXACT_INPUT_ABI = [
   },
 ] as const;
 
-/** A token the card can swap: an allowlisted market with a v3 USDG pool, or USDG itself. */
-export type SwapToken = { address: Hex; symbol: string; name: string; decimals: number; pool: Hex | null; lastClose: number | null };
+/**
+ * A token the card can swap: an allowlisted market with a v3 USDG pool, USDG itself, or a token
+ * the user imported by pasting its address (`listed: false`; its pool is found on chain).
+ */
+export type SwapToken = { address: Hex; symbol: string; name: string; decimals: number; pool: Hex | null; lastClose: number | null; listed?: boolean };
+
+/** Uniswap v3 factory on Robinhood Chain (SwapRouter02.factory()). */
+export const V3_FACTORY = "0x1f7d7550b1b028f7571e69a784071f0205fd2efa";
+/** The v3 fee tiers searched for an imported token's USDG pool (hundredths of a basis point). */
+export const V3_FEE_TIERS = [100, 500, 3000, 10000] as const;
+/** At most this many imported tokens are kept per browser and loaded with the list. */
+export const MAX_IMPORTED = 10;
+
+/** True when a search box holds a full contract address. */
+export function isAddressQuery(query: string): boolean {
+  return /^0x[0-9a-fA-F]{40}$/.test(query.trim());
+}
+
+/**
+ * The USDG pool to route an imported token through: of the v3 pools that exist, the one with
+ * the most in-range liquidity. Null when there is none, or every one is empty.
+ */
+export function pickPool(candidates: { pool: Hex; fee: number; liquidity: bigint }[]): { pool: Hex; fee: number } | null {
+  const live = candidates.filter((candidate) => candidate.liquidity > 0n);
+  if (!live.length) return null;
+  const best = live.reduce((a, b) => (b.liquidity > a.liquidity ? b : a));
+  return { pool: best.pool, fee: best.fee };
+}
 
 /** What /api/swap returns for a quote. */
 export type SwapQuote = {

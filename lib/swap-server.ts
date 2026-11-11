@@ -5,7 +5,7 @@ import { erc20Abi, type Hex, type PublicClient } from "viem";
 
 import { getMarket } from "@/lib/data/market";
 import { QUOTE_EXACT_INPUT_SINGLE_ABI, QUOTER_V2 } from "@/lib/live/contracts";
-import { isDirect, minimumOut, QUOTE_EXACT_INPUT_ABI, referenceRate, SWAP_ROUTER_02, swapPath, swapRate, USDG, USDG_DECIMALS, type SwapQuote, type SwapToken } from "@/lib/swap";
+import { isDirect, minimumOut, pickPool, QUOTE_EXACT_INPUT_ABI, referenceRate, SWAP_ROUTER_02, swapPath, swapRate, USDG, USDG_DECIMALS, V3_FACTORY, V3_FEE_TIERS, type SwapQuote, type SwapToken } from "@/lib/swap";
 
 const POOL_FEE_ABI = [{ type: "function", name: "fee", stateMutability: "view", inputs: [], outputs: [{ type: "uint24" }] }] as const;
 
@@ -18,7 +18,7 @@ export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
   const closeOf = new Map(market.tokens.map((token) => [token.address.toLowerCase(), token.closes.at(-1) ?? null]));
   return [
-    { address: USDG, symbol: "USDG", name: "Global Dollar", decimals: USDG_DECIMALS, pool: null, lastClose: 1 },
+    { address: USDG, symbol: "USDG", name: "Global Dollar", decimals: USDG_DECIMALS, pool: null, lastClose: 1, listed: true },
     ...data.map((row) => ({
       address: row.address.toLowerCase() as Hex,
       symbol: row.symbol,
@@ -26,8 +26,58 @@ export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
       decimals: Number(row.token_decimals),
       pool: row.price_pool.toLowerCase() as Hex,
       lastClose: closeOf.get(row.address.toLowerCase()) ?? null,
+      listed: true,
     })),
   ];
+}
+
+const FACTORY_GET_POOL_ABI = [
+  { type: "function", name: "getPool", stateMutability: "view", inputs: [{ type: "address" }, { type: "address" }, { type: "uint24" }], outputs: [{ type: "address" }] },
+] as const;
+const POOL_LIQUIDITY_ABI = [{ type: "function", name: "liquidity", stateMutability: "view", inputs: [], outputs: [{ type: "uint128" }] }] as const;
+const ZERO = "0x0000000000000000000000000000000000000000";
+
+/** What a pasted address turned out to be. */
+export type TokenLookup =
+  | { kind: "listed"; token: SwapToken }
+  | { kind: "token"; token: SwapToken; routable: boolean; tradeUrl: string | null; official: boolean }
+  | { kind: "not-token" };
+
+/**
+ * Resolves a pasted contract address. An allowlisted token comes back as it is. Anything else
+ * is read straight from chain (name, symbol, decimals; a contract without them is not a token),
+ * and its Uniswap v3 USDG pool is looked up on the factory across every fee tier, keeping the
+ * one with the most liquidity. Pools are always found here, never taken from the browser.
+ */
+export async function lookupToken(chain: PublicClient, address: Hex, listed: SwapToken[], zolva: { address: Hex | null; tradeUrl: string | null } = { address: null, tradeUrl: null }): Promise<TokenLookup> {
+  const lower = address.toLowerCase() as Hex;
+  const known = listed.find((token) => token.address === lower);
+  if (known) return { kind: "listed", token: known };
+
+  const read = <T,>(functionName: "name" | "symbol" | "decimals") => chain.readContract({ address: lower, abi: erc20Abi, functionName }) as Promise<T>;
+  let meta: [string, string, number];
+  try {
+    meta = await Promise.all([read<string>("name"), read<string>("symbol"), read<number>("decimals")]);
+  } catch {
+    return { kind: "not-token" };
+  }
+  const [name, symbol, decimals] = meta;
+  if (!symbol || decimals > 36) return { kind: "not-token" };
+
+  const candidates = await Promise.all(
+    V3_FEE_TIERS.map(async (fee) => {
+      const pool = (await chain.readContract({ address: V3_FACTORY, abi: FACTORY_GET_POOL_ABI, functionName: "getPool", args: [lower, USDG, fee] }).catch(() => ZERO)).toLowerCase() as Hex;
+      if (pool === ZERO) return null;
+      const liquidity = await chain.readContract({ address: pool, abi: POOL_LIQUIDITY_ABI, functionName: "liquidity" }).catch(() => 0n);
+      return { pool, fee, liquidity };
+    }),
+  );
+  const best = pickPool(candidates.filter((candidate) => candidate !== null));
+  // Names and symbols are free text set by whoever deployed the token: trim them for display.
+  const token: SwapToken = { address: lower, symbol: symbol.slice(0, 16), name: name.slice(0, 48), decimals, pool: best?.pool ?? null, lastClose: null, listed: false };
+  // Zolva's own token is not an agent market, but it is not a stranger either.
+  const official = zolva.address?.toLowerCase() === lower;
+  return { kind: "token", token, routable: best !== null, tradeUrl: official ? zolva.tradeUrl : null, official };
 }
 
 /** What a wallet holds of every swap token (raw units, as strings), plus its ETH for gas (wei). */

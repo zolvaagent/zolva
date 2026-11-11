@@ -8,7 +8,7 @@ import { useAuth } from "@/components/ui/Providers";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
 import { usd } from "@/lib/format";
-import { approveCall, DEFAULT_SLIPPAGE_BPS, isDirect, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
+import { approveCall, DEFAULT_SLIPPAGE_BPS, isAddressQuery, isDirect, MAX_IMPORTED, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
 import { hasInjectedWallet, sendFromBrowserWallet, WalletError } from "@/lib/wallet-client";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,6 +36,35 @@ type Props = {
 };
 
 type Listing = { tokens: SwapToken[]; balances: Record<string, string> | null; ethWei: string | null };
+
+/** What /api/swap?lookup= says about a pasted address. */
+type Lookup =
+  | { kind: "listed"; token: SwapToken; balance: string | null }
+  | { kind: "token"; token: SwapToken; routable: boolean; tradeUrl: string | null; official: boolean; balance: string | null }
+  | { kind: "not-token"; balance: null };
+
+/** GeckoTerminal's logo and USD price for a token, read by the browser (best effort). */
+type GeckoInfo = { image: string | null; priceUsd: number | null };
+
+/** Tokens this browser imported by address; kept per browser and only sent to /api/swap. */
+const IMPORTED_KEY = "zolva:swap-imported";
+function readImported(): string[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(IMPORTED_KEY) ?? "[]") as unknown;
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && isAddressQuery(item)).slice(0, MAX_IMPORTED) : [];
+  } catch {
+    return [];
+  }
+}
+function saveImported(addresses: string[]) {
+  try {
+    localStorage.setItem(IMPORTED_KEY, JSON.stringify(addresses.slice(-MAX_IMPORTED)));
+  } catch {
+    // Private windows can refuse storage; the import then lasts for this visit only.
+  }
+}
+
+const GECKO_TOKEN_URL = "https://www.geckoterminal.com/robinhood/tokens/";
 
 /** A raw token amount for display, at most `digits` decimals. */
 function display(raw: string | bigint, decimals: number, digits = 6): string {
@@ -70,6 +99,11 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   const [settings, setSettings] = useState(false);
   const [picking, setPicking] = useState<"sell" | "buy" | null>(null);
   const [search, setSearch] = useState("");
+  // A pasted address: what the server found, GeckoTerminal's logo, and the token waiting for "I understand".
+  const [lookup, setLookup] = useState<{ address: string; result: Lookup | null; error: string | null } | null>(null);
+  const [gecko, setGecko] = useState<{ address: string; info: GeckoInfo } | null>(null);
+  const [importing, setImporting] = useState<SwapToken | null>(null);
+  const [understood, setUnderstood] = useState(false);
   // Quotes and the price warning are tied to the inputs they were made for, so changing an
   // input drops them without resetting state in an effect.
   const [result, setResult] = useState<{ key: string; quote: SwapQuote | null; error: string | null } | null>(null);
@@ -89,7 +123,8 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
 
   useEffect(() => {
     if (!open) return;
-    fetch("/api/swap")
+    const imported = readImported();
+    fetch(imported.length ? `/api/swap?imported=${imported.join(",")}` : "/api/swap")
       .then((response) => (response.ok ? (response.json() as Promise<Listing>) : Promise.reject()))
       .then((body) => {
         setListing(body);
@@ -102,6 +137,37 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     if (picking) picker.current?.showModal();
     else picker.current?.close();
   }, [picking]);
+
+  // A full address that is not in the list is looked up on chain (and on GeckoTerminal for a logo).
+  const pasted = isAddressQuery(search) ? search.trim().toLowerCase() : null;
+  const inList = pasted !== null && (listing?.tokens ?? []).some((token) => token.address === pasted);
+  useEffect(() => {
+    if (!picking || !pasted || inList) return;
+    let cancelled = false;
+    const failed = { address: pasted, result: null, error: "Looking up that address failed. Try again." };
+    const timer = setTimeout(() => {
+      fetch(`/api/swap?lookup=${pasted}`)
+        .then(async (response) => {
+          const body = (await response.json().catch(() => ({}))) as Lookup & { error?: string };
+          if (!cancelled) setLookup(response.ok ? { address: pasted, result: body, error: null } : { ...failed, error: body.error ?? failed.error });
+        })
+        .catch(() => {
+          if (!cancelled) setLookup(failed);
+        });
+      fetch(`https://api.geckoterminal.com/api/v2/networks/robinhood/tokens/${pasted}`)
+        .then((response) => (response.ok ? (response.json() as Promise<{ data?: { attributes?: { image_url?: string | null; price_usd?: string | null } } }>) : null))
+        .then((body) => {
+          const attributes = body?.data?.attributes;
+          const image = attributes?.image_url && attributes.image_url.startsWith("https://") && !attributes.image_url.includes("missing") ? attributes.image_url : null;
+          if (!cancelled) setGecko({ address: pasted, info: { image, priceUsd: attributes?.price_usd ? Number(attributes.price_usd) : null } });
+        })
+        .catch(() => undefined);
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [picking, pasted, inList]);
 
   const tokens = listing?.tokens ?? [];
   const tokenIn = tokens.find((token) => token.address === sellToken) ?? null;
@@ -177,6 +243,23 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     }
     setPicking(null);
     setSearch("");
+    setImporting(null);
+    setUnderstood(false);
+  };
+
+  /** Adds a looked-up token to this browser's list, then picks it. */
+  const importToken = (token: SwapToken, balance: string | null) => {
+    saveImported([...readImported().filter((address) => address !== token.address), token.address]);
+    setListing((current) =>
+      current
+        ? {
+            ...current,
+            tokens: current.tokens.some((item) => item.address === token.address) ? current.tokens : [...current.tokens, token],
+            balances: current.balances ? { ...current.balances, [token.address]: balance ?? "0" } : null,
+          }
+        : current,
+    );
+    pick(token.address);
   };
 
   // Email and Google accounts sign in Privy's window; wallet logins in the browser wallet.
@@ -274,6 +357,58 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     .map((token) => ({ token, balance: balanceOf(token), value: usdValue(token, balanceOf(token)) }))
     // What the wallet holds first, by value; then the rest by symbol.
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || a.token.symbol.localeCompare(b.token.symbol));
+
+  const geckoFor = (address: string) => (gecko?.address === address ? gecko.info : null);
+  const tokenLogo = (token: SwapToken, size: number) => {
+    const image = geckoFor(token.address)?.image;
+    // A remote logo of unknown size, shown small (a plain img, so no image host allowlist is needed).
+    return image ? <img className="swapbox__logo" src={image} alt="" width={size} height={size} /> : <TickerAvatar symbol={token.symbol} size={size} />;
+  };
+
+  /** The row under the search box for a pasted address that is not in the list. */
+  const lookupRow = () => {
+    const found = lookup?.address === pasted ? lookup : null;
+    if (!found) return <li className="muted swapbox__empty">Looking up that address…</li>;
+    if (found.error) return <li className="field-error swapbox__empty">{found.error}</li>;
+    const result = found.result;
+    if (!result || result.kind === "not-token") return <li className="muted swapbox__empty">No token at that address on Robinhood Chain.</li>;
+    if (result.kind === "listed") return null;
+    const price = geckoFor(result.token.address)?.priceUsd ?? null;
+    return (
+      <li className="swapbox__found">
+        <button type="button" className="swapbox__item" disabled={!result.routable} onClick={() => setImporting(result.token)}>
+          {tokenLogo(result.token, 36)}
+          <span className="swapbox__item-name">
+            <strong>
+              {result.token.symbol}
+              {result.official ? <span className="swapbox__badge swapbox__badge--official"><i className="ph-fill ph-seal-check" aria-hidden="true" /> Verified</span> : <span className="swapbox__badge swapbox__badge--warn">Not on Zolva&apos;s list</span>}
+            </strong>
+            <span className="muted">
+              {result.token.name} · {result.token.address.slice(0, 6)}…{result.token.address.slice(-4)}
+            </span>
+          </span>
+          {price !== null && <span className="swapbox__item-balance muted">{price < 0.01 ? `$${price.toPrecision(3)}` : usd(price)}</span>}
+        </button>
+        {!result.routable && (
+          <div className="swapbox__noroute">
+            <p className="muted">
+              {result.official ? "$ZOLVA trades on Pons, not on a Uniswap v3 USDG pool, so it cannot be swapped here yet." : "No Uniswap v3 USDG pool for this token, so it cannot be swapped on Zolva yet."}
+            </p>
+            <div className="swapbox__noroute-links">
+              {result.tradeUrl && (
+                <a className="button button--primary button--small" href={result.tradeUrl} target="_blank" rel="noopener noreferrer">
+                  Trade on Pons <i className="ph ph-arrow-up-right" aria-hidden="true" />
+                </a>
+              )}
+              <a className="button button--ghost button--small" href={`${GECKO_TOKEN_URL}${result.token.address}`} target="_blank" rel="noopener noreferrer">
+                GeckoTerminal <i className="ph ph-arrow-up-right" aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+        )}
+      </li>
+    );
+  };
 
   const tokenButton = (token: SwapToken | null, side: "sell" | "buy") => (
     <button className="swapbox__token" type="button" onClick={() => setPicking(side)} disabled={locked || Boolean(busy)} aria-label={`${side === "sell" ? "Sell" : "Buy"} token: ${token?.symbol ?? "pick one"}`}>
@@ -383,6 +518,12 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
               {quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" + ")}
             </dd>
           </div>
+          {(tokenIn.listed === false || tokenOut.listed === false) && (
+            <div>
+              <dt>Note</dt>
+              <dd>{(tokenIn.listed === false ? tokenIn : tokenOut).symbol} is not on Zolva&apos;s list. Check the contract before you swap.</dd>
+            </div>
+          )}
         </dl>
       )}
 
@@ -437,7 +578,38 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
           if (event.target === picker.current) setPicking(null);
         }}
       >
-        <div className="modal__body">
+        {importing ? (
+          <div className="modal__body swapbox__import">
+            <h2 className="modal__title">Import {importing.symbol}?</h2>
+            <div className="swapbox__import-token">
+              {tokenLogo(importing, 44)}
+              <span className="swapbox__item-name">
+                <strong>{importing.symbol}</strong>
+                <span className="muted">{importing.name}</span>
+              </span>
+            </div>
+            <code className="swapbox__import-address">{importing.address}</code>
+            <a className="text-link" href={`${EXPLORER_URL}/token/${importing.address}`} target="_blank" rel="noopener noreferrer">
+              Check it on Blockscout <i className="ph ph-arrow-up-right" aria-hidden="true" />
+            </a>
+            <p className="swapbox__import-warning">
+              <i className="ph ph-warning" aria-hidden="true" /> This token is not on Zolva&apos;s list. Anyone can create a token with any name, including copies of real ones. Make sure this address is the one you meant.
+            </p>
+            <label className="check">
+              <input type="checkbox" checked={understood} onChange={(event) => setUnderstood(event.target.checked)} />
+              <span>I understand and checked the address</span>
+            </label>
+            <div className="swapbox__import-actions">
+              <button className="button button--ghost" type="button" onClick={() => setImporting(null)}>
+                Back
+              </button>
+              <button className="button button--primary" type="button" disabled={!understood} onClick={() => importToken(importing, lookup?.result?.kind === "token" ? lookup.result.balance : null)}>
+                Import
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="modal__body">
           <h2 className="modal__title">Select a token</h2>
           <label className="directory-search" style={{ width: "100%" }}>
             <span className="sr-only">Search tokens</span>
@@ -450,7 +622,10 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
                 <button type="button" className="swapbox__item" onClick={() => pick(token.address)} aria-current={(picking === "sell" ? sellToken : buyToken) === token.address ? "true" : undefined}>
                   <TickerAvatar symbol={token.symbol} size={36} />
                   <span className="swapbox__item-name">
-                    <strong>{token.symbol}</strong>
+                    <strong>
+                      {token.symbol}
+                      {token.listed === false && <span className="swapbox__badge">Imported</span>}
+                    </strong>
                     <span className="muted">{token.name}</span>
                   </span>
                   {balance !== null && BigInt(balance) > 0n && (
@@ -462,9 +637,11 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
                 </button>
               </li>
             ))}
-            {!pickList.length && <li className="muted swapbox__empty">No token matches. Only Zolva&apos;s allowlisted tokens can be swapped.</li>}
+            {!pickList.length && !pasted && <li className="muted swapbox__empty">No token matches. Paste a contract address to find any token.</li>}
+            {pasted && !inList && lookupRow()}
           </ul>
-        </div>
+          </div>
+        )}
       </dialog>
     </div>
   );

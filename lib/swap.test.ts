@@ -2,7 +2,31 @@ import { decodeFunctionData, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { ERC20_APPROVE_ABI, EXACT_INPUT_SINGLE_ABI } from "./live/contracts";
-import { approveCall, EXACT_INPUT_ABI, isDirect, minimumOut, referenceRate, SWAP_ROUTER_02, swapCall, swapPath, swapRate, USDG, type SwapToken } from "./swap";
+import { approveCall, EXACT_INPUT_ABI, isAddressQuery, isDirect, minimumOut, pickPool, referenceRate, SWAP_ROUTER_02, swapCall, swapPath, swapRate, USDG, type SwapToken } from "./swap";
+
+describe("isAddressQuery", () => {
+  it("accepts a full address, with spaces around it, in any case", () => {
+    expect(isAddressQuery("0x8e04549484d0612be8373a0263b11928a5f7681f")).toBe(true);
+    expect(isAddressQuery("  0x8E04549484D0612BE8373A0263B11928A5F7681F ")).toBe(true);
+  });
+  it("rejects names, short or long hex, and a pool id", () => {
+    expect(isAddressQuery("ZOLVA")).toBe(false);
+    expect(isAddressQuery("0x8e0454")).toBe(false);
+    expect(isAddressQuery(`0x${"a".repeat(64)}`)).toBe(false);
+  });
+});
+
+describe("pickPool", () => {
+  const pool = (n: number) => `0x${n.toString(16).padStart(40, "0")}` as Hex;
+  it("takes the pool with the most liquidity", () => {
+    expect(pickPool([{ pool: pool(1), fee: 500, liquidity: 10n }, { pool: pool(2), fee: 3000, liquidity: 900n }, { pool: pool(3), fee: 10000, liquidity: 50n }])).toEqual({ pool: pool(2), fee: 3000 });
+  });
+  it("skips empty pools and returns null when none has liquidity", () => {
+    expect(pickPool([{ pool: pool(1), fee: 100, liquidity: 0n }, { pool: pool(2), fee: 500, liquidity: 7n }])).toEqual({ pool: pool(2), fee: 500 });
+    expect(pickPool([{ pool: pool(1), fee: 100, liquidity: 0n }])).toBeNull();
+    expect(pickPool([])).toBeNull();
+  });
+});
 
 const usdg: SwapToken = { address: USDG, symbol: "USDG", name: "Global Dollar", decimals: 6, pool: null, lastClose: 1 };
 const eth: SwapToken = { address: "0x0bd7d308f8e1639fab988df18a8011f41eacad73", symbol: "ETH", name: "Ether", decimals: 18, pool: "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca", lastClose: 2200 };
