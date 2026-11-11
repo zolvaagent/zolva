@@ -2686,6 +2686,49 @@ main:focus {
   color: inherit;
 }
 
+/* Area colors: one hue per area at the same saturation and lightness, so they read as a set.
+   Chips carry a dot, the picked chip and each entry's label a soft tint of the same hue. */
+.devlog-area--agents { --area-h: 248; }
+.devlog-area--studio { --area-h: 285; }
+.devlog-area--markets { --area-h: 205; }
+.devlog-area--perps { --area-h: 175; }
+.devlog-area--real-money { --area-h: 145; }
+.devlog-area--swap { --area-h: 25; }
+.devlog-area--api-mcp { --area-h: 228; }
+.devlog-area--token { --area-h: 325; }
+.devlog-area--research { --area-h: 42; }
+.devlog-area--site { --area-h: 250; --area-s: 6%; }
+
+[class*="devlog-area--"] {
+  --area-tint: hsl(var(--area-h) var(--area-s, 70%) 95%);
+  --area-ink: hsl(var(--area-h) var(--area-s, 55%) 36%);
+  --area-dot: hsl(var(--area-h) var(--area-s, 65%) 55%);
+}
+
+:root[data-theme="dark"] [class*="devlog-area--"] {
+  --area-tint: hsl(var(--area-h) var(--area-s, 60%) 65% / 0.16);
+  --area-ink: hsl(var(--area-h) var(--area-s, 80%) 78%);
+  --area-dot: hsl(var(--area-h) var(--area-s, 70%) 65%);
+}
+
+.devlog-chip[class*="devlog-area--"]::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--area-dot);
+}
+
+.devlog-chip[class*="devlog-area--"][aria-pressed="true"] {
+  background: var(--area-tint);
+  color: var(--area-ink);
+}
+
+.devlog-entry__area[class*="devlog-area--"] {
+  background: var(--area-tint);
+  color: var(--area-ink);
+}
+
 /* Timeline: a rail down the left with a dot on each day; entries hang off the rail. */
 .devlog-day {
   position: relative;
@@ -3557,6 +3600,34 @@ main:focus {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-100);
+}
+
+/* Landing: the perps row under the token grid (Landing.tsx PerpGrid). */
+.perp-grid {
+  margin-top: var(--space-500);
+}
+
+.perp-grid__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-75);
+  margin-bottom: var(--space-200);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.perp-grid__label i {
+  color: var(--color-purple-rich);
+  font-size: 16px;
+}
+
+/* Two tiles a row on phones: keep the funding rate, drop the word. */
+@media (max-width: 480px) {
+  .perp-grid__word {
+    display: none;
+  }
 }
 
 @media (min-width: 768px) {
@@ -5729,7 +5800,8 @@ button.text-link {
 .next-mode__option--on,
 .next-tabs .next-tabs__on {
   background: #fff;
-  color: var(--color-text);
+  /* The pill is white in both themes, so its text stays dark (theme text turns light in dark mode). */
+  color: var(--color-ink-fixed);
   font-weight: 600;
   box-shadow: 0 6px 16px -6px rgba(128, 117, 255, 0.6);
 }

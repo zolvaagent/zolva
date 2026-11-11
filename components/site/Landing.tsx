@@ -7,14 +7,19 @@ import { LineChart } from "@/components/ui/LineChart";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { Odometer, Tagline, Words } from "@/components/ui/Words";
 import type { AgentSummary, DecisionEvent } from "@/lib/data/agents";
-import type { Market } from "@/lib/data/market";
+import type { Market, MarketToken } from "@/lib/data/market";
 import type { Backtest } from "@/lib/data/showcase";
 import type { Decision } from "@/lib/engine/engine";
 import { LIVE_PROOF_HREF } from "@/lib/chain";
-import { dateAt, dayAt, marketList, percent, points, price, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
+import { dateAt, dayAt, fundingYearly, marketList, percent, points, price, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
+
+/** Hourly funding times this is the yearly rate shown on perp tiles (same as lib/data/markets.ts). */
+const HOURS_PER_YEAR = 24 * 365;
 
 type Props = {
   market: Market;
+  /** Lighter perps (paper only), shown in their own row under the token grid. */
+  perps: MarketToken[];
   backtests: Backtest[];
   agents: AgentSummary[];
   feed: DecisionEvent[];
@@ -36,7 +41,7 @@ const FAQ = [
   ["Who can use Zolva?", "Anyone outside the United States and sanctioned countries. Stock tokens are not offered to US persons."],
 ];
 
-export function Landing({ market, backtests, agents, feed, ca }: Props) {
+export function Landing({ market, perps, backtests, agents, feed, ca }: Props) {
   const ranked = [...backtests].sort((a, b) => b.result.returnPct - a.result.returnPct);
   const top = ranked[0];
   // The hero phones open on wins: agents up over 30 days first, then those furthest ahead of holding.
@@ -154,10 +159,12 @@ export function Landing({ market, backtests, agents, feed, ca }: Props) {
               <Words className="section-heading__title" text="Every big name," highlight="around the clock." />
               <p className="section-heading__lead reveal">
                 {stockCount} US stocks and ETFs, plus ETH and BTC, on Robinhood Chain. They keep trading at night and on weekends, and so can your agent.
+                {perps.length > 0 && ` Agents can also trade ${perps.length} perps on Lighter, long or short, on paper.`}
               </p>
             </div>
           </div>
           <StockGrid market={market} />
+          {perps.length > 0 && <PerpGrid perps={perps} hours={market.hours} />}
         </div>
       </section>
 
@@ -298,11 +305,11 @@ export function Landing({ market, backtests, agents, feed, ca }: Props) {
             <span className="label">Roadmap</span>
             <Words className="section-heading__title" text="What's" highlight="next." />
             <p className="section-heading__lead reveal">
-              Live today: paper trading, crypto markets and real money trading on chain. Planned: the agent launchpad. Every claim we can check is on{" "}
+              Live today: paper trading, crypto markets, perps on paper and real money trading on chain. Planned: the agent launchpad. Every claim we can check is on{" "}
               <Link href="/docs/verify">Verify Zolva</Link>.
             </p>
           </div>
-          <WhatsNext />
+          <WhatsNext perpCount={perps.length} />
         </div>
       </section>
 
@@ -687,6 +694,52 @@ function StockGrid({ market }: { market: Market }) {
   );
 }
 
+/** Lighter perps under the token grid: price, 24h move, 7 day line and funding. Paper only, so they link to their market page, not the Studio. */
+function PerpGrid({ perps, hours }: { perps: MarketToken[]; hours: number }) {
+  const last = hours - 1;
+  const live = perps.filter((token) => token.closes[last] != null);
+  if (!live.length) return null;
+  return (
+    <div className="perp-grid">
+      <p className="perp-grid__label reveal">
+        <i className="ph ph-arrows-down-up" aria-hidden="true" /> Perps on Lighter · long or short · paper
+      </p>
+      <div className="stock-grid">
+        {live.map((token) => {
+          const now = token.closes[last]!;
+          const dayAgo = token.closes[Math.max(token.firstIndex ?? 0, last - 24)] ?? now;
+          const change = (now / dayAgo - 1) * 100;
+          const week = token.closes.slice(Math.max(token.firstIndex ?? 0, last - 7 * 24)).filter((value): value is number => value != null);
+          const color = week[week.length - 1] >= week[0] ? "var(--color-gain)" : "var(--color-loss)";
+          const funding = token.funding?.filter((rate): rate is number => rate != null).at(-1);
+          return (
+            <Link key={token.address} className="stock-tile reveal" href={`/markets/${token.symbol}`} title={`${token.name} perp: price and funding`}>
+              <span className="stock-tile__head">
+                <TickerAvatar symbol={token.symbol} />
+                <span>
+                  {/* The row label already says perps, so the tile shows the underlying (BTC, not BTC-PERP). */}
+                  <strong>{token.symbol.replace(/-PERP$/, "")}</strong>
+                  <span className="stock-tile__name">
+                    <span className="perp-grid__word">Funding </span>
+                    {fundingYearly(funding === undefined ? null : funding * HOURS_PER_YEAR)}
+                  </span>
+                </span>
+              </span>
+              <svg viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">
+                <polyline points={sparkline(week, 40, 3)} fill="none" stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
+              </svg>
+              <span className="stock-tile__price">
+                {price(now)}
+                <small className={tone(change)}>{percent(change)}</small>
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Feed({ feed, backtests }: { feed: DecisionEvent[]; backtests: Backtest[] }) {
   type Item = { key: string; agent: string; ts: number; action: Decision["action"]; symbol: string; reasoning: string; backtest: boolean };
   let items: Item[] = feed.map((event, i) => ({ key: `live-${i}`, agent: event.agentName, ts: event.ts, action: event.action, symbol: event.symbol, reasoning: event.reasoning, backtest: false }));
@@ -872,7 +925,7 @@ function SoonBadge({ label = "Coming soon" }: { label?: string }) {
 }
 
 /** Upcoming features, each with a small preview of how it will look. Crypto markets went live on 2026-10-24; real money has been in testing with Zolva's own wallet since 2026-10-28. */
-function WhatsNext() {
+function WhatsNext({ perpCount }: { perpCount: number }) {
   return (
     <div className="next-grid">
       <article className="next-card next-card--featured reveal">
@@ -994,7 +1047,7 @@ function WhatsNext() {
           {[
             ["currency-eth", "Ether", "M2 22 L12 16 L22 19 L32 10 L42 13 L52 6 L62 9"],
             ["currency-btc", "Bitcoin", "M2 18 L12 20 L22 12 L32 15 L42 8 L52 11 L62 5"],
-            ["coins", "More tokens", "M2 14 L12 18 L22 15 L32 19 L42 12 L52 14 L62 8"],
+            ["arrows-down-up", "Perps · long or short", "M2 8 L12 12 L22 9 L32 16 L42 13 L52 19 L62 15"],
           ].map(([icon, name, line]) => (
             <div className="next-coin" key={name}>
               <span className="next-coin__icon">
@@ -1011,11 +1064,11 @@ function WhatsNext() {
         <div className="next-card__body">
           <SoonBadge label="Live now" />
           <h3>Crypto markets</h3>
-          <p>ETH and BTC on Robinhood Chain, priced every hour from onchain pools and checked against Chainlink. Mix them with stocks in one agent.</p>
+          <p>ETH and BTC on Robinhood Chain, priced every hour from onchain pools and checked against Chainlink. Mix them with stocks in one agent, or trade perps to go short too.</p>
         </div>
         <div className="next-card__foot">
           <i className="ph ph-hourglass-medium" />
-          Next: more coins once their pools are deep enough
+          Now: {perpCount} perps on Lighter, long or short, on paper
         </div>
       </article>
     </div>

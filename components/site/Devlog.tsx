@@ -12,6 +12,9 @@ const RECENT_DAYS = 14;
 /** Bodies longer than this are cut to two lines with a More button. */
 const CLAMP_CHARS = 180;
 
+/** "API & MCP" -> "api-mcp": picks the area color in CSS (.devlog-area--*). */
+const areaKey = (area: DevlogArea) => area.toLowerCase().replace(/[^a-z]+/g, "-");
+
 const daysBefore = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10);
 
 /**
@@ -103,7 +106,7 @@ export function DevlogList({ entries }: { entries: DevlogEntry[] }) {
           All <span>{entries.length}</span>
         </button>
         {DEVLOG_AREAS.filter((item) => counts.has(item)).map((item) => (
-          <button key={item} className="devlog-chip" type="button" aria-pressed={area === item} onClick={() => pick(item)}>
+          <button key={item} className={`devlog-chip devlog-area--${areaKey(item)}`} type="button" aria-pressed={area === item} onClick={() => pick(item)}>
             {item} <span>{counts.get(item)}</span>
           </button>
         ))}
@@ -120,7 +123,7 @@ export function DevlogList({ entries }: { entries: DevlogEntry[] }) {
             return (
               <article key={entry.id} className="devlog-entry" id={entry.id}>
                 <div className="devlog-entry__head">
-                  <span className="devlog-entry__area">{entry.area}</span>
+                  <span className={`devlog-entry__area devlog-area--${areaKey(entry.area)}`}>{entry.area}</span>
                   <h3 className="devlog-entry__title">{entry.title}</h3>
                   <button
                     className="devlog-entry__link"
