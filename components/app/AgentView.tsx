@@ -27,6 +27,7 @@ import {
   points,
   price,
   shortAddress,
+  signedUsd,
   STRATEGY_NAMES,
   tone,
   usd,
@@ -1104,6 +1105,7 @@ export function AgentView({
                       const short = position.side === "short";
                       // A short gains when the price falls; it is worth the cash it locked plus that gain.
                       const change = (short ? 1 - now / position.entryPrice : now / position.entryPrice - 1) * 100;
+                      const pnlUsd = (short ? position.entryPrice - now : now - position.entryPrice) * position.quantity;
                       return (
                         <tr key={position.token}>
                           <td>
@@ -1112,8 +1114,10 @@ export function AgentView({
                           </td>
                           <td className="num">{price(position.entryPrice)}</td>
                           <td className="num">{price(now)}</td>
+                          {/* Dollars first, percent below in smaller type, so the table does not get wider. */}
                           <td className={`num ${tone(change)}`}>
-                            {percent(change)}
+                            {signedUsd(pnlUsd)}
+                            <div style={{ fontSize: 12, lineHeight: "16px", opacity: 0.75 }}>{percent(change)}</div>
                           </td>
                           <td className="num">
                             {usd(short ? position.quantity * (2 * position.entryPrice - now) : position.quantity * now)}

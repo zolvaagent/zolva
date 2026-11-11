@@ -6,6 +6,13 @@ const dayFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numer
 
 export const usd = (value: number) => usdFormat.format(value);
 
+/** Profit or loss in dollars: "+$67.55", "−$12.30" (true minus sign), "$0.00". */
+export function signedUsd(value: number): string {
+  const fixed = usdFormat.format(Math.abs(value));
+  if (fixed === "$0.00") return fixed;
+  return `${value > 0 ? "+" : "−"}${fixed}`;
+}
+
 /** Token price: cents above $10, four significant digits below. */
 export const price = (value: number) => (value >= 10 ? usd(value) : `$${value.toPrecision(4)}`);
 
