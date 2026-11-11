@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Terms" };
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms" updated="November 10, 2026">
+    <LegalPage title="Terms" updated="November 11, 2026">
       <h2>Paper trading</h2>
       <p>Paper agents trade virtual money at real Robinhood Chain prices. No funds move and nothing you see is a real order. Nothing on Zolva is investment advice, and backtests do not predict future results.</p>
       <h2>Real money trading</h2>
@@ -15,6 +15,10 @@ export default function TermsPage() {
       </p>
       <p>
         Trading can lose some or all of the money you put in. Prices move between hourly checks, so a stop loss can fill well below its level. Swaps can fill worse than quoted, pools can be thin, and the chain, Uniswap, our servers or our price data can fail or pause, so an agent may miss hours or trades. Gas is paid from your wallet. Each real money agent is capped (currently $100 of capital and $300 of trading a day) and you can run one at a time. You decide whether to use real money, and you are responsible for that choice and for any taxes.
+      </p>
+      <h2>Swaps</h2>
+      <p>
+        The Swap page prepares transactions that you sign from your own wallet; Zolva never holds your tokens. Swaps between USDG, ETH, BTC and ZOLVA carry a 0.25% Zolva fee, shown before you sign: on ZOLVA purchases it is burnt in the same transaction, otherwise it is used to buy back and burn ZOLVA. Swaps with stock tokens or with tokens you import by address carry no Zolva fee. Pools charge their own fees (ZOLVA&apos;s Pons pool about 3%). Tokens you import are not checked by Zolva.
       </p>
       <h2>Who may use Zolva</h2>
       <p>

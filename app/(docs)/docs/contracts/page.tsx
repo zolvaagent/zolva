@@ -7,6 +7,7 @@ import { EXPLORER_URL, LIVE_TRADING_WALLET } from "@/lib/chain";
 import { docPage } from "@/lib/docs";
 import { env } from "@/lib/env";
 import { QUOTER_V2, SWAP_ROUTER_02, USDG } from "@/lib/live/contracts";
+import { PERMIT2, UNIVERSAL_ROUTER, V4_QUOTER, ZOLVA_POOL_KEY } from "@/lib/swap-zolva";
 import { X_HANDLE } from "@/lib/social";
 import { BURN_ADDRESS } from "@/lib/zolva-topup";
 import { zolvaTokenCard } from "@/lib/zolva-token";
@@ -59,12 +60,17 @@ export default function Contracts() {
     ...(x402PayTo ? [{ name: "Payments received", address: x402PayTo, note: "Receives USDG for Premium API calls (x402)." }] : []),
     ...(creditsPayTo && creditsPayTo !== x402PayTo ? [{ name: "Credit top-ups received", address: creditsPayTo, note: "Receives USDG paid for AI credits." }] : []),
     ...(relayer ? [{ name: "x402 relayer", address: relayer.address, note: "Settles x402 payments and pays their gas. It can only move USDG to the payments address." }] : []),
-    { name: "Burn address", address: BURN_ADDRESS, note: "ZOLVA paid for AI credits is sent here and can never move again." },
+    ...(env.swapFee?.recipient ? [{ name: "Swap fee wallet", address: env.swapFee.recipient, note: "Collects the 0.25% swap fee and uses it to buy back and burn ZOLVA (log: docs/zolva-burns.md on GitHub)." }] : []),
+    { name: "Burn address", address: BURN_ADDRESS, note: "ZOLVA paid for AI credits, the swap fee on ZOLVA buys and every buyback are sent here and can never move again." },
   ];
   const protocols: Row[] = [
     { name: "USDG", address: USDG, note: "The dollar stablecoin agents, payments and top-ups use." },
     { name: "Uniswap SwapRouter02", address: SWAP_ROUTER_02, note: "Executes the live agent's trades and swaps on /swap." },
     { name: "Uniswap QuoterV2", address: QUOTER_V2, note: "Prices a trade before it is sent." },
+    { name: "Uniswap Universal Router", address: UNIVERSAL_ROUTER, note: "Executes swaps on /swap that carry the Zolva fee, and every ZOLVA swap." },
+    { name: "Uniswap V4Quoter", address: V4_QUOTER, note: "Prices ZOLVA swaps on its Pons pool." },
+    { name: "Permit2", address: PERMIT2, note: "Uniswap's approval contract: lets the Universal Router take exactly the amount of a swap you sign." },
+    { name: "Pons pool hook (ZOLVA)", address: ZOLVA_POOL_KEY.hooks, note: "The hook on ZOLVA's Uniswap v4 pool, where Pons takes its trading fee." },
   ];
 
   return (
