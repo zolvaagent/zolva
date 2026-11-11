@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { RealMoneyPill } from "@/components/app/AgentKind";
+import { copyBlock } from "@/lib/agents/copy";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
@@ -124,6 +126,8 @@ export function AgentView({
   };
   const isPublished = agent.published_at !== null;
   const isLive = agent.mode === "live";
+  // "Copy to Studio" when the Studio can rebuild this agent, otherwise the reason it can't.
+  const copyReason = copyBlock({ ...summary, live: isLive, published: agent.published_at !== null });
   const isActive = agent.status === "active";
   const minutesToNextRun = 60 - new Date().getUTCMinutes();
   const symbolOf = (token: string) => symbols[token] ?? token;
@@ -279,12 +283,7 @@ export function AgentView({
               Paused
             </span>
           )}
-          {isLive && (
-            <span className="pill pill--live" title="This agent swaps real tokens from its wallet on Robinhood Chain">
-              <i className="ph-fill ph-lightning" aria-hidden="true" />
-              Live · real money
-            </span>
-          )}
+          {isLive && <RealMoneyPill />}
           {agent.params.venue === "perps" && (
             <span className="pill pill--accent" title="Paper trades on Lighter perps (Robinhood Chain): 0.05% per trade plus hourly funding, no leverage">
               Perps · paper
@@ -312,6 +311,16 @@ export function AgentView({
         </div>
       </div>
       <div className="hero__actions">
+        {copyReason === null ? (
+          <Link className="button button--ghost" href={`/studio?from=${agent.id}`}>
+            <i className="ph ph-copy" aria-hidden="true" />
+            Copy to Studio
+          </Link>
+        ) : (
+          <span className="hero__note muted" title={copyReason}>
+            <i className="ph ph-copy" aria-hidden="true" /> {copyReason}
+          </span>
+        )}
         {isOwner && !isLive && (
           <button
             className="button button--ghost"

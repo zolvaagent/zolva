@@ -1,5 +1,9 @@
 import "server-only";
 
+import { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES } from "@/lib/agents/copy";
+
+export { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES };
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isHouseOwner } from "@/lib/agents/house";
@@ -35,6 +39,8 @@ export type AgentSummary = {
   venue: AgentVenue;
   /** Opens short positions (Spike fade). */
   shorts: boolean;
+  /** Trades real money from a wallet on Robinhood Chain (mode live). */
+  live: boolean;
 };
 
 export type AgentVenue = "spot" | "perps";
@@ -65,6 +71,7 @@ type StatsRow = {
   created_at: string;
   last_ts: string | null;
   published_at: string | null;
+  mode: "paper" | "live";
 };
 
 async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentSummary[]> {
@@ -96,11 +103,12 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
       // An agent trades one venue only (agents_venue_guard), so one perp means a perps agent.
       venue: tokens.some((token) => isPerpSymbol(token.symbol)) ? "perps" : "spot",
       shorts: row.strategy === "spike_fade",
+      live: row.mode === "live",
     };
   });
 }
 
-const STATS_COLUMNS = "id, owner, name, strategy, status, token_addresses, start_capital, equity, hold_equity, runs, max_drawdown, trades, created_at, last_ts, published_at";
+const STATS_COLUMNS = "id, owner, name, strategy, status, token_addresses, start_capital, equity, hold_equity, runs, max_drawdown, trades, created_at, last_ts, published_at, mode";
 
 /** Every published paper agent (active and paused), newest first. Private agents only show to their owner. */
 export async function listAgents(db: SupabaseClient): Promise<AgentSummary[]> {
@@ -268,10 +276,6 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
   };
 }
 
-/** Strategies the Studio can build; only agents on these can be copied into it. */
-export const STUDIO_STRATEGIES = ["momentum", "mean_reversion", "custom"] as const;
-/** The Studio holds at most this many markets per agent. */
-export const STUDIO_MAX_MARKETS = 3;
 
 export type AgentCard = {
   summary: AgentSummary;
@@ -282,9 +286,10 @@ export type AgentCard = {
   lastTrade: { ts: number; symbol: string; side: "buy" | "sell" | "short" | "cover" } | null;
   /** Equity over the last 7 days, oldest first. */
   curve: number[];
-  /** The Studio can rebuild this agent from its settings ("Use these rules"). */
+  /** The Studio can rebuild this agent from its settings ("Copy to Studio"). */
   copyable: boolean;
 };
+
 
 /** Every active published paper agent with what it holds and its latest reasoning, for /agents. */
 export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
@@ -335,13 +340,12 @@ export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
       latest: run && decision ? { ts: run.ts, symbol: symbolOf.get(decision.token) ?? "?", action: decision.action, reasoning: decision.reasoning } : null,
       lastTrade: lastTradeOf.get(summary.id) ?? null,
       curve: curves.get(summary.id) ?? [],
-      // The Studio builds spot agents only.
-      copyable: summary.venue === "spot" && (STUDIO_STRATEGIES as readonly string[]).includes(summary.strategy) && summary.tokens.length <= STUDIO_MAX_MARKETS,
+      copyable: copyBlock(summary) === null,
     };
   });
 }
 
-/** A published agent's settings for the Studio's "Use these rules"; null if it cannot be copied. */
+/** A published agent's settings for the Studio's "Copy to Studio"; null if it cannot be copied. */
 export async function getAgentTemplate(db: SupabaseClient, id: string): Promise<{ name: string; strategy: (typeof STUDIO_STRATEGIES)[number]; rules: unknown; symbols: string[]; maxPositionPct: number; stopLossPct: number } | null> {
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db.from("agents").select("name, strategy, params, token_addresses, published_at, mode").eq("id", id).maybeSingle();

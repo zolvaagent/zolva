@@ -6694,6 +6694,28 @@ button.text-link {
   margin: 0;
 }
 
+/* Real money agent label: a green dot, so it reads as "this one is live" at a glance. */
+.pill--real {
+  background: var(--color-gain-soft);
+  color: var(--color-gain);
+  font-weight: 600;
+}
+
+.pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* Agent page: why an agent can't be copied, in place of the Copy to Studio button. */
+.hero__note {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-50);
+  font-size: 13px;
+}
+
 /* Live (real money) agent badge. */
 .pill--live {
   background: var(--color-loss-soft);

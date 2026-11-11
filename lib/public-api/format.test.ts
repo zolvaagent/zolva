@@ -31,6 +31,7 @@ const summary: AgentSummary = {
   runs: 200,
   venue: "spot",
   shorts: false,
+  live: false,
   createdAt: NOW - 200 * HOUR,
   lastTs: NOW - HOUR,
   published: true,

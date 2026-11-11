@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { RealMoneyPill } from "@/components/app/AgentKind";
 import { DecisionRow } from "@/components/app/AgentView";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { MembershipCard } from "@/components/app/MembershipCard";
@@ -112,6 +113,7 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
                           Paused
                         </span>
                       )}
+                      {agent.live && <RealMoneyPill />}
                       <span className="pill">
                         <i className={`ph ${agent.published ? "ph-globe-simple" : "ph-lock-simple"}`} aria-hidden="true" />
                         {agent.published ? "On leaderboard" : "Private"}

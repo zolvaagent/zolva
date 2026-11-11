@@ -181,7 +181,7 @@ function DirectoryCard({ card }: { card: AgentCard }) {
         <span className="directory-card__actions">
           {card.copyable && (
             <Link className="button button--small" href={`/studio?from=${summary.id}`}>
-              Use these rules
+              Copy to Studio
             </Link>
           )}
           <Link className="button button--small button--primary" href={`/agents/${summary.id}`}>
