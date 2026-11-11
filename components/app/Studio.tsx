@@ -217,6 +217,8 @@ export function Studio({
                 </span>
                 <span className="choice__title">
                   Real money
+                  {/* The per agent cap from live settings; 100 until LiveSetup has loaded them. */}
+                  <span className="pill pill--accent">Up to ${Math.round(liveStatus?.maxCapitalUsd ?? 100)}</span>
                 </span>
                 <span className="choice__text">Your agent trades USDG from your own wallet on Uniswap, within limits, and you can stop it any time.</span>
               </label>
