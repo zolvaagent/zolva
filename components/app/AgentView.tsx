@@ -794,10 +794,18 @@ export function AgentView({
 
   const visible = runs.slice(Math.max(0, runs.length - RANGES[range]));
   const lastRun = runs[runs.length - 1];
+  // Gain or loss on open positions at the latest price; a short gains when the price falls.
+  const unrealizedUsd = positions.reduce((sum, position) => {
+    const now = prices[position.token] ?? position.entryPrice;
+    return sum + (position.side === "short" ? position.entryPrice - now : now - position.entryPrice) * position.quantity;
+  }, 0);
+  // The newest hour always leads the log, even when every market held; it replaced the
+  // separate "Latest decision" card.
   const logRuns = [...runs]
     .reverse()
     .filter(
-      (run) =>
+      (run, index) =>
+        index === 0 ||
         showHolds ||
         !summary.trades ||
         run.decisions.some((decision) => decision.action !== "hold"),
@@ -891,6 +899,7 @@ export function AgentView({
                   <span className="log-run__time">
                     {dateAt(run.ts)}
                     {isMarketHours(run.ts) ? "" : " · DEX hours"}
+                    {run.ts === lastRun.ts && <span className="pill pill--accent" style={{ marginLeft: 8 }}>Latest</span>}
                   </span>
                   {run.decisions.map((decision, i) => (
                     <DecisionRow
@@ -1056,26 +1065,6 @@ export function AgentView({
         </div>
 
         <div className="stack">
-          <div className="card stack stack--tight">
-            <h2 className="card__title">Latest decision</h2>
-            <span
-              className="muted"
-              style={{ fontSize: 12, lineHeight: "16px" }}
-            >
-              {dateAt(lastRun.ts)}
-            </span>
-            <ScrollArea label="Latest decision per market" className="log-scroll--short stack stack--tight">
-              {lastRun.decisions.map((decision, i) => (
-                <DecisionRow
-                  key={i}
-                  symbol={symbolOf(decision.token)}
-                  action={decision.action}
-                  reasoning={decision.reasoning}
-                  ai={decision.ai}
-                />
-              ))}
-            </ScrollArea>
-          </div>
           <div className="card">
             <div className="card-head">
               <h2 className="card__title">Holdings</h2>
@@ -1083,17 +1072,22 @@ export function AgentView({
                 className="mono muted"
                 style={{ fontSize: 14, lineHeight: "20px" }}
               >
+                {positions.length > 0 && (
+                  <>
+                    Unrealized <span className={tone(unrealizedUsd)}>{signedUsd(unrealizedUsd)}</span>
+                    {" · "}
+                  </>
+                )}
                 Cash {usd(lastRun.cash)}
               </span>
             </div>
             {positions.length ? (
               <div className="table-wrap">
-                <table className="table">
+                <table className="table table--compact">
                   <thead>
                     <tr>
                       <th>Stock</th>
-                      <th className="num">Entry</th>
-                      <th className="num">Now</th>
+                      <th className="num">Price</th>
                       <th className="num">P&amp;L</th>
                       <th className="num">Value</th>
                       {isOwner && isLive && agent.trading_wallet && <th className="sr-only">Actions</th>}
@@ -1112,8 +1106,11 @@ export function AgentView({
                             <strong>{position.symbol}</strong>
                             {short && <span className="decision__action decision__action--short" style={{ marginLeft: 8 }}>short</span>}
                           </td>
-                          <td className="num">{price(position.entryPrice)}</td>
-                          <td className="num">{price(now)}</td>
+                          {/* Now on top, entry below: one column instead of two keeps the table inside the sidebar. */}
+                          <td className="num">
+                            {price(now)}
+                            <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>from {price(position.entryPrice)}</div>
+                          </td>
                           {/* Dollars first, percent below in smaller type, so the table does not get wider. */}
                           <td className={`num ${tone(change)}`}>
                             {signedUsd(pnlUsd)}

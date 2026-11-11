@@ -2531,6 +2531,23 @@ main:focus {
   text-align: right;
 }
 
+/* Narrow cards (the agent page sidebar): tighter columns, flush with the card edges. */
+.table--compact th,
+.table--compact td {
+  padding-left: var(--space-75);
+  padding-right: var(--space-75);
+}
+
+.table--compact th:first-child,
+.table--compact td:first-child {
+  padding-left: 0;
+}
+
+.table--compact th:last-child,
+.table--compact td:last-child {
+  padding-right: 0;
+}
+
 .table tbody tr {
   transition: background-color var(--duration-micro) var(--ease-out-expo);
 }
