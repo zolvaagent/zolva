@@ -20,6 +20,15 @@ const SLIPPAGES = [50, 100, 200] as const;
 const LOW_GAS_WEI = 10n ** 13n;
 /** Max on native ETH keeps this much (wei, 0.0002 ETH) back for gas. */
 const GAS_RESERVE_WEI = 2n * 10n ** 14n;
+/** A quote that takes longer than this is given up (then tried once more). */
+const QUOTE_TIMEOUT_MS = 15_000;
+
+/** A failed quote; `status` is the HTTP status when the server answered. */
+class QuoteError extends WalletError {
+  constructor(message: string, readonly status?: number) {
+    super(message);
+  }
+}
 
 /** A fixed sale for "Sell position": the market and the quantity, sold for USDG. */
 export type SwapPreset = { token: Hex; amount: string; title: string; note: string };
@@ -219,13 +228,21 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
 
   const requestQuote = async () => {
     if (!tokenIn || !tokenOut || amountIn === null || tokenIn.address === tokenOut.address) return null;
-    const response = await fetch("/api/swap", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, amountIn: amountIn.toString(), slippageBps }),
-    });
+    // A slow chain read can leave the request open for a long time; give up after
+    // QUOTE_TIMEOUT_MS so the box shows an error instead of "…" forever.
+    let response: Response;
+    try {
+      response = await fetch("/api/swap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, amountIn: amountIn.toString(), slippageBps }),
+        signal: AbortSignal.timeout(QUOTE_TIMEOUT_MS),
+      });
+    } catch {
+      throw new QuoteError("No quote right now. Try again.");
+    }
     const body = (await response.json().catch(() => ({}))) as SwapQuote & { error?: string };
-    if (!response.ok) throw new WalletError(body.error ?? "No quote right now. Try again.");
+    if (!response.ok) throw new QuoteError(body.error ?? "No quote right now. Try again.", response.status);
     return body;
   };
 
@@ -235,15 +252,28 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   const quoting = amountIn !== null && current === null;
   const accepted = acceptedKey === key;
 
-  // A fresh quote half a second after the inputs settle.
+  // A fresh quote half a second after the inputs settle. A timeout or server error is tried
+  // once more before the error shows; an answer the server refused (4xx) shows at once.
   useEffect(() => {
     if (!open || done || busy || amountIn === null || !tokenOut) return;
-    const timer = setTimeout(() => {
+    let cancelled = false;
+    const quoteOnce = (retriesLeft: number): void => {
       requestQuote()
-        .then((next) => setResult({ key, quote: next, error: null }))
-        .catch((cause: Error) => setResult({ key, quote: null, error: cause.message }));
-    }, 500);
-    return () => clearTimeout(timer);
+        .then((next) => {
+          if (!cancelled) setResult({ key, quote: next, error: null });
+        })
+        .catch((cause: QuoteError) => {
+          if (cancelled) return;
+          const refused = cause.status !== undefined && cause.status >= 400 && cause.status < 500 && cause.status !== 429;
+          if (retriesLeft > 0 && !refused) quoteOnce(retriesLeft - 1);
+          else setResult({ key, quote: null, error: cause.message });
+        });
+    };
+    const timer = setTimeout(() => quoteOnce(1), 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
     // amountIn and tokenOut follow from the key's inputs; depend on the key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, key, done]);
