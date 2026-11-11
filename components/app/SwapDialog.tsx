@@ -9,9 +9,12 @@ import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
 import { usd } from "@/lib/format";
 import { approveCall, DEFAULT_SLIPPAGE_BPS, isAddressQuery, isDirect, MAX_IMPORTED, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
+import { PERMIT2, permit2ApproveCall, PONS_FEE_NOTE, UNIVERSAL_ROUTER, zolvaLeg, zolvaSwapCall } from "@/lib/swap-zolva";
 import { hasInjectedWallet, sendFromBrowserWallet, WalletError } from "@/lib/wallet-client";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Unix seconds now, for Permit2 expiries and router deadlines (only called from event handlers). */
+const nowSeconds = () => Math.floor(Date.now() / 1000);
 const SLIPPAGES = [50, 100, 200] as const;
 /** Below this much ETH (wei) a swap probably cannot pay its gas. */
 const LOW_GAS_WEI = 10n ** 13n;
@@ -75,7 +78,8 @@ function display(raw: string | bigint, decimals: number, digits = 6): string {
 
 /** USD value of a raw amount at the token's latest hourly close; null without one. */
 function usdValue(token: SwapToken | null, raw: string | bigint | null): number | null {
-  if (!token || raw === null || token.lastClose === null) return null;
+  // ZOLVA's price is an hourly snapshot and moves a lot within the hour: no estimate beats a wrong one.
+  if (!token || raw === null || token.lastClose === null || token.verified) return null;
   return (Number(raw) / 10 ** token.decimals) * token.lastClose;
 }
 
@@ -296,18 +300,30 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
     if (!address || !tokenIn || !tokenOut || amountIn === null || !quote) return;
     setError(null);
     try {
+      const viaPermit2 = quote.route === "zolva";
       if (BigInt(quote.allowance ?? "0") < amountIn) {
         setBusy(`Approve ${tokenIn.symbol} in your wallet…`);
-        const approval = await send(tokenIn.address, approveCall(amountIn));
+        // ZOLVA swaps pull tokens through Permit2, so Permit2 is what gets approved (exact amount).
+        const approval = await send(tokenIn.address, approveCall(amountIn, viaPermit2 ? PERMIT2 : SWAP_ROUTER_02));
         setBusy("Waiting for the approval…");
         await waitFor(approval, "approval");
+      }
+      if (viaPermit2 && BigInt(quote.permit2Allowance ?? "0") < amountIn) {
+        setBusy("Allow the Uniswap router in your wallet (Permit2)…");
+        const permit = await send(PERMIT2, permit2ApproveCall(tokenIn.address, amountIn, nowSeconds()));
+        setBusy("Waiting for the approval…");
+        await waitFor(permit, "approval");
       }
       // Re-quote right before signing, so the minimum reflects the price now.
       setBusy("Getting a fresh quote…");
       const fresh = await requestQuote();
       if (!fresh) return;
       setBusy("Confirm the swap in your wallet…");
-      const hash = await send(SWAP_ROUTER_02, swapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, fees: fresh.fees, recipient: address as Hex, amountIn, minOut: BigInt(fresh.minOut) }));
+      const leg = zolvaLeg(tokenIn.address, tokenOut.address);
+      const hash =
+        viaPermit2 && leg && fresh.wethUsdgFee !== undefined
+          ? await send(UNIVERSAL_ROUTER, zolvaSwapCall({ leg, amountIn, minOut: BigInt(fresh.minOut), wethUsdgFee: fresh.wethUsdgFee, deadline: nowSeconds() + 10 * 60 }))
+          : await send(SWAP_ROUTER_02, swapCall({ tokenIn: tokenIn.address, tokenOut: tokenOut.address, fees: fresh.fees, recipient: address as Hex, amountIn, minOut: BigInt(fresh.minOut) }));
       setBusy("Waiting for the swap…");
       await waitFor(hash, "swap");
       setResult({ key, quote: fresh, error: null });
@@ -331,7 +347,8 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   const short = sellBalance !== null && amountIn !== null && BigInt(sellBalance) < amountIn;
   const lowGas = listing?.ethWei != null && BigInt(listing.ethWei) < LOW_GAS_WEI;
   const farFromClose = quote?.deviationBps != null && quote.deviationBps > PRICE_WARNING_BPS;
-  const needsApproval = quote !== null && amountIn !== null && BigInt(quote.allowance ?? "0") < amountIn;
+  const needsApproval =
+    quote !== null && amountIn !== null && (BigInt(quote.allowance ?? "0") < amountIn || (quote.route === "zolva" && BigInt(quote.permit2Allowance ?? "0") < amountIn));
   const sellUsd = usdValue(tokenIn, amountIn);
   const buyUsd = usdValue(tokenOut, quote?.amountOut ?? null);
   const locked = Boolean(preset);
@@ -514,10 +531,24 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
           <div>
             <dt>Route</dt>
             <dd>
-              {isDirect(tokenIn, tokenOut) ? `${tokenIn.symbol} → ${tokenOut.symbol}` : `${tokenIn.symbol} → USDG → ${tokenOut.symbol}`} · Uniswap, fee{" "}
-              {quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" + ")}
+              {quote.route === "zolva" ? (
+                <>
+                  {[tokenIn.symbol, ...(quote.fees.length ? ["ETH"] : []), tokenOut.symbol].join(" → ")} · {quote.fees.length ? "Uniswap v3 + v4" : "Uniswap v4"} (Pons pool)
+                </>
+              ) : (
+                <>
+                  {isDirect(tokenIn, tokenOut) ? `${tokenIn.symbol} → ${tokenOut.symbol}` : `${tokenIn.symbol} → USDG → ${tokenOut.symbol}`} · Uniswap, fee{" "}
+                  {quote.fees.map((fee) => `${(fee / 10_000).toFixed(2)}%`).join(" + ")}
+                </>
+              )}
             </dd>
           </div>
+          {quote.route === "zolva" && (
+            <div>
+              <dt>Fee</dt>
+              <dd>{PONS_FEE_NOTE}</dd>
+            </div>
+          )}
           {(tokenIn.listed === false || tokenOut.listed === false) && (
             <div>
               <dt>Note</dt>
@@ -625,6 +656,11 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
                     <strong>
                       {token.symbol}
                       {token.listed === false && <span className="swapbox__badge">Imported</span>}
+                      {token.verified && (
+                        <span className="swapbox__badge swapbox__badge--official">
+                          <i className="ph-fill ph-seal-check" aria-hidden="true" /> Verified
+                        </span>
+                      )}
                     </strong>
                     <span className="muted">{token.name}</span>
                   </span>

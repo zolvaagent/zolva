@@ -64,7 +64,17 @@ export const QUOTE_EXACT_INPUT_ABI = [
  * A token the card can swap: an allowlisted market with a v3 USDG pool, USDG itself, or a token
  * the user imported by pasting its address (`listed: false`; its pool is found on chain).
  */
-export type SwapToken = { address: Hex; symbol: string; name: string; decimals: number; pool: Hex | null; lastClose: number | null; listed?: boolean };
+export type SwapToken = {
+  address: Hex;
+  symbol: string;
+  name: string;
+  decimals: number;
+  pool: Hex | null;
+  lastClose: number | null;
+  listed?: boolean;
+  /** Zolva's own token: shown with a Verified badge and swapped on its Pons pool (lib/swap-zolva.ts). */
+  verified?: boolean;
+};
 
 /** Uniswap v3 factory on Robinhood Chain (SwapRouter02.factory()). */
 export const V3_FACTORY = "0x1f7d7550b1b028f7571e69a784071f0205fd2efa";
@@ -103,6 +113,14 @@ export type SwapQuote = {
   /** Set when an owner was given: what they hold and what the router may spend. */
   balance: string | null;
   allowance: string | null;
+  /**
+   * "zolva": a ZOLVA swap through the Universal Router (lib/swap-zolva.ts). `allowance` is then
+   * the token's approval of Permit2 and `permit2Allowance` what Permit2 lets the router take
+   * (0 once expired); `wethUsdgFee` is the v3 WETH/USDG fee tier the call must use.
+   */
+  route?: "v3" | "zolva";
+  permit2Allowance?: string | null;
+  wethUsdgFee?: number;
 };
 
 /** Quote minus the slippage allowance, rounded down. */
@@ -130,9 +148,9 @@ export function swapPath(tokenIn: Hex, tokenOut: Hex, fees: [number, number]): H
   return encodePacked(["address", "uint24", "address", "uint24", "address"], [tokenIn, fees[0], USDG, fees[1], tokenOut]);
 }
 
-/** The exact approval of the router for this swap (never unlimited). */
-export function approveCall(amountIn: bigint): Hex {
-  return encodeFunctionData({ abi: ERC20_APPROVE_ABI, functionName: "approve", args: [SWAP_ROUTER_02, amountIn] });
+/** The exact approval for this swap (never unlimited): of SwapRouter02, or of Permit2 for ZOLVA swaps. */
+export function approveCall(amountIn: bigint, spender: Hex = SWAP_ROUTER_02): Hex {
+  return encodeFunctionData({ abi: ERC20_APPROVE_ABI, functionName: "approve", args: [spender, amountIn] });
 }
 
 /** The router call, paid out to the signer's own wallet: exactInputSingle for one hop, exactInput for two. */

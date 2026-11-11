@@ -7,7 +7,7 @@ import { createChainClient } from "@/lib/prices/onchain";
 import { checkLimit } from "@/lib/public-api/http";
 import { db } from "@/lib/supabase";
 import { isAddressQuery, MAX_IMPORTED, MAX_SLIPPAGE_BPS, type SwapToken } from "@/lib/swap";
-import { listSwapTokens, lookupToken, quoteSwap, tokenChart, walletBalances, walletHistory } from "@/lib/swap-server";
+import { listSwapTokens, lookupToken, quoteSwap, tokenChart, walletBalances, walletHistory, ZolvaPairError } from "@/lib/swap-server";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
     const quote = await quoteSwap(chain, { tokenIn, tokenOut, amountIn: BigInt(body.amountIn), slippageBps, owner: owner ? (owner as Hex) : null });
     return NextResponse.json(quote);
   } catch (cause) {
+    if (cause instanceof ZolvaPairError) return NextResponse.json({ error: cause.message }, { status: 400 });
     console.error("swap quote", cause instanceof Error ? cause.message.replace(/https?:\/\/\S+/g, "[url]") : cause);
     return NextResponse.json({ error: "No quote right now: the pool may be too thin for this amount. Try a smaller amount." }, { status: 502 });
   }

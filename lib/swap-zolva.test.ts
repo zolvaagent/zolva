@@ -1,0 +1,92 @@
+import { decodeAbiParameters, decodeFunctionData, type Hex } from "viem";
+import { describe, expect, it } from "vitest";
+
+import { USDG } from "./live/contracts";
+import { EXECUTE_ABI, PERMIT2_ABI, PERMIT2_TTL_SECONDS, permit2ApproveCall, poolId, UNIVERSAL_ROUTER, WETH, ZOLVA, ZOLVA_POOL_ID, ZOLVA_POOL_KEY, zolvaLeg, zolvaSwapCall } from "./swap-zolva";
+
+const decode = (data: Hex) => {
+  const { args } = decodeFunctionData({ abi: EXECUTE_ABI, data });
+  const [commands, inputs, deadline] = args;
+  return { commands, inputs, deadline };
+};
+
+describe("the Pons pool key", () => {
+  it("hashes to ZOLVA's pool id, so no other pool can be swapped by mistake", () => {
+    expect(poolId(ZOLVA_POOL_KEY)).toBe(ZOLVA_POOL_ID);
+  });
+});
+
+describe("zolvaLeg", () => {
+  it("routes ZOLVA against USDG or ETH, either way", () => {
+    expect(zolvaLeg(USDG, ZOLVA)).toEqual({ buy: true, other: "usdg" });
+    expect(zolvaLeg(WETH, ZOLVA)).toEqual({ buy: true, other: "weth" });
+    expect(zolvaLeg(ZOLVA, USDG)).toEqual({ buy: false, other: "usdg" });
+    expect(zolvaLeg(ZOLVA, WETH)).toEqual({ buy: false, other: "weth" });
+  });
+  it("has no route for anything else", () => {
+    expect(zolvaLeg(USDG, WETH)).toBeNull();
+    expect(zolvaLeg("0x00000000000000000000000000000000000000c1", ZOLVA)).toBeNull();
+  });
+});
+
+describe("zolvaSwapCall", () => {
+  const base = { amountIn: 10_000_000n, minOut: 123n, wethUsdgFee: 100, deadline: 1_800_000_000 };
+
+  it("buys with USDG: pull USDG, v3 to WETH from the router's balance, unwrap, v4 swap", () => {
+    const { commands, inputs, deadline } = decode(zolvaSwapCall({ ...base, leg: { buy: true, other: "usdg" } }));
+    expect(commands).toBe("0x02000c10");
+    expect(deadline).toBe(1_800_000_000n);
+    const [token, , pulled] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint160" }], inputs[0]);
+    expect(token.toLowerCase()).toBe(USDG);
+    expect(pulled).toBe(10_000_000n);
+    const [recipient, amountIn, , , payerIsUser] = decodeAbiParameters([{ type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }, { type: "bool" }], inputs[1]);
+    expect(recipient).toBe("0x0000000000000000000000000000000000000002");
+    expect(amountIn).toBe(1n << 255n);
+    expect(payerIsUser).toBe(false);
+    // The v4 swap: settle, swap, take all ZOLVA with the minimum out.
+    const [actions, params] = decodeAbiParameters([{ type: "bytes" }, { type: "bytes[]" }], inputs[3]);
+    expect(actions).toBe("0x0b060f");
+    const [currency, minAmount] = decodeAbiParameters([{ type: "address" }, { type: "uint256" }], params[2]);
+    expect(currency.toLowerCase()).toBe(ZOLVA);
+    expect(minAmount).toBe(123n);
+  });
+
+  it("buys with ETH: pulls WETH through Permit2 first", () => {
+    const { commands, inputs } = decode(zolvaSwapCall({ ...base, leg: { buy: true, other: "weth" } }));
+    expect(commands).toBe("0x020c10");
+    const [token, , amount] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint160" }], inputs[0]);
+    expect(token.toLowerCase()).toBe(WETH);
+    expect(amount).toBe(10_000_000n);
+  });
+
+  it("sells for USDG: v4 swap into the router, wrap, v3 to the user with the minimum", () => {
+    const { commands, inputs } = decode(zolvaSwapCall({ ...base, leg: { buy: false, other: "usdg" } }));
+    expect(commands).toBe("0x100b00");
+    const [actions, params] = decodeAbiParameters([{ type: "bytes" }, { type: "bytes[]" }], inputs[0]);
+    expect(actions).toBe("0x0b060e");
+    const [currency, amount, payerIsUser] = decodeAbiParameters([{ type: "address" }, { type: "uint256" }, { type: "bool" }], params[0]);
+    expect(currency.toLowerCase()).toBe(ZOLVA);
+    expect(amount).toBe(10_000_000n);
+    expect(payerIsUser).toBe(true);
+    const [recipient, , minOut, , fromUser] = decodeAbiParameters([{ type: "address" }, { type: "uint256" }, { type: "uint256" }, { type: "bytes" }, { type: "bool" }], inputs[2]);
+    expect(recipient).toBe("0x0000000000000000000000000000000000000001");
+    expect(minOut).toBe(123n);
+    expect(fromUser).toBe(false);
+  });
+
+  it("sells for ETH: wraps and sweeps WETH to the user with the minimum", () => {
+    const { commands, inputs } = decode(zolvaSwapCall({ ...base, leg: { buy: false, other: "weth" } }));
+    expect(commands).toBe("0x100b04");
+    const [token, recipient, minOut] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], inputs[2]);
+    expect(token.toLowerCase()).toBe(WETH);
+    expect(recipient).toBe("0x0000000000000000000000000000000000000001");
+    expect(minOut).toBe(123n);
+  });
+});
+
+describe("permit2ApproveCall", () => {
+  it("approves the router for exactly the amount, for 30 minutes", () => {
+    const { args } = decodeFunctionData({ abi: PERMIT2_ABI, data: permit2ApproveCall(ZOLVA, 5n, 1_000) });
+    expect(args).toEqual([expect.stringMatching(new RegExp(ZOLVA, "i")), expect.stringMatching(new RegExp(UNIVERSAL_ROUTER, "i")), 5n, 1_000 + PERMIT2_TTL_SECONDS]);
+  });
+});

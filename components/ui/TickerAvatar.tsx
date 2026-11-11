@@ -26,6 +26,8 @@ const COIN_LOGOS: Record<string, { src: string; background?: string; fill?: bool
   NEAR: { src: "/img/coins/NEAR.jpg", background: "#00ec97" },
   XRP: { src: "/img/coins/XRP.png", fill: false },
   ZEC: { src: "/img/coins/ZEC.png", background: "transparent" },
+  // Zolva's own token: the X avatar (assets/brand/logo-v2/x-avatar-400.png).
+  ZOLVA: { src: "/img/coins/ZOLVA.png", background: "transparent" },
 };
 
 export function TickerAvatar({ symbol, size }: { symbol: string; size?: number }) {

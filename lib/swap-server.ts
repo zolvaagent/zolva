@@ -4,16 +4,22 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { erc20Abi, type Hex, type PublicClient } from "viem";
 
 import { getMarket } from "@/lib/data/market";
+import { env } from "@/lib/env";
 import { QUOTE_EXACT_INPUT_SINGLE_ABI, QUOTER_V2 } from "@/lib/live/contracts";
 import { isDirect, minimumOut, pickPool, QUOTE_EXACT_INPUT_ABI, referenceRate, SWAP_ROUTER_02, swapPath, swapRate, USDG, USDG_DECIMALS, V3_FACTORY, V3_FEE_TIERS, type SwapQuote, type SwapToken } from "@/lib/swap";
+import { PERMIT2, PERMIT2_ABI, UNIVERSAL_ROUTER, V4_QUOTE_ABI, V4_QUOTER, WETH, ZOLVA, ZOLVA_POOL_KEY, zolvaLeg } from "@/lib/swap-zolva";
 
 const POOL_FEE_ABI = [{ type: "function", name: "fee", stateMutability: "view", inputs: [], outputs: [{ type: "uint24" }] }] as const;
 
-/** USDG plus every enabled market with a v3 USDG pool (what SwapRouter02 can route), with the latest hourly close. */
+/**
+ * USDG plus every enabled market with a v3 USDG pool (what SwapRouter02 can route), with the
+ * latest hourly close, and $ZOLVA once launched (its Pons pool, priced from zolva_prices).
+ */
 export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
-  const [{ data, error }, market] = await Promise.all([
+  const [{ data, error }, market, zolvaPrice] = await Promise.all([
     db.from("tokens").select("address, symbol, name, token_decimals, price_pool").eq("enabled", true).eq("pool_kind", "v3").order("symbol"),
     getMarket(db),
+    db.from("zolva_prices").select("price").order("ts", { ascending: false }).limit(1).maybeSingle<{ price: number }>(),
   ]);
   if (error) throw new Error(`Loading tokens failed: ${error.message}`);
   const closeOf = new Map(market.tokens.map((token) => [token.address.toLowerCase(), token.closes.at(-1) ?? null]));
@@ -28,6 +34,10 @@ export async function listSwapTokens(db: SupabaseClient): Promise<SwapToken[]> {
       lastClose: closeOf.get(row.address.toLowerCase()) ?? null,
       listed: true,
     })),
+    // Only when the configured token is the one the Pons pool key was pinned for.
+    ...(env.zolvaToken?.address.toLowerCase() === ZOLVA
+      ? [{ address: ZOLVA as Hex, symbol: "ZOLVA", name: "Zolva Agent", decimals: 18, pool: null, lastClose: zolvaPrice.data ? Number(zolvaPrice.data.price) : null, listed: true, verified: true }]
+      : []),
   ];
 }
 
@@ -101,6 +111,7 @@ const poolFee = (chain: PublicClient, token: SwapToken) => {
  */
 export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapToken; tokenOut: SwapToken; amountIn: bigint; slippageBps: number; owner: Hex | null }): Promise<SwapQuote> {
   const { tokenIn, tokenOut, amountIn, owner } = options;
+  if (tokenIn.address === ZOLVA || tokenOut.address === ZOLVA) return quoteZolvaSwap(chain, options);
   let fees: number[];
   let amountOut: bigint;
   if (isDirect(tokenIn, tokenOut)) {
@@ -214,4 +225,58 @@ export async function tokenChart(db: SupabaseClient, address: Hex): Promise<{ st
   const first = closes.findIndex((close) => !Number.isNaN(close));
   if (first === -1) return null;
   return { startTs: market.startTs + (from + first) * 3600, closes: closes.slice(first) };
+}
+
+/** The v3 WETH/USDG pool the "ETH" market prices from (0.01%), the bridge for ZOLVA <-> USDG. */
+const WETH_USDG_POOL = "0x52e65b17fb6e5ba00ed806f37afcd2daa50271ca";
+
+/** Thrown when ZOLVA is paired with something other than USDG or ETH. */
+export class ZolvaPairError extends Error {}
+
+/**
+ * Quotes a ZOLVA swap on its Pons pool (Uniswap v4) with Uniswap's V4Quoter, adding the v3
+ * WETH/USDG leg when the other side is USDG. With an owner it reads what the swap needs
+ * approved: the token's allowance of Permit2, and Permit2's (unexpired) allowance of the router.
+ */
+async function quoteZolvaSwap(chain: PublicClient, options: { tokenIn: SwapToken; tokenOut: SwapToken; amountIn: bigint; slippageBps: number; owner: Hex | null }): Promise<SwapQuote> {
+  const { tokenIn, tokenOut, amountIn, owner } = options;
+  const leg = zolvaLeg(tokenIn.address, tokenOut.address);
+  if (!leg) throw new ZolvaPairError("ZOLVA swaps against USDG or ETH. Pick one of those for the other side.");
+  const wethUsdgFee = await chain.readContract({ address: WETH_USDG_POOL, abi: POOL_FEE_ABI, functionName: "fee" });
+  const v3 = async (from: Hex, to: Hex, amount: bigint) =>
+    (await chain.simulateContract({ address: QUOTER_V2, abi: QUOTE_EXACT_INPUT_SINGLE_ABI, functionName: "quoteExactInputSingle", args: [{ tokenIn: from, tokenOut: to, amountIn: amount, fee: wethUsdgFee, sqrtPriceLimitX96: 0n }] })).result[0];
+  const v4 = async (buy: boolean, amount: bigint) =>
+    (await chain.simulateContract({ address: V4_QUOTER, abi: V4_QUOTE_ABI, functionName: "quoteExactInputSingle", args: [{ poolKey: ZOLVA_POOL_KEY, zeroForOne: buy, exactAmount: amount, hookData: "0x" }] })).result[0];
+
+  let amountOut: bigint;
+  if (leg.buy) {
+    const ethIn = leg.other === "usdg" ? await v3(USDG, WETH, amountIn) : amountIn;
+    amountOut = await v4(true, ethIn);
+  } else {
+    const ethOut = await v4(false, amountIn);
+    amountOut = leg.other === "usdg" ? await v3(WETH, USDG, ethOut) : ethOut;
+  }
+
+  const [balance, allowance, permit] = await Promise.all([
+    owner ? chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "balanceOf", args: [owner] }) : null,
+    owner ? chain.readContract({ address: tokenIn.address, abi: erc20Abi, functionName: "allowance", args: [owner, PERMIT2] }) : null,
+    owner ? chain.readContract({ address: PERMIT2, abi: PERMIT2_ABI, functionName: "allowance", args: [owner, tokenIn.address, UNIVERSAL_ROUTER] }) : null,
+  ]);
+  // An approval that lapses within a minute is treated as gone: the swap may land after it.
+  const permitLeft = permit && Number(permit[1]) > Date.now() / 1000 + 60 ? permit[0] : 0n;
+  return {
+    amountIn: amountIn.toString(),
+    amountOut: amountOut.toString(),
+    minOut: minimumOut(amountOut, options.slippageBps).toString(),
+    fees: leg.other === "usdg" ? [wethUsdgFee] : [],
+    rate: swapRate(tokenIn, tokenOut, amountIn, amountOut),
+    // No "far from the hourly close" check: ZOLVA moves more than that within an hour and every
+    // quote includes Pons' fee, so it would warn on every swap. The minimum out still protects it.
+    deviationBps: null,
+    balance: balance === null ? null : balance.toString(),
+    allowance: allowance === null ? null : allowance.toString(),
+    route: "zolva",
+    permit2Allowance: owner ? permitLeft.toString() : null,
+    wethUsdgFee,
+  };
 }
