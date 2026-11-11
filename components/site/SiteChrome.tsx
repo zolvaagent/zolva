@@ -168,6 +168,7 @@ export function SiteFooter() {
             <Link href="/studio?strategy=mean_reversion">Mean reversion</Link>
             <Link href="/studio?strategy=custom">Build your own</Link>
             <Link href="/docs">Docs</Link>
+            <Link href="/devlog">Dev log</Link>
           </div>
           <div className="footer__col">
             <h3>Legal</h3>
