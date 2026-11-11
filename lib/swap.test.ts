@@ -109,4 +109,7 @@ describe("feePair", () => {
     expect(feePair(stock, cryptoEth)).toBe(false);
     expect(feePair(usdg, imported)).toBe(false);
   });
+  it("charges imported Pons tokens (launchpad memecoins, never stock tokens)", () => {
+    expect(feePair(usdg, { ...imported, pons: true })).toBe(true);
+  });
 });

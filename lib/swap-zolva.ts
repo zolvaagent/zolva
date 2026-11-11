@@ -28,16 +28,25 @@ export const PERMIT2 = "0x000000000022d473030f116ddee9f6b43ac78ba3";
 export const WETH = "0x0bd7d308f8e1639fab988df18a8011f41eacad73";
 const NATIVE = "0x0000000000000000000000000000000000000000";
 
-/** The Pons pool: read from the PoolManager's Initialize event for pool id ZOLVA_POOL_ID. */
+/** PonsV2MemeHook: the hook on every pool a Pons token graduates into. */
+export const PONS_HOOK = "0xe5e702641ea86f4ae6cc3cdaed2b886f976be044";
+/** A pool key (ABI layout of Uniswap v4's PoolKey). */
+export type PoolKey = { currency0: Hex; currency1: Hex; fee: number; tickSpacing: number; hooks: Hex };
+
+/**
+ * The Pons pool of a token: every Pons graduation makes the same kind of Uniswap v4 pool, native
+ * ETH / token, fee 0 (Pons' fee is taken by the hook), tickSpacing 200, PonsV2MemeHook. Native ETH
+ * (address 0) always sorts first, so the token is currency1. Whether the pool exists is checked by
+ * quoting it (lib/swap-server.ts); a token Pons never graduated simply has no such pool.
+ */
+export function ponsPoolKey(token: Hex): PoolKey {
+  return { currency0: NATIVE, currency1: token, fee: 0, tickSpacing: 200, hooks: PONS_HOOK };
+}
+
+export const ZOLVA = "0x8e04549484d0612be8373a0263b11928a5f7681f";
+/** ZOLVA's Pons pool: read from the PoolManager's Initialize event for pool id ZOLVA_POOL_ID (a test checks the hash). */
 export const ZOLVA_POOL_ID = "0x417e1f5361a5296f93a133142651e07d203f7a4ddecaa2de4460f1fb182e6d74";
-export const ZOLVA_POOL_KEY = {
-  currency0: NATIVE,
-  currency1: "0x8e04549484d0612be8373a0263b11928a5f7681f",
-  fee: 0,
-  tickSpacing: 200,
-  hooks: "0xe5e702641ea86f4ae6cc3cdaed2b886f976be044",
-} as const;
-export const ZOLVA = ZOLVA_POOL_KEY.currency1;
+export const ZOLVA_POOL_KEY = ponsPoolKey(ZOLVA);
 /** Pons' fee per swap, taken by the hook (about 3% each way, seen in quotes on 2026-11-11). */
 export const PONS_FEE_NOTE = "Includes Pons' trading fee (about 3%), taken by the pool's hook.";
 
@@ -50,7 +59,7 @@ const POOL_KEY_COMPONENTS = [
 ] as const;
 
 /** A v4 pool id: keccak256 of the ABI-encoded pool key. */
-export function poolId(key: typeof ZOLVA_POOL_KEY): Hex {
+export function poolId(key: PoolKey): Hex {
   return keccak256(encodeAbiParameters([{ type: "tuple", components: POOL_KEY_COMPONENTS }], [key]));
 }
 
@@ -62,14 +71,22 @@ export const ETH_NATIVE = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
 /** How the Universal Router names native ETH in its payment commands. */
 const ROUTER_ETH = NATIVE;
 
-/** Which side of a swap ZOLVA is on, and what the other side is (USDG, WETH or native ETH). */
-export type ZolvaLeg = { buy: boolean; other: "usdg" | "weth" | "eth" };
+/**
+ * Which side of a swap the Pons token is on (ZOLVA unless `token` says otherwise), and what the
+ * other side is (USDG, WETH or native ETH).
+ */
+export type ZolvaLeg = { buy: boolean; other: "usdg" | "weth" | "eth"; token?: Hex };
 
-/** The ZOLVA route for a pair, or null when the pair is not ZOLVA with USDG or ETH. */
-export function zolvaLeg(tokenIn: Hex, tokenOut: Hex): ZolvaLeg | null {
+/**
+ * The Pons route for a pair, or null when the pair is not a Pons token with USDG or ETH.
+ * `ponsTokens`: the tokens known to trade on their Pons pool (ZOLVA, plus imported ones the server
+ * found a Pons pool for).
+ */
+export function zolvaLeg(tokenIn: Hex, tokenOut: Hex, ponsTokens: readonly Hex[] = [ZOLVA]): ZolvaLeg | null {
   const other = (address: Hex) => (address === USDG ? "usdg" : address === WETH ? "weth" : address === ETH_NATIVE ? "eth" : null);
-  if (tokenOut === ZOLVA && other(tokenIn)) return { buy: true, other: other(tokenIn)! };
-  if (tokenIn === ZOLVA && other(tokenOut)) return { buy: false, other: other(tokenOut)! };
+  const tokenOf = (address: Hex) => (address === ZOLVA ? {} : { token: address });
+  if (ponsTokens.includes(tokenOut) && other(tokenIn)) return { buy: true, other: other(tokenIn)!, ...tokenOf(tokenOut) };
+  if (ponsTokens.includes(tokenIn) && other(tokenOut)) return { buy: false, other: other(tokenOut)!, ...tokenOf(tokenIn) };
   return null;
 }
 
@@ -161,16 +178,16 @@ const enc = encodeAbiParameters;
 const v3Path = (from: Hex, fee: number, to: Hex) => encodePacked(["address", "uint24", "address"], [from, fee, to]);
 
 /** The v4 swap on the Pons pool: settle what the router or user pays in, swap it all, take the out side. */
-function v4Swap(options: { buy: boolean; amountIn: bigint; minOut: bigint; takeTo: "user" | "router" }): Hex {
-  const inCurrency = options.buy ? NATIVE : ZOLVA;
-  const outCurrency = options.buy ? ZOLVA : NATIVE;
+function v4Swap(options: { buy: boolean; amountIn: bigint; minOut: bigint; takeTo: "user" | "router"; token: Hex }): Hex {
+  const inCurrency = options.buy ? NATIVE : options.token;
+  const outCurrency = options.buy ? options.token : NATIVE;
   // Buying, the ETH is already in the router (unwrapped): settle the router's whole balance.
   // Selling, ZOLVA comes from the user through Permit2: settle exactly amountIn.
   const settle = enc([{ type: "address" }, { type: "uint256" }, { type: "bool" }], options.buy ? [inCurrency, CONTRACT_BALANCE, false] : [inCurrency, options.amountIn, true]);
   // amountIn OPEN_DELTA: swap the full credit the settle just created.
   const swap = enc(
     [{ type: "tuple", components: [{ name: "poolKey", type: "tuple", components: POOL_KEY_COMPONENTS }, { name: "zeroForOne", type: "bool" }, { name: "amountIn", type: "uint128" }, { name: "amountOutMinimum", type: "uint128" }, { name: "hookData", type: "bytes" }] }],
-    [{ poolKey: ZOLVA_POOL_KEY, zeroForOne: options.buy, amountIn: OPEN_DELTA, amountOutMinimum: options.minOut, hookData: "0x" }],
+    [{ poolKey: ponsPoolKey(options.token), zeroForOne: options.buy, amountIn: OPEN_DELTA, amountOutMinimum: options.minOut, hookData: "0x" }],
   );
   const take =
     options.takeTo === "user"
@@ -230,6 +247,7 @@ const PULL_INPUT = [{ type: "address" }, { type: "address" }, { type: "uint160" 
 export function zolvaSwapCall(options: { leg: ZolvaLeg; amountIn: bigint; minOut: bigint; wethUsdgFee: number; deadline: number; fee?: SwapFee }): Hex {
   const { leg, amountIn, minOut } = options;
   const fee = options.fee ?? null;
+  const token = leg.token ?? ZOLVA;
   const list = commandList();
   if (leg.buy) {
     if (leg.other !== "eth") {
@@ -243,16 +261,19 @@ export function zolvaSwapCall(options: { leg: ZolvaLeg; amountIn: bigint; minOut
       }
       list.add(CMD.UNWRAP_WETH, enc([{ type: "address" }, { type: "uint256" }], [ADDRESS_THIS, 0n]));
     }
-    if (fee) {
+    if (fee && token === ZOLVA) {
       // ZOLVA lands in the router, the fee part is burnt, the rest goes to the user.
-      list.add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut: 0n, takeTo: "router" }));
+      list.add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut: 0n, takeTo: "router", token }));
       payOut(list, ZOLVA, fee, minOut);
     } else {
-      list.add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut, takeTo: "user" }));
+      // Other Pons tokens: the fee is taken in ETH before the swap (the fee wallet collects ETH
+      // for ZOLVA buybacks, not someone else's token); the rest of the ETH is swapped.
+      if (fee) list.add(CMD.PAY_PORTION, enc([{ type: "address" }, { type: "address" }, { type: "uint256" }], [ROUTER_ETH, fee.to, BigInt(fee.bps)]));
+      list.add(CMD.V4_SWAP, v4Swap({ buy: true, amountIn, minOut, takeTo: "user", token }));
     }
   } else {
     // ETH out of the Pons pool stays in the router; native ETH is paid out as it is.
-    list.add(CMD.V4_SWAP, v4Swap({ buy: false, amountIn, minOut: 0n, takeTo: "router" }));
+    list.add(CMD.V4_SWAP, v4Swap({ buy: false, amountIn, minOut: 0n, takeTo: "router", token }));
     if (leg.other === "eth") {
       payOut(list, ROUTER_ETH, fee, minOut);
       return list.call(options.deadline);

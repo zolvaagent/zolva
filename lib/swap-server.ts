@@ -7,7 +7,7 @@ import { getMarket } from "@/lib/data/market";
 import { env } from "@/lib/env";
 import { QUOTE_EXACT_INPUT_SINGLE_ABI, QUOTER_V2 } from "@/lib/live/contracts";
 import { feePair, isDirect, minimumOut, pickPool, QUOTE_EXACT_INPUT_ABI, referenceRate, SWAP_ROUTER_02, swapPath, swapRate, USDG, USDG_DECIMALS, V3_FACTORY, V3_FEE_TIERS, type SwapQuote, type SwapToken } from "@/lib/swap";
-import { afterFee, DEAD, ETH_NATIVE, PERMIT2, PERMIT2_ABI, UNIVERSAL_ROUTER, V4_QUOTE_ABI, V4_QUOTER, WETH, ZOLVA, ZOLVA_POOL_KEY, zolvaLeg } from "@/lib/swap-zolva";
+import { afterFee, DEAD, ETH_NATIVE, PERMIT2, PERMIT2_ABI, ponsPoolKey, UNIVERSAL_ROUTER, V4_QUOTE_ABI, V4_QUOTER, WETH, ZOLVA, zolvaLeg } from "@/lib/swap-zolva";
 
 const POOL_FEE_ABI = [{ type: "function", name: "fee", stateMutability: "view", inputs: [], outputs: [{ type: "uint24" }] }] as const;
 
@@ -80,6 +80,17 @@ export async function lookupToken(chain: PublicClient, address: Hex, listed: Swa
   }
   const [name, symbol, decimals] = meta;
   if (!symbol || decimals > 36) return { kind: "not-token" };
+  const official = zolva.address?.toLowerCase() === lower;
+
+  // A Pons token trades on its Pons pool (Uniswap v4 + PonsV2MemeHook): if a small quote on that
+  // pool works, swap it there, like ZOLVA.
+  const ponsQuote = await chain
+    .simulateContract({ address: V4_QUOTER, abi: V4_QUOTE_ABI, functionName: "quoteExactInputSingle", args: [{ poolKey: ponsPoolKey(lower), zeroForOne: true, exactAmount: 10n ** 14n, hookData: "0x" }] })
+    .then((result) => result.result[0], () => 0n);
+  if (ponsQuote > 0n) {
+    const token: SwapToken = { address: lower, symbol: symbol.slice(0, 16), name: name.slice(0, 48), decimals, pool: null, lastClose: null, listed: false, pons: true };
+    return { kind: "token", token, routable: true, tradeUrl: official ? zolva.tradeUrl : null, official };
+  }
 
   const candidates = await Promise.all(
     V3_FEE_TIERS.map(async (fee) => {
@@ -93,7 +104,6 @@ export async function lookupToken(chain: PublicClient, address: Hex, listed: Swa
   // Names and symbols are free text set by whoever deployed the token: trim them for display.
   const token: SwapToken = { address: lower, symbol: symbol.slice(0, 16), name: name.slice(0, 48), decimals, pool: best?.pool ?? null, lastClose: null, listed: false };
   // Zolva's own token is not an agent market, but it is not a stranger either.
-  const official = zolva.address?.toLowerCase() === lower;
   return { kind: "token", token, routable: best !== null, tradeUrl: official ? zolva.tradeUrl : null, official };
 }
 
@@ -156,7 +166,7 @@ export async function quoteSwap(chain: PublicClient, options: { tokenIn: SwapTok
     const unlimited = ((1n << 160n) - 1n).toString();
     return { amountIn: amountIn.toString(), amountOut: amountIn.toString(), minOut: amountIn.toString(), fees: [], rate: 1, deviationBps: null, balance: balance === null ? null : balance.toString(), allowance: owner ? unlimited : null, route: "wrap" };
   }
-  if (options.tokenIn.address === ZOLVA || options.tokenOut.address === ZOLVA) return quoteZolvaSwap(chain, options);
+  if (options.tokenIn.address === ZOLVA || options.tokenOut.address === ZOLVA || options.tokenIn.pons || options.tokenOut.pons) return quoteZolvaSwap(chain, options);
   const native = options.tokenIn.native || options.tokenOut.native;
   // Pools only know WETH: price native ETH as WETH; the router call wraps or unwraps it.
   const asWeth = (token: SwapToken) => (token.native ? { ...token, address: WETH as Hex } : token);
@@ -282,11 +292,12 @@ export async function walletHistory(chain: PublicClient, owner: Hex, tokens: Swa
 
 /** A token's hourly closes for the swap page chart: the last week, oldest first. */
 export async function tokenChart(db: SupabaseClient, address: Hex): Promise<{ startTs: number; closes: number[] } | null> {
-  if (address === ZOLVA) return zolvaChart(db);
+  if (address === ZOLVA) return ponsChart(db, ZOLVA);
   if (address === ETH_NATIVE) address = WETH;
   const market = await getMarket(db);
   const token = market.tokens.find((item) => item.address.toLowerCase() === address);
-  if (!token) return null;
+  // Not a Zolva market: an imported token may still be a Pons token with Pons candles.
+  if (!token) return ponsChart(db, address);
   const hours = 168;
   const from = Math.max(0, market.hours - hours);
   const closes = token.closes.slice(from).map((close) => close ?? Number.NaN);
@@ -308,27 +319,45 @@ export class ZolvaPairError extends Error {}
  */
 async function quoteZolvaSwap(chain: PublicClient, options: { tokenIn: SwapToken; tokenOut: SwapToken; amountIn: bigint; slippageBps: number; owner: Hex | null }): Promise<SwapQuote> {
   const { tokenIn, tokenOut, amountIn, owner } = options;
-  const leg = zolvaLeg(tokenIn.address, tokenOut.address);
-  if (!leg) throw new ZolvaPairError("ZOLVA swaps against USDG or ETH. Pick one of those for the other side.");
+  const ponsTokens = [ZOLVA as Hex, ...[tokenIn, tokenOut].filter((token) => token.pons).map((token) => token.address)];
+  const leg = zolvaLeg(tokenIn.address, tokenOut.address, ponsTokens);
+  const ponsSymbol = [tokenIn, tokenOut].find((token) => token.address === ZOLVA || token.pons)?.symbol ?? "This token";
+  if (!leg) throw new ZolvaPairError(`${ponsSymbol} swaps against USDG or ETH. Pick one of those for the other side.`);
+  const poolKey = ponsPoolKey(leg.token ?? ZOLVA);
   const wethUsdgFee = await chain.readContract({ address: WETH_USDG_POOL, abi: POOL_FEE_ABI, functionName: "fee" });
   const v3 = async (from: Hex, to: Hex, amount: bigint) =>
     (await chain.simulateContract({ address: QUOTER_V2, abi: QUOTE_EXACT_INPUT_SINGLE_ABI, functionName: "quoteExactInputSingle", args: [{ tokenIn: from, tokenOut: to, amountIn: amount, fee: wethUsdgFee, sqrtPriceLimitX96: 0n }] })).result[0];
   const v4 = async (buy: boolean, amount: bigint) =>
-    (await chain.simulateContract({ address: V4_QUOTER, abi: V4_QUOTE_ABI, functionName: "quoteExactInputSingle", args: [{ poolKey: ZOLVA_POOL_KEY, zeroForOne: buy, exactAmount: amount, hookData: "0x" }] })).result[0];
+    (await chain.simulateContract({ address: V4_QUOTER, abi: V4_QUOTE_ABI, functionName: "quoteExactInputSingle", args: [{ poolKey, zeroForOne: buy, exactAmount: amount, hookData: "0x" }] })).result[0];
 
+  const zolvaFee = swapFeeFor(tokenIn, tokenOut);
+  // Buying a Pons token other than ZOLVA, the fee is taken in ETH before the swap (lib/swap-zolva.ts);
+  // everywhere else it comes off what the swap pays out.
+  const feeOnEthIn = leg.buy && (leg.token ?? ZOLVA) !== ZOLVA && zolvaFee !== null;
   let amountOut: bigint;
+  let net: bigint;
+  let feeAmount = 0n;
   if (leg.buy) {
     const ethIn = leg.other === "usdg" ? await v3(USDG, WETH, amountIn) : amountIn;
-    amountOut = await v4(true, ethIn);
+    if (feeOnEthIn) {
+      const ethSwapped = afterFee(ethIn, zolvaFee);
+      feeAmount = ethIn - ethSwapped;
+      amountOut = await v4(true, ethSwapped);
+      net = amountOut;
+    } else {
+      amountOut = await v4(true, ethIn);
+      net = afterFee(amountOut, zolvaFee);
+      feeAmount = amountOut - net;
+    }
   } else {
     const ethOut = await v4(false, amountIn);
     amountOut = leg.other === "usdg" ? await v3(WETH, USDG, ethOut) : ethOut;
+    net = afterFee(amountOut, zolvaFee);
+    feeAmount = amountOut - net;
   }
 
   const balance = owner ? await balanceOfToken(chain, tokenIn, owner) : null;
   const approvals = await permit2Approvals(chain, tokenIn.address, owner);
-  const zolvaFee = swapFeeFor(tokenIn, tokenOut);
-  const net = afterFee(amountOut, zolvaFee);
   return {
     amountIn: amountIn.toString(),
     amountOut: net.toString(),
@@ -342,7 +371,8 @@ async function quoteZolvaSwap(chain: PublicClient, options: { tokenIn: SwapToken
     ...approvals,
     route: "zolva",
     wethUsdgFee,
-    zolvaFee: zolvaFee ? { ...zolvaFee, amount: (amountOut - net).toString() } : null,
+    // amount: in tokenOut, or in ETH (wei) when it was taken from the ETH going in.
+    zolvaFee: zolvaFee ? { ...zolvaFee, amount: feeAmount.toString() } : null,
   };
 }
 
@@ -358,7 +388,7 @@ type PonsCandle = { time: number; close: number };
  * times the ETH market's close for the same hour, hours without trades carried forward. Falls back
  * to Zolva's own hourly ZOLVA prices (zolva_prices) when Pons does not answer.
  */
-async function zolvaChart(db: SupabaseClient): Promise<{ startTs: number; closes: number[] } | null> {
+async function ponsChart(db: SupabaseClient, tokenAddress: Hex): Promise<{ startTs: number; closes: number[] } | null> {
   const HOUR = 3600;
   const market = await getMarket(db);
   const eth = market.tokens.find((token) => token.address.toLowerCase() === WETH);
@@ -367,7 +397,7 @@ async function zolvaChart(db: SupabaseClient): Promise<{ startTs: number; closes
 
   let candles: PonsCandle[] = [];
   try {
-    const response = await fetch(PONS_CANDLES_URL(ZOLVA), { signal: AbortSignal.timeout(5000), headers: { accept: "application/json" } });
+    const response = await fetch(PONS_CANDLES_URL(tokenAddress), { signal: AbortSignal.timeout(5000), headers: { accept: "application/json" } });
     const body = response.ok ? ((await response.json()) as unknown) : null;
     if (Array.isArray(body)) {
       candles = body
@@ -398,7 +428,8 @@ async function zolvaChart(db: SupabaseClient): Promise<{ startTs: number; closes
     if (first !== -1) return { startTs: start + first * HOUR, closes: closes.slice(first) };
   }
 
-  // Fallback: Zolva's own hourly snapshots.
+  // Fallback (ZOLVA only): Zolva's own hourly snapshots.
+  if (tokenAddress !== ZOLVA) return null;
   const { data } = await db.from("zolva_prices").select("ts, price").gte("ts", new Date(firstHour * 1000).toISOString()).order("ts");
   if (!data?.length) return null;
   const rows = data.map((row) => ({ ts: Math.floor(new Date(row.ts as string).getTime() / 1000 / HOUR) * HOUR, price: Number(row.price) }));

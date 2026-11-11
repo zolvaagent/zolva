@@ -321,7 +321,8 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
       const fresh = await requestQuote();
       if (!fresh) return;
       setBusy("Confirm the swap in your wallet…");
-      const leg = zolvaLeg(tokenIn.address, tokenOut.address);
+      // Pons tokens (ZOLVA and imported ones the server found a Pons pool for) swap on their Pons pool.
+      const leg = zolvaLeg(tokenIn.address, tokenOut.address, [tokenIn, tokenOut].filter((token) => token.verified || token.pons).map((token) => token.address));
       const fee = fresh.zolvaFee ? { bps: fresh.zolvaFee.bps, to: fresh.zolvaFee.to } : null;
       const deadline = nowSeconds() + 10 * 60;
       // Native ETH in is sent along with the call.
@@ -678,7 +679,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
                   <span className="swapbox__item-name">
                     <strong>
                       {token.symbol}
-                      {token.listed === false && <span className="swapbox__badge">Imported</span>}
+                      {token.listed === false && <span className="swapbox__badge">{token.pons ? "Imported · Pons" : "Imported"}</span>}
                       {token.verified && (
                         <span className="swapbox__badge swapbox__badge--official">
                           <i className="ph-fill ph-seal-check" aria-hidden="true" /> Verified

@@ -2,7 +2,7 @@ import { decodeAbiParameters, decodeFunctionData, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
 import { USDG } from "./live/contracts";
-import { afterFee, DEAD, ETH_NATIVE, EXECUTE_ABI, PERMIT2_ABI, v3FeeSwapCall, wrapCall, PERMIT2_TTL_SECONDS, permit2ApproveCall, poolId, UNIVERSAL_ROUTER, WETH, ZOLVA, ZOLVA_POOL_ID, ZOLVA_POOL_KEY, zolvaLeg, zolvaSwapCall } from "./swap-zolva";
+import { afterFee, DEAD, ETH_NATIVE, EXECUTE_ABI, PONS_HOOK, ponsPoolKey, PERMIT2_ABI, v3FeeSwapCall, wrapCall, PERMIT2_TTL_SECONDS, permit2ApproveCall, poolId, UNIVERSAL_ROUTER, WETH, ZOLVA, ZOLVA_POOL_ID, ZOLVA_POOL_KEY, zolvaLeg, zolvaSwapCall } from "./swap-zolva";
 
 const decode = (data: Hex) => {
   const { args } = decodeFunctionData({ abi: EXECUTE_ABI, data });
@@ -142,5 +142,25 @@ describe("native ETH", () => {
   it("wraps and unwraps 1:1 on WETH itself", () => {
     expect(wrapCall("wrap", 5n)).toBe("0xd0e30db0");
     expect(wrapCall("unwrap", 5n).slice(0, 10)).toBe("0x2e1a7d4d");
+  });
+});
+
+describe("any Pons token", () => {
+  const LETRO = "0xa2753fd0bc86b8ceb55ffd2698679c7f214785f1" as Hex;
+  it("uses the standard Pons pool key (ETH first, fee 0, tickSpacing 200, the Pons hook)", () => {
+    expect(ponsPoolKey(LETRO)).toEqual({ currency0: "0x0000000000000000000000000000000000000000", currency1: LETRO, fee: 0, tickSpacing: 200, hooks: PONS_HOOK });
+    expect(poolId(ponsPoolKey(ZOLVA))).toBe(ZOLVA_POOL_ID);
+  });
+  it("routes only the Pons tokens it is told about", () => {
+    expect(zolvaLeg(USDG, LETRO)).toBeNull();
+    expect(zolvaLeg(USDG, LETRO, [ZOLVA, LETRO])).toEqual({ buy: true, other: "usdg", token: LETRO });
+    expect(zolvaLeg(LETRO, ETH_NATIVE, [ZOLVA, LETRO])).toEqual({ buy: false, other: "eth", token: LETRO });
+  });
+  it("takes the fee in ETH before the swap on non-ZOLVA buys (not burnt)", () => {
+    const wallet = "0x3333333333333333333333333333333333333333" as Hex;
+    const { commands, inputs } = decode(zolvaSwapCall({ leg: { buy: true, other: "eth", token: LETRO }, amountIn: 10n ** 15n, minOut: 9n, wethUsdgFee: 100, deadline: 1, fee: { bps: 25, to: wallet } }));
+    expect(commands).toBe("0x0610");
+    const [token, to, bips] = decodeAbiParameters([{ type: "address" }, { type: "address" }, { type: "uint256" }], inputs[0]);
+    expect([token, to.toLowerCase(), bips]).toEqual(["0x0000000000000000000000000000000000000000", wallet, 25n]);
   });
 });

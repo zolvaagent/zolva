@@ -78,6 +78,8 @@ export type SwapToken = {
   assetClass?: "crypto" | "stock";
   /** Native ETH (address ETH_NATIVE): sent along with the call, no approval; balance is the wallet's ETH. */
   native?: boolean;
+  /** A token that trades on its Pons pool (found on chain when imported): swapped like ZOLVA. */
+  pons?: boolean;
 };
 
 /**
@@ -86,7 +88,8 @@ export type SwapToken = {
  * too, like TTWO).
  */
 export function feePair(tokenIn: SwapToken, tokenOut: SwapToken): boolean {
-  const eligible = (token: SwapToken) => token.address === USDG || token.verified === true || (token.listed !== false && token.assetClass === "crypto");
+  // Pons tokens are launchpad memecoins, never stock tokens, so they pay the fee even when imported.
+  const eligible = (token: SwapToken) => token.address === USDG || token.verified === true || token.pons === true || (token.listed !== false && token.assetClass === "crypto");
   return eligible(tokenIn) && eligible(tokenOut);
 }
 
