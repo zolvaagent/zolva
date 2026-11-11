@@ -1,0 +1,231 @@
+<!doctype html>
+<!--
+  Mockup only (not app code): the per agent share card (Open Graph / X card, 1200 x 630),
+  how it shows up in an X post, and the Share menu on the agent page.
+  Numbers are the real Lab · Perps Deep Dip figures from the public API on 2026-11-11.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Share card mockup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=block" rel="stylesheet" />
+    <link href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #0b0a0e;
+        --surface: #1e1d24;
+        --text: #f1f0f3;
+        --muted: #8e8c96;
+        --faint: #5d5b64;
+        --border: rgba(255, 255, 255, 0.08);
+        --purple: #8075ff;
+        --purple-soft: rgba(152, 150, 255, 0.16);
+        --gain: #2fcf78;
+        --loss: #ff7a45;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      body { background: var(--bg); color: var(--text); font-family: Inter, system-ui, sans-serif; padding: 48px 40px 80px; }
+      .page { max-width: 1240px; margin: 0 auto; display: grid; gap: 64px; }
+      .label { font-size: 12px; line-height: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+      .note { color: var(--muted); font-size: 14px; line-height: 20px; margin-top: 12px; max-width: 760px; }
+
+      /* ---------- 1. The share card itself, 1200 x 630 ---------- */
+      .card {
+        position: relative;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        border-radius: 0;
+        color: #f6f7f4;
+        background:
+          radial-gradient(70% 90% at 100% 100%, rgba(128, 117, 255, 0.45) 0%, rgba(128, 117, 255, 0) 70%),
+          radial-gradient(50% 60% at 0% 0%, rgba(152, 150, 255, 0.18) 0%, rgba(152, 150, 255, 0) 70%),
+          #121116;
+      }
+      .card .dots { position: absolute; inset: 0; background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1.2px); background-size: 22px 22px; }
+      .card__inner { position: absolute; inset: 64px 72px 56px; display: grid; grid-template-rows: auto auto 1fr auto; }
+      .card__top { display: flex; align-items: center; justify-content: space-between; }
+      .brand { display: flex; align-items: center; gap: 14px; font-size: 30px; font-weight: 700; letter-spacing: -0.03em; }
+      .brand img { width: 48px; height: 48px; }
+      .chip { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border-radius: 999px; font-size: 20px; font-weight: 500; background: var(--purple-soft); color: #b8b3ff; }
+      .chip--live { background: rgba(47, 207, 120, 0.14); color: var(--gain); }
+      .card__name { margin-top: 32px; font-size: 56px; line-height: 1; font-weight: 700; letter-spacing: -0.035em; }
+      .card__meta { margin-top: 16px; font-size: 24px; color: rgba(246, 247, 244, 0.6); }
+      .card__body { display: grid; grid-template-columns: 400px 1fr; gap: 48px; align-items: end; align-self: end; padding-bottom: 28px; }
+      .stats { display: grid; gap: 16px; }
+      .stat__label { font-size: 20px; color: rgba(246, 247, 244, 0.55); }
+      .stat__value { font-size: 64px; line-height: 1; font-weight: 700; letter-spacing: -0.04em; margin-top: 6px; }
+      .stat__value--sm { font-size: 40px; }
+      .gain { color: var(--gain); }
+      .loss { color: var(--loss); }
+      .chart { height: 190px; }
+      .legend { display: flex; gap: 22px; font-size: 18px; color: rgba(246, 247, 244, 0.55); margin-top: 10px; justify-content: flex-end; }
+      .legend i { display: inline-block; width: 22px; height: 0; border-top: 3px solid var(--purple); vertical-align: middle; margin-right: 8px; }
+      .legend i.hold { border-top: 3px dashed #77757f; }
+      .card__foot { display: flex; justify-content: space-between; font-size: 18px; color: rgba(246, 247, 244, 0.45); }
+      .card__foot strong { color: rgba(246, 247, 244, 0.85); font-weight: 600; }
+
+      /* The card is drawn at full size and scaled to fit the page. */
+      .scaled { width: 1200px; transform-origin: top left; }
+      .frame { max-width: 1200px; overflow: hidden; border-radius: 16px; border: 1px solid var(--border); }
+
+      /* ---------- 2. In an X post ---------- */
+      .xpost { width: 598px; background: #000; border: 1px solid #2f3336; border-radius: 0; padding: 16px; font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+      .xpost__head { display: flex; gap: 10px; }
+      .avatar { width: 40px; height: 40px; border-radius: 50%; background: #333; flex: none; overflow: hidden; }
+      .avatar img { width: 100%; height: 100%; }
+      .xpost__who { font-size: 15px; line-height: 20px; }
+      .xpost__who b { font-weight: 700; }
+      .xpost__who span { color: #71767b; }
+      .xpost__text { font-size: 15px; line-height: 20px; margin-top: 2px; white-space: pre-line; }
+      .xpost__text a { color: #1d9bf0; text-decoration: none; }
+      .xcard { margin-top: 12px; margin-left: 50px; border: 1px solid #2f3336; border-radius: 16px; overflow: hidden; position: relative; }
+      .xcard__img { width: 100%; aspect-ratio: 1200 / 630; overflow: hidden; }
+      
+      .xcard__domain { position: absolute; left: 12px; bottom: 12px; background: rgba(0, 0, 0, 0.77); color: #fff; font-size: 13px; padding: 2px 6px; border-radius: 4px; }
+      .xpost__actions { display: flex; justify-content: space-between; margin: 12px 0 0 50px; color: #71767b; font-size: 13px; max-width: 420px; }
+
+      /* ---------- 3. Share menu on the agent page ---------- */
+      .agent-head { background: #121116; border: 1px solid var(--border); border-radius: 16px; padding: 28px 32px 220px; position: relative; width: 760px; }
+      .agent-head h1 { font-size: 40px; letter-spacing: -0.03em; font-weight: 600; }
+      .agent-head .sub { color: var(--muted); font-size: 14px; margin-top: 8px; }
+      .share-btn { position: absolute; top: 28px; right: 32px; display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 999px; background: #26252c; color: var(--text); font: 600 14px Inter, sans-serif; border: 0; box-shadow: 0 0 0 3px var(--purple-soft); }
+      .menu { position: absolute; top: 76px; right: 32px; width: 264px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 8px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45); }
+      .menu__item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; font-size: 14px; line-height: 20px; }
+      .menu__item i { font-size: 18px; color: var(--muted); }
+      .menu__item small { display: block; color: var(--muted); font-size: 12px; line-height: 16px; }
+      .menu__item--active { background: rgba(255, 255, 255, 0.06); }
+      .menu hr { border: 0; border-top: 1px solid var(--border); margin: 6px 4px; }
+
+      .row { display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; }
+      .compose { width: 380px; background: #000; border: 1px solid #2f3336; border-radius: 16px; padding: 16px; font-family: -apple-system, "Segoe UI", system-ui, sans-serif; font-size: 15px; line-height: 20px; white-space: pre-line; }
+      .compose a { color: #1d9bf0; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section>
+        <div class="label">1 · Share card (1200 × 630, shown on X, Telegram, Discord)</div>
+        <div class="frame" id="card-frame">
+          <div class="scaled" id="card-scaled">
+            <div class="card" id="share-card">
+              <div class="dots"></div>
+              <div class="card__inner">
+                <div class="card__top">
+                  <div class="brand"><img src="../../public/img/brand/zolva-mark.png" alt="" />Zolva</div>
+                  <span class="chip"><i class="ph ph-flask"></i>Paper · Perps</span>
+                </div>
+                <div>
+                  <div class="card__name">Lab · Perps Deep Dip</div>
+                  <div class="card__meta">BTC-PERP · ETH-PERP · SOL-PERP &nbsp;·&nbsp; since Nov 8</div>
+                </div>
+                <div class="card__body">
+                  <div class="stats">
+                    <div>
+                      <div class="stat__label">Return</div>
+                      <div class="stat__value gain">+0.8%</div>
+                    </div>
+                    <div>
+                      <div class="stat__label">P&amp;L</div>
+                      <div class="stat__value stat__value--sm gain">+$82.31</div>
+                    </div>
+                  </div>
+                  <div>
+                    <svg class="chart" id="chart" viewBox="0 0 600 230" preserveAspectRatio="none" width="100%"></svg>
+                    <div class="legend"><span><i></i>Agent</span><span><i class="hold"></i>Holding −6.2%</span></div>
+                  </div>
+                </div>
+                <div class="card__foot">
+                  <span><strong>zolvaagent.app</strong> &nbsp;·&nbsp; every decision public</span>
+                  <span>Past results do not predict future results</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="note">
+          One card per agent, made on the fly from the same data as the page. Real money agents get a green "Real money" chip instead of "Paper".
+          A loss shows in orange. Only published agents and Zolva's own agents get a card; private agents keep the generic Zolva image.
+        </p>
+      </section>
+
+      <section>
+        <div class="label">2 · How it looks when posted on X</div>
+        <div class="row">
+          <article class="xpost">
+            <div class="xpost__head">
+              <div class="avatar"><img src="../../public/img/brand/zolva-mark.png" alt="" /></div>
+              <div style="flex: 1">
+                <div class="xpost__who"><b>Zolva</b> <span>@zolva_agent · 1m</span></div>
+                <div class="xpost__text">My AI agent "Lab · Perps Deep Dip" made +$82.31 (+0.8%) since Nov 8, while just holding BTC, ETH and SOL lost 6.2%.
+
+Every decision is public 👇
+<a href="#">zolvaagent.app/agents/407eb4b0…</a></div>
+              </div>
+            </div>
+            <div class="xcard">
+              <div class="xcard__img"><div class="scaled" id="card-copy"></div></div>
+              <span class="xcard__domain">zolvaagent.app</span>
+            </div>
+            <div class="xpost__actions"><span><i class="ph ph-chat-circle"></i> 4</span><span><i class="ph ph-repeat"></i> 2</span><span><i class="ph ph-heart"></i> 18</span><span><i class="ph ph-chart-bar"></i> 1.2K</span></div>
+          </article>
+        </div>
+        <p class="note">X reads the card from the link itself, so any link to an agent page shows this banner, whether it was shared with the button or pasted by hand.</p>
+      </section>
+
+      <section>
+        <div class="label">3 · Share menu on the agent page</div>
+        <div class="row">
+          <div class="agent-head">
+            <h1>Lab · Perps Deep Dip</h1>
+            <div class="sub">Running · Perps · paper · BTC-PERP, ETH-PERP, SOL-PERP</div>
+            <button class="share-btn"><i class="ph ph-share-network"></i>Share</button>
+            <div class="menu">
+              <div class="menu__item menu__item--active"><i class="ph ph-x-logo"></i><div>Post on X<small>Opens X with the text and link filled in</small></div></div>
+              <div class="menu__item"><i class="ph ph-link"></i><div>Copy link</div></div>
+              <div class="menu__item"><i class="ph ph-download-simple"></i><div>Download image<small>The card above as a PNG</small></div></div>
+            </div>
+          </div>
+          <div>
+            <div class="label" style="margin-bottom: 8px">"Post on X" opens with</div>
+            <div class="compose">My AI agent "Lab · Perps Deep Dip" made +$82.31 (+0.8%) since Nov 8, while just holding BTC, ETH and SOL lost 6.2%.
+
+Every decision is public 👇
+<a href="#">zolvaagent.app/agents/407eb4b0…</a></div>
+            <p class="note" style="max-width: 380px">
+              Editable before posting. When the agent is behind holding, the line becomes "… is down $120.40 (−1.2%) since Nov 8. Every decision, good and bad, is public 👇" so we never overclaim.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      // Real hourly values (agent, holding) for Lab · Perps Deep Dip, Nov 8 to Nov 11, thinned to ~60 points.
+      const series = [[10000,9975.8],[10000,10000.4],[10000,10009.3],[10000,9954],[10000,9956.6],[10000,9988.5],[10000,9983.1],[10000,9947.5],[10000,9612.1],[10000,9640.7],[10000,9664.4],[10000,9745.9],[10000,9747.2],[10000,9766.7],[10000,9719.4],[10000,9713.4],[10000,9653.9],[10000,9601.9],[10000,9536.5],[10000,9662.3],[10000,9609.1],[10000,9583.9],[10000,9607.7],[10000,9665.4],[10000,9665.9],[10000,9701.3],[10000,9777.7],[10000,9703],[10000,9663.8],[10000,9657.1],[10000,9669.6],[10000,9674.5],[10000,9674.7],[10000,9711.4],[10000,9707],[10000,9672.6],[10000,9665.5],[10000,9645.2],[10000,9607],[10000,9637.2],[10000,9650.5],[10000,9627.4],[10000,9632.2],[10000,9624.8],[10000,9583.2],[10000,9505.9],[10000,9527.7],[10000,9544.2],[9998.4,9438.2],[10027.7,9499],[9970.8,9280.5],[9933.6,9245.4],[9985.6,9294.5],[10044.2,9349.1],[10043.3,9348.4],[10095,9396.8],[10096.4,9398.4],[10058.5,9363.1],[10087,9389.8],[10063,9367],[10073,9376.4],[10085,9387.6],[10101.5,9403.3],[10082.3,9385.4]];
+      const all = series.flat();
+      const min = Math.min(...all) - 40, max = Math.max(...all) + 40;
+      const x = (i) => (i / (series.length - 1)) * 600;
+      const y = (v) => 230 - ((v - min) / (max - min)) * 230;
+      const line = (k) => series.map((p, i) => `${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join(" ");
+      document.getElementById("chart").innerHTML = `
+        <defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8075ff" stop-opacity="0.22"/><stop offset="1" stop-color="#8075ff" stop-opacity="0"/></linearGradient></defs>
+        <polygon points="0,230 ${line(0)} 600,230" fill="url(#fill)"/>
+        <polyline points="${line(1)}" fill="none" stroke="#77757f" stroke-width="3" stroke-dasharray="8 7" vector-effect="non-scaling-stroke"/>
+        <polyline points="${line(0)}" fill="none" stroke="#9a91ff" stroke-width="4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+
+      // Section 1 shows the card scaled to the page width; section 2 reuses a copy of it.
+      const frame = document.getElementById("card-frame");
+      const scaled = document.getElementById("card-scaled");
+      const fit = () => {
+        const s = Math.min(1, frame.clientWidth / 1200);
+        scaled.style.transform = `scale(${s})`;
+        frame.style.height = `${630 * s}px`;
+      };
+      fit();
+      addEventListener("resize", fit);
+      const copy = document.getElementById("card-copy");
+      copy.appendChild(document.getElementById("share-card").cloneNode(true));
+      copy.style.transform = `scale(${copy.parentElement.clientWidth / 1200})`;
+    </script>
+  </body>

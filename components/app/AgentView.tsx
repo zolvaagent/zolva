@@ -6,10 +6,12 @@ import { copyBlock } from "@/lib/agents/copy";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
+import { ShareMenu } from "@/components/app/ShareMenu";
 import { SellPositionButton } from "@/components/app/SwapDialog";
 import { useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
 import { EXPLORER_URL } from "@/lib/chain";
+import { agentShareText } from "@/lib/share/share-text";
 import type { AgentDetail } from "@/lib/data/agents";
 import {
   AiLimitFields,
@@ -178,11 +180,17 @@ export function AgentView({
     router.refresh();
   };
 
-  const share = () =>
-    navigator.clipboard?.writeText(window.location.href).then(
-      () => toast("Link copied"),
-      () => toast("Copy failed. Copy the address bar instead."),
-    );
+  // The prefilled "Post on X" text, from the same numbers as the share card.
+  const shareText = (url: string) =>
+    agentShareText({
+      name: agent.name,
+      symbols: summary.tokens.map((token) => token.symbol),
+      createdAt: summary.createdAt,
+      returnPct: summary.returnPct,
+      pnlUsd: summary.equity - summary.startCapital,
+      holdReturnPct: (summary.holdEquity / summary.startCapital - 1) * 100,
+      url,
+    });
 
   const rules = agent.params.rules as Rules | undefined;
   const settings: [string, React.ReactNode][] = [
@@ -368,16 +376,7 @@ export function AgentView({
             {isPublished ? "Unpublish" : "Publish to leaderboard"}
           </button>
         )}
-        {(isPublished || summary.isHouse) && (
-          <button
-            className="button button--ghost"
-            type="button"
-            onClick={share}
-          >
-            <i className="ph ph-share-network" />
-            Share
-          </button>
-        )}
+        {(isPublished || summary.isHouse) && <ShareMenu text={shareText} fileName={`zolva-${agent.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.png`} />}
       </div>
     </div>
   );

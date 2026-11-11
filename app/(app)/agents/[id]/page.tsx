@@ -8,6 +8,8 @@ import { getSessionAddress, LOGIN_METHOD_COOKIE } from "@/lib/auth/session";
 import { getAgentDetail, type AgentDetail } from "@/lib/data/agents";
 import { getCredits } from "@/lib/data/credits";
 import { getMarket } from "@/lib/data/market";
+import { dayAt, percent, signedUsd } from "@/lib/format";
+import { getAgentShare } from "@/lib/share/agent-share";
 import { buyAndHold, costRateFor, simulate } from "@/lib/engine/engine";
 import { db } from "@/lib/supabase";
 
@@ -17,8 +19,19 @@ const canView = (detail: AgentDetail, address: string | null) => detail.agent.pu
 
 export async function generateMetadata({ params }: PageProps<"/agents/[id]">): Promise<Metadata> {
   const client = db();
-  const [detail, address] = await Promise.all([getAgentDetail(client, (await params).id), getSessionAddress()]);
-  return { title: detail && canView(detail, address) ? detail.agent.name : "Agent not found" };
+  const { id } = await params;
+  const [detail, address, share] = await Promise.all([getAgentDetail(client, id), getSessionAddress(), getAgentShare(client, id)]);
+  if (!detail || !canView(detail, address)) return { title: "Agent not found" };
+  // Shareable agents get their own preview text; the image comes from opengraph-image.tsx.
+  if (!share) return { title: detail.agent.name };
+  const title = `${share.name}: ${percent(share.returnPct)} since ${dayAt(share.createdAt)}`;
+  const description = `${share.live ? "Real money" : "Paper"} AI trading agent on ${share.symbols.join(", ")}. P&L ${signedUsd(share.pnlUsd)}, holding the same markets ${percent(share.holdReturnPct)}. Every decision and its reason is public on Zolva.`;
+  return {
+    title: share.name,
+    description,
+    openGraph: { title, description, url: `/agents/${id}`, type: "website", siteName: "Zolva" },
+    twitter: { card: "summary_large_image", site: "@zolva_agent", title, description },
+  };
 }
 
 export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {

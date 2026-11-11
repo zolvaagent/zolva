@@ -2548,6 +2548,66 @@ main:focus {
   padding-right: 0;
 }
 
+/* Share menu on the agent page (components/app/ShareMenu.tsx). */
+.share-menu {
+  position: relative;
+}
+
+.share-menu__panel {
+  position: absolute;
+  top: calc(100% + var(--space-75));
+  right: 0;
+  z-index: 20;
+  width: 264px;
+  padding: var(--space-75);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+}
+
+.share-menu__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-100);
+  width: 100%;
+  padding: var(--space-75) var(--space-100);
+  border: 0;
+  /* Panel radius 16 minus its 8px padding. */
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-micro) var(--ease-out-expo);
+}
+
+.share-menu__item:hover,
+.share-menu__item:focus-visible {
+  background: var(--color-tint);
+}
+
+.share-menu__item:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.share-menu__item i {
+  margin-top: var(--space-25);
+  font-size: 18px;
+  color: var(--color-text-muted);
+}
+
+.share-menu__item small {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .table tbody tr {
   transition: background-color var(--duration-micro) var(--ease-out-expo);
 }
