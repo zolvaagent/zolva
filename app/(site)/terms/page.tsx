@@ -18,7 +18,7 @@ export default function TermsPage() {
       </p>
       <h2>Swaps</h2>
       <p>
-        The Swap page prepares transactions that you sign from your own wallet; Zolva never holds your tokens. Swaps between USDG, ETH, BTC and ZOLVA carry a 0.25% Zolva fee, shown before you sign: on ZOLVA purchases it is burnt in the same transaction, otherwise it is used to buy back and burn ZOLVA. Swaps with stock tokens or with tokens you import by address carry no Zolva fee. Pools charge their own fees (ZOLVA&apos;s Pons pool about 3%). Tokens you import are not checked by Zolva.
+        The Swap page prepares transactions that you sign from your own wallet; Zolva never holds your tokens. Swaps between USDG, ETH, WETH, BTC, ZOLVA and tokens that trade on a Pons pool carry a 0.25% Zolva fee, shown before you sign: on ZOLVA purchases it is burnt in the same transaction, otherwise it is used to buy back and burn ZOLVA. Swaps with stock tokens, and with other tokens you import by address, carry no Zolva fee. Pools charge their own fees (Pons pools about 3%). Tokens you import are not checked by Zolva.
       </p>
       <h2>Who may use Zolva</h2>
       <p>

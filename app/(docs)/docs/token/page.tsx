@@ -104,18 +104,18 @@ export default function Token() {
 
       <H2 id="swap-fee">Swap fee: buyback and burn</H2>
       <p>
-        Swaps on Zolva between USDG, ETH, BTC and ZOLVA pay a <strong>0.25% Zolva fee</strong>, shown in the swap card before you sign. Swaps with stock
-        tokens, and with tokens you import by address, pay no Zolva fee.
+        Swaps on Zolva between USDG, ETH, WETH, BTC, ZOLVA and tokens that trade on a Pons pool pay a <strong>0.25% Zolva fee</strong>, shown in the swap card
+        before you sign. Swaps with stock tokens, and with other tokens you import by address, pay no Zolva fee.
       </p>
       <ul>
         <li>
           <strong>Buying ZOLVA:</strong> the fee is taken in ZOLVA and sent to the burn address in the same transaction.
         </li>
         <li>
-          <strong>Other fee swaps:</strong> the fee goes to Zolva&apos;s fee wallet. Its balance is used to buy ZOLVA and burn it, and every buyback is
+          <strong>Other fee swaps:</strong> the fee goes to Zolva&apos;s fee wallet (on buys of other Pons tokens it is taken in ETH before the swap). Its balance is used to buy ZOLVA and burn it, and every buyback is
           listed with its transactions in the public burn log on GitHub (docs/zolva-burns.md).
         </li>
-        <li>ZOLVA swaps also pay Pons&apos; own trading fee (about 3%), taken by the pool. Zolva does not receive it.</li>
+        <li>Swaps on Pons pools (ZOLVA and other Pons tokens) also pay Pons&apos; own trading fee (about 3%), taken by the pool. Zolva does not receive it.</li>
       </ul>
 
       <H2 id="burn">Coming later</H2>
