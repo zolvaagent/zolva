@@ -41,7 +41,7 @@ export function SwapWorkspace({ address, loginMethod }: { address: string | null
 
   useEffect(() => {
     // USDG has no chart of its own (it is the dollar), and an imported token has no Zolva prices.
-    if (!buy || buy.pool === null || buy.listed === false || buy.verified) return;
+    if (!buy || (buy.pool === null && !buy.verified) || buy.listed === false) return;
     fetch(`/api/swap?chart=${buy.address}`)
       .then((response) => (response.ok ? (response.json() as Promise<Chart>) : null))
       .then((data) => setChart({ address: buy.address, data }))
@@ -83,8 +83,8 @@ export function SwapWorkspace({ address, loginMethod }: { address: string | null
                   {change24h !== null && <span className={tone(change24h)}>{percent(change24h)} 24h</span>}
                 </div>
               </div>
-              {buy.listed === false || buy.verified ? (
-                <div className="swap-chart__empty muted">{buy.verified ? "$ZOLVA trades on its Pons pool. See the live chart on GeckoTerminal." : "An imported token: Zolva keeps no price history for it. Check its chart on GeckoTerminal."}</div>
+              {buy.listed === false ? (
+                <div className="swap-chart__empty muted">An imported token: Zolva keeps no price history for it. Check its chart on GeckoTerminal.</div>
               ) : data && data.closes.length > 1 ? (
                 <LineChart
                   startTs={data.startTs}
@@ -98,9 +98,13 @@ export function SwapWorkspace({ address, loginMethod }: { address: string | null
               )}
               <div className="swap-chart__foot">
                 <span className="muted">
-                  {buy.verified ? "Zolva's own token" : buy.listed === false ? "Not on Zolva's list" : <>7 days of hourly closes{weekChange !== null && <> · <span className={tone(weekChange)}>{percent(weekChange)}</span></>}</>}
+                  {buy.listed === false ? "Not on Zolva's list" : <>7 days of hourly closes{weekChange !== null && <> · <span className={tone(weekChange)}>{percent(weekChange)}</span></>}</>}
                 </span>
-                {buy.listed === false || buy.verified ? (
+                {buy.verified ? (
+                  <a className="text-link" href={`https://ponsfamily.com/launchpad/${buy.address}`} target="_blank" rel="noopener noreferrer">
+                    {buy.symbol} on Pons <i className="ph ph-arrow-up-right" aria-hidden="true" />
+                  </a>
+                ) : buy.listed === false ? (
                   <a className="text-link" href={`https://www.geckoterminal.com/robinhood/tokens/${buy.address}`} target="_blank" rel="noopener noreferrer">
                     {buy.symbol} on GeckoTerminal <i className="ph ph-arrow-up-right" aria-hidden="true" />
                   </a>

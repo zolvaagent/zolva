@@ -254,6 +254,7 @@ export async function walletHistory(chain: PublicClient, owner: Hex, tokens: Swa
 
 /** A token's hourly closes for the swap page chart: the last week, oldest first. */
 export async function tokenChart(db: SupabaseClient, address: Hex): Promise<{ startTs: number; closes: number[] } | null> {
+  if (address === ZOLVA) return zolvaChart(db);
   const market = await getMarket(db);
   const token = market.tokens.find((item) => item.address.toLowerCase() === address);
   if (!token) return null;
@@ -314,4 +315,63 @@ async function quoteZolvaSwap(chain: PublicClient, options: { tokenIn: SwapToken
     wethUsdgFee,
     zolvaFee: zolvaFee ? { ...zolvaFee, amount: (amountOut - net).toString() } : null,
   };
+}
+
+/**
+ * Pons' hourly candles for a launch, priced in ETH. Not a documented API (found on Pons' own token
+ * page, also used by the Hoodlens project), so every caller must cope with it failing or changing.
+ */
+const PONS_CANDLES_URL = (address: Hex) => `https://ponsfamily.com/api/launches/${address}?view=candles&interval=1h&limit=200`;
+type PonsCandle = { time: number; close: number };
+
+/**
+ * ZOLVA's last week of hourly closes in USD for the swap page chart: Pons' hourly candles (in ETH)
+ * times the ETH market's close for the same hour, hours without trades carried forward. Falls back
+ * to Zolva's own hourly ZOLVA prices (zolva_prices) when Pons does not answer.
+ */
+async function zolvaChart(db: SupabaseClient): Promise<{ startTs: number; closes: number[] } | null> {
+  const HOUR = 3600;
+  const market = await getMarket(db);
+  const eth = market.tokens.find((token) => token.address.toLowerCase() === WETH);
+  const nowHour = Math.floor(Date.now() / 1000 / HOUR) * HOUR;
+  const firstHour = nowHour - 167 * HOUR;
+
+  let candles: PonsCandle[] = [];
+  try {
+    const response = await fetch(PONS_CANDLES_URL(ZOLVA), { signal: AbortSignal.timeout(5000), headers: { accept: "application/json" } });
+    const body = response.ok ? ((await response.json()) as unknown) : null;
+    if (Array.isArray(body)) {
+      candles = body
+        .filter((item): item is PonsCandle => typeof item?.time === "number" && typeof item?.close === "number" && item.close > 0)
+        .sort((a, b) => a.time - b.time);
+    }
+  } catch {
+    candles = [];
+  }
+
+  if (candles.length && eth && market.hours) {
+    // The ETH close for an hour, or the nearest earlier one (the hourly job may not have run yet).
+    const ethAt = (ts: number) => {
+      let index = Math.min(market.hours - 1, Math.floor((ts - market.startTs) / HOUR));
+      while (index >= 0 && eth.closes[index] == null) index--;
+      return index >= 0 ? (eth.closes[index] as number) : null;
+    };
+    const start = Math.max(firstHour, Math.floor(candles[0].time / HOUR) * HOUR);
+    const closes: number[] = [];
+    let next = 0;
+    let lastEth: number | null = null;
+    for (let hour = start; hour <= nowHour; hour += HOUR) {
+      while (next < candles.length && candles[next].time < hour + HOUR) lastEth = candles[next++].close;
+      const usdPerEth = ethAt(hour);
+      closes.push(lastEth !== null && usdPerEth !== null ? lastEth * usdPerEth : Number.NaN);
+    }
+    const first = closes.findIndex((close) => !Number.isNaN(close));
+    if (first !== -1) return { startTs: start + first * HOUR, closes: closes.slice(first) };
+  }
+
+  // Fallback: Zolva's own hourly snapshots.
+  const { data } = await db.from("zolva_prices").select("ts, price").gte("ts", new Date(firstHour * 1000).toISOString()).order("ts");
+  if (!data?.length) return null;
+  const rows = data.map((row) => ({ ts: Math.floor(new Date(row.ts as string).getTime() / 1000 / HOUR) * HOUR, price: Number(row.price) }));
+  return { startTs: rows[0].ts, closes: rows.map((row) => row.price) };
 }
