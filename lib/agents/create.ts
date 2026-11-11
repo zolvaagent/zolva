@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 import { getMarket, latestCandleTime } from "@/lib/data/market";
 import { parseAiLimit, type AiLimit } from "@/lib/ai/limits";
 import { aiModel } from "@/lib/ai/models";
@@ -33,6 +34,8 @@ export type CreateAgentInput = {
   strategyPrompt?: unknown;
   /** "paper" (default) or "live" for real money from the owner's own wallet. */
   mode?: unknown;
+  /** "spot" (default: stock and crypto tokens on the DEX) or "perps" (Lighter perps, paper only). */
+  venue?: unknown;
 };
 
 /** What a live launch needs from the chain, read by the route: the owner's USDG balance. */
@@ -40,7 +43,6 @@ export type LiveLaunch = { usdg: number };
 
 export class AgentInputError extends Error {}
 
-const STRATEGIES = ["momentum", "mean_reversion", "custom"] as const;
 
 /**
  * Validates untrusted Studio input and launches a paper agent for `owner`.
@@ -53,8 +55,14 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   const name = typeof input.name === "string" ? input.name.trim().replace(/\s+/g, " ") : "";
   if (name.length < 1 || name.length > 40) throw new AgentInputError("Give your agent a name of up to 40 characters.");
 
-  const strategy = STRATEGIES.find((key) => key === input.strategy);
+  const strategy = STUDIO_STRATEGIES.find((key) => key === input.strategy);
   if (!strategy) throw new AgentInputError("Pick a strategy.");
+  const perps = input.venue === "perps";
+  // Perps are paper only (agent_venue_guard), and shorts trade perps only.
+  if (perps && mode === "live") throw new AgentInputError("Perps agents trade paper money only for now.");
+  if (strategyNeedsPerps(strategy) && !perps) throw new AgentInputError("Spike fade opens shorts, which trade perps. Switch to Perps to launch it.");
+  // Real money stays on the strategies it has run with; Dip hunter is paper only for now.
+  if (mode === "live" && (strategy === "dip_hunter" || strategy === "spike_fade")) throw new AgentInputError("Dip hunter and Spike fade trade paper money only for now.");
 
   let rules: Rules | undefined;
   if (strategy === "custom") {
@@ -94,10 +102,11 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
   if (!Number.isInteger(stopLossPct) || stopLossPct < 2 || stopLossPct > 25) throw new AgentInputError("Stop loss must be between 2% and 25%.");
 
   const tokens = Array.isArray(input.tokens) ? [...new Set(input.tokens.map((token) => String(token).toLowerCase()))] : [];
-  if (tokens.length < 1 || tokens.length > 3) throw new AgentInputError("Pick 1 to 3 stocks or coins.");
+  const maxMarkets = maxMarketsFor(strategy);
+  if (tokens.length < 1 || tokens.length > maxMarkets) throw new AgentInputError(`Pick 1 to ${maxMarkets} markets.`);
 
-  // Every token (stock or coin) must be on the allowlist and have enough clean history right now.
-  const market = await getMarket(db);
+  // Every token (stock, coin or perp) must be on the allowlist and have enough clean history right now.
+  const market = await getMarket(db, { perps });
   const lastIndex = market.hours - 1;
   const lookback = rules ? rulesLookback(rules) : LOOKBACK_HOURS;
   // Live agents swap on Uniswap v3 pools only (what SwapRouter02 and the wallet policy allow).
@@ -110,6 +119,8 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
     const token = market.tokens.find((item) => item.address === address);
     const price = token?.closes[lastIndex];
     if (!token || price == null) throw new AgentInputError("One of the picked markets is not available.");
+    // One venue per agent: perps agents trade Lighter perps only, spot agents DEX tokens only.
+    if ((token.venue === "lighter") !== perps) throw new AgentInputError(perps ? `${token.symbol} is not a perps market. Pick perps only.` : `${token.symbol} is a perps market. Switch to Perps to use it.`);
     if (token.firstIndex === null || lastIndex - token.firstIndex < lookback) {
       throw new AgentInputError(`${token.symbol} is too new for this strategy. Pick another one.`);
     }
@@ -122,7 +133,7 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
       owner,
       name,
       strategy,
-      params: { max_position_pct: maxPositionPct, stop_loss_pct: stopLossPct, start_prices: startPrices, ...(rules ? { rules } : {}) },
+      params: { max_position_pct: maxPositionPct, stop_loss_pct: stopLossPct, start_prices: startPrices, ...(rules ? { rules } : {}), ...(perps ? { venue: "perps" } : {}) },
       token_addresses: tokens,
       start_capital: capital,
       cash: capital,

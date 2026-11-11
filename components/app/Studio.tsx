@@ -20,6 +20,7 @@ import { dayAt, percent, usd } from "@/lib/format";
 import { track } from "@/lib/funnel";
 import { openingPreset, PRESET_MAX_POSITION_PCT, PRESET_STOP_LOSS_PCT, scorePresets, suggestedName, type ScoredPreset } from "@/lib/studio/presets";
 import type { Market } from "@/lib/data/market";
+import { maxMarketsFor, strategyNeedsPerps, type StudioStrategy } from "@/lib/agents/copy";
 
 const BACKTEST_HOURS = 30 * 24;
 const MAX_ACTIVE = 5;
@@ -29,7 +30,8 @@ const TOKEN_GROUPS = [
   ["crypto", "Crypto"],
 ] as const;
 
-type Strategy = "momentum" | "mean_reversion" | "custom";
+type Strategy = StudioStrategy;
+type Venue = "spot" | "perps";
 
 const BLANK_RULES: Rules = {
   entry: { join: "all", conditions: [{ left: { kind: "price" }, op: "crossesAbove", right: { kind: "sma", hours: 24 } }] },
@@ -40,8 +42,11 @@ const BLANK_RULES: Rules = {
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-/** A published agent to start from ("Use these rules" on /agents). */
-export type StudioTemplate = { id: string; name: string; strategy: Strategy; rules: Rules | null; symbols: string[]; maxPositionPct: number; stopLossPct: number };
+/** A published agent to start from ("Copy to Studio" on /agents and agent pages). */
+export type StudioTemplate = { id: string; name: string; strategy: Strategy; venue?: Venue; rules: Rules | null; symbols: string[]; maxPositionPct: number; stopLossPct: number };
+
+/** Dip hunter and Spike fade enter one market at a time, so they cannot trade real money yet. */
+const PAPER_ONLY_STRATEGIES: readonly Strategy[] = ["dip_hunter", "spike_fade"];
 
 export function Studio({
   market,
@@ -62,7 +67,7 @@ export function Studio({
   const toast = useToast();
   const { address, openLogin } = useAuth();
   const startStrategy: Strategy = initialStrategy === "mean_reversion" || initialStrategy === "custom" ? initialStrategy : "momentum";
-  const startStock = market.tokens.find((token) => token.symbol === initialStock?.toUpperCase())?.symbol ?? "NVDA";
+  const startStock = market.tokens.find((token) => token.symbol === initialStock?.toUpperCase() && token.venue !== "lighter")?.symbol ?? "NVDA";
 
   // Until the user types a name, the agent is named after its markets and strategy.
   const [name, setName] = useState("");
@@ -76,6 +81,11 @@ export function Studio({
   const [strategy, setStrategy] = useState<Strategy>(template?.strategy ?? opening?.strategy ?? startStrategy);
   const [rules, setRules] = useState<Rules>(clone(template?.rules ?? RULE_TEMPLATES.momentum));
   const [symbols, setSymbols] = useState<string[]>(templateSymbols.length ? templateSymbols : opening ? [...opening.symbols] : [startStock]);
+  // Spot: stock and crypto tokens on the DEX. Perps: Lighter perps, paper only, the venue for shorts.
+  const [venue, setVenue] = useState<Venue>(template?.venue ?? "spot");
+  const perps = venue === "perps";
+  const venueTokens = market.tokens.filter((token) => (token.venue === "lighter") === perps);
+  const maxMarkets = maxMarketsFor(strategy);
   const [capital, setCapital] = useState(10_000);
   // Real money: the mode, the wallet status from LiveSetup and the USDG the agent starts with.
   const [mode, setMode] = useState<"paper" | "live">("paper");
@@ -91,6 +101,7 @@ export function Studio({
   useEffect(() => track("studio_view", template ? "template" : undefined), [template]);
   const applyPreset = (preset: ScoredPreset) => {
     track("preset_pick", preset.id);
+    setVenue("spot");
     setStrategy(preset.strategy);
     setSymbols([...preset.symbols]);
     setMaxPositionPct(PRESET_MAX_POSITION_PCT);
@@ -120,16 +131,35 @@ export function Studio({
     const series = Object.fromEntries(symbols.map((symbol) => [symbol, market.tokens.find((token) => token.symbol === symbol)!.closes]));
     const result = simulate({
       series,
-      params: { strategy, rules: strategy === "custom" ? rules : undefined, maxPositionPct, stopLossPct },
+      params: { strategy, rules: strategy === "custom" ? rules : undefined, maxPositionPct, stopLossPct, ...(perps ? { venue: "perps" as const } : {}) },
       capital: agentCapital,
       fromIndex,
       times: market.tokens[0].closes.map((_, i) => market.startTs + i * 3600),
+      // Perps pay 0.05% per fill and each hour's real funding, like the live Lab perps agents.
+      ...(perps ? { funding: Object.fromEntries(symbols.map((symbol) => [symbol, market.tokens.find((token) => token.symbol === symbol)!.funding ?? []])) } : {}),
     });
     const hold = buyAndHold(series, agentCapital, fromIndex);
     return { result, hold, edge: result.returnPct - hold.returnPct };
-  }, [symbols, strategy, rules, maxPositionPct, stopLossPct, agentCapital, market, fromIndex, ruleErrors.length]);
+  }, [symbols, strategy, rules, maxPositionPct, stopLossPct, agentCapital, market, fromIndex, ruleErrors.length, perps]);
 
-  const toggleSymbol = (symbol: string) => setSymbols((list) => (list.includes(symbol) ? list.filter((item) => item !== symbol) : list.length >= 3 ? list : [...list, symbol]));
+  const toggleSymbol = (symbol: string) => setSymbols((list) => (list.includes(symbol) ? list.filter((item) => item !== symbol) : list.length >= maxMarkets ? list : [...list, symbol]));
+
+  /** A new strategy keeps the picked markets that fit its limit; paper-only strategies switch real money off. */
+  const chooseStrategy = (next: Strategy) => {
+    setStrategy(next);
+    setSymbols((list) => list.slice(0, maxMarketsFor(next)));
+    if (PAPER_ONLY_STRATEGIES.includes(next)) setMode("paper");
+  };
+
+  /** Spot and perps have different markets: switching starts the pick over (perps also means paper only). */
+  const chooseVenue = (next: Venue) => {
+    if (next === venue) return;
+    setVenue(next);
+    const first = market.tokens.find((token) => (token.venue === "lighter") === (next === "perps") && token.symbol === (next === "perps" ? "BTC-PERP" : "NVDA"));
+    setSymbols(first ? [first.symbol] : []);
+    if (next === "perps") setMode("paper");
+    if (next === "spot" && strategyNeedsPerps(strategy)) setStrategy("momentum");
+  };
 
   const launchRef = useRef<HTMLDialogElement>(null);
   const [launch, setLaunch] = useState<{ busy: boolean; error: string | null; terms: boolean; residence: boolean; risk: boolean }>({ busy: false, error: null, terms: false, residence: false, risk: false });
@@ -164,6 +194,7 @@ export function Studio({
         strategy,
         rules: strategy === "custom" ? rules : undefined,
         tokens: symbols.map((symbol) => market.tokens.find((token) => token.symbol === symbol)!.address),
+        venue,
         capital: agentCapital,
         maxPositionPct,
         stopLossPct,
@@ -266,8 +297,8 @@ export function Studio({
                 <span className="choice__title">Paper trading</span>
                 <span className="choice__text">Virtual money at real Robinhood Chain prices. Free, nothing to deposit.</span>
               </label>
-              <label className="choice">
-                <input type="radio" name="mode" value="live" checked={live} onChange={() => setMode("live")} />
+              <label className="choice" aria-disabled={perps || PAPER_ONLY_STRATEGIES.includes(strategy)}>
+                <input type="radio" name="mode" value="live" checked={live} disabled={perps || PAPER_ONLY_STRATEGIES.includes(strategy)} onChange={() => setMode("live")} />
                 <span className="choice__glyph" aria-hidden="true">
                   <i className="ph ph-wallet" />
                 </span>
@@ -276,10 +307,42 @@ export function Studio({
                   {/* The per agent cap from live settings; 100 until LiveSetup has loaded them. */}
                   <span className="pill pill--accent">Up to ${Math.round(liveStatus?.maxCapitalUsd ?? 100)}</span>
                 </span>
-                <span className="choice__text">Your agent trades USDG from your own wallet on Uniswap, within limits, and you can stop it any time.</span>
+                <span className="choice__text">
+                  {perps
+                    ? "Not for perps yet: perps agents trade paper money."
+                    : PAPER_ONLY_STRATEGIES.includes(strategy)
+                      ? "Not for Dip hunter or Spike fade yet: they trade paper money."
+                      : "Your agent trades USDG from your own wallet on Uniswap, within limits, and you can stop it any time."}
+                </span>
               </label>
             </div>
             {live && <LiveSetup onStatus={setLiveStatus} />}
+          </div>
+
+          <div className="form-section" role="radiogroup" aria-labelledby="venue-label">
+            <div className="form-section__label" id="venue-label">
+              Markets to trade
+            </div>
+            <div className="choice-grid">
+              <label className="choice">
+                <input type="radio" name="venue" value="spot" checked={!perps} onChange={() => chooseVenue("spot")} />
+                <span className="choice__glyph" aria-hidden="true">
+                  <i className="ph ph-chart-line-up" />
+                </span>
+                <span className="choice__title">Spot</span>
+                <span className="choice__text">Stock tokens and crypto on Robinhood Chain&apos;s DEX. Long only.</span>
+              </label>
+              <label className="choice">
+                <input type="radio" name="venue" value="perps" checked={perps} onChange={() => chooseVenue("perps")} />
+                <span className="choice__glyph" aria-hidden="true">
+                  <i className="ph ph-arrows-down-up" />
+                </span>
+                <span className="choice__title">
+                  Perps <span className="pill">Paper</span>
+                </span>
+                <span className="choice__text">Lighter perps on Robinhood Chain with real hourly funding. Long, or short with Spike fade.</span>
+              </label>
+            </div>
           </div>
 
           <div className="form-section" role="radiogroup" aria-labelledby="strategy-label">
@@ -287,9 +350,19 @@ export function Studio({
               Strategy
             </div>
             <div className="choice-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
-              <StrategyChoice value="momentum" current={strategy} onChange={setStrategy} icon="momentum" title="Momentum" text="Buys after a rise of more than 3% in a day, sells when the trend breaks." />
-              <StrategyChoice value="mean_reversion" current={strategy} onChange={setStrategy} icon="mean-reversion" title="Mean reversion" text="Buys unusual dips and sells the rebound once the price is back to normal." />
-              <StrategyChoice value="custom" current={strategy} onChange={setStrategy} icon="backtest" title="Custom" text="Write your own buy and sell rules from price lines, z scores and RSI." />
+              <StrategyChoice value="momentum" current={strategy} onChange={chooseStrategy} icon="momentum" title="Momentum" text="Buys after a rise of more than 3% in a day, sells when the trend breaks." />
+              <StrategyChoice value="mean_reversion" current={strategy} onChange={chooseStrategy} icon="mean-reversion" title="Mean reversion" text="Buys unusual dips and sells the rebound once the price is back to normal." />
+              <StrategyChoice value="custom" current={strategy} onChange={chooseStrategy} icon="backtest" title="Custom" text="Write your own buy and sell rules from price lines, z scores and RSI." />
+              <StrategyChoice value="dip_hunter" current={strategy} onChange={chooseStrategy} glyph="ph-arrow-down-right" title="Dip hunter" text="Watches up to 8 markets and buys only the deepest dip, one at a time. Paper only." />
+              <StrategyChoice
+                value="spike_fade"
+                current={strategy}
+                onChange={chooseStrategy}
+                glyph="ph-arrow-up-right"
+                title="Spike fade"
+                text={perps ? "Shorts the strongest spike among up to 8 perps, one at a time. Paper only." : "Shorts the strongest spike. Perps only: switch Markets to trade to Perps."}
+                disabled={!perps}
+              />
             </div>
           </div>
 
@@ -327,18 +400,18 @@ export function Studio({
 
           <div className="form-section">
             <div className="form-section__label">
-              Markets <span className="form-section__hint">{symbols.length} of 3 picked, stocks and crypto can mix</span>
+              Markets <span className="form-section__hint">{symbols.length} of {maxMarkets} picked{perps ? ", Lighter perps" : ", stocks and crypto can mix"}</span>
             </div>
             <div className="token-grid" id="token-grid">
-              {TOKEN_GROUPS.flatMap(([assetClass, groupLabel]) => [
-                <span key={assetClass} className="token-grid__label">
+              {(perps ? ([["perps", "Perps"]] as const) : TOKEN_GROUPS).flatMap(([group, groupLabel]) => [
+                <span key={group} className="token-grid__label">
                   {groupLabel}
                 </span>,
-                ...market.tokens.filter((token) => token.assetClass === assetClass).map((token) => {
+                ...venueTokens.filter((token) => perps || token.assetClass === group).map((token) => {
                   const history = token.firstIndex === null ? 0 : market.hours - token.firstIndex;
                   const tooNew = history < BACKTEST_HOURS + lookback;
                   const selected = symbols.includes(token.symbol);
-                  const full = symbols.length >= 3 && !selected;
+                  const full = symbols.length >= maxMarkets && !selected;
                   const now = token.closes[last];
                   const dayAgo = token.closes[Math.max(token.firstIndex ?? 0, last - 24)];
                   const change = now && dayAgo ? (now / dayAgo - 1) * 100 : 0;
@@ -349,7 +422,7 @@ export function Studio({
                       type="button"
                       aria-pressed={selected}
                       disabled={tooNew || full}
-                      title={tooNew ? `Listed ${Math.max(1, Math.round(history / 24))} days ago. Needs ${Math.ceil((BACKTEST_HOURS + lookback) / 24)} days of history.` : full ? "You can pick up to 3" : token.name}
+                      title={tooNew ? `Listed ${Math.max(1, Math.round(history / 24))} days ago. Needs ${Math.ceil((BACKTEST_HOURS + lookback) / 24)} days of history.` : full ? `You can pick up to ${maxMarkets}` : token.name}
                       onClick={() => toggleSymbol(token.symbol)}
                     >
                       <span className="token__row">
@@ -440,11 +513,11 @@ export function Studio({
               <div className="empty">
                 <img src="/img/icons/backtest.png" alt="" width={72} height={72} />
                 <h2 className="card__title">{ruleErrors.length ? "Finish your rules to see the backtest" : "Pick a market to see the backtest"}</h2>
-                <p>{ruleErrors.length ? ruleErrors[0] : "Choose up to three stocks or coins and the last 30 days replay here instantly."}</p>
+                <p>{ruleErrors.length ? ruleErrors[0] : `Choose up to ${maxMarkets} markets and the last 30 days replay here instantly.`}</p>
               </div>
             </div>
           ) : (
-            <BacktestCard backtest={backtest} capital={capital} startTs={market.startTs + fromIndex * 3600} endTs={market.startTs + last * 3600} strategy={strategy} onLaunch={openLaunch} />
+            <BacktestCard backtest={backtest} capital={capital} startTs={market.startTs + fromIndex * 3600} endTs={market.startTs + last * 3600} strategy={strategy} perps={perps} onLaunch={openLaunch} />
           )}
         </aside>
       </div>
@@ -524,11 +597,17 @@ export function Studio({
   );
 }
 
-function StrategyChoice(props: { value: Strategy; current: Strategy; onChange: (value: Strategy) => void; icon: string; title: string; text: string }) {
+function StrategyChoice(props: { value: Strategy; current: Strategy; onChange: (value: Strategy) => void; icon?: string; glyph?: string; title: string; text: string; disabled?: boolean }) {
   return (
-    <label className="choice">
-      <input type="radio" name="strategy" value={props.value} checked={props.current === props.value} onChange={() => props.onChange(props.value)} />
-      <img className="choice__icon" src={`/img/icons/${props.icon}.png`} alt="" width={44} height={44} />
+    <label className="choice" aria-disabled={props.disabled}>
+      <input type="radio" name="strategy" value={props.value} checked={props.current === props.value} disabled={props.disabled} onChange={() => props.onChange(props.value)} />
+      {props.glyph ? (
+        <span className="choice__glyph" aria-hidden="true">
+          <i className={`ph ${props.glyph}`} />
+        </span>
+      ) : (
+        <img className="choice__icon" src={`/img/icons/${props.icon}.png`} alt="" width={44} height={44} />
+      )}
       <span className="choice__title">{props.title}</span>
       <span className="choice__text">{props.text}</span>
     </label>
@@ -537,14 +616,14 @@ function StrategyChoice(props: { value: Strategy; current: Strategy; onChange: (
 
 type BacktestView = { result: ReturnType<typeof simulate>; hold: ReturnType<typeof buyAndHold>; edge: number };
 
-function BacktestCard({ backtest, capital, startTs, endTs, strategy, onLaunch }: { backtest: BacktestView; capital: number; startTs: number; endTs: number; strategy: Strategy; onLaunch: () => void }) {
+function BacktestCard({ backtest, capital, startTs, endTs, strategy, perps, onLaunch }: { backtest: BacktestView; capital: number; startTs: number; endTs: number; strategy: Strategy; perps: boolean; onLaunch: () => void }) {
   const { result, hold, edge } = backtest;
   const tradesPerWeek = (result.fills.length / 30) * 7;
   let verdict: { icon: string; text: string };
-  if (result.returnPct > 0 && edge >= 0) verdict = { icon: "ph-fill ph-check-circle gain", text: `Beat simply holding these stocks by ${Math.abs(edge).toFixed(1)} points over 30 days.` };
-  else if (result.returnPct > 0) verdict = { icon: "ph-fill ph-minus-circle", text: `Made money, but holding the same stocks did ${Math.abs(edge).toFixed(1)} points better.` };
+  if (result.returnPct > 0 && edge >= 0) verdict = { icon: "ph-fill ph-check-circle gain", text: `Beat simply holding these markets by ${Math.abs(edge).toFixed(1)} points over 30 days.` };
+  else if (result.returnPct > 0) verdict = { icon: "ph-fill ph-minus-circle", text: `Made money, but holding the same markets did ${Math.abs(edge).toFixed(1)} points better.` };
   else if (edge >= 0) verdict = { icon: "ph-fill ph-shield-check", text: `Lost ${percent(result.returnPct, { signed: false })}, but lost less than holding, which returned ${percent(hold.returnPct)}.` };
-  else verdict = { icon: "ph-fill ph-warning-circle loss", text: `Lost ${percent(result.returnPct, { signed: false })} while holding returned ${percent(hold.returnPct)}. Try another strategy or other stocks.` };
+  else verdict = { icon: "ph-fill ph-warning-circle loss", text: `Lost ${percent(result.returnPct, { signed: false })} while holding returned ${percent(hold.returnPct)}. Try another strategy or other markets.` };
 
   return (
     <div className="card result-card">
@@ -592,7 +671,7 @@ function BacktestCard({ backtest, capital, startTs, endTs, strategy, onLaunch }:
           <span className="stat__value">{result.fills.length}</span>
         </div>
         <div className="stat">
-          <span className="stat__label">Winning sells</span>
+          <span className="stat__label">{strategy === "spike_fade" ? "Winning closes" : "Winning sells"}</span>
           <span className="stat__value">{result.winRatePct === null ? "None yet" : percent(result.winRatePct, { signed: false, digits: 0 })}</span>
         </div>
       </div>
@@ -616,7 +695,7 @@ function BacktestCard({ backtest, capital, startTs, endTs, strategy, onLaunch }:
       </button>
       <p className="note">
         <i className="ph ph-info" />
-        Real hourly prices with 0.5% cost per trade. Past results do not predict future ones.
+        {perps ? "Real hourly Lighter prices with 0.05% cost per trade plus each hour’s real funding." : "Real hourly prices with 0.5% cost per trade."} Past results do not predict future ones.
       </p>
     </div>
   );

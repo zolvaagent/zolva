@@ -7948,3 +7948,9 @@ li.stats-ranks__row {
   gap: var(--space-200);
   padding: var(--space-200) var(--space-300);
 }
+
+/* Studio: a choice that does not apply right now (Spike fade on spot, real money on perps). */
+.choice[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

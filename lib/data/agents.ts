@@ -1,6 +1,6 @@
 import "server-only";
 
-import { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES } from "@/lib/agents/copy";
+import { copyBlock, maxMarketsFor, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 
 export { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES };
 
@@ -346,18 +346,23 @@ export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
 }
 
 /** A published agent's settings for the Studio's "Copy to Studio"; null if it cannot be copied. */
-export async function getAgentTemplate(db: SupabaseClient, id: string): Promise<{ name: string; strategy: (typeof STUDIO_STRATEGIES)[number]; rules: unknown; symbols: string[]; maxPositionPct: number; stopLossPct: number } | null> {
+export async function getAgentTemplate(
+  db: SupabaseClient,
+  id: string,
+): Promise<{ name: string; strategy: (typeof STUDIO_STRATEGIES)[number]; venue: AgentVenue; rules: unknown; symbols: string[]; maxPositionPct: number; stopLossPct: number } | null> {
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db.from("agents").select("name, strategy, params, token_addresses, published_at, mode").eq("id", id).maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);
   // Private and live agents are never copied.
-  // The Studio builds spot agents only, so perps agents cannot be copied.
-  if (!agent || agent.published_at === null || agent.mode !== "paper" || agent.params?.venue === "perps") return null;
-  if (!(STUDIO_STRATEGIES as readonly string[]).includes(agent.strategy) || agent.token_addresses.length > STUDIO_MAX_MARKETS) return null;
+  if (!agent || agent.published_at === null || agent.mode !== "paper") return null;
+  const venue: AgentVenue = agent.params?.venue === "perps" ? "perps" : "spot";
+  if (!(STUDIO_STRATEGIES as readonly string[]).includes(agent.strategy) || agent.token_addresses.length > maxMarketsFor(agent.strategy)) return null;
+  if (strategyNeedsPerps(agent.strategy) && venue !== "perps") return null;
   const symbols = await tokenSymbols(db);
   return {
     name: agent.name,
     strategy: agent.strategy,
+    venue,
     rules: agent.params.rules ?? null,
     symbols: (agent.token_addresses as string[]).map((address) => symbols.get(address)).filter((symbol): symbol is string => Boolean(symbol)),
     maxPositionPct: Number(agent.params.max_position_pct),

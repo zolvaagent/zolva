@@ -15,9 +15,10 @@ const clamp = (value: number, min: number, max: number, fallback: number) => (Nu
 
 export default async function StudioPage({ searchParams }: PageProps<"/studio">) {
   const client = db();
-  const [market, address, params] = await Promise.all([getMarket(client), getSessionAddress(), searchParams]);
+  // Perps markets too: the Studio builds paper perps agents (it shows them under Perps).
+  const [market, address, params] = await Promise.all([getMarket(client, { perps: true }), getSessionAddress(), searchParams]);
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
-  // "Use these rules" on /agents: start from a published agent's settings. Unknown or private ids open a blank Studio.
+  // "Copy to Studio" on /agents and agent pages: start from a published agent's settings. Unknown or private ids open a blank Studio.
   const fromId = first(params.from);
   const [[mine, credits], source] = await Promise.all([
     address ? Promise.all([listAgentsByOwner(client, address), getCredits(client, address)]) : Promise.resolve([[], null] as const),
@@ -30,6 +31,7 @@ export default async function StudioPage({ searchParams }: PageProps<"/studio">)
           id: fromId,
           name: source.name,
           strategy: source.strategy,
+          venue: source.venue,
           rules,
           symbols: source.symbols,
           // Same ranges as the Studio sliders.
