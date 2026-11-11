@@ -31,7 +31,7 @@ async function main() {
   if (!latestRow) throw new Error("No candles yet: run the backfill first.");
   const latestTs = latestRow.ts;
 
-  const configs = [...HOUSE_AGENTS.map((config) => ({ ...config, owner: HOUSE_WALLET })), ...LAB_AGENTS];
+  const configs: ((typeof LAB_AGENTS)[number] | ((typeof HOUSE_AGENTS)[number] & { owner: string }))[] = [...HOUSE_AGENTS.map((config) => ({ ...config, owner: HOUSE_WALLET })), ...LAB_AGENTS];
   const owners = [...new Set(configs.map((config) => config.owner))];
   const { error: walletError } = await db
     .from("wallets")
@@ -66,6 +66,9 @@ async function main() {
       token_addresses: addresses,
       start_capital: 10_000,
       cash: 10_000,
+      ...(config.aiModel
+        ? { ai_model: config.aiModel, ai_limit_micro: Math.round((config.aiLimitUsd ?? 1) * 1_000_000), ai_limit_expires_at: config.aiUntil ?? null }
+        : {}),
       status: "active",
       mode: "paper",
       last_run_ts: latestTs,

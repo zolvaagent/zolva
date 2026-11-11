@@ -15,7 +15,13 @@ export const HOUSE_WALLET = "0x5174000000000000000000000000000000000000";
  * Owners of the "Zolva Lab" research agents. Like HOUSE_WALLET, nobody can
  * sign for them. Several owners because every owner may run at most 5 agents.
  */
-export const LAB_WALLETS = ["0x5174000000000000000000000000000000000001", "0x5174000000000000000000000000000000000002", "0x5174000000000000000000000000000000000003", "0x5174000000000000000000000000000000000004"] as const;
+export const LAB_WALLETS = [
+  "0x5174000000000000000000000000000000000001",
+  "0x5174000000000000000000000000000000000002",
+  "0x5174000000000000000000000000000000000003",
+  "0x5174000000000000000000000000000000000004",
+  "0x5174000000000000000000000000000000000005",
+] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
 
@@ -31,6 +37,11 @@ export type HouseAgent = {
   stopLossPct: number;
   /** Missing: the DEX. */
   venue?: Venue;
+  /** An AI co-pilot model id (lib/ai/models.ts); missing: rules only. */
+  aiModel?: string;
+  /** The co-pilot's spending limit in USD and its end date (ISO), like a user's agent. */
+  aiLimitUsd?: number;
+  aiUntil?: string;
 };
 
 /**
@@ -160,5 +171,23 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     maxPositionPct: 20,
     stopLossPct: 5,
     venue: "perps",
+  },
+  // Co-pilot twin (2026-11-11): the same RSI dip rule and markets, started in the same hour,
+  // once on rules alone and once with the AI co-pilot (DeepSeek V4.1 Flash, no creator note),
+  // so the two records show whether the co-pilot's passes help. The rule catches falling
+  // knives in a down market (Oct 12 to Nov 11 backtest: -8.8% on 23 buys, holding -6.9%), the
+  // case the co-pilot is meant to filter. AI paid from this owner's credits, at most $1.
+  { owner: LAB_WALLETS[4], name: "Twin · RSI Dip", strategy: "custom", rules: RSI_DIP, symbols: ["NVDA", "TSLA", "AAPL"], maxPositionPct: 33, stopLossPct: 8 },
+  {
+    owner: LAB_WALLETS[4],
+    name: "Twin · RSI Dip + AI",
+    strategy: "custom",
+    rules: RSI_DIP,
+    symbols: ["NVDA", "TSLA", "AAPL"],
+    maxPositionPct: 33,
+    stopLossPct: 8,
+    aiModel: "deepseek/deepseek-v4.1-flash",
+    aiLimitUsd: 1,
+    aiUntil: "2026-12-31T23:59:59Z",
   },
 ];
