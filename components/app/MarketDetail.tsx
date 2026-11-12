@@ -250,9 +250,9 @@ export function MarketDetail({
                       <span className="session-note__status" tabIndex={0} aria-describedby="session-tip">
                         Issuer status: {sessionLabel(session.verdict)}
                       </span>
-                      {blocksTrading(session.verdict) ? ". Live agents hold their orders on this stock until trading resumes." : "."} Source:{" "}
-                      <a className="session-note__link" href={HARMONIC_URL} target="_blank" rel="noopener noreferrer">
-                        Harmonic session oracle
+                      {" · "}
+                      <a className="session-note__link" href={HARMONIC_URL} target="_blank" rel="noopener noreferrer" title="Harmonic session oracle">
+                        Harmonic
                       </a>
                     </span>
                   </p>
