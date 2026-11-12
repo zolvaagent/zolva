@@ -37,6 +37,14 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-12-fixes-from-a-public-code-review",
+    date: "2026-11-12",
+    area: "Site",
+    title: "Fixes from a public code review",
+    body: "A user cloned the repo, ran the tests and rated it 7/10 with two architecture issues. Both are fixed: once an agent has been published, its page and record stay public even if its owner takes it off the leaderboard, and a real money order on a token with a Chainlink feed now waits when the feed is stale, empty or unreadable instead of trusting the pool price. Every push now runs the type check, lint and 242 tests on GitHub Actions, and the README explains that Zolva runs on Cloudflare Workers only.",
+    sources: [commit("db08e97"), { label: "review", href: "https://x.com/whoiskn0why/status/2120546498475651334" }, { label: "CI", href: "https://github.com/zolvaagent/zolva/actions" }],
+  },
+  {
     id: "2026-11-11-a-public-dev-log",
     date: "2026-11-11",
     area: "Site",
