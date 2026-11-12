@@ -60,6 +60,8 @@ async function payOnce(): Promise<string> {
   const body = await paid.text();
   if (!paid.ok) throw new Error(`Paid call failed with ${paid.status}: ${body.slice(0, 300)}`);
   const settlement = JSON.parse(Buffer.from(paid.headers.get("x-payment-response") ?? "", "base64").toString());
+  // For demo videos: X402_SAVE_BODY=<path> keeps the full paid response.
+  if (process.env.X402_SAVE_BODY) writeFileSync(process.env.X402_SAVE_BODY, body);
   const scan = JSON.parse(body) as { asOf: string; markets: { symbol: string; zscore48h: number }[] };
   console.log(`  scan at ${scan.asOf}: ${scan.markets.length} markets, deepest ${scan.markets[0]?.symbol} (z ${scan.markets[0]?.zscore48h})`);
   return settlement.transaction;
