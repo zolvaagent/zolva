@@ -195,6 +195,8 @@ export type AgentDetail = {
     created_at: string;
     ai_model: string | null;
     published_at: string | null;
+    /** First time the agent was published; never cleared, so its page stays public after an unpublish. */
+    first_published_at: string | null;
     ai_limit_micro: number | null;
     ai_limit_expires_at: string | null;
     /** paper = virtual money; live = real swaps from trading_wallet. */
@@ -220,7 +222,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db
     .from("agents")
-    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet")
+    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, first_published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);

@@ -8,8 +8,8 @@ import { liveEquity, planAgentHours, type AgentRow, type PositionRow } from "@/l
 import { getMarket } from "@/lib/data/market";
 import { env } from "@/lib/env";
 import { USDG } from "@/lib/live/contracts";
-import { confirmSwap, executeSwap, type LiveContext, type SwapOrder, type SwapResult } from "@/lib/live/executor";
-import { createChainClient } from "@/lib/prices/onchain";
+import { confirmSwap, executeSwap, oracleProblem, type LiveContext, type SwapOrder, type SwapResult } from "@/lib/live/executor";
+import { createChainClient, MAX_FEED_AGE_SECONDS } from "@/lib/prices/onchain";
 
 const HOUR = 3600;
 /** An order still pending this long without a transaction was abandoned by a crashed tick. */
@@ -166,12 +166,22 @@ async function executeFill(
   if (token.pool_kind !== "v3") return { status: "skipped", detail: `${token.symbol} trades through a v4 pool, not supported live` };
 
   // Reference price: Chainlink when the token has a feed, otherwise the hourly close the decision used.
+  // A token with a feed never trades on the pool price alone: if the feed is stale, empty or
+  // unreadable, the order is recorded as cancelled and the agent waits for the next hour.
   let referencePrice = fill.price;
   let oraclePrice: number | null = null;
+  let feedHold: string | null = null;
   if (token.chainlink_feed) {
-    const [, answer] = await ctx.chain.readContract({ address: token.chainlink_feed as Hex, abi: FEED_ABI, functionName: "latestRoundData" });
-    oraclePrice = Number(answer) / 1e8;
-    referencePrice = oraclePrice;
+    try {
+      const [, answer, , updatedAt] = await ctx.chain.readContract({ address: token.chainlink_feed as Hex, abi: FEED_ABI, functionName: "latestRoundData" });
+      feedHold = oracleProblem(answer, updatedAt, Date.now() / 1000, MAX_FEED_AGE_SECONDS);
+      if (!feedHold) {
+        oraclePrice = Number(answer) / 1e8;
+        referencePrice = oraclePrice;
+      }
+    } catch (cause) {
+      feedHold = `Chainlink feed could not be read (${cause instanceof Error ? cause.message.slice(0, 120) : "unknown error"})`;
+    }
   }
 
   // Amount in human units: USDG for buys, tokens for sells (never more than the wallet holds).
@@ -217,6 +227,11 @@ async function executeFill(
   if (insertError) throw new Error(`Recording the order failed: ${insertError.message}`);
   const executionId = inserted?.[0]?.id as string | undefined;
   if (!executionId) return { status: "skipped", detail: "already ordered by another tick" };
+
+  if (feedHold) {
+    await db.from("executions").update({ status: "cancelled", error: `price check: ${feedHold}; order held` }).eq("id", executionId);
+    return { status: "cancelled", detail: feedHold };
+  }
 
   if (volume + orderUsd > Number(settings.daily_volume_usd)) {
     await db.from("executions").update({ status: "cancelled", error: `daily volume cap $${settings.daily_volume_usd} reached` }).eq("id", executionId);

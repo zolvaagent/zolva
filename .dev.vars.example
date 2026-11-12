@@ -1,8 +1,13 @@
 # Copy to .dev.vars for local development. Never commit .dev.vars.
-# On Cloudflare, set each value with: npx wrangler secret put <NAME>
+# `npm run dev` reads it through OpenNext (next.config.ts), so no .env.local is needed.
+# On Cloudflare, `npm run deploy:prod` pushes these as Worker secrets; one at a time:
+# npx wrangler secret put <NAME>
+# Every name below is read in lib/env.ts. Blank optional values switch their feature off.
 
-# Supabase project "sita" (ref kjifgddikkofazmndlxu) (Project Settings -> API). The service role key
-# bypasses all security rules: server only, never in client code.
+# --- Required -------------------------------------------------------------------------------
+
+# Supabase (Project Settings -> API). The service role key bypasses all security rules:
+# server only, never in client code.
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 
@@ -10,28 +15,61 @@ SUPABASE_SERVICE_ROLE_KEY=
 # The URL contains your API key: keep it secret.
 ROBINHOOD_RPC_URL=
 
-# Random string guarding /api/cron/tick. Also stored in Supabase Vault for the
-# pg_cron trigger (session 1.2).
+# Random string guarding /api/cron/tick. Also stored in Supabase Vault for the pg_cron backup.
 CRON_SECRET=
 
-# Signs the wallet session cookie (session 1.4).
+# Signs the session cookie.
 SESSION_SECRET=
+
+# --- Login ----------------------------------------------------------------------------------
 
 # Privy (email and Google login), from dashboard.privy.io -> your app -> Settings.
 # Leave both blank to offer wallet login only.
 PRIVY_APP_ID=
 PRIVY_APP_SECRET=
 
-# AI co-pilot (OpenRouter, openrouter.ai/keys). Leave blank to keep the co-pilot off.
+# --- AI co-pilot ----------------------------------------------------------------------------
+
+# OpenRouter (openrouter.ai/keys). Leave blank to keep the co-pilot and strategy writer off.
 OPENROUTER_API_KEY=
-# Most all AI reviews may cost per UTC day, in USD (default 5).
+# Most all AI reviews together may cost per UTC day, in USD (default 5).
 AI_DAILY_BUDGET_USD=5
-# ZOLVA holder tiers (docs/ai-and-token-plan.md section 11). Blank = everyone on Free.
+
+# --- ZOLVA token ----------------------------------------------------------------------------
+
+# Written by `npm run token:launch`. Blank token address = everyone on the Free tier.
 ZOLVA_TOKEN_ADDRESS=
 ZOLVA_TOKEN_DECIMALS=18
+# Main pool (v3 address or Uniswap v4 pool id) for the GeckoTerminal and DexScreener links.
+ZOLVA_POOL_ADDRESS=
+# Where people trade it (https link), shown on the token card.
+ZOLVA_TRADE_URL=
 
-# Premium API over x402 (npm run x402:setup). X402_ENABLED=1 opens it.
+# --- Swap fee -------------------------------------------------------------------------------
+
+# Fee on swaps between USDG, ETH, BTC, ZOLVA and Pons tokens, in basis points (25 = 0.25%),
+# and the wallet that receives it. Blank = no fee. Stock tokens never pay it.
+SWAP_FEE_BPS=
+SWAP_FEE_RECIPIENT=
+
+# --- Credits paid on chain ------------------------------------------------------------------
+
+# Receives USDG credit top-ups. Blank = falls back to X402_PAY_TO, or the top-up stays off.
+CREDITS_PAY_TO=
+
+# --- Premium API over x402 (npm run x402:setup) ---------------------------------------------
+
+# X402_ENABLED=1 opens it.
 X402_ENABLED=
 X402_PAY_TO=
 X402_RELAYER_WALLET_ID=
 X402_RELAYER_ADDRESS=
+
+# --- Real money (npm run live:setup) --------------------------------------------------------
+
+# Zolva's Privy signer (key quorum), its private key and the live policy. Blank = live trading off.
+PRIVY_SIGNER_ID=
+PRIVY_AUTHORIZATION_KEY=
+PRIVY_LIVE_POLICY_ID=
+# Local wrangler dev only: turns on /api/dev/live-sign-check. Never set it as a Worker secret.
+LIVE_SIGN_CHECK=

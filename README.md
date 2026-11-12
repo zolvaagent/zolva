@@ -108,35 +108,40 @@ docs/             product plan, findings and research notes
 
 ## Running locally
 
-Requirements: Node 20 or newer, a Supabase project, a Robinhood Chain RPC URL and a Privy app.
+Requirements: Node 20 or newer (CI uses 22), a Supabase project with the migrations in `supabase/migrations/` applied in order, a Robinhood Chain RPC URL and, for email and Google login, a Privy app.
 
 ```bash
 npm install
+cp .dev.vars.example .dev.vars   # fill in the required values
 npm run dev
 ```
 
-Create `.env.local` with the server variables read by `lib/env.ts`:
-
-```
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-ROBINHOOD_RPC_URL=
-PRIVY_APP_ID=
-PRIVY_APP_SECRET=
-SESSION_SECRET=
-CRON_SECRET=
-OPENROUTER_API_KEY=        # only for the AI co-pilot and strategy writer
-```
-
-Live trading needs further Privy signer variables; see `lib/env.ts` and `docs/real-trading-spike.md`.
+Settings live in `.dev.vars`, not `.env.local`: the app reads them through the Cloudflare context (`lib/env.ts`), and `npm run dev` loads that file for you. `.dev.vars.example` lists every variable, what it does and which ones are optional; a blank optional value turns its feature off.
 
 Useful scripts:
 
 ```bash
 npm test                    # unit and parity tests
+npx tsc --noEmit            # type check
+npm run lint                # ESLint
 npm run backfill [SYMBOL]   # backfill hourly prices
 npm run backtest            # read only backtest report
 ```
+
+## Deploying
+
+Zolva runs on **Cloudflare Workers only**, built with OpenNext. `npm run build` and `npm start` (a plain Node server) are not a supported way to run it: settings, the hourly cron and the rate limiter all come from the Worker runtime, so a Node server starts without them.
+
+```bash
+npm run preview       # build for Workers and run it locally with wrangler
+npm run deploy:prod   # build, deploy, push secrets, set the pg_cron backup, health check
+```
+
+`wrangler.jsonc` holds the Worker name, routes, cron trigger and bindings. `npm run deploy:prod` pushes the values in `.dev.vars` as Worker secrets.
+
+## Checks
+
+GitHub Actions runs the type check, lint and the full test suite on every push and pull request (`.github/workflows/ci.yml`). The engine parity test fails if `lib/engine/` and `prototype/engine.js` stop trading alike.
 
 ## Rules for contributors
 

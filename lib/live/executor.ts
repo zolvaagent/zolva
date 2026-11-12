@@ -67,6 +67,18 @@ export function impliedPrice(side: SwapOrder["side"], amountIn: bigint, amountOu
   return usdg / tokens;
 }
 
+/**
+ * Why a Chainlink answer must not be used as the reference price of a real order, or null when it
+ * can. A stale or empty feed holds the order: it never falls back to the pool price, because the
+ * pool is exactly what the reference is meant to check. maxAgeSeconds is the feed's heartbeat plus slack.
+ */
+export function oracleProblem(answer: bigint, updatedAt: bigint, nowSeconds: number, maxAgeSeconds: number): string | null {
+  if (answer <= 0n) return "Chainlink feed returned no price";
+  const age = nowSeconds - Number(updatedAt);
+  if (age > maxAgeSeconds) return `Chainlink feed is stale (last update ${Math.round(age / 3600)} h ago)`;
+  return null;
+}
+
 /** Distance between two prices in basis points. */
 export function deviationBps(price: number, reference: number): number {
   return Math.abs(price / reference - 1) * 10_000;

@@ -32,15 +32,18 @@ const CURVE_POINTS = 120;
  */
 export async function getAgentShare(db: SupabaseClient, id: string): Promise<AgentShare | null> {
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
-  const [stats, runs, symbols] = await Promise.all([
+  const [stats, record, runs, symbols] = await Promise.all([
     db.from("agent_stats").select("id, owner, name, token_addresses, start_capital, equity, hold_equity, created_at, published_at, mode").eq("id", id).maybeSingle(),
+    db.from("agents").select("first_published_at").eq("id", id).maybeSingle(),
     db.from("agent_runs").select("equity, hold_equity").eq("agent_id", id).order("ts", { ascending: false }).limit(720),
     tokenSymbols(db),
   ]);
   if (stats.error) throw new Error(`Loading the agent failed: ${stats.error.message}`);
   if (runs.error) throw new Error(`Loading the agent's runs failed: ${runs.error.message}`);
   const row = stats.data;
-  if (!row || (row.published_at === null && !isHouseOwner(row.owner)) || !runs.data.length) return null;
+  // Same rule as the page: once published, always shareable (unpublishing only leaves the leaderboard).
+  const everPublished = row?.published_at != null || record.data?.first_published_at != null;
+  if (!row || (!everPublished && !isHouseOwner(row.owner)) || !runs.data.length) return null;
 
   const start = Number(row.start_capital);
   const equity = Number(row.equity);

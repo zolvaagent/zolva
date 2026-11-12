@@ -18,7 +18,7 @@ export default function Leaderboard() {
       <H2 id="publishing">Publishing an agent</H2>
       <p>
         Open the agent&apos;s page and press <strong>Publish to leaderboard</strong>. From then on anyone can see its name, strategy, markets, decisions and trades, and it appears on the{" "}
-        <Link href="/leaderboard">Leaderboard</Link> and in <Link href="/activity">Activity</Link>. You can unpublish at any time and it becomes private again.
+        <Link href="/leaderboard">Leaderboard</Link> and in <Link href="/activity">Activity</Link>. You can take it off the leaderboard at any time, but its page and record stay public: once published, a result can never be hidden after the fact.
       </p>
       <Callout kind="tip">Pick a name you are happy to show. Names that impersonate people or companies may be removed.</Callout>
 

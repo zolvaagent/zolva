@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- read-only research script over Lighter's untyped public API JSON */
 /**
  * Shared by the perps research scripts (read-only): hourly candles and funding from
  * Lighter's public API on Robinhood Chain (docs/perps-research.md).

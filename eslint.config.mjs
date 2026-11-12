@@ -27,6 +27,9 @@ const eslintConfig = defineConfig([
     "prototype/**",
     // Cloudflare Worker entry; imports the build output.
     "custom-worker.ts",
+    // Local only (gitignored): video projects and scratch files.
+    "video/**",
+    ".tmp/**",
   ]),
 ]);
 

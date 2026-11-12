@@ -127,6 +127,8 @@ export function AgentView({
     router.refresh();
   };
   const isPublished = agent.published_at !== null;
+  // Published once: the page stays public even when the agent is off the leaderboard.
+  const wasPublished = agent.first_published_at !== null;
   const isLive = agent.mode === "live";
   // "Copy to Studio" when the Studio can rebuild this agent, otherwise the reason it can't.
   const copyReason = copyBlock({ ...summary, live: isLive, published: agent.published_at !== null });
@@ -175,7 +177,7 @@ export function AgentView({
     toast(
       published
         ? "Published. Your agent is on the leaderboard."
-        : "Unpublished. Only you can see this agent now.",
+        : "Off the leaderboard. Its page and record stay public.",
     );
     router.refresh();
   };
@@ -301,10 +303,15 @@ export function AgentView({
           {isOwner && !summary.isHouse && (
             <span className="pill">
               <i
-                className={`ph ${isPublished ? "ph-globe-simple" : "ph-lock-simple"}`}
+                className={`ph ${isPublished ? "ph-globe-simple" : wasPublished ? "ph-eye" : "ph-lock-simple"}`}
                 aria-hidden="true"
               />
-              {isPublished ? "On leaderboard" : "Private"}
+              {isPublished ? "On leaderboard" : wasPublished ? "Off leaderboard · page public" : "Private"}
+            </span>
+          )}
+          {!isOwner && !isPublished && wasPublished && !summary.isHouse && (
+            <span className="pill" title="Its owner took it off the leaderboard. Once published, a record stays public.">
+              Unpublished by owner
             </span>
           )}
           <span>{STRATEGY_NAMES[agent.strategy]}</span>
@@ -519,7 +526,10 @@ export function AgentView({
         {isPublished ? (
           <ul className="modal__list">
             <li>It leaves the leaderboard, markets and the activity report.</li>
-            <li>Its page and link only work for you again.</li>
+            <li>
+              Its page stays public with its full record, losses included, so
+              a result can never be hidden after the fact.
+            </li>
             <li>
               It keeps trading as before. You can publish it again at any time.
             </li>
@@ -534,7 +544,10 @@ export function AgentView({
               Anyone can open its page: settings, rules, trades and reasoning.
               Your wallet shows shortened.
             </li>
-            <li>You can unpublish it at any time.</li>
+            <li>
+              You can take it off the leaderboard at any time, but its page
+              and record stay public from now on.
+            </li>
           </ul>
         )}
         <div className="modal__actions">

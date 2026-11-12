@@ -15,7 +15,10 @@ import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
-const canView = (detail: AgentDetail, address: string | null) => detail.agent.published_at !== null || address === detail.agent.owner;
+// A page stays public once the agent has been published, even after its owner unpublishes it:
+// unpublishing only takes it off the leaderboard, it never hides the record.
+const canView = (detail: AgentDetail, address: string | null) =>
+  detail.agent.published_at !== null || detail.agent.first_published_at !== null || address === detail.agent.owner;
 
 export async function generateMetadata({ params }: PageProps<"/agents/[id]">): Promise<Metadata> {
   const client = db();

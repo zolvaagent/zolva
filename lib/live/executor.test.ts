@@ -1,7 +1,25 @@
 import { encodeAbiParameters, InvalidParamsRpcError, pad, RpcRequestError, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { amountReceived, APPROVE_GAS_FLOOR, approveGasLimit, deviationBps, impliedPrice, message, minimumOut } from "./executor";
+import { amountReceived, APPROVE_GAS_FLOOR, approveGasLimit, deviationBps, impliedPrice, message, minimumOut, oracleProblem } from "./executor";
+
+describe("oracleProblem", () => {
+  const now = 1_800_000_000;
+  const day = 26 * 3600;
+
+  it("accepts a fresh, positive answer", () => {
+    expect(oracleProblem(2_370_00000000n, BigInt(now - 3600), now, day)).toBeNull();
+  });
+
+  it("holds the order when the feed is stale", () => {
+    expect(oracleProblem(2_370_00000000n, BigInt(now - day - 1), now, day)).toMatch(/stale/);
+  });
+
+  it("holds the order when the feed has no price", () => {
+    expect(oracleProblem(0n, BigInt(now), now, day)).toMatch(/no price/);
+    expect(oracleProblem(-1n, BigInt(now), now, day)).toMatch(/no price/);
+  });
+});
 
 describe("approveGasLimit", () => {
   it("pads the estimate by 30% when L1 fees push it up", () => {
