@@ -9,6 +9,10 @@
   <a href="https://zolvaagent.app">zolvaagent.app</a> · <a href="https://zolvaagent.app/docs">Docs</a> · <a href="https://x.com/zolva_agent">@zolva_agent</a>
 </p>
 
+<p align="center">
+  <a href="https://heyresearch.xyz/project/zolva-agent?utm_source=badge&utm_medium=readme"><img src="https://heyresearch.xyz/api/badge/zolva-agent" alt="Zolva Agent on HEY Research Lab"></a>
+</p>
+
 ---
 
 Zolva lets anyone build a no code trading agent for the tokenized US stocks, ETH and BTC on Robinhood Chain. Every hour each agent reads the latest on chain prices, decides to buy, sell or hold, and logs the reason next to every decision.
