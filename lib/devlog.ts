@@ -37,6 +37,18 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-12-zolva-in-the-hermes-agent-plugin-catalog",
+    date: "2026-11-12",
+    area: "API & MCP",
+    title: "Zolva in the Hermes Agent plugin catalog",
+    body: "Hermes Agent, the open-source agent from Nous Research, can now use Zolva with one command, hermes plugins install zolva. The plugin connects Hermes to the Zolva MCP server and adds two skills: one answers questions about agents, their return against holding and the reason behind each decision, the other is an hourly cron job that sends an agent's new trades to your chat with its reason. Everything is read only: no keys, nothing to sign. The listing is community tier, reviewed and merged into the Hermes repository at a pinned commit.",
+    sources: [
+      { label: "plugin repo", href: "https://github.com/zolvaagent/hermes-zolva" },
+      { label: "catalog PR", href: "https://github.com/NousResearch/hermes-agent/pull/153419" },
+      { label: "/docs/mcp", href: "https://zolvaagent.app/docs/mcp" },
+    ],
+  },
+  {
     id: "2026-11-12-fixes-from-a-public-code-review",
     date: "2026-11-12",
     area: "Site",
