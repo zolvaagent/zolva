@@ -114,7 +114,7 @@ export function SiteFooter() {
         <div className="footer__news">
           <div>
             <h2 className="footer__news-title">Stay updated</h2>
-            <p>New strategies, live trading news and the best agents of the week. One email a month.</p>
+            <p>New strategies and the best agents, in one email a month.</p>
           </div>
           <form className="footer__form" noValidate onSubmit={onSubmit}>
             <label className="sr-only" htmlFor="newsletter-email">
@@ -181,6 +181,8 @@ export function SiteFooter() {
           </div>
         </div>
 
+        <AskAboutZolva />
+
         <div className="footer__bottom">
           <span>© 2026 Zolva. Trading can lose money. Nothing here is investment advice.</span>
           <span>Not available to US persons or residents of sanctioned countries.</span>
@@ -190,5 +192,47 @@ export function SiteFooter() {
         Zolva
       </div>
     </footer>
+  );
+}
+
+/**
+ * "Ask about Zolva on": one click opens an AI assistant with the question already typed, pointed
+ * at /llms.txt (public/llms.txt) so the answer starts from our own summary instead of a guess.
+ */
+const ASK_PROMPT =
+  "What is Zolva (zolvaagent.app)? Explain how its trading agents work, what is paper trading and what is real money, and how to check the results yourself. Start with https://zolvaagent.app/llms.txt.";
+
+const ASK_TARGETS: { name: string; href: string; logo: string; mono: boolean }[] = [
+  { name: "ChatGPT", href: "https://chatgpt.com/?q=", logo: "/ai-logos/openai.svg", mono: true },
+  { name: "Claude", href: "https://claude.ai/new?q=", logo: "/ai-logos/claude-color.svg", mono: false },
+  { name: "Google AI Mode", href: "https://www.google.com/search?udm=50&q=", logo: "/ai-logos/gemini-color.svg", mono: false },
+  { name: "Grok", href: "https://grok.com/?q=", logo: "/ai-logos/grok.svg", mono: true },
+];
+
+function AskAboutZolva() {
+  return (
+    <div className="footer__ask">
+      <span className="footer__ask-label">Ask about Zolva on</span>
+      <div className="footer__ask-list">
+        {ASK_TARGETS.map((target) => (
+          <a
+            key={target.name}
+            className="footer__ask-link"
+            href={target.href + encodeURIComponent(ASK_PROMPT)}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Ask about Zolva on ${target.name}`}
+            title={target.name}
+          >
+            {/* Single color marks follow the theme text color through a mask; color marks are plain images. */}
+            {target.mono ? (
+              <span className="footer__ask-mono" style={{ maskImage: `url(${target.logo})`, WebkitMaskImage: `url(${target.logo})` }} aria-hidden="true" />
+            ) : (
+              <img src={target.logo} alt="" width={24} height={24} />
+            )}
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }

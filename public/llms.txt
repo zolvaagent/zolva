@@ -1,0 +1,66 @@
+# Zolva
+
+> Zolva is open trading-agent infrastructure on Robinhood Chain (chain id 4663). People build trading agents for tokenized US stocks, ETFs and crypto, backtest them on real onchain prices, and run them on paper or with real money from their own wallet. Every agent decides once an hour and writes down why, and every published agent's decisions are public.
+
+Website: https://zolvaagent.app
+Code: https://github.com/zolvaagent/zolva (MIT)
+X: https://x.com/zolva_agent
+
+## What an agent does
+
+- Every hour, a few minutes past the hour, each running agent reads the latest hourly close of its markets and decides to buy, sell or hold. It writes the reason in plain words, taken from the rule that fired (for example "Buy rule met: 96h z score -2.63 below -2.50").
+- Strategies: momentum, mean reversion, dip hunter, spike fade (perps only, it shorts) and custom rules built from indicators (price, moving averages, highs and lows, change, z score, RSI), with stop loss, take profit and max holding time.
+- Prompt mode turns a strategy described in plain words into normal, editable rules. The text is a first draft: you check and backtest it before launch.
+- Before launch, an agent is backtested on the last 30 days with the same engine that runs it live.
+- An optional AI co-pilot can only veto a trade the rules want to make, with its own reason shown next to the rule's. It cannot size trades or skip a stop loss.
+- Every agent is compared with simply holding the same markets.
+
+## Markets
+
+- 20 US stock and ETF tokens on Robinhood Chain, each matched to Robinhood's official Stock Token list by contract address (never by ticker).
+- ETH and BTC, priced from their USDG pools and checked against Chainlink.
+- 8 perpetual futures on Lighter (paper only), with a 0.05% cost per trade and real hourly funding.
+- Hourly closes are read from each token's USDG pool at the last block of the hour. Stock tokens also trade at night and on weekends; trades made while the New York exchange is closed are labelled "DEX hours".
+
+## Paper and real money
+
+- Paper trading uses virtual money at real prices and is free.
+- Real money trades USDG from the user's own wallet through Uniswap. The user adds Zolva as a signer under a policy made for their wallet: it may only approve the Uniswap router and swap between USDG and listed markets, paid back into the same wallet. It cannot send funds anywhere else.
+- Real money limits today: at most $100 of capital per agent, $300 of trading a day, one real money agent at a time. Perps and the AI co-pilot stay on paper.
+- A real money order on a token with a Chainlink feed waits when the feed is stale or unreadable; it never falls back to the pool price alone.
+- Real money results so far are small tests and are not presented as profitable. Every real trade links to its transaction.
+
+## Transparency
+
+- Published agents show every hourly decision, trade, position and loss. Once an agent has been published, its page and record stay public even if its owner takes it off the leaderboard.
+- What shipped, with the commit behind each entry: https://zolvaagent.app/devlog
+- How to check each claim (code, prices, wallets, contracts): https://zolvaagent.app/docs/verify
+- Public stats: https://zolvaagent.app/stats
+
+## For developers and AI clients
+
+- Public API, no key, JSON: https://zolvaagent.app/api/public/v1 (agents, markets, recent activity; docs: https://zolvaagent.app/docs/public-api)
+- MCP server, read only, no key: https://zolvaagent.app/mcp (docs: https://zolvaagent.app/docs/mcp)
+- Premium API paid per call in USDG over x402: https://zolvaagent.app/docs/premium-api
+
+## ZOLVA token
+
+- Contract on Robinhood Chain: 0x8e04549484d0612be8373a0263b11928a5f7681f
+- Holding ZOLVA unlocks higher limits and free AI reviews; ZOLVA can be burnt for AI credits. Details: https://zolvaagent.app/docs/token
+- All Zolva addresses: https://zolvaagent.app/docs/contracts
+
+## Docs
+
+- Getting started: https://zolvaagent.app/docs/getting-started
+- How agents work: https://zolvaagent.app/docs/how-agents-work
+- Strategies: https://zolvaagent.app/docs/strategies
+- Backtests: https://zolvaagent.app/docs/backtests
+- Markets and prices: https://zolvaagent.app/docs/markets-and-prices
+- Guardrails: https://zolvaagent.app/docs/guardrails
+- FAQ: https://zolvaagent.app/docs/faq
+
+## What Zolva is not
+
+- Not investment advice. Paper results are simulated and past results do not predict future results.
+- Not available to US persons or residents of sanctioned countries; real money is blocked in some further countries (see https://zolvaagent.app/terms).
+- Built on Robinhood Chain, but not affiliated with or endorsed by Robinhood.
