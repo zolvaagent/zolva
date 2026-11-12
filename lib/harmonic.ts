@@ -69,3 +69,24 @@ export function sessionLabel(verdict: SessionVerdict): string {
       return "No fresh issuer quote";
   }
 }
+
+/** Plain-language hover text for the market page, in Zolva's words rather than Harmonic's raw reason. */
+export function sessionDetail(verdict: SessionVerdict, symbol: string): string {
+  switch (verdict) {
+    case "open":
+      return `Robinhood is quoting ${symbol} normally. If trading is ever halted or paused, live agents hold their orders on it until it resumes.`;
+    case "halted":
+      return `Robinhood has halted trading in ${symbol}. The pool can still move, so live agents hold their orders on it until trading resumes.`;
+    case "paused":
+      return `Robinhood has paused ${symbol}, for example for a corporate action. Live agents hold their orders on it until it resumes.`;
+    default:
+      return `No fresh quote from Robinhood right now, which is normal outside its trading hours. Agents keep trading on the pool price.`;
+  }
+}
+
+/** "03:46 UTC" from an ISO time; formatted by hand so server and browser render the same text. */
+export function sessionCheckedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")} UTC`;
+}

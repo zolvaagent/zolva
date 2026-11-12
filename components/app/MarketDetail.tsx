@@ -9,7 +9,7 @@ import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { MarketRow } from "@/lib/data/markets";
-import { blocksTrading, HARMONIC_URL, sessionLabel, type TokenSession } from "@/lib/harmonic";
+import { blocksTrading, HARMONIC_URL, sessionCheckedAt, sessionDetail, sessionLabel, type TokenSession } from "@/lib/harmonic";
 import { dateAt, fundingYearly, percent, points, price, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const RANGES = [
@@ -242,13 +242,26 @@ export function MarketDetail({
                 <p className="note">This token address is not yet checked against Robinhood&apos;s official Stock Token list.</p>
               )}
               {session ? (
-                <p className="note" title={session.reason}>
-                  <i className={`ph ${blocksTrading(session.verdict) ? "ph-pause-circle" : "ph-pulse"}`} aria-hidden="true" /> Issuer status: {sessionLabel(session.verdict)}
-                  {blocksTrading(session.verdict) ? ". Live agents hold their orders on this stock until trading resumes." : "."} Source:{" "}
-                  <a className="text-link" href={HARMONIC_URL} target="_blank" rel="noopener noreferrer">
-                    Harmonic session oracle
-                  </a>
-                </p>
+                // Hover or focus shows the tooltip; it explains the status in plain words.
+                <div className="session-note">
+                  <p className="note">
+                    <i className={`ph ${blocksTrading(session.verdict) ? "ph-pause-circle" : "ph-pulse"}`} aria-hidden="true" />
+                    <span>
+                      <span className="session-note__status" tabIndex={0} aria-describedby="session-tip">
+                        Issuer status: {sessionLabel(session.verdict)}
+                      </span>
+                      {blocksTrading(session.verdict) ? ". Live agents hold their orders on this stock until trading resumes." : "."} Source:{" "}
+                      <a className="session-note__link" href={HARMONIC_URL} target="_blank" rel="noopener noreferrer">
+                        Harmonic session oracle
+                      </a>
+                    </span>
+                  </p>
+                  <div className="session-note__tip" id="session-tip" role="tooltip">
+                    <strong>{sessionLabel(session.verdict)}</strong>
+                    <span>{sessionDetail(session.verdict, row.symbol)}</span>
+                    <span className="session-note__meta">Checked {sessionCheckedAt(session.at)} · Harmonic session oracle</span>
+                  </div>
+                </div>
               ) : null}
             </div>
             )}

@@ -2188,6 +2188,72 @@ main:focus {
   line-height: 16px;
 }
 
+/* Market page: the issuer status line and its hover card (same look as the Stats bar tips). */
+.session-note {
+  position: relative;
+}
+
+.session-note__status {
+  border-radius: var(--radius-md);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.session-note__status:focus-visible {
+  outline: 2px solid var(--color-purple-rich);
+  outline-offset: 2px;
+}
+
+/* A link inside a 12px note keeps the note's size instead of the 14px .text-link. */
+.session-note__link {
+  color: var(--color-purple-rich);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.session-note__link:hover {
+  text-decoration: underline;
+}
+
+.session-note__tip {
+  position: absolute;
+  bottom: calc(100% + var(--space-75));
+  left: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  width: min(300px, 100%);
+  padding: var(--space-100) var(--space-200);
+  border-radius: var(--radius-lg);
+  background: var(--color-text);
+  color: var(--color-on-text);
+  font-size: 12px;
+  line-height: 16px;
+  box-shadow: 0 8px 24px -8px var(--color-shadow-strong);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity var(--duration-micro) var(--ease-out-expo), transform var(--duration-micro) var(--ease-out-expo);
+}
+
+.session-note__tip strong {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.session-note__meta {
+  opacity: 0.7;
+}
+
+.session-note:hover .session-note__tip,
+.session-note:focus-within .session-note__tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .verdict {
   display: flex;
   gap: var(--space-100);
