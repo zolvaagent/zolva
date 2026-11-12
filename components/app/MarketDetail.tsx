@@ -9,6 +9,7 @@ import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { MarketRow } from "@/lib/data/markets";
+import { blocksTrading, HARMONIC_URL, sessionLabel, type TokenSession } from "@/lib/harmonic";
 import { dateAt, fundingYearly, percent, points, price, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const RANGES = [
@@ -30,7 +31,24 @@ function Stat({ label, value, className }: { label: string; value: React.ReactNo
 
 const signed = (value: number | null) => (value === null ? "–" : percent(value));
 
-export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }: { row: MarketRow; closes: number[]; startTs: number; asOf: number; marketOpen: boolean; agents: AgentSummary[] }) {
+export function MarketDetail({
+  row,
+  closes,
+  startTs,
+  asOf,
+  marketOpen,
+  agents,
+  session = null,
+}: {
+  row: MarketRow;
+  closes: number[];
+  startTs: number;
+  asOf: number;
+  marketOpen: boolean;
+  agents: AgentSummary[];
+  /** Stock Tokens only: the issuer's trading status from Harmonic's session oracle; null when unknown. */
+  session?: TokenSession | null;
+}) {
   const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
   const range = RANGES.find((item) => item.key === rangeKey)!;
   // One more point than the range, so "24h" spans 24 full hours.
@@ -70,6 +88,11 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
             ) : (
               <span className={`pill ${marketOpen ? "pill--running" : "pill--paused"}`}>{marketOpen ? "US market open" : "US market closed"}</span>
             )}
+            {session && blocksTrading(session.verdict) ? (
+              <span className="pill pill--paused" title={session.reason}>
+                {sessionLabel(session.verdict)}
+              </span>
+            ) : null}
             <span>As of {dateAt(asOf)}</span>
           </div>
         </div>
@@ -218,6 +241,15 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
               ) : (
                 <p className="note">This token address is not yet checked against Robinhood&apos;s official Stock Token list.</p>
               )}
+              {session ? (
+                <p className="note" title={session.reason}>
+                  <i className={`ph ${blocksTrading(session.verdict) ? "ph-pause-circle" : "ph-pulse"}`} aria-hidden="true" /> Issuer status: {sessionLabel(session.verdict)}
+                  {blocksTrading(session.verdict) ? ". Live agents hold their orders on this stock until trading resumes." : "."} Source:{" "}
+                  <a className="text-link" href={HARMONIC_URL} target="_blank" rel="noopener noreferrer">
+                    Harmonic session oracle
+                  </a>
+                </p>
+              ) : null}
             </div>
             )}
           </div>

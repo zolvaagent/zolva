@@ -6,6 +6,7 @@ import { erc20Abi, formatUnits, parseUnits, type Hex } from "viem";
 
 import { liveEquity, planAgentHours, type AgentRow, type PositionRow } from "@/lib/agents/plan";
 import { getMarket } from "@/lib/data/market";
+import { blocksTrading, fetchSession } from "@/lib/harmonic";
 import { env } from "@/lib/env";
 import { USDG } from "@/lib/live/contracts";
 import { confirmSwap, executeSwap, oracleProblem, type LiveContext, type SwapOrder, type SwapResult } from "@/lib/live/executor";
@@ -184,6 +185,15 @@ async function executeFill(
     }
   }
 
+  // Stock tokens (no Chainlink feed): hold while the issuer has halted or paused trading, from
+  // Harmonic's session oracle. The pool keeps trading during a halt, so its price can be stale or
+  // thin. When Harmonic cannot be read the order goes ahead as before (fail open).
+  let sessionHold: string | null = null;
+  if (!token.chainlink_feed) {
+    const session = await fetchSession(token.address);
+    if (session && blocksTrading(session.verdict)) sessionHold = `${token.symbol} is ${session.verdict} (Harmonic session oracle: ${session.reason})`;
+  }
+
   // Amount in human units: USDG for buys, tokens for sells (never more than the wallet holds).
   let amountIn: number;
   let raw: bigint;
@@ -231,6 +241,11 @@ async function executeFill(
   if (feedHold) {
     await db.from("executions").update({ status: "cancelled", error: `price check: ${feedHold}; order held` }).eq("id", executionId);
     return { status: "cancelled", detail: feedHold };
+  }
+
+  if (sessionHold) {
+    await db.from("executions").update({ status: "cancelled", error: `market session: ${sessionHold}; order held` }).eq("id", executionId);
+    return { status: "cancelled", detail: sessionHold };
   }
 
   if (volume + orderUsd > Number(settings.daily_volume_usd)) {
