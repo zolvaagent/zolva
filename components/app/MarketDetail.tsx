@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { LighterBadge } from "@/components/ui/LighterBadge";
 import { LineChart } from "@/components/ui/LineChart";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
@@ -187,6 +188,7 @@ export function MarketDetail({ row, closes, startTs, asOf, marketOpen, agents }:
                 <a className="text-link" href={`https://robinhoodchain.lighter.xyz/trade/${base}`} target="_blank" rel="noopener noreferrer">
                   {base} perp on Lighter <i className="ph ph-arrow-up-right" />
                 </a>
+                <LighterBadge height={28} />
               </div>
             ) : (
             <div className="stack stack--tight" style={{ fontSize: 14, lineHeight: "20px" }}>

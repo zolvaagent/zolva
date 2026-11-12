@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 
+import { LighterBadge } from "@/components/ui/LighterBadge";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import type { MarketRow } from "@/lib/data/markets";
 import { fundingYearly, percent, price, sparkline, tone } from "@/lib/format";
@@ -179,6 +180,14 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
               </table>
             </div>
           </div>
+
+          {/* The perps (BTC-PERP and others) come from Lighter: credit the source under the crypto list. */}
+          {asset === "crypto" && visible.some((row) => row.venue === "lighter") && (
+            <div className="markets-source">
+              <span className="muted">Perps prices and funding from Lighter</span>
+              <LighterBadge height={24} />
+            </div>
+          )}
 
           <div className="leader-cards only-mobile">
             {visible.map((row) => (
