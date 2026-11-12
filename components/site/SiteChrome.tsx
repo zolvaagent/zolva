@@ -6,7 +6,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { useAuth, useToast } from "@/components/ui/Providers";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { SOCIAL_LINKS } from "@/lib/social";
+import { GITHUB_REPO_URL, SOCIAL_LINKS } from "@/lib/social";
 
 const LINKS = [
   { href: "/markets", label: "Markets" },
@@ -175,6 +175,9 @@ export function SiteFooter() {
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/docs/verify">Verify Zolva</Link>
+            <a href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer">
+              Source code
+            </a>
           </div>
         </div>
 
