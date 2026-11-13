@@ -420,3 +420,36 @@ are not modelled and the results are optimistic. Bounce short with the 24h guard
 Leverage multiplies the return and the drops, it does not add an edge: every extra point comes
 with the same trades (4 to 14 per window). At 10x one 5% stop costs half the margin and two in a
 row three quarters; a 2% stop is hit by ordinary noise (-21% in the last 6 days).
+
+## Strategy by regime (2026-11-13)
+
+Goal (owner): agents whose strategies pay in a given market condition, not tied to a coin.
+`scripts/research-regime-matrix.mts` (read-only): 7 rules run continuously over the whole Lighter
+history (3,078 hours after warm-up, 8 crypto perps, 1x, 0.05% cost, real funding, 10% stop). The regime of an
+hour is fixed before looking at results and uses only data up to that hour, from the equal-weight basket:
+SHOCK = 48h hourly volatility >= 0.8%; else UP / DOWN = 7 day move of +5% / -5% or more; else RANGE. Hours:
+UP 474 (15%), RANGE 1,487 (48%), DOWN 365 (12%), SHOCK 752 (24%). Return of each regime's hours, entries made in them:
+
+| Rule | UP | RANGE | DOWN | SHOCK | Whole period |
+|---|---|---|---|---|---|
+| hold basket | +10.7% | -1.1% | +1.2% | +11.2% | +23.2% |
+| bounce short | -3.1% (0 entries) | +17.1% (22) | +15.7% (7) | +13.5% (7) | +49.0% |
+| spike fade short | -25.6% (7) | +11.3% (26) | +1.3% (5) | +41.1% (12) | +18.4% |
+| dip long | -7.1% (8) | +32.8% (21) | -9.4% (4) | +3.6% (8) | +15.8% |
+| dip + fade, trend filter | -3.8% (10) | +10.3% (43) | +5.3% (9) | +16.5% (11) | +30.3% |
+| momentum long | **+35.2% (6)** | -25.6% (16) | -6.1% (7) | -22.7% (10) | -27.0% |
+| breakout long | -2.6% (7) | +14.2% (25) | -4.4% (5) | -22.3% (9) | -17.3% |
+| breakdown short | -4.7% (8) | -26.6% (30) | -7.7% (1) | -16.9% (13) | -46.3% |
+
+Sensitivity (7 day band 3% / 8%, shock threshold 0.6% / 1.2%; four more runs) kept these patterns:
+- **Momentum long pays only in UP** (+21.7% to +72.0%) and loses in every other regime (-1.8% to -57.5%).
+- **Spike fade short loses in UP** in every run (-8.3% to -25.6%, drops up to 26%); it pays in RANGE and SHOCK.
+- **Dip long pays in RANGE** (+16.0% to +32.8%) and is flat to negative in UP and DOWN.
+- **Bounce short is positive in RANGE, DOWN and SHOCK** in every run; UP has almost no entries.
+- Dip + fade is the most even rule (positive in RANGE, DOWN, SHOCK; slightly negative in UP at most bands).
+- Breakdown short loses everywhere; breakout long only pays in RANGE.
+
+Caveats: in-sample, one up/down cycle; many cells have under 10 entries (UP and DOWN are only 12% to 23% of hours,
+so their cells are thin); 7 rules x 4 regimes is 28 cells, some positive by chance; the shock label covers a
+quarter of the hours. A regime-gated candidate (for example momentum only while the basket is UP) is not
+proven until it has fresh paper hours.
