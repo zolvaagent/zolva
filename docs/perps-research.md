@@ -453,3 +453,64 @@ Caveats: in-sample, one up/down cycle; many cells have under 10 entries (UP and 
 so their cells are thin); 7 rules x 4 regimes is 28 cells, some positive by chance; the shock label covers a
 quarter of the hours. A regime-gated candidate (for example momentum only while the basket is UP) is not
 proven until it has fresh paper hours.
+
+### Momentum only while the market is up (2026-11-13)
+
+Question: can momentum long (the one rule that paid in UP, +35.2% from 6 entries) be gated to rising
+markets? `scripts/research-regime-matrix.mts`, same data and costs. Ungated momentum: -27.0% for the whole
+period (first half +26.4%, second half -42.3%, 36% of 39 trades won).
+
+| Gate on entry | Whole period | Trades won | First / second half |
+|---|---|---|---|
+| none | -27.0% | 36% (39 closed) | +26.4% / -42.3% |
+| this asset up 3% / 5% / 8% over 7 days | -5.2% / -0.2% / -39.2% | 41% / 43% / 32% | +4.5% / +3.0% / -4.1% first half; second half negative |
+| the basket up 3% over 7 days | +12.1% | 35% (20 closed) | +11.9% / +0.1% |
+| the basket up 5% over 7 days | +77.2% | 58% (12 closed) | +50.4% / +17.8% |
+| the basket up 8% over 7 days | +22.1% | 38% (13 closed) | +38.9% / -12.1% |
+
+- **A per-asset gate does not work**: an asset up 5% over 7 days is often a single coin pumping in a range
+  market, and it still lost 17% to 37% in RANGE hours.
+- **A market-level gate (basket 7 day move) turns the rule positive** at 3%, 5% and 8%, but the size depends on
+  the band: +12% to +77%, with only 12 to 20 trades, and the second half is flat to negative at 3% and 8%.
+  Treat the +77% as the best of three bands, not as the expected result.
+- Momentum with a basket gate would need the engine to compute the basket's 7 day move from the agent's own
+  markets (not built). Not proven; candidate only.
+
+### Hold-out on 2020-2026 spot data: the regime findings do not hold (2026-11-13)
+
+The matrix above came from 128 days. To test it, the same frozen rules ran on Binance spot hourly closes (public
+market data mirror, `scripts/binance-history.mts`) for the six coins that are the same asset as a Lighter perp:
+BTC, ETH, SOL, XRP, NEAR, ZEC, from 2020-10-15 to 2026-06-30 (50,016 hours, before the Lighter window).
+Spot, so no funding; 1x; 10% stop; 100% of the agent in one slot. The basket index is the equal-weight
+hourly-rebalanced return index (the first version, an average of normalised prices, was dominated by SOL and
+NEAR and was fixed; it only affects regime labels and the basket gate).
+
+| Rule | Whole 2020-10 to 2026-06 (cost 0.05%) | Cost 0 | By year 2021 / 22 / 23 / 24 / 25 |
+|---|---|---|---|
+| hold (equal-weight index) | +1,840% | | +914% / -77% / +165% / +129% / +26% |
+| bounce short | **-92.6%** (521 trades, 72% won) | -87.5% | -60% / -1% / -7% / -71% / -12% |
+| spike fade short | **-99.0%** | -99.0% | -94% / -29% / -14% / -48% / 0% |
+| dip long | **-84.1%** | -70.6% | +56% / -86% / +33% / +42% / -6% |
+| dip + fade, trend filter | **-88.6%** | -81.7% | -19% / -48% / +36% / -10% / -57% |
+| momentum long | +2,251% | +3,809% | +259% / -77% / +89% / +405% / -32% |
+| momentum, basket up 5% gate | +1,739% | +2,328% | +287% / -58% / +61% / +149% / +58% |
+| breakout long | +386% | +875% | +218% / -78% / +7% / +17% / +320% |
+| breakdown short | -98.0% | -95.9% | -76% / -15% / -76% / -65% / -32% |
+
+- **Costs are not the reason**: with cost 0 the mean-reversion and short rules still lose 70% to 99%.
+- **The short and mean-reversion rules found on the 128 days (bounce short, spike fade, dip long, dip + fade) do not
+  hold out.** They lose in the bull years (2021, 2024) by shorting pullbacks that keep going up; bounce short only
+  broke even in the 2022 bear year (-1%). The Jul-Nov 2026 window was one falling leg.
+- **Consistency check on the overlap** (same Jul-Nov 2026 window on Binance spot): bounce short +28.0% (Lighter +49.0%),
+  momentum with the basket gate +85.3% (Lighter +77.2%); but dip long -2.6% (Lighter +15.8%), dip + fade -4.1%
+  (Lighter +30.3%) and spike fade -45.0% (Lighter +18.4%). So the simulation matches for two rules, and the
+  mean-reversion results move a lot just from using 6 coins on spot instead of 8 perps: fragile.
+- **Momentum and breakout long make money over the long sample, but this is mostly market beta on six coins that
+  survived** (the index rose 18x), with -77% / -78% years (2022). They are not safe for users as they are.
+- Limits: spot not perps; survivor coins; one-slot 100% sizing; no funding (shorts would pay in bull years, so the
+  short results are if anything too good).
+
+Reading: no rule here is robust across regimes yet. Next research needs a higher-timeframe regime filter chosen on
+the long sample first (not the Lighter window), position sizing and drawdown limits, and a pass criterion fixed in
+advance (for example positive in at least 4 of 6 years and worst drop under 30%), tested on BTC and ETH, which have
+the least survivor bias.
