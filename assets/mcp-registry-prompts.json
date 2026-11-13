@@ -1,0 +1,14 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "low",
+    "background": "opaque",
+    "aspect_ratio": "3:2",
+    "output_format": "png"
+  },
+  "style": "Background image for a Zolva announcement on X, in its house style: a soft, heavily blurred colour field of lavender #9896ff, violet #6a5ef5 and pale lilac #e9e8ff, smooth gradients like out of focus light, a very fine film grain. Calm, premium, minimal. The centre stays calm and evenly lit so white text can sit on it later. No text, no letters, no numbers, no logos, no icons, no shapes, no people.",
+  "icons": {
+    "mcp-registry-bg": "Just the colour field, nothing else."
+  },
+  "note": "MCP Registry tweet background, 2026-11-10, text-free (copy goes on top in HTML: assets/brand/banner-v4/mcp-registry.html), low quality, about $0.012. Run: PROMPTS=assets/mcp-registry-prompts.json OUT_DIR=assets/brand/banner-v4 node scripts/generate-icons.mjs"
+}

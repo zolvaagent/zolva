@@ -1,0 +1,15 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "medium",
+    "background": "opaque",
+    "aspect_ratio": "3:2",
+    "output_format": "png"
+  },
+  "style": "Illustration for a launch day announcement image of Zolva, a trading agent app, about its token ZOLVA. Glossy soft clay-like 3D render, smooth rounded forms, soft studio light from the top left, palette of lavender #9896ff, violet #6a5ef5, pale lilac #e9e8ff, deep ink #252228 and small warm yellow #ffc42c accents, crisp white highlights. Background is a soft blurred lavender and violet colour field. Keep the left 40% of the image calm and nearly empty for a headline added later; the subject sits in the right 60%. No text, no letters, no numbers, no logos, no brand marks, no people.",
+  "icons": {
+    "launch-dexpaid": "Subject: a glossy white rounded profile card floating at a slight angle, with a small lavender coin as its avatar, a tiny rising line chart and a few blank rounded bars for links, and a big round glossy green check badge popping out of its top right corner. A few small lavender and warm yellow confetti pieces and sparkles around it.",
+    "launch-burn": "Subject: a glossy lavender coin standing on its edge, its lower part dissolving into soft rounded clay flames in warm yellow #ffc42c and orange, small embers and sparks drifting upward. Friendly and clean, not scary, no smoke clouds."
+  },
+  "note": "Launch day L2 (Dex paid) and L3 (dev supply burnt) images, 2026-11-10, text-free (copy in HTML: assets/brand/launch/build-launch-cards.mjs), medium, about $0.10 for 2. Run: PROMPTS=assets/launch-cards-prompts.json OUT_DIR=assets/brand/launch node scripts/generate-icons.mjs"
+}

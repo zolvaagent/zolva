@@ -1,0 +1,16 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "low",
+    "background": "opaque",
+    "aspect_ratio": "3:2",
+    "output_format": "png"
+  },
+  "style": "Illustration for an announcement image of Zolva, an app whose trading agents explain every decision, now listed in the official MCP Registry where AI agents find tools. Glossy soft clay-like 3D render, smooth rounded forms, soft studio light from the top left, palette of lavender #9896ff, violet #6a5ef5, pale lilac #e9e8ff, deep ink #252228 and small warm yellow #ffc42c accents, crisp white highlights. Background is a soft blurred lavender and violet colour field. Keep the left 40% of the image calm and nearly empty for a headline added later; the subject sits in the right 60%. No text, no letters, no numbers, no logos, no brand marks, no people.",
+  "icons": {
+    "mcp-reg-cabinet": "Subject: a glossy rounded card catalog cabinet like an old library index, in white and lavender, one drawer pulled open with a single lavender index card standing up out of it, glowing softly, a small round green check badge on the card. Other drawers closed with small blank label plates.",
+    "mcp-reg-shelf": "Subject: a neat floating shelf of rounded white app tiles, like a directory of plugins, with one empty slot; a glossy lavender tile with a soft glow is sliding into that slot, a small round green check badge pops up above it, tiny light particles around it.",
+    "mcp-reg-stamp": "Subject: a big chunky glossy lavender rubber stamp lifting off a rounded white card, leaving a clean round green check mark on the card, a few small confetti pieces in lavender and warm yellow floating around. Feels like an official approval, friendly not bureaucratic."
+  },
+  "note": "MCP Registry tweet illustration concepts, 2026-11-10, text-free (copy goes on top in HTML), low quality, about $0.04 for 3. Run: PROMPTS=assets/mcp-registry-3d-prompts.json OUT_DIR=assets/brand/banner-v4 node scripts/generate-icons.mjs"
+}

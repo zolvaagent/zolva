@@ -1,0 +1,15 @@
+{
+  "model": "openai/gpt-image-2",
+  "input": {
+    "quality": "medium",
+    "background": "opaque",
+    "aspect_ratio": "3:2",
+    "output_format": "png"
+  },
+  "style": "Wide banner illustration for Zolva, an app where AI trading agents trade tokenized stocks, crypto and perps on Robinhood Chain and explain every decision. Glossy soft clay-like 3D render, smooth rounded forms, soft studio light from the top left, palette of lavender #9896ff, violet #6a5ef5, pale lilac #e9e8ff, deep ink #252228 and small warm yellow #ffc42c accents, crisp white highlights. Background is a soft blurred lavender and violet colour field. Very wide composition: keep the left 45% calm and nearly empty for a logo and one line of text added later; all subjects sit in the right half. No text, no letters, no numbers, no logos, no brand marks, no people.",
+  "icons": {
+    "dex-agent": "Subject: a small friendly rounded robot with a dark visor floating calmly, surrounded by a loose orbit of glossy coins (a few lavender, one yellow) and two small rounded white cards with tiny rising line charts and round green check badges. Soft glow behind the robot.",
+    "dex-tiles": "Subject: a gentle wave of floating glossy rounded tiles drifting from the centre to the right edge, like a stream of trading decisions: white tiles with small green up arrows, a few with a grey pause bar, one lavender coin and one yellow coin among them, a thin glowing lavender line chart rising through the stream."
+  },
+  "note": "DexScreener header art, 2026-11-10, text-free (copy goes on top in HTML: assets/brand/dex/build-dex-header.mjs), medium, about $0.10 for 2. Run: PROMPTS=assets/dex-header-prompts.json OUT_DIR=assets/brand/dex node scripts/generate-icons.mjs"
+}
