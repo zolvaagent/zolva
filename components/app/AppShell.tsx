@@ -11,10 +11,12 @@ import { X_HANDLE, X_URL } from "@/lib/social";
 
 const NAV = [
   { href: "/app", label: "Dashboard", icon: "squares-four" },
+  // Sidebar only: on phones the avatar in the top bar opens Settings.
+  { href: "/settings", label: "Settings", icon: "gear-six", tabbar: false },
   { href: "/markets", label: "Markets", icon: "chart-line-up" },
   { href: "/agents", label: "Agents", icon: "robot" },
   { href: "/studio", label: "Studio", icon: "sliders-horizontal" },
-  // Sidebar only: the phone tab bar holds six; on phones Swap is on the Dashboard.
+  // Sidebar only: the phone tab bar holds six; on phones Swap is in Settings.
   { href: "/swap", label: "Swap", icon: "arrows-left-right", tabbar: false },
   { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
   { href: "/activity", label: "Activity", icon: "pulse" },
@@ -59,7 +61,7 @@ export function AppSidebar() {
       <nav className="app-side__nav">
         {NAV.map((item, i) => (
           <span key={item.href} style={{ display: "contents" }}>
-            {i === 1 && <span className="app-side__group">Explore</span>}
+            {i === 2 && <span className="app-side__group">Explore</span>}
             <Link className="app-link" href={item.href} aria-current={isCurrent(pathname, item.href) ? "page" : undefined}>
               <i className={`ph ph-${item.icon}`} />
               {item.label}
@@ -92,11 +94,13 @@ export function AppSidebar() {
         <ThemeToggle variant="switch" />
         {address ? (
           <div className="account">
-            <Avatar address={address} />
-            <span className="account__text">
-              <strong className="mono">{shortAddress(address)}</strong>
-              <span>{loginLabel}</span>
-            </span>
+            <Link className="account__link" href="/settings" title="Settings">
+              <Avatar address={address} />
+              <span className="account__text">
+                <strong className="mono">{shortAddress(address)}</strong>
+                <span>{loginLabel}</span>
+              </span>
+            </Link>
             <button className="privy__icon-button" type="button" aria-label="Log out" title="Log out" onClick={logout}>
               <i className="ph ph-sign-out" />
             </button>
@@ -128,7 +132,7 @@ export function AppTopbar() {
       <span className="app-topbar__actions">
         <ThemeToggle />
         {address ? (
-          <Link className="avatar-button" href="/app" aria-label="Open your dashboard">
+          <Link className="avatar-button" href="/settings" aria-label="Open your settings">
             <Avatar address={address} />
           </Link>
         ) : (

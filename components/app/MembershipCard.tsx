@@ -21,7 +21,7 @@ type Membership = {
 const NEXT_TIER: Partial<Record<Tier, Tier>> = { free: "holder", holder: "pro" };
 
 /**
- * ZOLVA membership on the Dashboard: the account's tier, what it unlocks, the
+ * ZOLVA membership on the Settings page: the account's tier, what it unlocks, the
  * wallets whose ZOLVA counts, and Refresh. Before the token launches it only
  * explains the tiers.
  */

@@ -1,21 +1,13 @@
 import Link from "next/link";
 
 import { RealMoneyPill } from "@/components/app/AgentKind";
-import { ApiKeysCard } from "@/components/app/ApiKeysCard";
 import { DecisionRow } from "@/components/app/AgentView";
-import { LoginPrompt } from "@/components/app/LoginPrompt";
-import { MembershipCard } from "@/components/app/MembershipCard";
-import { WalletExport } from "@/components/app/WalletExport";
 import { TrackedLink } from "@/components/ui/TrackedLink";
-import { UsdgTopUp } from "@/components/app/UsdgTopUp";
-import { ZolvaTopUp } from "@/components/app/ZolvaTopUp";
-import type { ApiKeyEventRow, ApiKeyRow } from "@/lib/api-keys/server";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { Decision } from "@/lib/engine/engine";
 import { dateAt, marketList, percent, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
 import { formatCredits } from "@/lib/ai/models";
-import { EXPLORER_URL } from "@/lib/chain";
-import { X_HANDLE, X_URL } from "@/lib/social";
+import { TIERS, type Tier } from "@/lib/tiers";
 
 type Props = {
   /** AI co-pilot credits, USD. */
@@ -25,16 +17,12 @@ type Props = {
   curves: Record<string, number[]>;
   latest: { agentName: string; agentId: string; ts: number; decisions: (Decision & { symbol: string })[] } | null;
   top: AgentSummary[];
-  /** How this browser logged in (display only); "privy" means an email or Google account with a Privy wallet. */
-  loginMethod: "privy" | "wallet" | null;
-  /** Zolva has a live trading signer on this wallet. */
-  liveSigner: boolean;
+  /** ZOLVA membership tier, shown in the account summary. */
+  tier: Tier;
   /** Running agents allowed at once: 5, or more for ZOLVA holders (lib/tiers.ts). */
   maxActive: number;
   /** A public paper agent a new account can start from ("Use these rules"), or null. */
   starter: AgentSummary | null;
-  /** The account's API keys (not revoked) and their latest audit events. */
-  apiKeys: { keys: ApiKeyRow[]; events: ApiKeyEventRow[] };
 };
 
 function greeting() {
@@ -42,7 +30,7 @@ function greeting() {
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Dashboard({ address, agents, curves, latest, top, credits, loginMethod, liveSigner, maxActive, starter, apiKeys }: Props) {
+export function Dashboard({ address, agents, curves, latest, top, credits, tier, maxActive, starter }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
   const totalStart = agents.reduce((sum, agent) => sum + agent.startCapital, 0);
   const totalNow = agents.reduce((sum, agent) => sum + agent.equity, 0);
@@ -222,77 +210,6 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
 
         <div className="stack">
           <div className="card stack stack--tight">
-            <h2 className="card__title">Account</h2>
-            <div className="account" style={{ padding: 0 }}>
-              <span className="avatar" aria-hidden="true">
-                {address.slice(2, 3).toUpperCase()}
-              </span>
-              <span className="account__text">
-                <strong className="mono">{shortAddress(address)}</strong>
-                <span>{loginMethod === "privy" ? "Email or Google login" : loginMethod === "wallet" ? "Wallet login" : "Signed in"}</span>
-              </span>
-            </div>
-            <div className="wallet-box">
-              <div className="growth__row" style={{ border: 0, padding: 0 }}>
-                <span className="muted">{loginMethod === "privy" ? "Your Zolva wallet" : "Connected wallet"}</span>
-                <span className="pill pill--accent">Robinhood Chain</span>
-              </div>
-              <a className="wallet-box__address mono" href={`${EXPLORER_URL}/address/${address}`} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
-                {shortAddress(address)}
-                <i className="ph ph-arrow-square-out" />
-              </a>
-              <p className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-                {loginMethod === "privy"
-                  ? "Created for you when you logged in. It is yours: export its private key to use it in any wallet app."
-                  : "Paper trading needs no funds. Your wallet is only used to sign in."}
-              </p>
-              {loginMethod === "privy" && <WalletExport address={address} liveSigner={liveSigner} />}
-              <Link className="button button--ghost" href="/swap">
-                <i className="ph ph-arrows-left-right" aria-hidden="true" />
-                Swap
-              </Link>
-            </div>
-            <LoginPrompt mode="logout" />
-          </div>
-
-          <a className="card follow-card" href={X_URL} target="_blank" rel="noopener noreferrer">
-            <span className="follow-card__icon" aria-hidden="true">
-              <i className="ph ph-x-logo" />
-            </span>
-            <span className="follow-card__text">
-              <strong>Follow @{X_HANDLE}</strong>
-              <span className="muted">New features, live agent results and what is coming next.</span>
-            </span>
-            <i className="ph ph-arrow-up-right muted" aria-hidden="true" />
-          </a>
-
-          <MembershipCard address={address} />
-
-          <div className="card stack stack--tight">
-            <div className="card-head" style={{ margin: 0 }}>
-              <h2 className="card__title">AI credits</h2>
-              <i className="ph ph-sparkle" style={{ color: "var(--color-purple-rich)", fontSize: 22 }} aria-hidden="true" />
-            </div>
-            <div className="growth__row" style={{ padding: 0, border: 0 }}>
-              <span className="muted">Free (Lite models)</span>
-              <strong>{formatCredits(credits.freeUsd)}</strong>
-            </div>
-            <div className="growth__row" style={{ padding: 0, border: 0 }}>
-              <span className="muted">Paid (any model)</span>
-              <strong>{formatCredits(credits.paidUsd)}</strong>
-            </div>
-            <p className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-              Spent only when an agent&apos;s AI co-pilot reviews a trade. If credits run out, agents keep trading on their rules.
-            </p>
-            <div className="topup-actions">
-              <UsdgTopUp address={address} loginMethod={loginMethod} />
-              <ZolvaTopUp address={address} loginMethod={loginMethod} />
-            </div>
-          </div>
-
-          <ApiKeysCard initialKeys={apiKeys.keys} initialEvents={apiKeys.events} />
-
-          <div className="card stack stack--tight">
             <div className="card-head" style={{ margin: 0 }}>
               <h2 className="card__title">Top agents</h2>
               <img src="/img/icons/leaderboard.png" alt="" width={36} height={36} />
@@ -312,6 +229,23 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
               </Link>
             ))}
           </div>
+
+          {/* The full account, membership, credits and API keys live on /settings. */}
+          <Link className="card account-summary" href="/settings">
+            <span className="avatar" aria-hidden="true">
+              {address.slice(2, 3).toUpperCase()}
+            </span>
+            <span className="account-summary__text">
+              <strong className="mono">{shortAddress(address)}</strong>
+              <span className="muted">
+                {TIERS[tier].label} plan · {formatCredits(credits.freeUsd + credits.paidUsd)} AI credits
+              </span>
+            </span>
+            <span className="account-summary__manage">
+              Settings
+              <i className="ph ph-arrow-right" aria-hidden="true" />
+            </span>
+          </Link>
         </div>
       </div>
     </div>

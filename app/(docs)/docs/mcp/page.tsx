@@ -110,7 +110,7 @@ export default function Mcp() {
 
       <H2 id="keys">With an API key</H2>
       <p>
-        Make a key on your <Link href="/app">Dashboard</Link> (API keys card), tick what it may do, and copy it: it is shown once. Then send it as a header. The server shows the assistant only the
+        Make a key in your <Link href="/settings#api-keys">Settings</Link> (API keys card), tick what it may do, and copy it: it is shown once. Then send it as a header. The server shows the assistant only the
         tools your key&apos;s scopes allow.
       </p>
       <Code>{`claude mcp add --transport http zolva ${URL} --header "Authorization: Bearer zk_..."`}</Code>
@@ -153,7 +153,7 @@ export default function Mcp() {
           <strong>User text is labelled.</strong> Agent names and strategy prompts come in <code>userText</code> fields, cleaned of control characters, so an assistant can tell them apart from
           instructions.
         </li>
-        <li>Every write is logged on your Dashboard. Revoke the key there and it stops working at once.</li>
+        <li>Every write is logged in your Settings. Revoke the key there and it stops working at once.</li>
       </ul>
 
       <H2 id="ideas">Things to ask</H2>

@@ -1,6 +1,6 @@
 import { Skeleton, SkeletonCard, SkeletonHead, SkeletonPage } from "@/components/ui/Skeleton";
 
-/** Dashboard: three stat tiles, agent cards, and the side cards. */
+/** Dashboard: three stat tiles, agent cards, top agents and the account summary. */
 export default function Loading() {
   return (
     <SkeletonPage label="Loading your dashboard">
@@ -36,7 +36,7 @@ export default function Loading() {
         </div>
         <div className="stack">
           <SkeletonCard lines={3} />
-          <SkeletonCard lines={2} />
+          <SkeletonCard lines={1} />
         </div>
       </div>
     </SkeletonPage>

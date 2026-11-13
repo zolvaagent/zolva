@@ -218,7 +218,7 @@ export default function PublicApi() {
 
       <H2 id="keys">Your account with an API key</H2>
       <p>
-        Make a key on your <Link href="/app">Dashboard</Link> (API keys card) and send it as <code>Authorization: Bearer zk_...</code>. The secret is shown once; Zolva keeps only its hash. Revoke a
+        Make a key in your <Link href="/settings#api-keys">Settings</Link> (API keys card) and send it as <code>Authorization: Bearer zk_...</code>. The secret is shown once; Zolva keeps only its hash. Revoke a
         key there and it stops working on the next request. A key acts for your account only and never gets more than your tier (the same running agent limit and AI tries).
       </p>
       <ul>
@@ -242,7 +242,7 @@ export default function PublicApi() {
         <li>
           <strong>Never cached and no CORS:</strong> keep keys on a server or in a CLI, never in a web page.
         </li>
-        <li>Every write and backtest made with a key is logged; you see the latest on the Dashboard.</li>
+        <li>Every write and backtest made with a key is logged; you see the latest in your Settings.</li>
       </ul>
       <div className="docs-table-wrap">
         <table className="docs-table">

@@ -123,7 +123,7 @@ export function AiCopilotPicker({
         ) : (
           <span>New accounts get $0.50 of free AI credits for Lite models.</span>
         )}
-        <a className="text-link" href="/app" target="_blank" rel="noopener noreferrer">
+        <a className="text-link" href="/settings#credits" target="_blank" rel="noopener noreferrer">
           Top up
         </a>
       </div>

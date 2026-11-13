@@ -70,7 +70,7 @@ export default function Token() {
       <H2 id="how">How your tier is worked out</H2>
       <ul>
         <li>
-          <strong>Your wallets.</strong> Your login wallet always counts. On the Dashboard you can add more wallets: each one signs a short message, which
+          <strong>Your wallets.</strong> Your login wallet always counts. In Settings you can add more wallets: each one signs a short message, which
           is free and sends no transaction. One wallet can count for one Zolva account.
         </li>
         <li>
@@ -89,7 +89,7 @@ export default function Token() {
 
       <H2 id="pay">Pay for AI credits with ZOLVA</H2>
       <p>
-        On the Dashboard, the AI credits card has <strong>Pay with ZOLVA</strong>. Your wallet sends ZOLVA straight to the burn address, so it is gone for
+        In Settings, the AI credits card has <strong>Pay with ZOLVA</strong>. Your wallet sends ZOLVA straight to the burn address, so it is gone for
         good; Zolva never holds it. Zolva then checks the transaction on Robinhood Chain and adds paid credits.
       </p>
       <ul>

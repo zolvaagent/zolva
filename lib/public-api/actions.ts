@@ -552,7 +552,7 @@ export async function runAction(name: ActionName, rawInput: unknown, context: Co
   const spec = ACTIONS[name] as unknown as ActionSpec<z.ZodRawShape>;
   const { caller, deps } = context;
   if (!allowedFor(name, caller.scopes)) {
-    throw new ActionError(403, "insufficient_scope", `This key cannot use ${name}: it needs the ${spec.scopes.join(" and ")} scope. Make a key with it on your Dashboard.`);
+    throw new ActionError(403, "insufficient_scope", `This key cannot use ${name}: it needs the ${spec.scopes.join(" and ")} scope. Make a key with it in your Settings.`);
   }
   if (spec.kind === "write" && !(await deps.limit(caller.keyId, "write"))) {
     throw new ActionError(429, "rate_limited", "Too many writes for this API key: 30 a minute.");
