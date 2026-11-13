@@ -3384,6 +3384,42 @@ main:focus {
   line-height: 20px;
 }
 
+/* A one-line empty state: small icon beside the text (Dashboard Latest decisions). */
+.empty--inline {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--space-200);
+  padding: 0;
+  text-align: left;
+}
+
+.empty--inline img {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  animation: none;
+}
+
+/* Dashboard: agents past the first few, behind "Show all". */
+.agent-more {
+  display: grid;
+  gap: var(--space-200);
+}
+
+.agent-more > summary {
+  justify-self: start;
+  list-style: none;
+}
+
+.agent-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Once open there is nothing left to show, so the button goes away. */
+.agent-more[open] > summary {
+  display: none;
+}
+
 /* The decision log can hold many markets per hour (Dip Hunter: 14): cap its height and
    scroll inside the card, with a fade at the bottom while more is below. */
 .log-scroll {
@@ -4811,6 +4847,39 @@ main:focus {
   white-space: nowrap;
   text-overflow: ellipsis;
   font-variant-numeric: tabular-nums;
+}
+
+.dash-stat__note {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* Phones: balance on one full row, running and return side by side, so the
+   agents start on the first screen instead of after three tall tiles. */
+@media (max-width: 767px) {
+  .dash-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-100);
+  }
+
+  .dash-stat {
+    gap: var(--space-50);
+    padding: var(--space-200);
+    border-radius: var(--radius-2xl);
+  }
+
+  .dash-stat--accent {
+    grid-column: 1 / -1;
+  }
+
+  .dash-stat__value {
+    font-size: 24px;
+  }
+
+  .dash-stat__note {
+    font-size: 12px;
+    line-height: 16px;
+  }
 }
 
 .dash-layout {

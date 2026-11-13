@@ -25,6 +25,9 @@ type Props = {
   starter: AgentSummary | null;
 };
 
+/** Agent cards shown before "Show all": with the Build card that fills three rows of two. */
+const AGENTS_SHOWN = 5;
+
 function greeting() {
   const hour = new Date().getUTCHours();
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -32,9 +35,77 @@ function greeting() {
 
 export function Dashboard({ address, agents, curves, latest, top, credits, tier, maxActive, starter }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
-  const totalStart = agents.reduce((sum, agent) => sum + agent.startCapital, 0);
-  const totalNow = agents.reduce((sum, agent) => sum + agent.equity, 0);
+  // Paper totals leave real money agents out: their dollars are not virtual.
+  const paper = agents.filter((agent) => !agent.live);
+  const liveCount = agents.length - paper.length;
+  const totalStart = paper.reduce((sum, agent) => sum + agent.startCapital, 0);
+  const totalNow = paper.reduce((sum, agent) => sum + agent.equity, 0);
   const totalReturn = totalStart ? (totalNow / totalStart - 1) * 100 : 0;
+  const liveNote = liveCount ? `, ${liveCount} real money ${liveCount === 1 ? "agent" : "agents"} not counted` : "";
+  const shown = agents.slice(0, AGENTS_SHOWN);
+  const more = agents.slice(AGENTS_SHOWN);
+
+  const agentCard = (agent: AgentSummary) => {
+    const curve = curves[agent.id] ?? [];
+    return (
+      <Link key={agent.id} className="agent-card" href={`/agents/${agent.id}`}>
+        <div className="agent-card__head">
+          <img src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`} alt="" width={44} height={44} />
+          <span className="agent-card__pills">
+            {agent.status === "active" ? (
+              <span className="pill pill--running">
+                <span className="pulse" />
+                Running
+              </span>
+            ) : (
+              <span className="pill pill--paused">
+                <i className="ph ph-pause" />
+                Paused
+              </span>
+            )}
+            {agent.live && <RealMoneyPill />}
+            <span className="pill">
+              <i className={`ph ${agent.published ? "ph-globe-simple" : "ph-lock-simple"}`} aria-hidden="true" />
+              {agent.published ? "On leaderboard" : "Private"}
+            </span>
+          </span>
+        </div>
+        <div>
+          <h3 className="card__title">{agent.name}</h3>
+          <p className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
+            {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
+          </p>
+        </div>
+        {curve.length > 1 ? (
+          <svg viewBox="0 0 100 32" preserveAspectRatio="none" style={{ width: "100%", height: 32 }} aria-hidden="true">
+            <polyline points={sparkline(curve, 32, 2)} fill="none" stroke="var(--color-purple-rich)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          </svg>
+        ) : (
+          <div className="agent-card__waiting">
+            {agent.status === "active" ? (
+              <>
+                <span className="pulse" />
+                First decision at the top of the hour
+              </>
+            ) : (
+              <>
+                <i className="ph ph-pause" />
+                Paused, not trading
+              </>
+            )}
+          </div>
+        )}
+        <div className="agent-card__foot">
+          <span>
+            Value<strong>{usd(agent.equity)}</strong>
+          </span>
+          <span style={{ textAlign: "right" }}>
+            Return<strong className={tone(agent.returnPct)}>{percent(agent.returnPct)}</strong>
+          </span>
+        </div>
+      </Link>
+    );
+  };
 
   return (
     <div className="container page">
@@ -76,9 +147,7 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
         <div className="dash-stat dash-stat--accent">
           <span className="stat__label">Paper balance</span>
           <span className="dash-stat__value">{usd(totalNow || 0)}</span>
-          <span className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
-            Virtual dollars across your agents
-          </span>
+          <span className="dash-stat__note muted">Virtual dollars across your paper agents{liveNote}</span>
         </div>
         <div className="dash-stat">
           <span className="stat__label">Running agents</span>
@@ -88,14 +157,12 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
               of {maxActive}
             </span>
           </span>
-          <span className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
-            {active[0] ? `Newest: ${active[0].name}` : "Run up to 5 agents at once"}
-          </span>
+          <span className="dash-stat__note muted">{active[0] ? `Newest: ${active[0].name}` : "Run up to 5 agents at once"}</span>
         </div>
         <div className="dash-stat">
-          <span className="stat__label">All time return</span>
+          <span className="stat__label">All time return{liveCount ? " (paper)" : ""}</span>
           <span className={`dash-stat__value ${tone(totalReturn)}`}>{percent(totalReturn)}</span>
-          <span className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
+          <span className="dash-stat__note muted">
             {agents.length} {agents.length === 1 ? "agent" : "agents"} built
           </span>
         </div>
@@ -112,67 +179,7 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
             </Link>
           </div>
           <div className="agent-cards">
-            {agents.map((agent) => {
-              const curve = curves[agent.id] ?? [];
-              return (
-                <Link key={agent.id} className="agent-card" href={`/agents/${agent.id}`}>
-                  <div className="agent-card__head">
-                    <img src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`} alt="" width={44} height={44} />
-                    <span className="agent-card__pills">
-                      {agent.status === "active" ? (
-                        <span className="pill pill--running">
-                          <span className="pulse" />
-                          Running
-                        </span>
-                      ) : (
-                        <span className="pill pill--paused">
-                          <i className="ph ph-pause" />
-                          Paused
-                        </span>
-                      )}
-                      {agent.live && <RealMoneyPill />}
-                      <span className="pill">
-                        <i className={`ph ${agent.published ? "ph-globe-simple" : "ph-lock-simple"}`} aria-hidden="true" />
-                        {agent.published ? "On leaderboard" : "Private"}
-                      </span>
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="card__title">{agent.name}</h3>
-                    <p className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
-                      {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
-                    </p>
-                  </div>
-                  {curve.length > 1 ? (
-                    <svg viewBox="0 0 100 32" preserveAspectRatio="none" style={{ width: "100%", height: 32 }} aria-hidden="true">
-                      <polyline points={sparkline(curve, 32, 2)} fill="none" stroke="var(--color-purple-rich)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-                    </svg>
-                  ) : (
-                    <div className="agent-card__waiting">
-                      {agent.status === "active" ? (
-                        <>
-                          <span className="pulse" />
-                          First decision at the top of the hour
-                        </>
-                      ) : (
-                        <>
-                          <i className="ph ph-pause" />
-                          Paused, not trading
-                        </>
-                      )}
-                    </div>
-                  )}
-                  <div className="agent-card__foot">
-                    <span>
-                      Value<strong>{usd(agent.equity)}</strong>
-                    </span>
-                    <span style={{ textAlign: "right" }}>
-                      Return<strong className={tone(agent.returnPct)}>{percent(agent.returnPct)}</strong>
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
+            {shown.map(agentCard)}
             <Link className="agent-card agent-card--new" href="/studio">
               <img src="/img/icons/agent.png" alt="" width={64} height={64} />
               <h3 className="card__title">{agents.length ? "Build another agent" : "Build your first agent"}</h3>
@@ -181,6 +188,15 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
               </p>
             </Link>
           </div>
+          {more.length > 0 && (
+            <details className="agent-more">
+              <summary className="button button--ghost">
+                Show {more.length} more {more.length === 1 ? "agent" : "agents"}
+                <i className="ph ph-caret-down" aria-hidden="true" />
+              </summary>
+              <div className="agent-cards">{more.map(agentCard)}</div>
+            </details>
+          )}
 
           <div className="card">
             <div className="card-head">
@@ -200,8 +216,8 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
                 ))}
               </div>
             ) : (
-              <div className="empty">
-                <img src="/img/icons/backtest.png" alt="" width={64} height={64} />
+              <div className="empty empty--inline">
+                <img src="/img/icons/backtest.png" alt="" width={40} height={40} />
                 <p>{active.length ? "Your agents make their first decision at the top of the hour." : "Launch an agent and its reasoning shows up here every hour."}</p>
               </div>
             )}
