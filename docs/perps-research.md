@@ -302,6 +302,117 @@ markets the rule search never saw.
 with the first one, that is about 7 round trips a week, so 30 or more within 4 to 5 weeks.
 Stocks and metals stay out.
 
+## Leverage, Phase L0 (2026-11-13)
+
+Phase L0 of [plan-actions-perps-live.md](plan-actions-perps-live.md) section 2. Read only:
+`scripts/research-perps-leverage.mts` on Lighter RH history to 2026-11-13 11:00 UTC (cache
+refreshed today from the free public API, `UNTIL=1794571200000`). No engine change.
+
+**Verdict: no. No strategy passes at 2x, 3x, 5x or 10x.** The "Later: leverage" task closes as
+"no", and L1 to L3 are not built. Even 2x fails, mainly on the worst drop.
+
+**Model**
+- Isolated margin per market. The margin is what the engine puts in at 1x (min(cash, equity x
+  max %)); notional = margin x leverage, capped at the market's maximum.
+- 0.05% of the notional per fill; funding on the notional every hour, from the margin.
+- Liquidation from the hour's candle: a long when the low reaches entry x (1 - 1/L + mmf), a
+  short when the high reaches entry x (1 + 1/L - mmf). The margin is lost, and the 1% fee on the
+  notional is charged from free cash.
+- The stop is still checked on the close. The Lab agents' settings and market choice.
+- Lighter's limits (orderBookDetails, read today): BTC and ETH 50x (mmf 1.2%), SOL 25x (2.4%),
+  HYPE and XRP 20x (3%), ZEC and NEAR 10x (6%), LIT 5x (12%). At 10x, LIT stays at 5x.
+- Check: at 1x the model matches the real engine (`simulate`) on the whole period. Deep Dip
+  +8.1% vs +8.1%, Alts +19.7% vs +19.9%, Spike Fade +5.0% vs +5.0%.
+
+**Windows.** Each one starts flat with $10,000.
+- Whole period: Jul 8 to Nov 13.
+- The two halves of Jul 8 to Nov 7.
+- The four 30 day blocks of Jul 8 to Nov 7. The table shows the worst of the four.
+- Fresh: the 156 hours after 2026-11-07, which no rule was chosen on.
+
+**Pass**: positive in every window, beats holding on the fresh hours, a worst drop of at most
+15%, zero liquidations, and at least 30 round trips. Drop, liquidations and round trips are for
+the whole period.
+
+**Deep Dip, BTC ETH SOL** (33% each, 5% stop)
+
+| Leverage | Whole | 1st half | 2nd half | Worst month | Fresh | Worst drop | Liq. | Trips | Pass |
+|---|---|---|---|---|---|---|---|---|---|
+| Holding | +4.6% | +32.2% | -10.5% | -14.9% | -11.4% | | | | |
+| 1x | +8.1% | +10.8% | +4.9% | +2.7% | **-4.9%** | 9.5% | 0 | 45 | no: fresh |
+| 2x | +15.4% | +22.4% | +9.2% | +5.1% | -9.9% | 18.8% | 0 | 45 | no: fresh, drop |
+| 3x | +21.7% | +34.9% | +13.1% | +7.2% | -14.8% | 27.8% | 0 | 45 | no: fresh, below holding, drop |
+| 5x | +30.3% | +62.6% | +18.8% | +10.7% | -24.6% | 44.5% | 0 | 45 | no |
+| 10x | +20.3% | +150.4% | +18.9% | +13.8% | -49.0% | 77.2% | 0 | 45 | no |
+
+**Deep Dip Alts, HYPE ZEC XRP LIT NEAR** (20% each, 5% stop)
+
+| Leverage | Whole | 1st half | 2nd half | Worst month | Fresh | Worst drop | Liq. | Trips | Pass |
+|---|---|---|---|---|---|---|---|---|---|
+| Holding | +38.9% | +62.4% | +2.3% | -13.3% | -12.1% | | | | |
+| 1x | +19.7% | +7.1% | +10.4% | **-2.5%** (Sep to Oct) | +3.0% | 9.2% | 0 | 57 | no: Sep to Oct |
+| 2x | +41.4% | +14.4% | +20.6% | -5.2% | +5.9% | 17.7% | 0 | 57 | no: Sep to Oct, drop |
+| 3x | +64.8% | +22.0% | +30.5% | -8.0% | +8.8% | 25.7% | 0 | 57 | no: Sep to Oct, drop |
+| 5x | +115.5% | +37.6% | +48.6% | -14.0% | +14.6% | 40.1% | 0 | 57 | no |
+| 10x (LIT 5x) | -49.5% | +39.8% | -51.0% | -42.1% | -12.6% | 78.8% | **13** | 61 | no |
+
+**Spike Fade, ETH BTC** (one short, 100%, 10% stop)
+
+| Leverage | Whole | 1st half | 2nd half | Worst month | Fresh | Worst drop | Liq. | Trips | Pass |
+|---|---|---|---|---|---|---|---|---|---|
+| Holding | +8.2% | +33.4% | -8.2% | -11.1% | -11.5% | | | | |
+| 1x | +5.0% | -8.3% | +13.5% | -11.7% | 0.0% (no trade) | 20.7% | 0 | 34 | no |
+| 2x | +5.8% | -18.7% | +27.9% | -24.5% | 0.0% | 39.0% | 0 | 34 | no |
+| 3x | +1.4% | -31.0% | +43.3% | -38.2% | 0.0% | 55.0% | 0 | 34 | no |
+| 5x | -25.0% | -59.3% | +76.5% | -65.9% | 0.0% | 79.8% | 0 | 34 | no |
+| 10x | -100% | -100% | +166.7% | -100% | 0.0% | 100% | 1 | 13 | no |
+
+**Bounce Short, all 8 crypto perps** (one short, 100%, 10% stop, as Lab · Perps Bounce Short)
+
+| Leverage | Whole | 1st half | 2nd half | Worst month | Fresh | Worst drop | Liq. | Trips | Pass |
+|---|---|---|---|---|---|---|---|---|---|
+| Holding | +26.0% | +51.1% | -2.5% | -13.9% | -11.8% | | | | |
+| 1x | +45.1% | +4.1% | +30.4% | **-0.5%** (Jul 8 to Aug 9) | +6.8% | 13.4% | 0 | 35 | no: Jul 8 to Aug 9 |
+| 2x | +102.4% | +5.3% | +68.8% | -3.9% | +13.9% | 26.2% | 0 | 35 | no: first month, drop |
+| 3x | +170.7% | +3.0% | +116.7% | -10.1% | +21.3% | 38.4% | 0 | 35 | no: first month, drop |
+| 5x (LIT 5x) | -100% | -100% | +249.6% | -100% | +37.1% | 100% | 1 | 9 | no |
+| 10x (LIT 5x) | -100% | -100% | -100% | -100% | -100% | 100% | 1 | 3 | no |
+
+**The same with a 5% stop** (the stop of the planned Lab · Perps Bounce Short 3x)
+
+| Leverage | Whole | 1st half | 2nd half | Worst month | Fresh | Worst drop | Liq. | Trips | Pass |
+|---|---|---|---|---|---|---|---|---|---|
+| 1x | +47.2% | +10.5% | +24.7% | +4.7% | +6.8% | 9.2% | 0 | 36 | yes (in-sample, see below) |
+| 2x | +109.8% | +19.9% | +53.7% | +9.4% | +13.9% | 18.1% | 0 | 36 | no: drop |
+| 3x | +189.3% | +27.6% | +87.0% | +11.3% | +21.3% | 26.6% | 0 | 36 | no: drop |
+| 5x (LIT 5x) | +395.0% | +35.7% | +166.0% | +8.4% | +37.1% | 42.5% | 0 | 36 | no: drop |
+| 10x (LIT 5x) | -100% | -100% | +140.7% | -100% | -100% | 100% | 1 | 3 | no |
+
+**Reading**
+- **The worst drop grows about in step with leverage.** At 1x the best rules drop 9% to 10%, so
+  the 15% limit allows at most about 1.5x. Every 2x row fails on the drop (17.7% to 39%).
+- **Liquidation is not the main risk at 2x to 5x.** No 2x or 3x row was liquidated. It decides
+  the outcome once the liquidation line sits inside the stop:
+  - shorts at 10x (about +9% on BTC and ETH);
+  - LIT at 5x (+8%, inside the 10% stop);
+  - ZEC and NEAR at 10x (-4%).
+  With one short holding all of the agent, a single liquidation ends the agent (-100%).
+- **Leverage adds no information on paper.** 2x at 33% per market is the same exposure as 1x at
+  66%. Its only benefit is less capital locked with real money, and the drop limit rules that out.
+- **New warning for 1x Deep Dip on BTC ETH SOL:** -4.9% on the fresh hours (holding -11.4%).
+  It still beats holding, but it is negative. The 2026-11-28 re-test still decides.
+- **Bounce Short with a 5% stop passes at 1x, but this is not evidence.** The 5% stop was not
+  the frozen setting (the Lab agent uses 10%), and the rule and its 24h guard were chosen on
+  these same months. Only the 156 fresh hours are out of sample: 4 trades, +6.8%.
+- **The planned Lab · Perps Bounce Short 3x** (5% stop, working copy of `house.ts`) fails this
+  gate: worst drop 26.6%, though no liquidation. Its engine model also liquidates on the close
+  only (at 95% of the margin). Hourly wicks are not modelled there.
+- **Limits of this test.**
+  - The drop is measured on hourly closes. Drops inside an hour are larger, which makes leverage
+    look better than it is.
+  - The whole period has only 34 to 61 round trips per strategy.
+  - Sizing the 1% liquidation fee on the notional is conservative.
+
 ## Long and short in one agent, all 8 crypto perps (2026-11-11)
 
 Owner question: is there an agent that opens both long and short? Not yet (spike fade only
