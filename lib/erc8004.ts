@@ -19,7 +19,7 @@ export const IDENTITY_REGISTRY = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
 export const ROBINHOOD_CHAIN_ID = 4663;
 
 /** Set after the owner's register() transaction; null until then. */
-export const ERC8004_AGENT_ID: number | null = null;
+export const ERC8004_AGENT_ID: number | null = 25650; // registered 2026-11-13, tx 0x0b12cda8817e35b293d87b7be523fd4905f9cd4e4b67d19a7ffa3e6da94ef8dd
 
 export function registrationFile() {
   return {

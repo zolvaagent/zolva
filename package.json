@@ -26,7 +26,8 @@
     "x402:export-relayer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-relayer-export.mts",
     "x402:export-rule": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/x402-relayer-export-rule.mts",
     "token:launch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/token-launch.mts",
-    "zolva:buyback": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/zolva-buyback.mts"
+    "zolva:buyback": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/zolva-buyback.mts",
+    "erc8004:register": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/erc8004-register.mts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
