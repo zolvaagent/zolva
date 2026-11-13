@@ -16,6 +16,7 @@
  */
 import { z } from "zod";
 
+import { STUDIO_STRATEGIES } from "../agents/copy";
 import type { ApiCaller, ApiKeyScope } from "../api-keys/keys";
 import type { AgentSummary } from "../data/agents";
 import { parseRules, rulesLookback } from "../engine/rules";
@@ -188,7 +189,7 @@ const backtestShape = {
 
 const createShape = {
   name: z.string().min(1).max(40).describe("The agent's name, up to 40 characters"),
-  strategy: z.enum(["momentum", "mean_reversion", "custom", "dip_hunter", "spike_fade"]).describe("Preset or custom (needs rules). spike_fade opens shorts and needs venue perps"),
+  strategy: z.enum(STUDIO_STRATEGIES).describe("Preset or custom (needs rules). spike_fade opens shorts and needs venue perps"),
   markets,
   venue,
   capital: z.number().min(1000).max(1_000_000).describe("Virtual dollars, 1000 to 1000000"),
