@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 
 import { describe, expect, it } from "vitest";
 
-import { buyAndHold, COST_RATE, costRateFor, maxDrawdown, PERPS_COST_RATE, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
+import { buyAndHold, COST_RATE, costRateFor, equityAt, maxDrawdown, PERPS_COST_RATE, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
 import type { Rules } from "./rules";
 import { decide, LOOKBACK_HOURS } from "./strategies";
 
@@ -378,5 +378,153 @@ describe("dip + fade", () => {
     expect(ours.fills.some((fill) => fill.side === "buy")).toBe(true);
     expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
     expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+  });
+});
+
+describe("bounce short", () => {
+  const bounceShort: AgentParams = { strategy: "bounce_short", maxPositionPct: 100, stopLossPct: 10, venue: "perps" };
+  // A noisy fall of `fallPct` (0.10 = 10%) over 7 days, then a last close `bounce` above the low.
+  // Hand-checked z scores and 24h moves: (0.10, 2.0) z 0.96, 7d -7.6%, 24h +1.1%; (0.07, 1.2) z 0.70, 7d -5.4%;
+  // (0.10, 2.4) is the same bounce but +1.6% in 24h; (0.10, 0.5) z -0.80; (0.02, 0.6) only -1.0% over 7 days.
+  const fallThenBounce = (fallPct: number, bounce: number) => {
+    const fall = Array.from({ length: 168 }, (_, i) => 100 * (1 - (fallPct * i) / 167) + (i % 2 ? 0.2 : -0.2));
+    return [...fall, fall[167] + bounce];
+  };
+
+  it("shorts the market with the deepest 7 day fall, with all of the agent", () => {
+    const series = { AAA: fallThenBounce(0.1, 2.0), BBB: fallThenBounce(0.07, 1.2), CCC: fallThenBounce(0.02, 0.6) };
+    const hour = runHour({ cash: 1000, positions: {} }, bounceShort, series, 168);
+    expect(hour.fills.map((fill) => `${fill.side}:${fill.token}`)).toEqual(["short:AAA"]);
+    expect(hour.state.positions.AAA.side).toBe("short");
+    expect(hour.state.positions.AAA.quantity).toBeCloseTo((1000 * (1 - PERPS_COST_RATE)) / series.AAA[168]);
+    expect(hour.state.cash).toBeCloseTo(0, 6);
+    expect(hour.decisions.find((decision) => decision.token === "BBB")?.reasoning).toContain("Another market fell further");
+    expect(hour.decisions.find((decision) => decision.token === "AAA")?.reasoning).toContain("Shorting the bounce");
+  });
+
+  it("does not short a reversal rally, a market without a downtrend, or one that has not bounced", () => {
+    const reversal = decide("bounce_short", fallThenBounce(0.1, 2.4), false);
+    expect(reversal.action).toBe("hold");
+    expect(reversal.reasoning).toContain("possible reversal");
+    const flat = decide("bounce_short", fallThenBounce(0.02, 0.6), false);
+    expect(flat.action).toBe("hold");
+    expect(flat.reasoning).toContain("no downtrend to short");
+    const lower = decide("bounce_short", fallThenBounce(0.1, 0.5), false);
+    expect(lower.action).toBe("hold");
+    expect(lower.reasoning).toContain("Waiting for a bounce");
+  });
+
+  it("stays short while the price is above the average and covers when it falls back", () => {
+    expect(decide("bounce_short", fallThenBounce(0.1, 2.0), true).action).toBe("hold");
+    expect(decide("bounce_short", fallThenBounce(0.1, 0.5), true).action).toBe("cover");
+  });
+
+  it("matches the prototype engine on perps with funding, and only shorts one market at a time", () => {
+    const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+      simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string }[] };
+    };
+    const series: Record<string, number[]> = { AAA: walk(7, 1500), BBB: walk(42, 1500), CCC: walk(99, 1500), DDD: walk(5, 1500), EEE: walk(1234, 1500) };
+    const funding = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => Math.sin(i / 17 + t) * 0.00003)]));
+    const ours = simulate({ series, params: bounceShort, capital: 10_000, fromIndex: 200, funding });
+    const theirs = prototype.simulate({
+      tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, funding: funding[symbol] })),
+      strategy: "bounce_short",
+      venue: "perps",
+      capital: 10_000,
+      maxPositionPct: 100,
+      stopLossPct: 10,
+      fromIndex: 200,
+    });
+    expect(ours.fills.some((fill) => fill.side === "short")).toBe(true);
+    expect(ours.fills.every((fill) => fill.side === "short" || fill.side === "cover")).toBe(true);
+    let open = 0;
+    for (const fill of ours.fills) {
+      open += fill.side === "short" ? 1 : -1;
+      expect(open).toBeLessThanOrEqual(1);
+    }
+    expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
+    expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+  });
+});
+
+describe("leveraged bounce short", () => {
+  const at = (leverage: number, stopLossPct = 5): AgentParams => ({ strategy: "bounce_short", maxPositionPct: 100, stopLossPct, venue: "perps", leverage });
+  // The same hand-checked series as "bounce short" above: a noisy 10% fall, then a bounce of `bounce`.
+  const fallThenBounce = (fallPct: number, bounce: number) => {
+    const fall = Array.from({ length: 168 }, (_, i) => 100 * (1 - (fallPct * i) / 167) + (i % 2 ? 0.2 : -0.2));
+    return [...fall, fall[167] + bounce];
+  };
+
+  it("opens leverage x the margin, charges the cost on the whole position, and values it on the margin", () => {
+    const series = { AAA: fallThenBounce(0.1, 2.0) };
+    const hour = runHour({ cash: 1000, positions: {} }, at(3), series, 168);
+    const price = series.AAA[168];
+    const position = hour.state.positions.AAA;
+    expect(position.side).toBe("short");
+    expect(position.quantity).toBeCloseTo((1000 * 3) / price);
+    expect(position.margin).toBeCloseTo(1000 - 3000 * PERPS_COST_RATE);
+    expect(hour.state.cash).toBeCloseTo(0, 6);
+    expect(hour.fills[0].costUsd).toBeCloseTo(3000 * PERPS_COST_RATE);
+    expect(hour.equity).toBeCloseTo(1000 - 3000 * PERPS_COST_RATE);
+  });
+
+  it("gains and loses 3x the price move on the margin", () => {
+    const short: AgentState = { cash: 0, positions: { AAA: { quantity: 30, entryPrice: 100, side: "short", margin: 1000 } } };
+    expect(equityAt(short, { AAA: 90 })).toBeCloseTo(1000 + 30 * 10); // price -10%: +30% of the margin
+    expect(equityAt(short, { AAA: 105 })).toBeCloseTo(1000 - 30 * 5); // price +5%: -15% of the margin
+    expect(equityAt(short, { AAA: 140 })).toBe(0); // never below zero
+  });
+
+  it("stops out at the stop distance and pays back margin plus the loss", () => {
+    const short: AgentState = { cash: 0, positions: { AAA: { quantity: 30, entryPrice: 100, side: "short", margin: 1000 } } };
+    const series = { AAA: [...Array.from({ length: 169 }, () => 100), 105.5] };
+    const hour = runHour(short, at(3), series, 169);
+    expect(hour.fills.map((fill) => `${fill.side}:${fill.reason}`)).toEqual(["cover:stop_loss"]);
+    expect(hour.decisions[0].reasoning).toContain("Stop loss hit");
+    expect(hour.state.cash).toBeCloseTo(1000 - 30 * 5.5 - 30 * 105.5 * PERPS_COST_RATE);
+  });
+
+  it("liquidates before a wide stop when the loss reaches 95% of the margin", () => {
+    // 10x: 95% of the margin is a 9.5% rise, which comes before a 20% stop.
+    const short: AgentState = { cash: 0, positions: { AAA: { quantity: 100, entryPrice: 100, side: "short", margin: 1000 } } };
+    const series = { AAA: [...Array.from({ length: 169 }, () => 100), 109.6] };
+    const hour = runHour(short, at(10, 20), series, 169);
+    expect(hour.decisions[0].reasoning).toContain("Liquidated");
+    expect(hour.state.positions).toEqual({});
+    expect(hour.state.cash).toBeGreaterThanOrEqual(0);
+    expect(hour.state.cash).toBeLessThan(60);
+  });
+
+  it("ignores leverage for any other strategy or venue", () => {
+    const series = { AAA: [...Array.from({ length: 49 }, (_, i) => 100 + (i % 2 ? 0.5 : -0.5)), 106] };
+    const spike: AgentParams = { strategy: "spike_fade", maxPositionPct: 100, stopLossPct: 10, venue: "perps", leverage: 5 };
+    const hour = runHour({ cash: 1000, positions: {} }, spike, series, 49);
+    expect(hour.state.positions.AAA.margin).toBeUndefined();
+    expect(hour.state.positions.AAA.quantity).toBeCloseTo((1000 * (1 - PERPS_COST_RATE)) / 106);
+  });
+
+  it("matches the prototype engine at 3x and 10x, with funding", () => {
+    const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+      simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string }[] };
+    };
+    const series: Record<string, number[]> = { AAA: walk(7, 1500), BBB: walk(42, 1500), CCC: walk(99, 1500), DDD: walk(5, 1500), EEE: walk(1234, 1500) };
+    const funding = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => Math.sin(i / 17 + t) * 0.00003)]));
+    for (const [leverage, stopLossPct] of [[3, 5], [10, 20]]) {
+      const ours = simulate({ series, params: at(leverage, stopLossPct), capital: 10_000, fromIndex: 200, funding });
+      const theirs = prototype.simulate({
+        tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, funding: funding[symbol] })),
+        strategy: "bounce_short",
+        venue: "perps",
+        leverage,
+        capital: 10_000,
+        maxPositionPct: 100,
+        stopLossPct,
+        fromIndex: 200,
+      });
+      expect(ours.fills.some((fill) => fill.side === "short")).toBe(true);
+      expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
+      expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+      expect(ours.runs.every((run) => run.cash >= 0)).toBe(true);
+    }
   });
 });

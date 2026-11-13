@@ -70,7 +70,7 @@ function detail(overrides: Partial<AgentDetail["agent"]> = {}): AgentDetail {
     runs,
     trades: [{ ts: NOW - 2 * HOUR, token: "0xaaa", symbol: "NVDA", side: "buy", quantity: 1.123456789, price: 201.5, costUsd: 1.0075, reason: "signal", txHash: "0xdeadbeef" }],
     orders: [{ decidedTs: NOW - HOUR, symbol: "NVDA", side: "buy", status: "failed", txHash: null, error: "approve: rpc" }],
-    positions: [{ token: "0xaaa", symbol: "NVDA", quantity: 1.123456789, entryPrice: 201.5, openedAt: NOW - 2 * HOUR, side: "long" }],
+    positions: [{ token: "0xaaa", symbol: "NVDA", quantity: 1.123456789, entryPrice: 201.5, openedAt: NOW - 2 * HOUR, side: "long", margin: null }],
   };
 }
 

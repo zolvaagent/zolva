@@ -62,6 +62,7 @@ async function main() {
         start_prices: startPrices,
         ...(config.rules ? { rules: config.rules } : {}),
         ...(config.venue ? { venue: config.venue } : {}),
+        ...("leverage" in config && config.leverage ? { leverage: config.leverage } : {}),
       },
       token_addresses: addresses,
       start_capital: 10_000,

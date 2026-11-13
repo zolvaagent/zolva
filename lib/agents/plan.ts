@@ -22,6 +22,8 @@ export type AgentRow = {
     start_prices: Record<string, number>;
     /** Missing on agents made before perps: the DEX. */
     venue?: Venue;
+    /** Leveraged short size (bounce_short on perps only); missing means 1x. */
+    leverage?: number;
   };
   token_addresses: string[];
   start_capital: number;
@@ -30,7 +32,15 @@ export type AgentRow = {
 };
 
 /** side is missing on rows read without it, which means long. */
-export type PositionRow = { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side?: "long" | "short" };
+export type PositionRow = {
+  token_address: string;
+  quantity: number;
+  avg_entry_price: number;
+  opened_at: string | null;
+  side?: "long" | "short";
+  /** Only a leveraged short has one (see engine Position.margin). */
+  margin?: number | null;
+};
 
 export type MarketSeries = {
   /** Start of the hour at index 0, unix seconds. */
@@ -46,7 +56,7 @@ export type HourWrite = {
   equity: number;
   holdEquity: number;
   decisions: Decision[];
-  positions: { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side: "long" | "short" }[];
+  positions: { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side: "long" | "short"; margin: number | null }[];
   trades: { token_address: string; side: Fill["side"]; quantity: number; price: number; cost_usd: number; reason: Fill["reason"] }[];
 };
 
@@ -57,6 +67,7 @@ export function agentParams(agent: AgentRow): AgentParams {
     maxPositionPct: Number(agent.params.max_position_pct),
     stopLossPct: Number(agent.params.stop_loss_pct),
     venue: agent.params.venue,
+    ...(agent.params.leverage ? { leverage: Number(agent.params.leverage) } : {}),
   };
 }
 
@@ -93,6 +104,7 @@ export function planAgentHours(
           entryPrice: Number(position.avg_entry_price),
           openedAt: position.opened_at ? Date.parse(position.opened_at) / 1000 : undefined,
           ...(position.side === "short" ? { side: "short" as const } : {}),
+          ...(position.margin != null ? { margin: Number(position.margin) } : {}),
         },
       ]),
     ),
@@ -117,6 +129,7 @@ export function planAgentHours(
         avg_entry_price: position.entryPrice,
         opened_at: position.openedAt === undefined ? null : new Date(position.openedAt * 1000).toISOString(),
         side: position.side ?? "long",
+        margin: position.margin ?? null,
       })),
       trades: hour.fills.map((fill) => ({
         token_address: fill.token,

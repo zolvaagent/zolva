@@ -67,3 +67,43 @@ export async function loadMarket(marketId: number, hours: number[], until: numbe
   }
   return { closes, funding: hours.map((hour) => fundingAt.get(hour) ?? 0) };
 }
+
+/** Candles at a finer resolution ("15m"), cached per market; the 1h functions above are unchanged. */
+async function barHistory(marketId: number, resolution: string, barMs: number, until: number) {
+  const file = join(CACHE, `candles-${resolution}-${marketId}.json`);
+  if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
+  const pageBars = 480;
+  const rows: any[] = [];
+  for (let from = FIRST_HOUR - HOUR_MS; from < until; from += pageBars * barMs) {
+    const to = Math.min(from + pageBars * barMs, until);
+    const body = await getJson(`${API}/candles?market_id=${marketId}&resolution=${resolution}&start_timestamp=${from}&end_timestamp=${to}&count_back=${pageBars}`);
+    rows.push(...(body.c ?? []));
+    await sleep(1100); // stay under the 60 requests a minute limit
+  }
+  mkdirSync(CACHE, { recursive: true });
+  writeFileSync(file, JSON.stringify(rows));
+  return rows;
+}
+
+/**
+ * One market aligned to bar start times (`bars`, ms), at `barMs` resolution. Closes are forward filled
+ * like loadMarket; funding stays hourly in the API, so each bar gets its hour's rate divided by the
+ * bars per hour (the same total per hour).
+ */
+export async function loadMarketBars(marketId: number, resolution: string, barMs: number, bars: number[], until: number): Promise<Market | null> {
+  const candles = await barHistory(marketId, resolution, barMs, until);
+  const fundings = await history("fundings", marketId, until);
+  const closeAt = new Map<number, number>(candles.map((row: any) => [Math.floor(row.t / barMs) * barMs, Number(row.c)]));
+  const fundingAt = new Map<number, number>(
+    fundings.map((row: any) => [Math.floor((row.timestamp * 1000) / HOUR_MS) * HOUR_MS, (Number(row.rate) / 100) * (row.direction === "long" ? 1 : -1)]),
+  );
+  const perHour = HOUR_MS / barMs;
+  const closes: number[] = [];
+  let last: number | null = null;
+  for (const bar of bars) {
+    last = closeAt.get(bar) ?? last;
+    if (last == null) return null;
+    closes.push(last);
+  }
+  return { closes, funding: bars.map((bar) => (fundingAt.get(Math.floor(bar / HOUR_MS) * HOUR_MS) ?? 0) / perHour) };
+}

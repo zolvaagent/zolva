@@ -334,3 +334,89 @@ All eight crypto perps (window: return, worst drop; holding in brackets):
 - Caveat: the 5% filter and the 8-market basket were picked after seeing this data, so this is
   in-sample. BTC ETH SOL alone: +12.1% (drop 6.0%) with the filter; the alts alone +17.0% (drop
   10.0%). Next step, if built: a paper Lab agent as the out-of-sample test, not real money.
+
+## Short the bounce in a downtrend (2026-11-13)
+
+Trigger: during a sharp crypto sell-off no agent was short. Spike fade shorts only z > 2.5, and
+Dip + fade's short side is the same rule, so a falling market never fires them.
+`scripts/research-short-trend.mts` (read-only) tests short-only rules on the 8 crypto perps, 1x,
+0.05% per trade, real funding, 10% stop, one slot:
+
+- **Bounce:** down more than 5% over 7 days, short once z >= 0.5 (and <= 2.5) against the 48h
+  average, cover at z <= -0.5.
+- **Breakdown** (close below the 72h low, same gate): lost in every window (-7.6% to -15.0%),
+  like the earlier trend shorts. Dropped.
+
+| Window | Holding | Bounce | + 24h guard (no short after +1.5% in 24h) | Worst drop with guard |
+|---|---|---|---|---|
+| Last 6 days | -14.3% | +8.8% (5 trades) | +6.8% (4) | 5.5% |
+| 30 d to 7 Nov | -12.1% | +22.6% | +14.4% (11) | 7.3% |
+| Sep to Oct rally | +18.8% | +4.0% | +14.0% (7) | 2.9% |
+| Aug to Sep rally | +54.4% | +9.0% | +7.6% (5) | 2.0% |
+
+- Neighbouring settings (7 day gate 3% / 8%, z 0 / 1.0) were positive in the falling windows
+  but not in the Sep to Oct rally (-26% to +18%, drop up to 38%), so the rule depends on the
+  market regime. More slots (3 or 8, each 1/N of the agent) only diluted it to +1% to +4%.
+- **The 24h guard was chosen after seeing the rally window fail without it**, and each window has
+  4 to 11 trades: in-sample. The last 6 days are the only fresh data and had 4 trades.
+- Built as the preset `bounce_short` (perps, paper only, migration
+  `20261113000100_bounce_short.sql`), and one paper Lab agent, **Lab · Perps Bounce Short**
+  (all 8 perps, 100% of the agent, 10% stop), as the out-of-sample test. Review after a week
+  of live paper hours: trades, return against holding, and whether it stayed flat in rallies.
+
+### Support breaks and market structure (2026-11-13)
+
+Question from the owner: short early, on a break of support on a small timeframe, and use higher
+highs / higher lows / lower highs / lower lows. The smallest timeframe we have is 1 hour (closes).
+Swing points = highest or lowest close of K hours either side, known K hours later (no look-ahead).
+Same 8 perps, 1x, 0.05% cost, 10% stop, one slot.
+
+- **Short on a support break** (`scripts/research-short-structure.mts`; close below the latest swing
+  low, needs a lower high, optionally a lower low or a 7 day downtrend; exit on a close above the
+  lower high, trailed down): positive only in the last 6 days (+3.7% to +14.2%, 1 to 5 trades). The
+  three 30 day windows before it: K 3h -2.5% to -27.5%, K 6h -16.6% to +7.2%; wins only 20% to 55%.
+  Same lesson as the 72h-low breakdown: breaks reverse before the move pays.
+- **Bounce short plus structure** (`STRUCT_K` in `scripts/research-short-trend.mts`; enter only
+  under a lower high, cover on a higher high): worse than bounce short alone in every setting.
+  Baseline +6.8% / +14.4% / +14.0% / +7.6%; with K 3h 0% (no trades) / +8.4% / +2.1% / 0%; K 6h
+  +3.5% / -0.2% / -2.6% / -1.9%; K 12h +5.1% / -2.5% / +8.3% / +0.3%; K 6h with a lower low
+  -5.2% to +2.4%. The extra rule removes trades and the winners with them.
+- Not built. Lab · Perps Bounce Short keeps the plain rule.
+
+### The same ideas on 15 minute bars (2026-11-13)
+
+`scripts/research-short-15m.mts` (Lighter serves 5m and 15m candles; `loadMarketBars` in
+`scripts/lighter-history.mts`). Same 8 perps, 1x, 0.05% cost, 10% stop, one slot, decisions at each
+15 minute close, all hour counts scaled to bars. K = swing half-width in bars (4 = 1 h, 8 = 2 h, 16 = 4 h).
+
+| Window (holding) | Bounce | Support break, best / worst of 9 variants |
+|---|---|---|
+| Last 6 d (-12.0%) | +8.4% (6 trades) | +0.2% to +11.8% closed trades only |
+| 30 d to 7 Nov (-12.1%) | +11.6% | -15.0% to +19.0% |
+| Sep to Oct rally (+19.4%) | +18.9% | -32.2% to +13.2% |
+| Aug to Sep rally (+53.8%) | +6.2% | -37.4% to -0.9% |
+
+- **Bounce on 15 minute bars is as good as on 1 hour bars** (worst drop 3.6% to 10.7%), so a finer
+  timeframe adds nothing to it and the hourly agent does not need a 15 minute tick.
+- **Support breaks lose in both rallies for every variant** (win rate 14% to 40%, up to 85 trades a
+  month and 45% worst drop at K 1 h). Finer bars mean more false breaks, not earlier wins.
+- Caveat: a few variants show a large return with 0 closed trades (an open position at the end of
+  the window, not counted in "trades").
+- Not built. Lab · Perps Bounce Short keeps the plain hourly rule.
+
+### Bounce short with leverage (2026-11-13)
+
+`LEVERAGE=n` in `scripts/research-short-trend.mts`: position = n x the margin, liquidation at a 95% loss
+of the margin, stop as a price distance. Hourly closes only, so intra-hour wicks (real liquidations)
+are not modelled and the results are optimistic. Bounce short with the 24h guard, 0.05% cost, same four windows:
+
+| Leverage / stop | Last 6 d | 30 d to 7 Nov | Sep to Oct rally | Aug to Sep rally | Worst drop |
+|---|---|---|---|---|---|
+| 1x, 5% | +6.8% | +9.4% | +14.0% | +7.6% | 2.9% to 7.5% |
+| 3x, 5% | +21.3% | +27.7% | +46.4% | +24.1% | 6.0% to 20.7% |
+| 10x, 5% | +83.1% | +48.1% | +220.6% | +97.5% | 19.8% to 66.1% |
+| 10x, 2% | -21.4% | +88.2% | +43.1% | +97.5% | 19.8% to 62.6% |
+
+Leverage multiplies the return and the drops, it does not add an edge: every extra point comes
+with the same trades (4 to 14 per window). At 10x one 5% stop costs half the margin and two in a
+row three quarters; a 2% stop is hit by ordinary noise (-21% in the last 6 days).

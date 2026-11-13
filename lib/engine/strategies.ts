@@ -20,8 +20,14 @@
  * highest spike) at the same time, with a 7 day trend filter: no short while a market is up
  * more than 5% over 7 days, no long while it is down more than 5%. Perps only, paper only.
  * Research: docs/perps-research.md, "Long and short in one agent".
+ *
+ * bounce_short sells the rally inside a downtrend: short only, one position at a time. It shorts
+ * the market with the deepest 7 day fall once the price has climbed back above its 48h average,
+ * unless that market already rose too fast over the last 24 hours (a reversal rally), and covers
+ * when the price falls back. Perps only, paper only.
+ * Research: scripts/research-short-trend.mts, docs/perps-research.md, "Short the bounce".
  */
-export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter" | "spike_fade" | "dip_fade";
+export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter" | "spike_fade" | "dip_fade" | "bounce_short";
 
 export type Signal = {
   /** short opens a short position, cover closes it (spike_fade and dip_fade only). */
@@ -61,17 +67,34 @@ export const DIP_FADE = {
   trendLimit: 0.05,
 } as const;
 
+export const BOUNCE_SHORT = {
+  /** Hours the trend gate looks back (7 days); also bounce_short's history before its first decision. */
+  trendHours: 168,
+  /** Only short a market down more than this over trendHours. */
+  trendLimit: 0.05,
+  /** Short once the z score versus the 48h average is at least this (the bounce)... */
+  entryZ: 0.5,
+  /** ...but not above this (that is a spike, spike fade's job). */
+  maxEntryZ: 2.5,
+  /** Cover once the z score is back to at most this. */
+  exitZ: -0.5,
+  /** No short in a market that rose more than fastMax over the last fastHours (a reversal rally). */
+  fastHours: 24,
+  fastMax: 0.015,
+} as const;
+
 export const STRATEGY_LABELS: Record<StrategyKey, string> = {
   momentum: "Momentum",
   mean_reversion: "Mean reversion",
   dip_hunter: "Dip hunter",
   spike_fade: "Spike fade",
   dip_fade: "Dip + fade",
+  bounce_short: "Bounce short",
 };
 
 /** Hours of history a preset needs before its first decision. */
 export function presetLookback(strategy: StrategyKey): number {
-  return strategy === "dip_fade" ? DIP_FADE.trendHours : LOOKBACK_HOURS;
+  return strategy === "dip_fade" ? DIP_FADE.trendHours : strategy === "bounce_short" ? BOUNCE_SHORT.trendHours : LOOKBACK_HOURS;
 }
 
 /**
@@ -83,7 +106,43 @@ export function decide(strategy: StrategyKey, window: number[], hasPosition: boo
   if (strategy === "momentum") return momentum(window, hasPosition);
   if (strategy === "spike_fade") return spikeFade(window, hasPosition);
   if (strategy === "dip_fade") return dipFade(window, hasPosition ? (side ?? "long") : null);
+  if (strategy === "bounce_short") return bounceShort(window, hasPosition);
   return meanReversion(window, hasPosition);
+}
+
+/**
+ * Bounce short on one market. Enters only when all three hold: the market is down more than
+ * trendLimit over 7 days, the price is back above its 48h average (z from entryZ to maxEntryZ),
+ * and it has not already risen more than fastMax over the last 24 hours. Covers at exitZ.
+ * The window must hold at least BOUNCE_SHORT.trendHours + 1 closes. `zScore` and `trend7d` in the
+ * indicators are what the engine uses to pick the market (the deepest fall first).
+ */
+function bounceShort(window: number[], isShort: boolean): Signal {
+  const price = window[window.length - 1];
+  const recent = window.slice(-LOOKBACK_HOURS);
+  const average = mean(recent);
+  const deviation = standardDeviation(recent, average);
+  const zScore = deviation > 0 ? (price - average) / deviation : 0;
+  const trend = price / window[window.length - 1 - BOUNCE_SHORT.trendHours] - 1;
+  const fast = price / window[window.length - 1 - BOUNCE_SHORT.fastHours] - 1;
+  const indicators = { average48h: average, zScore, trend7d: trend, change24h: fast };
+  const z = zScore.toFixed(2);
+
+  if (isShort) {
+    return zScore <= BOUNCE_SHORT.exitZ
+      ? { action: "cover", indicators, reasoning: `Price is back below its 48h average (z ${z}). Covering the short.` }
+      : { action: "hold", indicators, reasoning: `Still above the level to cover (z ${z}). Staying short.` };
+  }
+  if (trend > -BOUNCE_SHORT.trendLimit) {
+    return { action: "hold", indicators, reasoning: `Only ${formatPercent(trend)} over 7 days: no downtrend to short. Waiting.` };
+  }
+  if (zScore < BOUNCE_SHORT.entryZ || zScore > BOUNCE_SHORT.maxEntryZ) {
+    return { action: "hold", indicators, reasoning: `Down ${formatPercent(trend)} over 7 days, price at z ${z}. Waiting for a bounce.` };
+  }
+  if (fast > BOUNCE_SHORT.fastMax) {
+    return { action: "hold", indicators, reasoning: `Bouncing (z ${z}) but already ${formatPercent(fast)} in 24h: a possible reversal, not shorting.` };
+  }
+  return { action: "short", indicators, reasoning: `Down ${formatPercent(trend)} over 7 days and bouncing to z ${z}. Shorting the bounce.` };
 }
 
 /**

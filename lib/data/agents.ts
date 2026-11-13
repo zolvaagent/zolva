@@ -102,7 +102,7 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
       published: row.published_at !== null,
       // An agent trades one venue only (agents_venue_guard), so one perp means a perps agent.
       venue: tokens.some((token) => isPerpSymbol(token.symbol)) ? "perps" : "spot",
-      shorts: row.strategy === "spike_fade" || row.strategy === "dip_fade",
+      shorts: row.strategy === "spike_fade" || row.strategy === "dip_fade" || row.strategy === "bounce_short",
       live: row.mode === "live",
     };
   });
@@ -214,7 +214,8 @@ export type AgentDetail = {
   trades: { ts: number; token: string; symbol: string; side: "buy" | "sell" | "short" | "cover"; quantity: number; price: number; costUsd: number; reason: string; txHash: string | null }[];
   /** Live agents only: the latest on-chain orders, including ones that did not fill. */
   orders: { decidedTs: number; symbol: string; side: "buy" | "sell"; status: string; txHash: string | null; error: string | null }[];
-  positions: { token: string; symbol: string; quantity: number; entryPrice: number; openedAt: number | null; side: "long" | "short" }[];
+  /** margin is set only for a leveraged short: the cash it locked after the opening cost. */
+  positions: { token: string; symbol: string; quantity: number; entryPrice: number; openedAt: number | null; side: "long" | "short"; margin: number | null }[];
 };
 
 /** Everything the agent page needs; null if the agent does not exist. */
@@ -232,7 +233,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
     db.from("agent_stats").select(STATS_COLUMNS).eq("id", id).single(),
     db.from("agent_runs").select("ts, equity, hold_equity, cash, decisions").eq("agent_id", id).order("ts", { ascending: false }).limit(720),
     db.from("trades").select("ts, token_address, side, quantity, price, cost_usd, reason, executions(tx_hash)").eq("agent_id", id).order("ts", { ascending: false }).limit(50),
-    db.from("positions").select("token_address, quantity, avg_entry_price, opened_at, side").eq("agent_id", id),
+    db.from("positions").select("token_address, quantity, avg_entry_price, opened_at, side, margin").eq("agent_id", id),
     tokenSymbols(db),
     db.from("ai_usage").select("cost_micro").eq("agent_id", id),
     db.from("executions").select("decided_ts, token_address, side, status, tx_hash, error").eq("agent_id", id).order("created_at", { ascending: false }).limit(20),
@@ -274,6 +275,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
       entryPrice: Number(position.avg_entry_price),
       openedAt: position.opened_at ? Date.parse(position.opened_at) / 1000 : null,
       side: position.side === "short" ? ("short" as const) : ("long" as const),
+      margin: position.margin == null ? null : Number(position.margin),
     })),
   };
 }

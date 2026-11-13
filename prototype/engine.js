@@ -17,6 +17,9 @@
 //                   -2.5, out at z >= 0.5) and one short slot (the highest z over 2.5, out at
 //                   z <= -0.5), no long while down more than 5% over 7 days, no short while up
 //                   more than 5%. Needs 168 hours of history.
+//   Bounce short:   short only (perps, paper only), one position at a time: the market with the deepest
+//                   7 day fall (more than 5% down) once its z score is back to 0.5 to 2.5, unless it rose
+//                   more than 1.5% in the last 24 hours; cover at z <= -0.5. Needs 168 hours of history.
 //
 // Thresholds were tuned on 30 days of real data (2026-10-15). Faster settings
 // (24h average, 1% entry) traded 100+ times a month and lost to the 0.5% cost.
@@ -34,6 +37,14 @@
   // Dip + fade's trend filter: 7 days back, 5% either way.
   const TREND_HOURS = 168;
   const TREND_LIMIT = 0.05;
+  // Bounce short: 7 day downtrend gate, bounce window in z, and the 24 hour reversal guard.
+  const BOUNCE_ENTRY_Z = 0.5;
+  const BOUNCE_MAX_ENTRY_Z = 2.5;
+  const BOUNCE_EXIT_Z = -0.5;
+  const BOUNCE_FAST_HOURS = 24;
+  const BOUNCE_FAST_MAX = 0.015;
+  // Share of the margin a leveraged short may lose before it is liquidated.
+  const LIQUIDATION_LOSS = 0.95;
 
   const STRATEGIES = {
     momentum: {
@@ -139,10 +150,39 @@
     },
   };
 
+  STRATEGIES.bounce_short = {
+    label: "Bounce short",
+    decide(window, price, isShort) {
+      const recent = window.slice(-48);
+      const average = mean(recent);
+      const deviation = standardDeviation(recent, average);
+      const zScore = deviation > 0 ? (price - average) / deviation : 0;
+      const trend = price / window[window.length - 1 - TREND_HOURS] - 1;
+      const fast = price / window[window.length - 1 - BOUNCE_FAST_HOURS] - 1;
+      const indicators = { average48h: average, zScore, trend7d: trend, change24h: fast };
+      const z = zScore.toFixed(2);
+      if (isShort) {
+        return zScore <= BOUNCE_EXIT_Z
+          ? { action: "cover", indicators, reasoning: `Price is back below its 48h average (z ${z}). Covering the short.` }
+          : { action: "hold", indicators, reasoning: `Still above the level to cover (z ${z}). Staying short.` };
+      }
+      if (trend > -TREND_LIMIT) {
+        return { action: "hold", indicators, reasoning: `Only ${formatPercent(trend)} over 7 days: no downtrend to short. Waiting.` };
+      }
+      if (zScore < BOUNCE_ENTRY_Z || zScore > BOUNCE_MAX_ENTRY_Z) {
+        return { action: "hold", indicators, reasoning: `Down ${formatPercent(trend)} over 7 days, price at z ${z}. Waiting for a bounce.` };
+      }
+      if (fast > BOUNCE_FAST_MAX) {
+        return { action: "hold", indicators, reasoning: `Bouncing (z ${z}) but already ${formatPercent(fast)} in 24h: a possible reversal, not shorting.` };
+      }
+      return { action: "short", indicators, reasoning: `Down ${formatPercent(trend)} over 7 days and bouncing to z ${z}. Shorting the bounce.` };
+    },
+  };
+
   /**
    * @param {object} options
    * @param {{symbol: string, closes: (number|null)[]}[]} options.tokens  aligned hourly closes
-   * @param {"momentum"|"mean_reversion"|"dip_hunter"|"spike_fade"|"dip_fade"|"custom"} options.strategy
+   * @param {"momentum"|"mean_reversion"|"dip_hunter"|"spike_fade"|"dip_fade"|"bounce_short"|"custom"} options.strategy
    * @param {number} options.capital            starting virtual USD
    * @param {number} options.maxPositionPct     max share of equity per token, 0 to 100
    * @param {number} options.stopLossPct        stop distance below entry, 0 to 100
@@ -157,10 +197,14 @@
     // "custom" runs the user's rules (options.rules); the presets keep their own code.
     const custom = options.strategy === "custom";
     const strategy = STRATEGIES[options.strategy];
-    const warmup = custom ? rulesLookback(options.rules) : options.strategy === "dip_fade" ? TREND_HOURS : WARMUP_HOURS;
+    const warmup = custom ? rulesLookback(options.rules) : options.strategy === "dip_fade" || options.strategy === "bounce_short" ? TREND_HOURS : WARMUP_HOURS;
     const lastIndex = options.toIndex ?? options.tokens[0].closes.length - 1;
     const maxShare = options.maxPositionPct / 100;
     const stopDistance = options.stopLossPct / 100;
+    // Leveraged shorts (bounce short on perps only): a position of leverage x the margin put in,
+    // stopped at the stop or liquidated earlier at LIQUIDATION_LOSS of the margin.
+    const leverage = options.strategy === "bounce_short" && perps ? Math.max(1, options.leverage || 1) : 1;
+    const shortStop = Math.min(stopDistance, LIQUIDATION_LOSS / leverage);
 
     let cash = options.capital;
     const positions = {}; // symbol -> { quantity, entryPrice, openedIndex, side? "short" }
@@ -181,8 +225,9 @@
       const dipFade = options.strategy === "dip_fade";
       const deepestDip =
         (options.strategy === "dip_hunter" && !holdsAny) || (dipFade && !holdsLong) ? findExtreme(options.strategy, "buy", options.tokens, positions, index, warmup) : null;
+      const shortOnly = options.strategy === "spike_fade" || options.strategy === "bounce_short";
       const strongestSpike =
-        (options.strategy === "spike_fade" && !holdsAny) || (dipFade && !holdsShort) ? findExtreme(options.strategy, "short", options.tokens, positions, index, warmup) : null;
+        (shortOnly && !holdsAny) || (dipFade && !holdsShort) ? findExtreme(options.strategy, "short", options.tokens, positions, index, warmup) : null;
 
       // Borrow cost on shorts, for the hour that just passed, paid from the short's locked cash
       // (free cash may not go below zero): a lower entry lowers the short's value by the fee.
@@ -196,9 +241,11 @@
           const rate = (token.funding && token.funding[index]) || 0;
           if (rate === 0) continue;
           positions[token.symbol] =
-            position.side === "short"
-              ? { ...position, entryPrice: position.entryPrice + (price * rate) / 2 }
-              : { ...position, quantity: position.quantity * (1 - rate) };
+            position.margin !== undefined
+              ? { ...position, margin: position.margin + position.quantity * price * rate }
+              : position.side === "short"
+                ? { ...position, entryPrice: position.entryPrice + (price * rate) / 2 }
+                : { ...position, quantity: position.quantity * (1 - rate) };
         } else if (position.side === "short") {
           const fee = (position.quantity * price * SHORT_BORROW_APR) / (365 * 24);
           positions[token.symbol] = { ...position, entryPrice: position.entryPrice - fee / (2 * position.quantity) };
@@ -215,13 +262,16 @@
           continue;
         }
 
-        if (position && position.side === "short" && price >= position.entryPrice * (1 + stopDistance)) {
+        if (position && position.side === "short" && price >= position.entryPrice * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
           cash += cover(trades, index, token.symbol, position, price, "stop_loss", cost);
           delete positions[token.symbol];
+          const liquidated = position.margin !== undefined && LIQUIDATION_LOSS / leverage < stopDistance;
           decisions.push({
             symbol: token.symbol,
             action: "cover",
-            reasoning: `Stop loss hit: ${formatPercent(price / position.entryPrice - 1)} above the short entry. Covering everything.`,
+            reasoning: liquidated
+              ? `Liquidated: ${formatPercent(price / position.entryPrice - 1)} above the short entry at ${leverage}x. Covering everything.`
+              : `Stop loss hit: ${formatPercent(price / position.entryPrice - 1)} above the short entry. Covering everything.`,
           });
           continue;
         }
@@ -270,11 +320,14 @@
           continue;
         }
         if (decision.action === "short" && token.symbol !== strongestSpike) {
+          const base = decision.reasoning.replace(/ Shorting the (spike|bounce)\./, "");
           const reasoning = dipFade && holdsShort
-            ? `${decision.reasoning.replace(" Shorting the spike.", "")} Already short another market: one short at a time.`
+            ? `${base} Already short another market: one short at a time.`
             : !dipFade && holdsAny
-            ? `${decision.reasoning.replace(" Shorting the spike.", "")} Already in another market: one position at a time.`
-            : `${decision.reasoning.replace(" Shorting the spike.", "")} Another market spiked higher: shorting that one instead.`;
+            ? `${base} Already in another market: one position at a time.`
+            : options.strategy === "bounce_short"
+            ? `${base} Another market fell further over 7 days: shorting that one instead.`
+            : `${base} Another market spiked higher: shorting that one instead.`;
           decisions.push({ symbol: token.symbol, action: "hold", reasoning, indicators: decision.indicators });
           continue;
         }
@@ -284,10 +337,18 @@
             decisions.push({ symbol: token.symbol, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
             continue;
           }
-          const quantity = (notional * (1 - cost)) / price;
           cash -= notional;
-          positions[token.symbol] = { quantity, entryPrice: price, openedIndex: index, side: "short" };
-          trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: notional * cost, reason: "signal" });
+          if (leverage > 1) {
+            // The position is leverage x the margin put in; the opening cost is charged on the whole position.
+            const exposure = notional * leverage;
+            const quantity = exposure / price;
+            positions[token.symbol] = { quantity, entryPrice: price, openedIndex: index, side: "short", margin: notional - exposure * cost };
+            trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: exposure * cost, reason: "signal" });
+          } else {
+            const quantity = (notional * (1 - cost)) / price;
+            positions[token.symbol] = { quantity, entryPrice: price, openedIndex: index, side: "short" };
+            trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: notional * cost, reason: "signal" });
+          }
         } else if (decision.action === "cover") {
           cash += cover(trades, index, token.symbol, position, price, "signal", cost);
           delete positions[token.symbol];
@@ -342,7 +403,8 @@
       const window = token.closes.slice(Math.max(0, index - warmup), index + 1);
       if (price == null || window.length <= warmup || window.some((value) => value == null)) continue;
       const decision = STRATEGIES[strategyKey].decide(window, price, strategyKey === "dip_fade" ? null : false);
-      const score = sign * decision.indicators.zScore;
+      // Bounce short enters the market with the deepest 7 day fall; the others rank on the z score.
+      const score = strategyKey === "bounce_short" ? decision.indicators.trend7d : sign * decision.indicators.zScore;
       if (decision.action === entry && (!best || score < best.score)) best = { symbol: token.symbol, score };
     }
     return best ? best.symbol : null;
@@ -375,7 +437,14 @@
   function cover(trades, index, symbol, position, price, reason, cost) {
     const gross = position.quantity * price;
     trades.push({ index, symbol, side: "cover", quantity: position.quantity, price, costUsd: gross * cost, reason, entryPrice: position.entryPrice });
-    return position.quantity * (2 * position.entryPrice - price) - gross * cost;
+    return Math.max(0, shortValue(position, price) - gross * cost);
+  }
+
+  /** What an open short is worth: the cash it locked plus its gain; a leveraged short cannot lose more than its margin. */
+  function shortValue(position, price) {
+    return position.margin === undefined
+      ? position.quantity * (2 * position.entryPrice - price)
+      : Math.max(0, position.margin + position.quantity * (position.entryPrice - price));
   }
 
   function pairRoundTrips(trades, cost) {
@@ -390,7 +459,7 @@
       const position = positions[symbol];
       const price = prices[symbol] ?? position.entryPrice;
       // A short is worth the cash it locked plus its gain.
-      equity += position.side === "short" ? position.quantity * (2 * position.entryPrice - price) : position.quantity * price;
+      equity += position.side === "short" ? shortValue(position, price) : position.quantity * price;
     }
     return equity;
   }

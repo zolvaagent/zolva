@@ -42,7 +42,7 @@ export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult>
 
   const { data: positions, error: positionsError } = await db
     .from("positions")
-    .select("agent_id, token_address, quantity, avg_entry_price, opened_at, side")
+    .select("agent_id, token_address, quantity, avg_entry_price, opened_at, side, margin")
     .in(
       "agent_id",
       agents.map((agent) => agent.id),

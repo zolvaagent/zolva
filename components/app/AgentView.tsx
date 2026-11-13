@@ -1119,8 +1119,9 @@ export function AgentView({
                       const now = prices[position.token] ?? position.entryPrice;
                       const short = position.side === "short";
                       // A short gains when the price falls; it is worth the cash it locked plus that gain.
-                      const change = (short ? 1 - now / position.entryPrice : now / position.entryPrice - 1) * 100;
                       const pnlUsd = (short ? position.entryPrice - now : now - position.entryPrice) * position.quantity;
+                      // A leveraged short is measured on the margin it locked, so 3x shows three times the price move.
+                      const change = position.margin != null ? (pnlUsd / position.margin) * 100 : (short ? 1 - now / position.entryPrice : now / position.entryPrice - 1) * 100;
                       return (
                         <tr key={position.token}>
                           <td>
@@ -1138,7 +1139,7 @@ export function AgentView({
                             <div style={{ fontSize: 12, lineHeight: "16px", opacity: 0.75 }}>{percent(change)}</div>
                           </td>
                           <td className="num">
-                            {usd(short ? position.quantity * (2 * position.entryPrice - now) : position.quantity * now)}
+                            {usd(position.margin != null ? Math.max(0, position.margin + pnlUsd) : short ? position.quantity * (2 * position.entryPrice - now) : position.quantity * now)}
                           </td>
                           {isOwner && isLive && agent.trading_wallet && (
                             <td className="num">

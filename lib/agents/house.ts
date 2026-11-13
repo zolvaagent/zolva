@@ -37,6 +37,8 @@ export type HouseAgent = {
   stopLossPct: number;
   /** Missing: the DEX. */
   venue?: Venue;
+  /** Leveraged short size (bounce_short on perps only); missing means 1x. */
+  leverage?: number;
   /** An AI co-pilot model id (lib/ai/models.ts); missing: rules only. */
   aiModel?: string;
   /** The co-pilot's spending limit in USD and its end date (ISO), like a user's agent. */
@@ -204,5 +206,35 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     maxPositionPct: 50,
     stopLossPct: 10,
     venue: "perps",
+  },
+  {
+    // Short the bounce in a downtrend (2026-11-13): one short at a time, all of the agent, on the
+    // eight crypto perps. Backtest on Lighter history (scripts/research-short-trend.mts, 1x,
+    // 0.05% cost, 10% stop): +6.8% in the last 6 days (holding -14.3%), +14.4% / +14.0% / +7.6% in
+    // the three 30 day windows before it (holding -12.1% / +18.8% / +54.4%), worst drop 7.3%,
+    // but only 4 to 11 trades per window. The 24 hour guard (no short after a rise above 1.5%)
+    // was chosen after seeing the rally window fail without it, so this paper agent is the
+    // out-of-sample test. Aggressive on purpose: one slot, full size.
+    owner: LAB_WALLETS[4],
+    name: "Lab · Perps Bounce Short",
+    strategy: "bounce_short",
+    symbols: ["BTC-PERP", "ETH-PERP", "SOL-PERP", "HYPE-PERP", "ZEC-PERP", "XRP-PERP", "LIT-PERP", "NEAR-PERP"],
+    maxPositionPct: 100,
+    stopLossPct: 10,
+    venue: "perps",
+  },
+  {
+    // The same rule at 3x (2026-11-13), to compare against the 1x agent above on the same hours.
+    // Backtest at 3x with a 5% stop, hourly closes only (wicks inside an hour are not modelled):
+    // +21.3% / +27.7% / +46.4% / +24.1% over the four windows, worst drop 6% to 21%
+    // (docs/perps-research.md, "Bounce short with leverage"). A 5% stop costs 15% of the margin.
+    owner: LAB_WALLETS[4],
+    name: "Lab · Perps Bounce Short 3x",
+    strategy: "bounce_short",
+    symbols: ["BTC-PERP", "ETH-PERP", "SOL-PERP", "HYPE-PERP", "ZEC-PERP", "XRP-PERP", "LIT-PERP", "NEAR-PERP"],
+    maxPositionPct: 100,
+    stopLossPct: 5,
+    venue: "perps",
+    leverage: 3,
   },
 ];
