@@ -25,7 +25,7 @@ type Props = {
   starter: AgentSummary | null;
 };
 
-/** Agent cards shown before "Show all": with the Build card that fills three rows of two. */
+/** Agent cards shown before "Show more": with the Build card that fills three rows of two. */
 const AGENTS_SHOWN = 5;
 
 function greeting() {
@@ -42,13 +42,14 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
   const totalNow = paper.reduce((sum, agent) => sum + agent.equity, 0);
   const totalReturn = totalStart ? (totalNow / totalStart - 1) * 100 : 0;
   const liveNote = liveCount ? `, ${liveCount} real money ${liveCount === 1 ? "agent" : "agents"} not counted` : "";
-  const shown = agents.slice(0, AGENTS_SHOWN);
-  const more = agents.slice(AGENTS_SHOWN);
+  const moreCount = Math.max(agents.length - AGENTS_SHOWN, 0);
 
-  const agentCard = (agent: AgentSummary) => {
+  // Cards past AGENTS_SHOWN stay in the same grid but are hidden by CSS until
+  // "Show more" opens, so the Build card stays last either way.
+  const agentCard = (agent: AgentSummary, index: number) => {
     const curve = curves[agent.id] ?? [];
     return (
-      <Link key={agent.id} className="agent-card" href={`/agents/${agent.id}`}>
+      <Link key={agent.id} className={`agent-card${index >= AGENTS_SHOWN ? " agent-card--extra" : ""}`} href={`/agents/${agent.id}`}>
         <div className="agent-card__head">
           <img src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`} alt="" width={44} height={44} />
           <span className="agent-card__pills">
@@ -178,25 +179,26 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
               <i className="ph ph-arrow-right" />
             </Link>
           </div>
-          <div className="agent-cards">
-            {shown.map(agentCard)}
-            <Link className="agent-card agent-card--new" href="/studio">
-              <img src="/img/icons/agent.png" alt="" width={64} height={64} />
-              <h3 className="card__title">{agents.length ? "Build another agent" : "Build your first agent"}</h3>
-              <p className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
-                Replay 30 days of real prices before you launch.
-              </p>
-            </Link>
+          <div className="agent-list">
+            <div className="agent-cards">
+              {agents.map(agentCard)}
+              <Link className="agent-card agent-card--new" href="/studio">
+                <img src="/img/icons/agent.png" alt="" width={64} height={64} />
+                <h3 className="card__title">{agents.length ? "Build another agent" : "Build your first agent"}</h3>
+                <p className="muted" style={{ fontSize: 13, lineHeight: "18px" }}>
+                  Replay 30 days of real prices before you launch.
+                </p>
+              </Link>
+            </div>
+            {moreCount > 0 && (
+              <details className="agent-more">
+                <summary className="button button--ghost">
+                  Show {moreCount} more {moreCount === 1 ? "agent" : "agents"}
+                  <i className="ph ph-caret-down" aria-hidden="true" />
+                </summary>
+              </details>
+            )}
           </div>
-          {more.length > 0 && (
-            <details className="agent-more">
-              <summary className="button button--ghost">
-                Show {more.length} more {more.length === 1 ? "agent" : "agents"}
-                <i className="ph ph-caret-down" aria-hidden="true" />
-              </summary>
-              <div className="agent-cards">{more.map(agentCard)}</div>
-            </details>
-          )}
 
           <div className="card">
             <div className="card-head">

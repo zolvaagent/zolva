@@ -3400,14 +3400,22 @@ main:focus {
   animation: none;
 }
 
-/* Dashboard: agents past the first few, behind "Show all". */
-.agent-more {
+/* Dashboard: agents past the first few, hidden until "Show more" opens.
+   They share the grid with the rest, so the Build card stays last. */
+.agent-list {
   display: grid;
   gap: var(--space-200);
 }
 
-.agent-more > summary {
+.agent-list:not(:has(.agent-more[open])) .agent-card--extra {
+  display: none;
+}
+
+.agent-more {
   justify-self: start;
+}
+
+.agent-more > summary {
   list-style: none;
 }
 
