@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { MarketDetail } from "@/components/app/MarketDetail";
 import { getMarketDetail } from "@/lib/data/markets";
 import { fetchSession } from "@/lib/harmonic";
+import { getLongbowListings, longbowListingFor } from "@/lib/longbow";
 import { price } from "@/lib/format";
 import { db } from "@/lib/supabase";
 
@@ -23,10 +24,15 @@ export default async function MarketPage({ params }: PageProps<"/markets/[symbol
   if (!detail) notFound();
   // Stock Tokens only, and never slows the page by more than 2.5 s (null hides the status).
   const isStock = detail.row.assetClass !== "crypto" && detail.row.venue !== "lighter";
-  const session = isStock ? await fetchSession(detail.row.address, { timeoutMs: 2500 }) : null;
+  // Longbow is cached for hours and optional: no listing (or no answer) hides the line.
+  const [session, longbowListings] = await Promise.all([
+    isStock ? fetchSession(detail.row.address, { timeoutMs: 2500 }) : null,
+    detail.row.venue !== "lighter" ? getLongbowListings() : [],
+  ]);
+  const longbow = longbowListingFor(longbowListings, detail.row.address);
   return (
     <div className="container page">
-      <MarketDetail row={detail.row} closes={detail.closes} startTs={detail.startTs} asOf={detail.asOf} marketOpen={detail.marketOpen} agents={detail.agents} session={session} />
+      <MarketDetail row={detail.row} closes={detail.closes} startTs={detail.startTs} asOf={detail.asOf} marketOpen={detail.marketOpen} agents={detail.agents} session={session} longbow={longbow} />
     </div>
   );
 }

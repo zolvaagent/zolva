@@ -10,6 +10,7 @@ import { EXPLORER_URL } from "@/lib/chain";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { MarketRow } from "@/lib/data/markets";
 import { blocksTrading, HARMONIC_URL, sessionCheckedAt, sessionDetail, sessionLabel, type TokenSession } from "@/lib/harmonic";
+import type { LongbowListing } from "@/lib/longbow";
 import { dateAt, fundingYearly, percent, points, price, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const RANGES = [
@@ -39,6 +40,7 @@ export function MarketDetail({
   marketOpen,
   agents,
   session = null,
+  longbow = null,
 }: {
   row: MarketRow;
   closes: number[];
@@ -48,6 +50,8 @@ export function MarketDetail({
   agents: AgentSummary[];
   /** Stock Tokens only: the issuer's trading status from Harmonic's session oracle; null when unknown. */
   session?: TokenSession | null;
+  /** Longbow's USDG lending market for this token (matched by address); null hides the line. */
+  longbow?: LongbowListing | null;
 }) {
   const [rangeKey, setRangeKey] = useState<RangeKey>("7d");
   const range = RANGES.find((item) => item.key === rangeKey)!;
@@ -262,6 +266,18 @@ export function MarketDetail({
                     <span className="session-note__meta">Checked {sessionCheckedAt(session.at)} · Harmonic session oracle</span>
                   </div>
                 </div>
+              ) : null}
+              {longbow ? (
+                // Listing and LLTV only: Longbow's available liquidity on these tokens is too small to show.
+                <p className="note">
+                  <i className="ph ph-bank" aria-hidden="true" />
+                  <span>
+                    Longbow lists a market for this token · LLTV {Number((longbow.lltv * 100).toFixed(1))}%{" · "}
+                    <a className="session-note__link" href={longbow.url} target="_blank" rel="noopener noreferrer" title="Longbow, Morpho Blue lending on Robinhood Chain">
+                      Longbow
+                    </a>
+                  </span>
+                </p>
               ) : null}
             </div>
             )}

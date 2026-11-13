@@ -160,6 +160,15 @@ describe("publicMarket", () => {
     });
   });
 
+  it("carries Longbow's listing for the same address only, and null without one", () => {
+    const longbow = [{ collateral: "0xaaa", lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA" }];
+    expect(publicMarket(row, longbow).longbow).toEqual({ lltvPct: 62.5, url: "https://www.longbow.finance/borrow/NVDA" });
+    expect(publicMarket({ ...row, address: "0xAAA" }, longbow).longbow).not.toBeNull();
+    expect(publicMarket({ ...row, address: "0xccc" }, longbow).longbow).toBeNull();
+    expect(publicMarket(row).longbow).toBeNull();
+    expect(publicMarket({ ...row, venue: "lighter" }, longbow).longbow).toBeNull();
+  });
+
   it("gives each hourly close its time", () => {
     const market: MarketDetail = { row, closes: [200, 201], startTs: NOW - 2 * HOUR, asOf: NOW, marketOpen: false, agents: [summary] };
     const body = publicMarketDetail(market);

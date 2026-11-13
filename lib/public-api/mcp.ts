@@ -68,7 +68,7 @@ export function createMcpServer(): McpServer {
     "list_markets",
     {
       title: "List markets",
-      description: "Every market Zolva prices on Robinhood Chain: latest hourly price, 1 hour to 30 day changes, a 7 day sparkline and how many agents trade it. Perps (venue perps, symbols like BTC-PERP) also carry their funding rate.",
+      description: "Every market Zolva prices on Robinhood Chain: latest hourly price, 1 hour to 30 day changes, a 7 day sparkline and how many agents trade it. Perps (venue perps, symbols like BTC-PERP) also carry their funding rate. Spot tokens that Longbow (Morpho Blue lending) accepts as collateral for USDG carry longbow: { lltvPct, url }, otherwise null.",
       inputSchema: {
         assetClass: z.enum(["stock", "crypto"]).optional().describe("Only stocks or only crypto"),
         venue: z.enum(["spot", "perps"]).optional().describe("Only spot tokens or only Lighter perps"),
@@ -85,7 +85,7 @@ export function createMcpServer(): McpServer {
     "get_market",
     {
       title: "Get market",
-      description: "One market: up to 30 days of hourly closes and the published agents trading it.",
+      description: "One market: up to 30 days of hourly closes, the published agents trading it, and its Longbow lending market if any (longbow: { lltvPct, url } or null).",
       inputSchema: { symbol: z.string().min(1).max(17).describe("Market symbol, such as NVDA, SPY, ETH or BTC-PERP") },
       annotations: READ_ONLY,
     },

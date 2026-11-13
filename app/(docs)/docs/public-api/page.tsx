@@ -50,6 +50,7 @@ const MARKET_FIELDS: Field[] = [
   ["activeAgents", "Published, active agents trading this market."],
   ["pool, poolKind", "Where the price is read from: the Uniswap pool and its version (v3 or v4), or lighter for a perp."],
   ["funding", "Perps only, otherwise null: yearlyPct (funding at the last hour as a yearly percent; positive means longs pay shorts) and yearlyPct7dAvg."],
+  ["longbow", "Spot only, otherwise null: when Longbow (Morpho Blue lending on Robinhood Chain) lends USDG against this token, lltvPct (the liquidation loan-to-value, such as 62.5) and url (the market's page on Longbow). Matched by token address and refreshed every few hours; null when there is no such market or Longbow cannot be reached."],
   ["url", "The market's page on zolvaagent.app."],
 ];
 

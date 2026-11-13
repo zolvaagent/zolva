@@ -3,6 +3,7 @@ import "server-only";
 import { ACTIVITY_HOURS, getActivity } from "@/lib/data/activity";
 import { getAgentDetail, listAgents } from "@/lib/data/agents";
 import { getMarketDetail, getMarketOverview } from "@/lib/data/markets";
+import { getLongbowListings } from "@/lib/longbow";
 import { db } from "@/lib/supabase";
 
 import { DISCLAIMER, isPublicAgent, publicAgent, publicAgentDetail, publicMarket, publicMarketDetail, publicTrade } from "./format";
@@ -27,15 +28,16 @@ export async function agentBody(id: string) {
 }
 
 export async function marketsBody() {
-  const overview = await getMarketOverview(db(), { perps: true });
-  return { markets: overview.rows.map(publicMarket), asOf: new Date(overview.asOf * 1000).toISOString(), usMarketOpen: overview.marketOpen };
+  // Longbow is optional: when it cannot be read, every market's longbow is null.
+  const [overview, longbow] = await Promise.all([getMarketOverview(db(), { perps: true }), getLongbowListings()]);
+  return { markets: overview.rows.map((row) => publicMarket(row, longbow)), asOf: new Date(overview.asOf * 1000).toISOString(), usMarketOpen: overview.marketOpen };
 }
 
 export async function marketBody(symbol: string) {
   // Letters and digits, plus the -PERP suffix of Lighter perps (BTC-PERP).
   if (!/^[A-Za-z0-9]{1,12}(-PERP)?$/i.test(symbol)) return null;
-  const detail = await getMarketDetail(db(), symbol, { perps: true });
-  return detail ? publicMarketDetail(detail) : null;
+  const [detail, longbow] = await Promise.all([getMarketDetail(db(), symbol, { perps: true }), getLongbowListings()]);
+  return detail ? publicMarketDetail(detail, longbow) : null;
 }
 
 export async function activityBody() {

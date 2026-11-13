@@ -8,6 +8,7 @@ import type { ActivityTrade } from "../activity";
 import type { AgentDetail, AgentSummary } from "../data/agents";
 import type { MarketDetail, MarketRow } from "../data/markets";
 import { STRATEGY_NAMES } from "../format";
+import { longbowListingFor, type LongbowListing } from "../longbow";
 
 export const API_VERSION = "v1";
 const SITE = "https://zolvaagent.app";
@@ -108,7 +109,15 @@ export function publicAgentDetail(detail: AgentDetail, nowSeconds: number) {
   };
 }
 
-export function publicMarket(row: MarketRow) {
+/** Longbow's USDG market for this token, or null when it has none (or Longbow could not be read). */
+function publicLongbow(row: MarketRow, longbow: LongbowListing[]) {
+  if (row.venue === "lighter") return null;
+  const listing = longbowListingFor(longbow, row.address);
+  return listing ? { lltvPct: round(listing.lltv * 100, 2), url: listing.url } : null;
+}
+
+/** longbow: Longbow's market listings (lib/longbow.ts); empty leaves every market's `longbow` null. */
+export function publicMarket(row: MarketRow, longbow: LongbowListing[] = []) {
   const { stats } = row;
   return {
     symbol: row.symbol,
@@ -136,13 +145,15 @@ export function publicMarket(row: MarketRow) {
           yearlyPct7dAvg: row.funding.weekYearly === null ? null : round(row.funding.weekYearly * 100, 2),
         }
       : null,
+    // Spot only: Longbow (Morpho Blue lending) lends USDG against this token at this liquidation LTV.
+    longbow: publicLongbow(row, longbow),
     url: `${SITE}/markets/${row.symbol}`,
   };
 }
 
-export function publicMarketDetail(detail: MarketDetail) {
+export function publicMarketDetail(detail: MarketDetail, longbow: LongbowListing[] = []) {
   return {
-    market: publicMarket(detail.row),
+    market: publicMarket(detail.row, longbow),
     // [hour start, close USD], hourly, oldest first, up to 30 days.
     closes: detail.closes.map((close, index) => [iso(detail.startTs + index * 3600), round(close, 6)] as const),
     asOf: iso(detail.asOf),
