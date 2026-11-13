@@ -625,3 +625,30 @@ Reading: no rule here is robust across regimes yet. Next research needs a higher
 the long sample first (not the Lighter window), position sizing and drawdown limits, and a pass criterion fixed in
 advance (for example positive in at least 4 of 6 years and worst drop under 30%), tested on BTC and ETH, which have
 the least survivor bias.
+
+## Stress test: Chip Breakout (spot, NVDA MU TSM) on long history (2026-11-13)
+
+Owner asked before putting real money in. The published agent be4b8f92 (by Zolva, custom rules: buy when price
+crosses above the 72 hour high, sell below the 48 hour average -2%, take profit 12%, stop 8%, 33% per token) was
++2.8% after 29 days live while holding was -12.5%. Same frozen rules through the real engine (`simulate`, spot
+cost 0.5% per fill), `scripts/research-chip-breakout.mts`, read only.
+
+| Data | Whole | Worst drop | By year (agent / equal-weight hold) |
+|---|---|---|---|
+| Yahoo daily closes held 24h, 2016-11 to now (coarse proxy) | **-1.5%** (774 trades, 36% won) | **64.5%** | 2017 +38/+71, 2018 -23/-19, 2019 +15/+70, 2020 +33/+85, 2021 -19/+54, 2022 **-53**/-44, 2023 +19/+118, 2024 +42/+88, 2025 +4/+112, 2026 -9/+68 |
+| Yahoo 60m incl. pre/post market, 2023-12 to now | **-45.6%** (354 trades, 35% won) | 59.6% | 2024 -29/+87, 2025 -22/+111, 2026 0/+67 |
+| Zolva on-chain candles, 2026-08 to now | -12.3% | 19.8% | before the agent started -14.9 / -0.5; since the agent +3.1 / -11.5 |
+
+- **Fails the pass rule** (positive in at least 4 of 6 years and worst drop under 30%): daily proxy has 6 of 10
+  positive years but a 64.5% drop (2022); the hourly data has no positive full year.
+- **It never beats holding** these three stocks in any year of the long data, including the down years (2018, 2022).
+  The live month looks good only because the chips fell and the agent sat in cash.
+- The on-chain run since the agent started (+3.1%) matches the live record (+2.8%), so the simulation is faithful;
+  the six weeks before it started, on the same token prices, were -14.9% while holding was flat.
+- Likely cause: a breakout rule with a tight exit trades about 80 to 130 times a year at 0.5% a fill and wins
+  about 35% of the time, so costs and whipsaws eat the trend.
+- Limits: Yahoo prices are the stocks, not the tokens (the tokens also move on weekends and nights, about 0.3% to
+  0.5% an hour, which would add more false breakouts); the daily proxy only checks the stop and take profit at the
+  close; three stocks that went up a lot (survivor bias favours holding, not the rule).
+
+Reading: not a candidate for real money. Its live result is one falling month.
