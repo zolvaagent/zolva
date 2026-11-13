@@ -89,7 +89,7 @@ export function AppSidebar() {
         </a>
       </nav>
       <div className="app-side__account">
-        <ThemeToggle variant="row" />
+        <ThemeToggle variant="switch" />
         {address ? (
           <div className="account">
             <Avatar address={address} />
@@ -102,9 +102,14 @@ export function AppSidebar() {
             </button>
           </div>
         ) : (
-          <button className="button button--primary" type="button" style={{ width: "100%" }} onClick={() => openLogin(() => router.refresh())}>
-            Log in
-          </button>
+          <>
+            <p className="app-side__pitch">
+              <strong>Free to start, no deposit.</strong> Save your drafts and launch a paper trading agent.
+            </p>
+            <button className="button button--primary" type="button" style={{ width: "100%" }} onClick={() => openLogin(() => router.refresh())}>
+              Log in
+            </button>
+          </>
         )}
       </div>
     </aside>

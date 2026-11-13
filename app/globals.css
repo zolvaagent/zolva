@@ -430,14 +430,62 @@ main:focus {
   }
 }
 
-/* Sidebar version: a nav row like the links above it. */
-.theme-toggle-row {
-  width: 100%;
-  margin-bottom: var(--space-75);
+/* Sidebar version: sun, a small switch, moon. The current theme's icon is the bright one. */
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
+  margin: 0 0 var(--space-100) var(--space-100);
+  padding: var(--space-50);
   border: 0;
+  border-radius: var(--radius-full);
   background: transparent;
+  color: var(--color-text-faint);
+  font-size: 16px;
   cursor: pointer;
-  text-align: left;
+}
+
+.theme-switch .is-active {
+  color: var(--color-text);
+}
+
+.theme-switch__track {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--color-border-strong);
+  transition: background-color var(--duration-micro) var(--ease-out-expo);
+}
+
+.theme-switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform var(--duration-micro) var(--ease-out-expo);
+}
+
+.theme-switch[aria-checked="true"] .theme-switch__track {
+  background: var(--color-purple-rich);
+}
+
+.theme-switch[aria-checked="true"] .theme-switch__knob {
+  transform: translateX(14px);
+}
+
+@media (hover: hover) {
+  .theme-switch:hover .theme-switch__track {
+    background: var(--color-text-faint);
+  }
+
+  .theme-switch[aria-checked="true"]:hover .theme-switch__track {
+    background: var(--color-purple-rich);
+  }
 }
 
 .nav__menu-line {
@@ -4262,6 +4310,21 @@ main:focus {
 
 .app-side__account {
   margin-top: auto;
+}
+
+/* Why log in, above the sidebar's Log in button (logged out only). */
+.app-side__pitch {
+  margin-bottom: var(--space-75);
+  padding: 0 var(--space-100);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.app-side__pitch strong {
+  display: block;
+  color: var(--color-text);
+  font-weight: 500;
 }
 
 .account {

@@ -33,10 +33,10 @@ export function useResolvedTheme(): Theme {
 }
 
 /**
- * Switches between light and dark and saves the choice. `row` is the sidebar
- * version with a text label; `icon` is a round button for headers.
+ * Switches between light and dark and saves the choice. `switch` is the sidebar
+ * version (sun, a switch, moon); `icon` is a round button for headers.
  */
-export function ThemeToggle({ variant = "icon" }: { variant?: "icon" | "row" }) {
+export function ThemeToggle({ variant = "icon" }: { variant?: "icon" | "switch" }) {
   const theme = useResolvedTheme();
   const next: Theme = theme === "dark" ? "light" : "dark";
 
@@ -50,11 +50,15 @@ export function ThemeToggle({ variant = "icon" }: { variant?: "icon" | "row" }) 
   };
 
   const title = `Switch to ${LABELS[next].toLowerCase()}`;
-  if (variant === "row") {
+  if (variant === "switch") {
+    // A native button, so Enter and Space work; role="switch" makes screen readers say "on/off".
     return (
-      <button className="app-link theme-toggle-row" type="button" onClick={toggle} title={title}>
-        <i className={`ph ${ICONS[theme]}`} aria-hidden="true" />
-        {LABELS[theme]}
+      <button className="theme-switch" type="button" role="switch" aria-checked={theme === "dark"} aria-label="Dark theme" title={title} onClick={toggle}>
+        <i className={`ph ${ICONS.light}${theme === "light" ? " is-active" : ""}`} aria-hidden="true" />
+        <span className="theme-switch__track" aria-hidden="true">
+          <span className="theme-switch__knob" />
+        </span>
+        <i className={`ph ${ICONS.dark}${theme === "dark" ? " is-active" : ""}`} aria-hidden="true" />
       </button>
     );
   }
