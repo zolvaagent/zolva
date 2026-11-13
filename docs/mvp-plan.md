@@ -170,6 +170,23 @@ The user's `equity-router` contracts (already deployed on 4663) are a candidate 
 - **The honest track record matters more:** paper results so far lose to holding. Real money makes that worse, not better.
 - **Security:** key handling, monitoring, an audit of any contract that touches funds.
 
+**Research: agent wallets anyone can watch on-chain (added 2026-11-13)**
+
+People already check us on-chain: a 38k account counted our live trades from the chain ("only 8 real money trades so far"), and @kyll_fun posted a holder map of $ZOLVA. Their natural next question is "which wallet is the agent?", and today the answer is only partly there.
+
+What exists: a live agent's page links its trading wallet and every swap on Blockscout (`AgentView`), and `/docs/verify` links the owner's trading wallet.
+
+Gaps:
+- The trading wallet is the owner's own Privy wallet. Several live agents and the owner's manual swaps share it, so on-chain you cannot tell which agent made which trade.
+- Paper agents (all Lab and house agents, every non-owner user) have no on-chain trail at all, only our database.
+- There is no public list of all live agent wallets, so nobody can map or follow them in one place.
+
+Questions to answer before building:
+1. One wallet per live agent: can Privy give a user more than one embedded wallet, each with its own signer policy? Otherwise a smart account per agent (option B above) or a per-agent vault (option C).
+2. Cost: a new wallet per agent needs its own ETH for gas and its own USDG funding; check the extra cost per agent per month.
+3. A public page (or API/MCP field) listing every live agent wallet with a Blockscout link, opt-out or always on? Privacy: it links a user's agent to a public address.
+4. Can paper agents ever be on-chain? Only as signed proofs (for example a daily hash of the decision log posted on-chain), not as trades. Worth it only if people ask.
+
 ## 9. Costs
 
 The MVP is **$0/month**: Supabase free, Cloudflare free, GeckoTerminal free.
