@@ -5,6 +5,7 @@ import { parseSiweMessage, validateSiweMessage } from "viem/siwe";
 import { BLOCKED_MESSAGE, countryFromHeaders, isBlockedCountry } from "@/lib/auth/geo";
 import { NONCE_COOKIE } from "@/lib/auth/session";
 import { startSession } from "@/lib/auth/start-session";
+import { recordFunnelEvent } from "@/lib/funnel-server";
 import { db } from "@/lib/supabase";
 
 /**
@@ -42,5 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature could not be verified" }, { status: 401 });
   }
 
-  return startSession(client, fields.address, country, "wallet");
+  const response = await startSession(client, fields.address, country, "wallet");
+  if (response.ok) await recordFunnelEvent(client, request, "login_ok", fields.address, "wallet");
+  return response;
 }

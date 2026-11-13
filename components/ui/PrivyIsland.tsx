@@ -64,19 +64,25 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
   const { addSigners, removeSigners } = useSigners();
   const { exportWallet } = useExportWallet();
   const { sendTransaction } = useSendTransaction();
-  // Only react to logins started from our modal.
+  // Only react to logins started from our modal. The flag is also kept in sessionStorage, so a
+  // login that leaves the page (an OAuth redirect) is still finished when the visitor comes back.
   const pending = useRef(false);
+  const isPending = () => pending.current || readPendingLogin();
+  const setPending = (value: boolean) => {
+    pending.current = value;
+    writePendingLogin(value);
+  };
   const { login } = useLogin({
     onComplete: async () => {
-      if (!pending.current) return;
-      pending.current = false;
+      if (!isPending()) return;
+      setPending(false);
       const accessToken = await getAccessToken();
       if (accessToken) onAccessToken(accessToken);
       else onFailure("Sign in failed. Please try again.");
     },
     onError: (code) => {
-      if (!pending.current) return;
-      pending.current = false;
+      if (!isPending()) return;
+      setPending(false);
       // Closing the Privy window is not an error worth showing.
       onFailure(code === "exited_auth_flow" ? null : "Sign in failed. Please try again.");
     },
@@ -87,7 +93,7 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
       login: () => {
         // Privy not loaded (blocked script, bad app ID): say so instead of doing nothing.
         if (!ready) return onFailure("Email and Google sign in is unavailable right now. Please use a wallet or try again later.");
-        pending.current = true;
+        setPending(true);
         // A Privy session can outlive Zolva's (after logging out of Zolva only, or switching
         // accounts). Privy then refuses to open its login window ("already logged in"), so end
         // that session first and let the user pick the account again.
@@ -117,4 +123,26 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
   }, [onReady, onFailure, ready, authenticated, login, logout, addSigners, removeSigners, exportWallet, sendTransaction]);
 
   return null;
+}
+
+const PENDING_KEY = "zolva_privy_login";
+/** A started login counts for 10 minutes, long enough for an OAuth round trip. */
+const PENDING_MS = 10 * 60 * 1000;
+
+function readPendingLogin(): boolean {
+  try {
+    const started = Number(sessionStorage.getItem(PENDING_KEY));
+    return Number.isFinite(started) && started > 0 && Date.now() - started < PENDING_MS;
+  } catch {
+    return false;
+  }
+}
+
+function writePendingLogin(value: boolean): void {
+  try {
+    if (value) sessionStorage.setItem(PENDING_KEY, String(Date.now()));
+    else sessionStorage.removeItem(PENDING_KEY);
+  } catch {
+    // Storage blocked: the in-memory flag still covers popup logins.
+  }
 }

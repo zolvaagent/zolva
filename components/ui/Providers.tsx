@@ -9,14 +9,20 @@ import { shortAddress } from "@/lib/format";
 import { hasInjectedWallet, signInWithWallet, WalletError } from "@/lib/wallet-client";
 import { track } from "@/lib/funnel";
 
+/**
+ * Extra options for the login window. `skipTo` also offers "Look around first", which closes it
+ * and opens that page without logging in. `source` names where it opened, for the funnel's
+ * login_dismiss event. `heading` and `note` replace the generic title and add a line under it
+ * (the Studio names the agent and says paper trading is free). `onDismiss` runs when the window
+ * is closed without a login.
+ */
+export type LoginOptions = { skipTo?: string; source?: string; heading?: string; note?: string; onDismiss?: () => void };
+
 type Auth = {
   /** Signed-in wallet address (lowercase) or null. */
   address: string | null;
-  /**
-   * Opens the login modal; `then` runs after a successful login. With `skipTo`, the modal
-   * also offers "Look around first", which closes it and opens that page without logging in.
-   */
-  openLogin: (then?: () => void, options?: { skipTo?: string }) => void;
+  /** Opens the login modal; `then` runs after a successful login. See LoginOptions. */
+  openLogin: (then?: () => void, options?: LoginOptions) => void;
   logout: () => Promise<void>;
   /** The loaded Privy island, or null before it loads (used by the owner-only live signer page). */
   privy: () => PrivyHandle | null;
@@ -45,7 +51,10 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loginRef = useRef<HTMLDialogElement>(null);
   const afterLogin = useRef<(() => void) | null>(null);
-  const [skipTo, setSkipTo] = useState<string | null>(null);
+  const [loginOptions, setLoginOptions] = useState<LoginOptions>({});
+  // The option tried in this login ("privy" or "wallet"), for login_dismiss; null until one is picked.
+  const loginAttempt = useRef<string | null>(null);
+  const dismissRef = useRef<{ source: string; onDismiss?: () => void } | null>(null);
   const [loginState, setLoginState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
   // Filled in once the Privy island has loaded.
   const privy = useRef<PrivyHandle | null>(null);
@@ -59,12 +68,29 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
     toastTimer.current = setTimeout(() => setToastText(null), 2600);
   }, []);
 
-  const openLogin = useCallback((then?: () => void, options?: { skipTo?: string }) => {
+  const openLogin = useCallback((then?: () => void, options?: LoginOptions) => {
     afterLogin.current = then ?? null;
-    setSkipTo(options?.skipTo ?? null);
+    loginAttempt.current = null;
+    dismissRef.current = { source: options?.source ?? "site", onDismiss: options?.onDismiss };
+    setLoginOptions(options ?? {});
     setLoginState({ busy: false, error: null });
     loginRef.current?.showModal();
   }, []);
+
+  /** The visitor gave up on this login: record it once and tell the caller. */
+  const dismissLogin = useCallback(() => {
+    const pending = dismissRef.current;
+    if (!pending) return;
+    dismissRef.current = null;
+    track("login_dismiss", `${pending.source} ${loginAttempt.current ?? "none"}`);
+    pending.onDismiss?.();
+  }, []);
+
+  /** Closes our login window because the visitor closed it (button, backdrop or Escape). */
+  const closeLogin = () => {
+    loginRef.current?.close();
+    dismissLogin();
+  };
 
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -80,13 +106,15 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
     setLoginState({ busy: false, error: null });
     loginRef.current?.close();
     toast(`Logged in as ${shortAddress(signedIn)}`);
-    track("login_ok");
+    // login_ok is recorded by the login route on the server (lib/funnel-server.ts).
+    dismissRef.current = null;
     router.refresh();
     afterLogin.current?.();
     afterLogin.current = null;
   };
 
   const connectWallet = async () => {
+    loginAttempt.current = "wallet";
     setLoginState({ busy: true, error: null });
     try {
       finishLogin(await signInWithWallet());
@@ -96,14 +124,20 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
     }
   };
 
-  const onPrivyFailure = useCallback((message: string | null) => {
-    setLoginState({ busy: false, error: message });
-    if (message) loginRef.current?.showModal();
-  }, []);
+  const onPrivyFailure = useCallback(
+    (message: string | null) => {
+      setLoginState({ busy: false, error: message });
+      if (message) loginRef.current?.showModal();
+      // No message: the visitor closed Privy's window, which ends this login.
+      else dismissLogin();
+    },
+    [dismissLogin],
+  );
 
   // Privy draws its own window, so ours closes while it is open and comes
   // back only if something went wrong.
   const continueWithEmail = () => {
+    loginAttempt.current = "privy";
     if (!privy.current) return onPrivyFailure("Email and Google sign in is still loading. Please try again in a moment.");
     loginRef.current?.close();
     privy.current.login();
@@ -139,11 +173,13 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
           className="modal modal--privy"
           aria-labelledby="login-title"
           onClick={(event) => {
-            if (event.target === loginRef.current) loginRef.current?.close();
+            if (event.target === loginRef.current) closeLogin();
           }}
+          // Escape closes the dialog by itself; only the funnel step is left to record.
+          onCancel={dismissLogin}
         >
           <div className="privy">
-            <button className="privy__icon-button privy__close" type="button" aria-label="Close" onClick={() => loginRef.current?.close()}>
+            <button className="privy__icon-button privy__close" type="button" aria-label="Close" onClick={closeLogin}>
               <i className="ph ph-x" />
             </button>
             {loginState.busy ? (
@@ -160,10 +196,11 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
               <>
                 <img className="privy__logo" src="/img/brand/zolva-mark.png" alt="" width={56} height={56} />
                 <h2 className="privy__title" id="login-title">
-                  Log in or sign up
+                  {loginOptions.heading ?? "Log in or sign up"}
                 </h2>
+                {loginOptions.note && <p className="privy__text privy__lead">{loginOptions.note}</p>}
                 {privyEnabled && (
-                  <button className="privy__option" type="button" onClick={continueWithEmail}>
+                  <button className={`privy__option${loginOptions.heading ? " privy__option--main" : ""}`} type="button" onClick={continueWithEmail}>
                     <span className="privy__glyph" style={{ background: "var(--color-purple-8)", color: "var(--color-purple-rich)" }}>
                       <i className="ph ph-envelope-simple" />
                     </span>
@@ -185,13 +222,14 @@ export function Providers({ initialAddress, privyAppId, children }: ProvidersPro
                   )}
                 </button>
                 {loginState.error && <span className="field-error">{loginState.error}</span>}
-                {skipTo && (
+                {loginOptions.skipTo && (
                   <button
                     className="text-link privy__skip"
                     type="button"
                     onClick={() => {
-                      loginRef.current?.close();
-                      router.push(skipTo);
+                      const target = loginOptions.skipTo;
+                      closeLogin();
+                      if (target) router.push(target);
                     }}
                   >
                     Look around first, log in later

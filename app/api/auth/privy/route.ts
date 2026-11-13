@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { BLOCKED_MESSAGE, countryFromHeaders, isBlockedCountry } from "@/lib/auth/geo";
 import { PrivyLoginError, walletFromPrivyToken } from "@/lib/auth/privy";
 import { startSession } from "@/lib/auth/start-session";
+import { recordFunnelEvent } from "@/lib/funnel-server";
 import { db } from "@/lib/supabase";
 
 /**
@@ -22,7 +23,10 @@ export async function POST(request: NextRequest) {
   if (!accessToken) return NextResponse.json({ error: "Missing access token" }, { status: 400 });
 
   try {
-    return startSession(client, await walletFromPrivyToken(accessToken), country, "privy");
+    const wallet = await walletFromPrivyToken(accessToken);
+    const response = await startSession(client, wallet, country, "privy");
+    if (response.ok) await recordFunnelEvent(client, request, "login_ok", wallet, "privy");
+    return response;
   } catch (cause) {
     if (cause instanceof PrivyLoginError) return NextResponse.json({ error: cause.message }, { status: cause.status });
     console.error("privy login failed", cause);

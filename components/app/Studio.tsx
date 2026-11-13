@@ -45,6 +45,72 @@ const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 /** A published agent to start from ("Copy to Studio" on /agents and agent pages). */
 export type StudioTemplate = { id: string; name: string; strategy: Strategy; venue?: Venue; rules: Rules | null; symbols: string[]; maxPositionPct: number; stopLossPct: number };
 
+/**
+ * The agent being built, kept in sessionStorage while a logged-out visitor logs in from Launch.
+ * Normally the Studio keeps its state through a login; this covers a login that reloads the page
+ * (an OAuth redirect), so the visitor comes back to their agent with the launch dialog open.
+ */
+const DRAFT_KEY = "zolva_studio_draft";
+/** An older draft is an abandoned login, not one coming back. */
+const DRAFT_MAX_AGE_MS = 30 * 60 * 1000;
+
+type StudioDraft = {
+  savedAt: number;
+  name: string;
+  nameTouched: boolean;
+  strategy: Strategy;
+  rules: Rules;
+  symbols: string[];
+  venue: Venue;
+  capital: number;
+  mode: "paper" | "live";
+  liveCapital: number;
+  maxPositionPct: number;
+  stopLossPct: number;
+  aiModelId: string | null;
+  aiLimit: LimitDraft;
+  aiLimitTouched: boolean;
+  customMode: CustomMode;
+  generated: Generated | null;
+};
+
+function saveDraft(draft: Omit<StudioDraft, "savedAt">): void {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, savedAt: Date.now() }));
+  } catch {
+    // Storage blocked: a login without a reload still keeps the agent in memory.
+  }
+}
+
+function clearDraft(): void {
+  try {
+    sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Nothing saved.
+  }
+}
+
+/**
+ * The saved draft if it is recent and still names markets that trade here. It stays saved until
+ * the launch dialog opens or the login window is closed, because the Studio can mount more than
+ * once while the page loads.
+ */
+function readDraft(market: Market): StudioDraft | null {
+  let draft: StudioDraft | null = null;
+  try {
+    draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? "null") as StudioDraft | null;
+  } catch {
+    return null;
+  }
+  if (!draft || typeof draft.savedAt !== "number" || Date.now() - draft.savedAt > DRAFT_MAX_AGE_MS) {
+    clearDraft();
+    return null;
+  }
+  if (!Array.isArray(draft.symbols) || !draft.rules) return null;
+  const symbols = draft.symbols.filter((symbol) => market.tokens.some((token) => token.symbol === symbol));
+  return symbols.length ? { ...draft, symbols } : null;
+}
+
 /** Dip hunter and Spike fade enter one market at a time, so they cannot trade real money yet. */
 const PAPER_ONLY_STRATEGIES: readonly Strategy[] = ["dip_hunter", "spike_fade"];
 
@@ -161,6 +227,37 @@ export function Studio({
     if (next === "spot" && strategyNeedsPerps(strategy)) setStrategy("momentum");
   };
 
+  // Set when a draft saved before a login came back after a reload: the launch dialog opens
+  // once the login has finished.
+  const resumeLaunch = useRef(false);
+  // Remounts the prompt writer after a restore, so its text box shows the restored prompt.
+  const [draftVersion, setDraftVersion] = useState(0);
+  // sessionStorage only exists in the browser, so the draft is read after hydration, once.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const draft = readDraft(market);
+    if (!draft) return;
+    setName(draft.name);
+    setNameTouched(draft.nameTouched);
+    setStrategy(draft.strategy);
+    setRules(draft.rules);
+    setSymbols(draft.symbols);
+    setVenue(draft.venue);
+    setCapital(draft.capital);
+    setMode(draft.mode);
+    setLiveCapital(draft.liveCapital);
+    setMaxPositionPct(draft.maxPositionPct);
+    setStopLossPct(draft.stopLossPct);
+    setAiModelId(draft.aiModelId);
+    setAiLimit(draft.aiLimit);
+    setAiLimitTouched(draft.aiLimitTouched);
+    setCustomMode(draft.customMode);
+    setGenerated(draft.generated);
+    setDraftVersion((version) => version + 1);
+    resumeLaunch.current = true;
+  }, [market]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const launchRef = useRef<HTMLDialogElement>(null);
   const [launch, setLaunch] = useState<{ busy: boolean; error: string | null; terms: boolean; residence: boolean; risk: boolean }>({ busy: false, error: null, terms: false, residence: false, risk: false });
 
@@ -176,9 +273,31 @@ export function Studio({
       launchRef.current?.showModal();
     };
     track("launch_click", address ? undefined : "logged_out");
-    if (!address) openLogin(show);
-    else show();
+    if (address) return show();
+    saveDraft({ name, nameTouched, strategy, rules, symbols, venue, capital, mode, liveCapital, maxPositionPct, stopLossPct, aiModelId, aiLimit, aiLimitTouched, customMode, generated });
+    openLogin(
+      () => {
+        clearDraft();
+        show();
+      },
+      {
+        source: "studio",
+        heading: `Save and launch ${agentName.trim()}`,
+        // Real money needs a wallet set up after login, so the free paper line would be wrong there.
+        note: live ? "Log in to set up your wallet for real money trading." : `Free paper trading with $${agentCapital.toLocaleString("en-US")} of test money. No deposit, no wallet needed.`,
+        onDismiss: clearDraft,
+      },
+    );
   };
+
+  // A restored draft (see readDraft) opens the launch dialog once the visitor is logged in.
+  useEffect(() => {
+    if (!address || !resumeLaunch.current) return;
+    resumeLaunch.current = false;
+    clearDraft();
+    setLaunch({ busy: false, error: null, terms: false, residence: false, risk: false });
+    launchRef.current?.showModal();
+  }, [address]);
 
   const submitLaunch = async () => {
     if (!launch.terms || !launch.residence || (live && !launch.risk)) {
@@ -214,7 +333,7 @@ export function Studio({
       return;
     }
     launchRef.current?.close();
-    track("launch_ok", mode);
+    // launch_ok is recorded by /api/agents on the server (lib/funnel-server.ts).
     toast(live ? "Real money agent launched. Its first decision comes at the top of the next hour." : "Agent launched. It stays private until you publish it to the leaderboard.");
     router.push(`/agents/${body.id}`);
     router.refresh();
@@ -368,6 +487,7 @@ export function Studio({
 
           {strategy === "custom" && (
             <PromptWriter
+              key={draftVersion}
               mode={customMode}
               onModeChange={setCustomMode}
               generated={generated}

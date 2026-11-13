@@ -4542,6 +4542,17 @@ main:focus {
   transform: scale(0.98);
 }
 
+/* The suggested option when the login has a clear goal (Launch in the Studio): email or Google. */
+.privy__option--main {
+  border-color: var(--color-purple-5);
+  background: var(--color-surface-tint);
+}
+
+/* Line under a login title that says what logging in is for. */
+.privy__lead {
+  margin-top: calc(var(--space-100) * -1);
+}
+
 .privy__glyph {
   display: inline-grid;
   flex: none;

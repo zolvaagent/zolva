@@ -4,6 +4,7 @@ import { AgentInputError, createAgent, type CreateAgentInput, type LiveLaunch } 
 import { BLOCKED_MESSAGE, countryFromHeaders, isBlockedCountry, isLiveBlockedCountry, LIVE_BLOCKED_MESSAGE } from "@/lib/auth/geo";
 import { getSessionAddress } from "@/lib/auth/session";
 import { env } from "@/lib/env";
+import { recordFunnelEvent } from "@/lib/funnel-server";
 import { liveStatus } from "@/lib/live/onboard";
 import { createChainClient } from "@/lib/prices/onchain";
 import { db } from "@/lib/supabase";
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
       live = { usdg: status.usdg };
     }
     const { id } = await createAgent(client, owner, body, live);
+    await recordFunnelEvent(client, request, "launch_ok", owner, live ? "live" : "paper");
     return NextResponse.json({ id }, { status: 201 });
   } catch (cause) {
     if (cause instanceof AgentInputError) return NextResponse.json({ error: cause.message }, { status: 400 });
