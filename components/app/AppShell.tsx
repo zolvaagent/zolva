@@ -75,6 +75,10 @@ export function AppSidebar() {
           <i className="ph ph-book-open" />
           Docs
         </Link>
+        <Link className="app-link" href="/devlog" aria-current={pathname.startsWith("/devlog") ? "page" : undefined}>
+          <i className="ph ph-notebook" />
+          Dev log
+        </Link>
         <Link className="app-link" href="/terms">
           <i className="ph ph-file-text" />
           Terms

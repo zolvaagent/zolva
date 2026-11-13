@@ -37,15 +37,67 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-13-longbow-lending-markets-on-token-pages",
+    date: "2026-11-13",
+    area: "Markets",
+    title: "Longbow lending markets on token pages",
+    body: "When Longbow lists a market that lends USDG against a token, that token's page now says so, with the loan to value limit (LLTV) and a link to the market. The data comes from Longbow's public markets API, matched by token address, and the same field is in the public API and MCP.",
+    sources: [
+      commit("ee4e66c"),
+      { label: "Longbow", href: "https://www.longbow.finance" },
+      { label: "/docs/public-api", href: "https://zolvaagent.app/docs/public-api" },
+    ],
+  },
+  {
+    id: "2026-11-13-zolva-is-erc-8004-agent-25650-on-robinhood-chain",
+    date: "2026-11-13",
+    area: "API & MCP",
+    title: "Zolva is ERC-8004 agent #25650 on Robinhood Chain",
+    body: "Zolva is registered in the ERC-8004 identity registry on Robinhood Chain as agent #25650. Its registration file at /.well-known/agent-registration.json lists the MCP server, the public REST API and the x402 paid endpoints, so other agents can find and call Zolva from the chain record.",
+    sources: [
+      commit("f69d896"),
+      commit("6e63a13"),
+      {
+        label: "registration tx",
+        href: "https://robinhoodchain.blockscout.com/tx/0x0b12cda8817e35b293d87b7be523fd4905f9cd4e4b67d19a7ffa3e6da94ef8dd",
+      },
+      { label: "registration file", href: "https://zolvaagent.app/.well-known/agent-registration.json" },
+      { label: "8004scan", href: "https://8004scan.io/agents/robinhood-chain/25650" },
+    ],
+  },
+  {
     id: "2026-11-13-ask-any-ai-about-zolva-or-connect-it-to-yours",
     date: "2026-11-13",
     area: "API & MCP",
     title: "Ask any AI about Zolva, or connect it to yours",
-    body: "The footer opens ChatGPT, Claude, Google AI Mode or Grok with a question about Zolva already typed, pointed at /llms.txt, our own summary with the real money caps. Connect Zolva to your agent installs the read only MCP server in Cursor or VS Code in one click, and gives the exact snippet for Claude Code, Claude, Antigravity and Hermes.",
+    body: "The footer opens ChatGPT, Claude, Google AI Mode or Grok with a question about Zolva already typed, pointed at /llms.txt, our own summary with the real money caps. Connect Zolva to your agent installs the read only MCP server in Cursor or VS Code in one click, gives the exact snippet for Claude Code, Claude, Antigravity and Hermes, and an Any agent row with one npx add-mcp command that sets it up in 25 coding agents.",
     sources: [
+      commit("68a71b4"),
+      commit("54fdab2"),
       { label: "/llms.txt", href: "https://zolvaagent.app/llms.txt" },
       { label: "/docs/mcp", href: "https://zolvaagent.app/docs/mcp" },
     ],
+  },
+  {
+    id: "2026-11-12-live-orders-wait-while-a-stock-token-is-halted",
+    date: "2026-11-12",
+    area: "Real money",
+    title: "Live orders wait while a stock token is halted",
+    body: "Before a real money order on a stock token, Zolva now checks Harmonic's session oracle, a free public API that reports each token's issuer status. If the token is halted or paused, the order is held and the reason is logged; if the status cannot be read, the order goes ahead as before. Each stock market page shows an Issuer status · Harmonic line, with a hover card that explains the status in plain words. Paper agents are not affected.",
+    sources: [
+      commit("ad08bb9"),
+      commit("599e983"),
+      commit("b3e30ca"),
+      { label: "/markets/NVDA", href: "https://zolvaagent.app/markets/NVDA" },
+    ],
+  },
+  {
+    id: "2026-11-12-powered-by-lighter-badge-on-perps",
+    date: "2026-11-12",
+    area: "Perps",
+    title: "Powered by Lighter badge on perps",
+    body: "Perps pages and the crypto list now carry Lighter's official Powered by Lighter badge from its brand kit, because Zolva reads hourly perps prices and funding from Lighter's public API. Perps agents on Zolva trade on paper only.",
+    sources: [commit("1ad8c29"), { label: "/markets/BTC-PERP", href: "https://zolvaagent.app/markets/BTC-PERP" }],
   },
   {
     id: "2026-11-12-zolva-in-the-hermes-agent-plugin-catalog",
