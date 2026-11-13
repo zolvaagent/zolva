@@ -1970,6 +1970,12 @@ main:focus {
   height: 20px;
 }
 
+.footer__connect-icon {
+  color: var(--color-text);
+  font-size: 20px;
+  line-height: 20px;
+}
+
 .footer__connect-name {
   color: var(--color-text);
   font-size: 14px;

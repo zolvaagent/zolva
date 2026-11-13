@@ -21,6 +21,15 @@ const vscodeLink = () => `vscode:mcp/install?${encodeURIComponent(JSON.stringify
 type Client = { name: string; logo: string; mono: boolean; detail: string } & ({ kind: "install"; href: () => string } | { kind: "copy"; snippet: string });
 
 const CLIENTS: Client[] = [
+  // add-mcp (npm, neon-solutions/add-mcp) writes the server into 25 coding agents at once; also what mcpservers.org shows.
+  {
+    name: "Any agent",
+    logo: "ph:terminal-window",
+    mono: true,
+    detail: "Claude Code, Codex, Cursor and 20+ more",
+    kind: "copy",
+    snippet: `npx add-mcp ${MCP_URL}`,
+  },
   { name: "Cursor", logo: "/ai-logos/cursor.svg", mono: true, detail: "One click install", kind: "install", href: cursorLink },
   { name: "VS Code", logo: "/ai-logos/githubcopilot.svg", mono: true, detail: "One click, for Copilot Chat", kind: "install", href: vscodeLink },
   { name: "Claude Code", logo: "/ai-logos/claudecode-color.svg", mono: false, detail: "Run in your terminal", kind: "copy", snippet: `claude mcp add --transport http zolva ${MCP_URL}` },
@@ -37,6 +46,8 @@ const CLIENTS: Client[] = [
 ];
 
 function Logo({ logo, mono }: { logo: string; mono: boolean }) {
+  // "ph:<name>" is a Phosphor icon instead of a brand mark (for rows that are not one product).
+  if (logo.startsWith("ph:")) return <i className={`ph ph-${logo.slice(3)} footer__connect-logo footer__connect-icon`} aria-hidden="true" />;
   return mono ? (
     <span className="footer__ask-mono footer__connect-logo" style={{ maskImage: `url(${logo})`, WebkitMaskImage: `url(${logo})` }} aria-hidden="true" />
   ) : (
