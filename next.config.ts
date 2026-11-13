@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/forge", destination: "/studio", permanent: true }];
   },
+  async rewrites() {
+    // ERC-8004 agentURI and endpoint-domain verification file (lib/erc8004.ts).
+    return [{ source: "/.well-known/agent-registration.json", destination: "/api/erc8004/registration" }];
+  },
   turbopack: {
     // Pinned so Turbopack does not walk up and pick an unrelated lockfile.
     root: dirname,
