@@ -1850,6 +1850,165 @@ main:focus {
   -webkit-mask-position: center;
 }
 
+/* "Connect Zolva to your agent" (components/site/AddZolvaTo.tsx): a quiet link under the Ask row
+   that opens a list of AI clients, each with one Install or Copy action. */
+.footer__connect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-200);
+  margin: calc(-1 * var(--space-300)) 0 var(--space-600);
+}
+
+.footer .footer__connect-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
+  padding: var(--space-50) var(--space-100);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: color var(--duration-micro) var(--ease-out-expo), background-color var(--duration-micro) var(--ease-out-expo);
+}
+
+.footer .footer__connect-toggle:hover,
+.footer .footer__connect-toggle[aria-expanded="true"] {
+  color: var(--color-text);
+  background: var(--color-tint);
+}
+
+/* A slowly turning gradient ring so the link reads as the one thing to try. The ring is a masked
+   pseudo element, so it works on any background and in both themes. */
+@property --connect-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes connect-ring {
+  to {
+    --connect-angle: 360deg;
+  }
+}
+
+.footer .footer__connect-toggle {
+  position: relative;
+  isolation: isolate;
+  padding: var(--space-75) var(--space-200);
+}
+
+.footer .footer__connect-toggle::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--connect-angle), #8075ff, #a9dcff, #2fcf78, #8075ff 60%, rgba(128, 117, 255, 0.15) 80%, #8075ff);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: connect-ring 4s linear infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .footer .footer__connect-toggle::before {
+    animation: none;
+  }
+}
+
+.footer .footer__connect-toggle:focus-visible {
+  outline: 2px solid var(--color-purple-rich);
+  outline-offset: 2px;
+}
+
+.footer__connect-panel {
+  width: min(600px, 100%);
+  padding: var(--space-200) var(--space-300);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+}
+
+.footer__connect-intro {
+  padding-bottom: var(--space-100);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.footer__connect-intro code {
+  color: var(--color-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.footer__connect-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footer__connect-row {
+  display: grid;
+  grid-template-columns: 20px 112px 1fr auto;
+  align-items: center;
+  gap: var(--space-100);
+  padding: var(--space-100) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.footer__connect-logo {
+  width: 20px;
+  height: 20px;
+}
+
+.footer__connect-name {
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.footer__connect-detail {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footer__connect-row .button {
+  min-width: 84px;
+  justify-content: center;
+}
+
+/* Phones: the detail drops under the name so the row keeps its action button. */
+@media (max-width: 520px) {
+  .footer__connect-row {
+    grid-template-columns: 20px 1fr auto;
+  }
+
+  .footer__connect-detail {
+    grid-column: 2;
+    grid-row: 2;
+    white-space: normal;
+  }
+
+  .footer__connect-row .button {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
 /* ---------- App pages ---------- */
 
 .page {
@@ -3760,6 +3919,18 @@ main:focus {
 .perp-grid__label i {
   color: var(--color-purple-rich);
   font-size: 16px;
+}
+
+/* Phones: six footer tiles in one row need a little less room each. */
+@media (max-width: 480px) {
+  .footer .footer__ask-link {
+    width: 44px;
+    height: 44px;
+  }
+
+  .footer__ask-list {
+    gap: var(--space-75);
+  }
 }
 
 /* Two tiles a row on phones: keep the funding rate, drop the word. */

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
+import { AddZolvaTo } from "@/components/site/AddZolvaTo";
 import { useAuth, useToast } from "@/components/ui/Providers";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { GITHUB_REPO_URL, SOCIAL_LINKS } from "@/lib/social";
@@ -182,6 +183,7 @@ export function SiteFooter() {
         </div>
 
         <AskAboutZolva />
+        <AddZolvaTo />
 
         <div className="footer__bottom">
           <span>© 2026 Zolva. Trading can lose money. Nothing here is investment advice.</span>

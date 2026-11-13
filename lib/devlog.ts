@@ -37,6 +37,17 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-13-ask-any-ai-about-zolva-or-connect-it-to-yours",
+    date: "2026-11-13",
+    area: "API & MCP",
+    title: "Ask any AI about Zolva, or connect it to yours",
+    body: "The footer opens ChatGPT, Claude, Google AI Mode or Grok with a question about Zolva already typed, pointed at /llms.txt, our own summary with the real money caps. Connect Zolva to your agent installs the read only MCP server in Cursor or VS Code in one click, and gives the exact snippet for Claude Code, Claude, Antigravity and Hermes.",
+    sources: [
+      { label: "/llms.txt", href: "https://zolvaagent.app/llms.txt" },
+      { label: "/docs/mcp", href: "https://zolvaagent.app/docs/mcp" },
+    ],
+  },
+  {
     id: "2026-11-12-zolva-in-the-hermes-agent-plugin-catalog",
     date: "2026-11-12",
     area: "API & MCP",
