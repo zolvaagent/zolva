@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { RealMoneyPill } from "@/components/app/AgentKind";
+import { ApiKeysCard } from "@/components/app/ApiKeysCard";
 import { DecisionRow } from "@/components/app/AgentView";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { MembershipCard } from "@/components/app/MembershipCard";
@@ -8,6 +9,7 @@ import { WalletExport } from "@/components/app/WalletExport";
 import { TrackedLink } from "@/components/ui/TrackedLink";
 import { UsdgTopUp } from "@/components/app/UsdgTopUp";
 import { ZolvaTopUp } from "@/components/app/ZolvaTopUp";
+import type { ApiKeyEventRow, ApiKeyRow } from "@/lib/api-keys/server";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { Decision } from "@/lib/engine/engine";
 import { dateAt, marketList, percent, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
@@ -31,6 +33,8 @@ type Props = {
   maxActive: number;
   /** A public paper agent a new account can start from ("Use these rules"), or null. */
   starter: AgentSummary | null;
+  /** The account's API keys (not revoked) and their latest audit events. */
+  apiKeys: { keys: ApiKeyRow[]; events: ApiKeyEventRow[] };
 };
 
 function greeting() {
@@ -38,7 +42,7 @@ function greeting() {
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Dashboard({ address, agents, curves, latest, top, credits, loginMethod, liveSigner, maxActive, starter }: Props) {
+export function Dashboard({ address, agents, curves, latest, top, credits, loginMethod, liveSigner, maxActive, starter, apiKeys }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
   const totalStart = agents.reduce((sum, agent) => sum + agent.startCapital, 0);
   const totalNow = agents.reduce((sum, agent) => sum + agent.equity, 0);
@@ -285,6 +289,8 @@ export function Dashboard({ address, agents, curves, latest, top, credits, login
               <ZolvaTopUp address={address} loginMethod={loginMethod} />
             </div>
           </div>
+
+          <ApiKeysCard initialKeys={apiKeys.keys} initialEvents={apiKeys.events} />
 
           <div className="card stack stack--tight">
             <div className="card-head" style={{ margin: 0 }}>

@@ -3,7 +3,9 @@ import "server-only";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { checkApiKey, type KeyCheck } from "@/lib/api-keys/server";
 import { API_VERSION } from "@/lib/public-api/format";
+import { db } from "@/lib/supabase";
 
 /**
  * Shared plumbing for every public API v1 route:
@@ -11,7 +13,10 @@ import { API_VERSION } from "@/lib/public-api/format";
  *   skipped where the binding does not exist, such as next dev),
  * - an edge cache (the Worker's Cache API) so repeated calls do not reach Supabase,
  * - open CORS, since the data is public and read-only,
- * - one error shape: { "error": { "code", "message" } }.
+ * - one error shape: { "error": { "code", "message" } },
+ * - API keys: "Authorization: Bearer zk_..." (lib/api-keys). A valid key swaps the per-IP
+ *   limit for the key's own limits (API_KEY_READ_LIMITER 120 a minute, API_KEY_WRITE_LIMITER
+ *   30 a minute); a wrong or revoked key is a 401, never a silent fall back to keyless.
  */
 
 type RateLimiter = { limit: (options: { key: string }) => Promise<{ success: boolean }> };
@@ -51,6 +56,31 @@ export async function checkLimit(request: Request): Promise<"limited" | "on" | "
   return success ? "on" : "limited";
 }
 
+export type KeyLimitKind = "read" | "write";
+
+/**
+ * The per-key limits, keyed by key id so many keys behind one server IP do not share a
+ * limit. Like checkLimit, "off" where the bindings do not exist (next dev, tests).
+ */
+export async function checkKeyLimit(keyId: string, kind: KeyLimitKind): Promise<"limited" | "on" | "off"> {
+  const env = cloudflareEnv();
+  const limiter = (kind === "read" ? env?.API_KEY_READ_LIMITER : env?.API_KEY_WRITE_LIMITER) as RateLimiter | undefined;
+  if (!limiter) return "off";
+  const { success } = await limiter.limit({ key: `${kind}:${keyId}` });
+  return success ? "on" : "limited";
+}
+
+/** Checks the request's API key, if it sends one (see lib/api-keys/server.ts). */
+export function checkRequestKey(request: Request): Promise<KeyCheck> {
+  return checkApiKey(db(), request.headers);
+}
+
+export const INVALID_KEY_MESSAGE = "This API key is wrong or was revoked. Make a new one on your Zolva Dashboard.";
+export const KEY_LIMIT_MESSAGES: Record<KeyLimitKind, string> = {
+  read: "Too many requests for this API key: 120 a minute.",
+  write: "Too many writes for this API key: 30 a minute.",
+};
+
 /**
  * A JSON body from the edge cache, or from the loader (then stored for maxAge seconds).
  * Used by the MCP tools, which share the REST routes' loaders and cache times. null bodies
@@ -71,8 +101,19 @@ export async function cachedBody<T>(key: string, maxAge: number, load: () => Pro
  * body, or null for "not found". maxAge is how long (seconds) a response may be reused.
  */
 export async function publicGet(request: NextRequest, maxAge: number, handler: () => Promise<unknown | null>): Promise<Response> {
-  const limit = await checkLimit(request);
-  if (limit === "limited") return apiError(429, "rate_limited", "Too many requests: about 60 a minute per IP. Cache responses on your side.", { "Retry-After": "60" });
+  let key: KeyCheck;
+  try {
+    key = await checkRequestKey(request);
+  } catch (cause) {
+    console.error("public api key", cause);
+    return apiError(500, "internal_error", "Something went wrong on our side. Please try again later.");
+  }
+  if (key.kind === "invalid") return apiError(401, "invalid_api_key", INVALID_KEY_MESSAGE);
+  const limit = key.kind === "ok" ? await checkKeyLimit(key.caller.keyId, "read") : await checkLimit(request);
+  if (limit === "limited") {
+    const message = key.kind === "ok" ? KEY_LIMIT_MESSAGES.read : "Too many requests: about 60 a minute per IP. Cache responses on your side.";
+    return apiError(429, "rate_limited", message, { "Retry-After": "60" });
+  }
   // Says whether the per-IP limit ran, so a missing binding shows up in any response.
   const limitHeader = { "X-Zolva-Rate-Limit": limit };
 

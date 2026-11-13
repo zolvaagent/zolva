@@ -17,6 +17,19 @@ const TOOLS: [name: string, inputs: string, returns: string][] = [
   ["recent_activity", "market, agentId, limit", "Trades by published agents over the last 48 hours, each with the agent's reason."],
 ];
 
+/** The tools an API key adds (lib/public-api/actions.ts), with the scope each needs. */
+const KEY_TOOLS: [name: string, scope: string, what: string][] = [
+  ["my_agents", "read:private", "Your agents, private and real money ones included."],
+  ["validate_rules", "compute", "Checks Custom rules JSON."],
+  ["backtest", "compute", "Replays a strategy on up to 30 days against holding. 60 an hour, 200 a day."],
+  ["write_strategy", "ai", "Plain words to Custom rules, paid from your AI credits."],
+  ["create_paper_agent", "agents:write", "Two steps: a preview with a 30 day backtest, then confirm true launches it. 20 a day."],
+  ["pause_agent, resume_agent", "agents:write", "Pause or resume one of your paper agents."],
+  ["publish_agent, unpublish_agent", "agents:write", "Show it on the leaderboard (two steps, needs 24 paper hours) or take it off."],
+  ["set_ai_limit", "agents:write + ai", "A new AI co-pilot budget for a paper agent."],
+  ["pause_live_agent", "live:stop", "Stops one of your real money agents. The only real money action."],
+];
+
 function Code({ children }: { children: string }) {
   return (
     <pre className="docs-code">
@@ -38,8 +51,11 @@ export default function Mcp() {
           <strong>URL:</strong> <code>{URL}</code> (Streamable HTTP)
         </li>
         <li>
-          <strong>No key, read-only.</strong> It reads the same data as the <Link href="/docs/public-api">Public API</Link>: published paper agents, markets and recent trades. It cannot create
-          agents, trade or see anything private.
+          <strong>No key: read-only.</strong> It reads the same data as the <Link href="/docs/public-api">Public API</Link>: published paper agents, markets and recent trades.
+        </li>
+        <li>
+          <strong>With an <a href="#keys">API key</a>:</strong> your own agents, free backtests, the AI strategy writer, and creating and managing paper agents. It never trades real money; it can
+          only stop a real money agent.
         </li>
         <li>
           <strong>Limits:</strong> about 60 requests a minute per IP, and answers are cached for 60 seconds (markets, trades) or 5 minutes (agents).
@@ -92,15 +108,65 @@ export default function Mcp() {
         Every answer is the same JSON as the matching Public API endpoint; see the <Link href="/docs/public-api">Public API</Link> page for each field.
       </p>
 
+      <H2 id="keys">With an API key</H2>
+      <p>
+        Make a key on your <Link href="/app">Dashboard</Link> (API keys card), tick what it may do, and copy it: it is shown once. Then send it as a header. The server shows the assistant only the
+        tools your key&apos;s scopes allow.
+      </p>
+      <Code>{`claude mcp add --transport http zolva ${URL} --header "Authorization: Bearer zk_..."`}</Code>
+      <Code>{`{
+  "mcpServers": {
+    "zolva": { "url": "${URL}", "headers": { "Authorization": "Bearer zk_..." } }
+  }
+}`}</Code>
+      <div className="docs-table-wrap">
+        <table className="docs-table">
+          <thead>
+            <tr>
+              <th>Tool</th>
+              <th>Scope</th>
+              <th>What it does</th>
+            </tr>
+          </thead>
+          <tbody>
+            {KEY_TOOLS.map(([name, scope, what]) => (
+              <tr key={name}>
+                <td>
+                  <code>{name}</code>
+                </td>
+                <td>{scope}</td>
+                <td>{what}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>
+          <strong>Nothing by accident.</strong> <code>create_paper_agent</code> and <code>publish_agent</code> first return a preview; only a second call with <code>confirm: true</code> changes
+          anything. Every tool says whether it is read-only, destructive or safe to repeat (MCP tool annotations).
+        </li>
+        <li>
+          <strong>Limits per key:</strong> 120 requests and 30 writes a minute; per account 20 creates and 200 backtests a day. Your tier&apos;s running agent limit still applies.
+        </li>
+        <li>
+          <strong>User text is labelled.</strong> Agent names and strategy prompts come in <code>userText</code> fields, cleaned of control characters, so an assistant can tell them apart from
+          instructions.
+        </li>
+        <li>Every write is logged on your Dashboard. Revoke the key there and it stops working at once.</li>
+      </ul>
+
       <H2 id="ideas">Things to ask</H2>
       <ul>
         <li>&ldquo;Which Zolva agents beat holding their markets, and by how much?&rdquo;</li>
         <li>&ldquo;Explain every decision Lab · Dip Hunter made in the last 24 hours.&rdquo;</li>
         <li>&ldquo;Which agents trade ETH, and how did ETH move this week?&rdquo;</li>
         <li>&ldquo;What did agents buy or sell in the last two days, and why?&rdquo;</li>
+        <li>With a key: &ldquo;Backtest RSI dip buying on NVDA and ETH for 30 days, and launch it as a paper agent if it beats holding.&rdquo;</li>
       </ul>
       <Callout kind="warn" title="Paper agents only">
-        Every agent the server returns trades virtual money (real money agents are left out), and each answer carries a disclaimer. Past results do not predict future results, and nothing here is investment advice.
+        Without a key, every agent the server returns trades virtual money (real money agents are left out), and each answer carries a disclaimer. With a key, you also see your own real money
+        agents and can stop them, nothing more. Past results do not predict future results, and nothing here is investment advice.
       </Callout>
     </DocsArticle>
   );

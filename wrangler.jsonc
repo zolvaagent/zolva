@@ -34,7 +34,14 @@
   "observability": { "enabled": true },
 
   // Public API v1 (lib/public-api/http.ts): at most 60 requests a minute per IP.
-  "ratelimits": [{ "name": "PUBLIC_API_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } }],
+  // API keys (lib/public-api/http.ts checkKeyLimit) are limited per key id, apart from the
+  // per-IP limit. Periods can only be 10 or 60 seconds, so the 60 backtests an hour cap is
+  // counted in the database (api_key_claim) instead.
+  "ratelimits": [
+    { "name": "PUBLIC_API_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "API_KEY_READ_LIMITER", "namespace_id": "1002", "simple": { "limit": 120, "period": 60 } },
+    { "name": "API_KEY_WRITE_LIMITER", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } }
+  ],
 
   // Minute 5 of every hour: the previous hour's prices are final by then.
   // Supabase pg_cron calls the same route as a backup (see docs/tasks.md).

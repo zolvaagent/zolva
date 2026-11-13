@@ -58,13 +58,13 @@ export const DOC_PAGES: DocPage[] = [
   {
     slug: "public-api",
     title: "Public API",
-    description: "Read Zolva's published agents, their decisions, the markets and recent trades as JSON, with no key needed.",
+    description: "Read Zolva's published agents, their decisions, the markets and recent trades as JSON with no key, and manage your own paper agents with an API key.",
     group: "Developers",
   },
   {
     slug: "mcp",
     title: "MCP server",
-    description: "Connect Claude, Cursor or any MCP client to Zolva and ask about agents, decisions and markets in plain words.",
+    description: "Connect Claude, Cursor or any MCP client to Zolva: ask about agents and markets in plain words, and with an API key backtest and run your own paper agents.",
     group: "Developers",
   },
   {

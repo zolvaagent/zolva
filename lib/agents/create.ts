@@ -44,12 +44,56 @@ export type LiveLaunch = { usdg: number };
 export class AgentInputError extends Error {}
 
 
+/** The agents row createAgent would insert, after every check passed. */
+export type AgentDraftRow = {
+  owner: string;
+  name: string;
+  strategy: string;
+  params: Record<string, unknown>;
+  token_addresses: string[];
+  start_capital: number;
+  cash: number;
+  status: "active";
+  mode: "paper" | "live";
+  trading_wallet?: string;
+  ai_model: string | null;
+  ai_limit_micro: number | null;
+  ai_limit_expires_at: string | null;
+  strategy_prompt: string | null;
+  last_run_ts: string;
+};
+
 /**
  * Validates untrusted Studio input and launches a paper agent for `owner`.
  * The agent starts at the newest stored hour, so its first decision is made
  * by the next hourly tick, never on the past.
  */
 export async function createAgent(db: SupabaseClient, owner: string, input: CreateAgentInput, live?: LiveLaunch): Promise<{ id: string }> {
+  const row = await checkAgentInput(db, owner, input, live);
+  const mode = row.mode;
+  const { data, error } = await db.from("agents").insert(row).select("id").single();
+
+  if (error) {
+    if (mode === "live" && error.message.includes("active_agent_limit")) throw new AgentInputError("You already run a real money agent. Pause it in your dashboard to launch another.");
+    if (error.message.includes("live_wallet_not_allowed")) throw new AgentInputError("Allow Zolva to trade from your wallet first.");
+    if (error.message.includes("live_capital_over_cap")) throw new AgentInputError("That capital is above the real money limit.");
+    if (error.message.includes("active_agent_limit")) {
+      throw new AgentInputError(`You already run ${activeLimitIn(error.message)} agents, the most at once. Pause one in your dashboard to launch another.`);
+    }
+    throw new Error(`Saving the agent failed: ${error.message}`);
+  }
+
+  await db.from("wallets").update({ terms_accepted_at: new Date().toISOString() }).eq("address", owner).is("terms_accepted_at", null);
+  return { id: data.id };
+}
+
+/**
+ * Every check createAgent makes, without saving anything: returns the row it would
+ * insert or throws AgentInputError. The API's create preview (confirm: false) uses it, so
+ * a preview and a launch can never disagree. The active agent limit is only checked by
+ * the database trigger, on the real insert.
+ */
+export async function checkAgentInput(db: SupabaseClient, owner: string, input: CreateAgentInput, live?: LiveLaunch): Promise<AgentDraftRow> {
   const mode = input.mode === "live" ? "live" : "paper";
   if (mode === "live" && !live) throw new AgentInputError("Real money needs your wallet balance; please try again.");
   const name = typeof input.name === "string" ? input.name.trim().replace(/\s+/g, " ") : "";
@@ -127,40 +171,23 @@ export async function createAgent(db: SupabaseClient, owner: string, input: Crea
     startPrices[address] = price;
   }
 
-  const { data, error } = await db
-    .from("agents")
-    .insert({
-      owner,
-      name,
-      strategy,
-      params: { max_position_pct: maxPositionPct, stop_loss_pct: stopLossPct, start_prices: startPrices, ...(rules ? { rules } : {}), ...(perps ? { venue: "perps" } : {}) },
-      token_addresses: tokens,
-      start_capital: capital,
-      cash: capital,
-      status: "active",
-      mode,
-      ...(mode === "live" ? { trading_wallet: owner } : {}),
-      ai_model: aiModelId,
-      ai_limit_micro: aiLimit?.limitMicro ?? null,
-      ai_limit_expires_at: aiLimit?.expiresAt ?? null,
-      strategy_prompt: strategyPrompt,
-      last_run_ts: new Date((market.startTs + lastIndex * 3600) * 1000).toISOString(),
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    if (mode === "live" && error.message.includes("active_agent_limit")) throw new AgentInputError("You already run a real money agent. Pause it in your dashboard to launch another.");
-    if (error.message.includes("live_wallet_not_allowed")) throw new AgentInputError("Allow Zolva to trade from your wallet first.");
-    if (error.message.includes("live_capital_over_cap")) throw new AgentInputError("That capital is above the real money limit.");
-    if (error.message.includes("active_agent_limit")) {
-      throw new AgentInputError(`You already run ${activeLimitIn(error.message)} agents, the most at once. Pause one in your dashboard to launch another.`);
-    }
-    throw new Error(`Saving the agent failed: ${error.message}`);
-  }
-
-  await db.from("wallets").update({ terms_accepted_at: new Date().toISOString() }).eq("address", owner).is("terms_accepted_at", null);
-  return { id: data.id };
+  return {
+    owner,
+    name,
+    strategy,
+    params: { max_position_pct: maxPositionPct, stop_loss_pct: stopLossPct, start_prices: startPrices, ...(rules ? { rules } : {}), ...(perps ? { venue: "perps" } : {}) },
+    token_addresses: tokens,
+    start_capital: capital,
+    cash: capital,
+    status: "active",
+    mode,
+    ...(mode === "live" ? { trading_wallet: owner } : {}),
+    ai_model: aiModelId,
+    ai_limit_micro: aiLimit?.limitMicro ?? null,
+    ai_limit_expires_at: aiLimit?.expiresAt ?? null,
+    strategy_prompt: strategyPrompt,
+    last_run_ts: new Date((market.startTs + lastIndex * 3600) * 1000).toISOString(),
+  };
 }
 
 /** Change one of the owner's AI budgets: a new total limit and a new expiry counted from now. */

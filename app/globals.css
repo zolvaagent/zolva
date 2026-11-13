@@ -8732,3 +8732,86 @@ li.stats-ranks__row {
   font-size: 13px;
   line-height: 18px;
 }
+
+/* Dashboard "API keys" card (components/app/ApiKeysCard.tsx). Colours come from the theme tokens. */
+.api-keys__note,
+.api-keys__meta {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.api-keys__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.api-keys__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-75);
+  padding-bottom: var(--space-100);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.api-keys__row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.api-keys__row-head,
+.api-keys__event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-100);
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.api-keys__prefix {
+  margin-left: var(--space-75);
+  font-size: 12px;
+}
+
+.api-keys__scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50);
+}
+
+.api-keys__secret {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+  padding: var(--space-200);
+  border: 1px solid var(--color-purple-5);
+  border-radius: var(--radius-2xl);
+  background: var(--color-purple-8);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.api-keys__secret code {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  user-select: all;
+}
+
+.api-keys__fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.api-keys__events summary {
+  cursor: pointer;
+  margin-bottom: var(--space-100);
+}

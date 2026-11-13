@@ -188,6 +188,7 @@ describe("publicTrade", () => {
       at: new Date(NOW * 1000).toISOString(),
       agentId: summary.id,
       agentName: summary.name,
+      userText: { agentName: summary.name },
       byZolva: true,
       strategy: "dip_hunter",
       market: "ETH",

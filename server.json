@@ -3,7 +3,7 @@
   "name": "app.zolvaagent/zolva",
   "title": "Zolva",
   "description": "Trading agents on Robinhood Chain: every buy, sell and hold with its reason, plus market prices.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "websiteUrl": "https://zolvaagent.app/docs/mcp",
   "repository": {
     "url": "https://github.com/zolvaagent/zolva",

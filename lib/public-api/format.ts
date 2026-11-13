@@ -24,12 +24,32 @@ const iso = (unixSeconds: number) => new Date(unixSeconds * 1000).toISOString();
 // Halves round away from zero, so a loss rounds like the same gain (-1.555 to -1.56).
 const round = (value: number, digits = 4) => (Math.sign(value) * Math.round(Math.abs(value) * 10 ** digits)) / 10 ** digits;
 
+/** Most characters of an agent name, and of a strategy prompt, the API returns. */
+export const USER_TEXT_LIMITS = { name: 40, prompt: 600 } as const;
+
+/**
+ * Text a user typed (agent names, strategy prompts), made safe to hand to an AI client:
+ * control characters, zero-width and bidirectional marks are removed, whitespace is
+ * collapsed and the length capped. The API returns it in fields labelled userText, and
+ * the MCP instructions say those fields are user content, never instructions.
+ */
+export function cleanUserText(value: string, maxLength: number): string {
+  return value
+    .replace(/[\p{Cc}\p{Cf}\u2028\u2029]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
 export type PublicAgent = ReturnType<typeof publicAgent>;
 
 export function publicAgent(agent: AgentSummary) {
+  const name = cleanUserText(agent.name, USER_TEXT_LIMITS.name);
   return {
     id: agent.id,
-    name: agent.name,
+    name,
+    // The same name, labelled as text a user typed (see cleanUserText).
+    userText: { name },
     strategy: agent.strategy,
     strategyName: STRATEGY_NAMES[agent.strategy] ?? agent.strategy,
     markets: agent.tokens.map((token) => token.symbol),
@@ -166,7 +186,8 @@ export function publicTrade(trade: ActivityTrade) {
   return {
     at: iso(trade.ts),
     agentId: trade.agentId,
-    agentName: trade.agentName,
+    agentName: cleanUserText(trade.agentName, USER_TEXT_LIMITS.name),
+    userText: { agentName: cleanUserText(trade.agentName, USER_TEXT_LIMITS.name) },
     byZolva: trade.isHouse,
     strategy: trade.strategy,
     market: trade.symbol,

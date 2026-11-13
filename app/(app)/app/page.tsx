@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
 import { Dashboard } from "@/components/app/Dashboard";
+import { listApiKeyEvents, listApiKeys } from "@/lib/api-keys/server";
 import { LoginPrompt } from "@/components/app/LoginPrompt";
 import { getSessionAddress, LOGIN_METHOD_COOKIE } from "@/lib/auth/session";
 import { equityCurves, listAgents, listAgentsByOwner, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES, tokenSymbols } from "@/lib/data/agents";
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
   }
 
   const client = db();
-  const [agents, everyone, symbols, credits, liveWallet, cookieStore, tier] = await Promise.all([
+  const [agents, everyone, symbols, credits, liveWallet, cookieStore, tier, apiKeys] = await Promise.all([
     listAgentsByOwner(client, address),
     listAgents(client),
     tokenSymbols(client),
@@ -40,6 +41,13 @@ export default async function DashboardPage() {
     client.from("live_wallets").select("address").eq("address", address).maybeSingle(),
     cookies(),
     storedTier(client, address),
+    // Until the api_keys migration is applied the card shows no keys instead of breaking the Dashboard.
+    Promise.all([listApiKeys(client, address), listApiKeyEvents(client, address)])
+      .then(([keys, events]) => ({ keys, events }))
+      .catch((cause) => {
+        console.error("dashboard api keys", cause);
+        return { keys: [], events: [] };
+      }),
   ]);
   // Display only: decides whether to offer the private key export (Privy embedded wallets).
   const loginMethod = cookieStore.get(LOGIN_METHOD_COOKIE)?.value === "privy" ? "privy" : cookieStore.get(LOGIN_METHOD_COOKIE)?.value === "wallet" ? "wallet" : null;
@@ -68,5 +76,5 @@ export default async function DashboardPage() {
     : (everyone
         .filter((agent) => agent.status === "active" && agent.published && agent.venue === "spot" && agent.runs >= 72 && agent.tokens.length <= STUDIO_MAX_MARKETS && (STUDIO_STRATEGIES as readonly string[]).includes(agent.strategy))
         .sort((a, b) => b.returnPct - a.returnPct)[0] ?? null);
-  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} loginMethod={loginMethod} liveSigner={Boolean(liveWallet.data)} maxActive={TIERS[tier].activeAgents} starter={starter} />;
+  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} loginMethod={loginMethod} liveSigner={Boolean(liveWallet.data)} maxActive={TIERS[tier].activeAgents} starter={starter} apiKeys={apiKeys} />;
 }
