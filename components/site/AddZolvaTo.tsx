@@ -55,10 +55,13 @@ function Logo({ logo, mono }: { logo: string; mono: boolean }) {
   );
 }
 
-export function AddZolvaTo() {
+/** `floating`: used inside the landing page's bottom dock (AskDock); the panel then opens upward. */
+export function AddZolvaTo({ floating = false }: { floating?: boolean }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Two instances can be on one page (footer and dock), so each panel needs its own id.
+  const panelId = floating ? "connect-panel-dock" : "connect-panel";
 
   // Close on a click outside or Escape.
   useEffect(() => {
@@ -87,13 +90,20 @@ export function AddZolvaTo() {
     );
 
   return (
-    <div className="footer__connect" ref={rootRef}>
-      <button className="footer__connect-toggle" type="button" aria-expanded={open} aria-controls="connect-panel" onClick={() => setOpen((value) => !value)}>
-        Connect Zolva to your agent
+    <div className={floating ? "footer__connect footer__connect--floating" : "footer__connect"} ref={rootRef}>
+      <button className="footer__connect-toggle" type="button" aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((value) => !value)}>
+        {floating ? (
+          <>
+            <span className="ask-dock__long">Connect Zolva to your agent</span>
+            <span className="ask-dock__short">Connect agent</span>
+          </>
+        ) : (
+          "Connect Zolva to your agent"
+        )}
         <i className={`ph ${open ? "ph-x" : "ph-arrow-right"}`} aria-hidden="true" />
       </button>
       {open && (
-        <div className="footer__connect-panel" id="connect-panel">
+        <div className="footer__connect-panel" id={panelId}>
           <p className="footer__connect-intro">
             Read only MCP server, no key: <code>{MCP_URL}</code>
           </p>

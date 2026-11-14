@@ -1851,7 +1851,7 @@ main:focus {
 }
 
 /* .footer a sets width: fit-content; these tiles need a fixed square. */
-.footer .footer__ask-link {
+:is(.footer, .ask-dock) .footer__ask-link {
   display: grid;
   place-items: center;
   flex: none;
@@ -1865,16 +1865,16 @@ main:focus {
     background-color var(--duration-micro) var(--ease-out-expo);
 }
 
-.footer .footer__ask-link:hover {
+:is(.footer, .ask-dock) .footer__ask-link:hover {
   border-color: var(--color-purple-rich);
   background: var(--color-tint);
 }
 
-.footer .footer__ask-link:active {
+:is(.footer, .ask-dock) .footer__ask-link:active {
   transform: scale(0.96);
 }
 
-.footer .footer__ask-link:focus-visible {
+:is(.footer, .ask-dock) .footer__ask-link:focus-visible {
   outline: 2px solid var(--color-purple-rich);
   outline-offset: 2px;
 }
@@ -1908,7 +1908,7 @@ main:focus {
   margin: calc(-1 * var(--space-300)) 0 var(--space-600);
 }
 
-.footer .footer__connect-toggle {
+:is(.footer, .ask-dock) .footer__connect-toggle {
   display: inline-flex;
   align-items: center;
   gap: var(--space-75);
@@ -1924,8 +1924,8 @@ main:focus {
   transition: color var(--duration-micro) var(--ease-out-expo), background-color var(--duration-micro) var(--ease-out-expo);
 }
 
-.footer .footer__connect-toggle:hover,
-.footer .footer__connect-toggle[aria-expanded="true"] {
+:is(.footer, .ask-dock) .footer__connect-toggle:hover,
+:is(.footer, .ask-dock) .footer__connect-toggle[aria-expanded="true"] {
   color: var(--color-text);
   background: var(--color-tint);
 }
@@ -1944,13 +1944,13 @@ main:focus {
   }
 }
 
-.footer .footer__connect-toggle {
+:is(.footer, .ask-dock) .footer__connect-toggle {
   position: relative;
   isolation: isolate;
   padding: var(--space-75) var(--space-200);
 }
 
-.footer .footer__connect-toggle::before {
+:is(.footer, .ask-dock) .footer__connect-toggle::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -1968,12 +1968,12 @@ main:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .footer .footer__connect-toggle::before {
+  :is(.footer, .ask-dock) .footer__connect-toggle::before {
     animation: none;
   }
 }
 
-.footer .footer__connect-toggle:focus-visible {
+:is(.footer, .ask-dock) .footer__connect-toggle:focus-visible {
   outline: 2px solid var(--color-purple-rich);
   outline-offset: 2px;
 }
@@ -2061,6 +2061,146 @@ main:focus {
     grid-column: 3;
     grid-row: 1 / span 2;
   }
+}
+
+/* Landing page dock (components/site/AskDock.tsx): the Ask tiles and Connect link floating at the
+   bottom on a blurred glass pill. Slides in after the hero, hides when the footer is on screen. */
+.ask-dock {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--space-200) + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-75);
+  max-width: calc(100vw - 32px);
+  padding: var(--space-50) var(--space-50) var(--space-50) var(--space-100);
+  border: 1px solid var(--color-glass-border);
+  border-radius: var(--radius-full);
+  /* Frosted glass over a strong blur, with a soft top highlight. The landing keeps dark bands in
+     the light theme, so the light surface must stay near-opaque (86%): a thin white over a dark
+     band turns mid-grey and the ink text drops to ~2:1. Dark theme can be thinner (below). */
+  --ask-dock-surface: 86%;
+  background: color-mix(in srgb, var(--color-surface) var(--ask-dock-surface), transparent);
+  /* Unprefixed only: with the -webkit- copy next to it the CSS build keeps just the prefixed one,
+     which current Chrome ignores (no blur). Safari 18+ supports the unprefixed property. */
+  backdrop-filter: blur(28px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    0 12px 40px -12px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  transform: translate(-50%, 16px);
+  pointer-events: none;
+  transition:
+    opacity 240ms var(--ease-out-expo),
+    transform 240ms var(--ease-out-expo);
+}
+
+:root[data-theme="dark"] .ask-dock {
+  --ask-dock-surface: 45%;
+}
+
+/* Full-strength text in the dock: it floats over any band, so muted ink is not enough. */
+.ask-dock .footer__connect-toggle {
+  color: var(--color-text);
+}
+
+.ask-dock.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ask-dock {
+    transition: opacity 120ms linear;
+    transform: translate(-50%, 0);
+  }
+}
+
+.ask-dock__label {
+  color: var(--color-text-muted);
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ask-dock__tiles {
+  display: flex;
+  gap: var(--space-50);
+}
+
+/* Much smaller tiles than the footer's 48px: the dock should feel like a quiet utility, not a banner. */
+.ask-dock .footer__ask-link {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+}
+
+.ask-dock .footer__ask-link img,
+.ask-dock .footer__ask-mono {
+  width: 16px;
+  height: 16px;
+}
+
+.ask-dock__divider {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  background: var(--color-border);
+}
+
+.footer__connect--floating {
+  margin: 0;
+}
+
+.ask-dock .footer__connect-toggle {
+  padding: 6px var(--space-100);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+/* The panel opens upward, centered on the dock (the dock is centered on screen), scrolling if it
+   is too tall. Positioned against .ask-dock, which is a containing block (transform + backdrop). */
+.footer__connect--floating {
+  position: static;
+}
+
+.footer__connect--floating .footer__connect-panel {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + var(--space-100));
+  width: min(600px, calc(100vw - 32px));
+  max-height: min(480px, 70vh);
+  overflow-y: auto;
+  transform: translateX(-50%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+}
+
+.ask-dock__short {
+  display: none;
+}
+
+/* Phones: drop the label and shorten the link so the pill fits in one row at 375px. */
+@media (max-width: 640px) {
+  .ask-dock {
+    padding-left: var(--space-50);
+  }
+
+  .ask-dock__label,
+  .ask-dock__long {
+    display: none;
+  }
+
+  .ask-dock__short {
+    display: inline;
+  }
+
 }
 
 /* ---------- App pages ---------- */

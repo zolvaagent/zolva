@@ -202,10 +202,10 @@ export function SiteFooter() {
  * "Ask about Zolva on": one click opens an AI assistant with the question already typed, pointed
  * at /llms.txt (public/llms.txt) so the answer starts from our own summary instead of a guess.
  */
-const ASK_PROMPT =
+export const ASK_PROMPT =
   "What is Zolva (zolvaagent.app)? Explain how its trading agents work, what is paper trading and what is real money, and how to check the results yourself. Start with https://zolvaagent.app/llms.txt.";
 
-const ASK_TARGETS: { name: string; href: string; logo: string; mono: boolean }[] = [
+export const ASK_TARGETS: { name: string; href: string; logo: string; mono: boolean }[] = [
   { name: "ChatGPT", href: "https://chatgpt.com/?q=", logo: "/ai-logos/openai.svg", mono: true },
   { name: "Claude", href: "https://claude.ai/new?q=", logo: "/ai-logos/claude-color.svg", mono: false },
   { name: "Google AI Mode", href: "https://www.google.com/search?udm=50&q=", logo: "/ai-logos/gemini-color.svg", mono: false },

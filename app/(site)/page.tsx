@@ -1,3 +1,4 @@
+import { AskDock } from "@/components/site/AskDock";
 import { Landing } from "@/components/site/Landing";
 import { listAgents, recentTrades } from "@/lib/data/agents";
 import { getMarket } from "@/lib/data/market";
@@ -13,5 +14,10 @@ export default async function HomePage() {
   const [market, allMarkets, agents, feed] = await Promise.all([getMarket(client), getMarket(client, { perps: true }), listAgents(client), recentTrades(client, 14)]);
   // Perps (Lighter, paper only) get their own row under the token grid; the rest of the page stays spot only.
   const perps = allMarkets.tokens.filter((token) => token.venue === "lighter");
-  return <Landing market={market} perps={perps} backtests={houseBacktests(market)} agents={agents} feed={feed} ca={env.zolvaToken?.address ?? null} />;
+  return (
+    <>
+      <Landing market={market} perps={perps} backtests={houseBacktests(market)} agents={agents} feed={feed} ca={env.zolvaToken?.address ?? null} />
+      <AskDock />
+    </>
+  );
 }
