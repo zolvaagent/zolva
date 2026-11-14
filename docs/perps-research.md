@@ -758,3 +758,37 @@ Recommended change: none beyond the approved spec (`alt-volsize-spec.md`): trend
 The one new thing the engine needs for "adaptive" is volatility sizing; the 7 day breakout variant needs no
 longer lookback than today (but its 30 day volatility does). Keep the existing dip and short Lab agents running
 as the out-of-sample record (owner: no pause).
+
+## Round 3: funding as an input (2026-11-14) — funding fixes the short side
+
+Pre-registered in `a908f64`, `scripts/research-alt-funding.mts`, read only. Base = round 2's two passing rules
+(50 day gate, and 72 hour breakout above a 7 day gate; 20% volatility target, daily resize, 15% stop), now with
+**real Binance perp funding** (every 8 hours, free) instead of the 10% a year guess. New inputs, from the 7 day
+average funding (annualised): a crowded-long cap (no long above 30% or 50%), and shorts below the gate either
+always, only while funding >= 0 ("f0"), or only while funding >= 10% ("f10"). 24 rules per coin; same split,
+coins and pass rule. 17 survive training; all 3 locked rules PASS.
+
+| Rule (50 day gate) | Alts passing | Worst drop (alts) | BTC ETH | Last 30 days (alts / BTC ETH) |
+|---|---|---|---|---|
+| long only, real funding (round 2 rule) | 3 of 4 | 20 to 30% | 2 of 2, drop 15 to 17% | -3 to 0 / -2, 0 |
+| long + short always (failed round 2) | 2 of 4 | 22 to 32% | 2 of 2 | -7 to +10 / +7, +9 |
+| **long + short, short only while funding >= 0** | **4 of 4** | **22 to 28%** | **2 of 2, drop 20 to 21%** | **-7 to +11 / +7, +9** |
+| long + short, short only while funding >= 10% | 4 of 4 | 21 to 26% | 2 of 2, drop 14 to 16% | -3 to +5 / -2, 0 |
+
+By year, 50 day gate, short only while funding >= 0 (2021 / 22 / 23 / 24 / 25 / 26): SOL +81 / -4 / +59 / +5 /
++7 / +8, XRP +12 / +18 / -12 / +19 / -8 / +14, NEAR +29 / +13 / +56 / -2 / 0 / +37, ZEC +21 / +13 / -17 / +33 /
++45 / +14, BTC +32 / +1 / +52 / +27 / -6 / +35, ETH +20 / +29 / +24 / 0 / +39 / +42.
+
+- **Why it works**: negative funding means the crowd is already short; shorting then walks into squeezes, which
+  is what broke the alt long + short in round 2. Blocking shorts while funding is negative removes most of that
+  drop and keeps the 2022 gains (2022 turns positive on 5 of 6 coins).
+- **Real funding barely changes round 2**: longs paid about 30% to 48% in 2021 and 0% to 15% a year since; the
+  long-only rule's numbers move by a few points only.
+- **The crowded-long cap does not help**: it cuts the 2021 run (SOL +86% to +32%) and passes on no more coins.
+- The 72 hour breakout base with funding is mixed (2 to 4 of 4), so the 50 day gate stays the base.
+- Robust neighbours: the f0 and f10 shorts pass 4 of 4 with every long cap on the gate base.
+
+Limits: Binance funding, not Lighter's (Lighter pays hourly; same sign most of the time, not checked over years);
+Binance spot closes; six coins that survived; 24 rules on top of rounds 1 and 2 (but BTC ETH unseen and passing).
+Engine need, beyond the approved spec: shorts in custom perps rules and a 7 day average funding indicator
+(the funding data is already stored per hour in candles.funding_rate).
