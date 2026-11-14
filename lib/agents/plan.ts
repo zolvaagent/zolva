@@ -42,6 +42,8 @@ export type PositionRow = {
   side?: "long" | "short";
   /** Only a leveraged short has one (see engine Position.margin). */
   margin?: number | null;
+  /** Only a Lab rules short has one: its stop's reference price (see engine Position.stopPrice). */
+  stop_price?: number | null;
 };
 
 export type MarketSeries = {
@@ -58,7 +60,7 @@ export type HourWrite = {
   equity: number;
   holdEquity: number;
   decisions: Decision[];
-  positions: { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side: "long" | "short"; margin: number | null }[];
+  positions: { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side: "long" | "short"; margin: number | null; stop_price: number | null }[];
   trades: { token_address: string; side: Fill["side"]; quantity: number; price: number; cost_usd: number; reason: Fill["reason"] }[];
 };
 
@@ -110,6 +112,7 @@ export function planAgentHours(
           openedAt: position.opened_at ? Date.parse(position.opened_at) / 1000 : undefined,
           ...(position.side === "short" ? { side: "short" as const } : {}),
           ...(position.margin != null ? { margin: Number(position.margin) } : {}),
+          ...(position.stop_price != null ? { stopPrice: Number(position.stop_price) } : {}),
         },
       ]),
     ),
@@ -135,6 +138,7 @@ export function planAgentHours(
         opened_at: position.openedAt === undefined ? null : new Date(position.openedAt * 1000).toISOString(),
         side: position.side ?? "long",
         margin: position.margin ?? null,
+        stop_price: position.stopPrice ?? null,
       })),
       trades: hour.fills.map((fill) => ({
         token_address: fill.token,

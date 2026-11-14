@@ -272,7 +272,7 @@
           continue;
         }
 
-        if (position && position.side === "short" && price >= position.entryPrice * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
+        if (position && position.side === "short" && price >= (position.stopPrice ?? position.entryPrice) * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
           cash += cover(trades, index, token.symbol, position, price, "stop_loss", cost);
           delete positions[token.symbol];
           const liquidated = position.margin !== undefined && LIQUIDATION_LOSS / leverage < stopDistance;
@@ -316,7 +316,7 @@
         }
 
         const decision = custom
-          ? evaluateRules(options.rules, window, Boolean(position))
+          ? evaluateRules(options.rules, window, position ? (position.side === "short" ? "short" : true) : false, token.funding ? token.funding.slice(Math.max(0, index - warmup), index + 1) : undefined)
           : dipFade
             ? strategy.decide(window, price, position ? (position.side === "short" ? "short" : "long") : null)
             : strategy.decide(window, price, Boolean(position));
@@ -329,7 +329,7 @@
           decisions.push({ symbol: token.symbol, action: "hold", reasoning, indicators: decision.indicators });
           continue;
         }
-        if (decision.action === "short" && token.symbol !== strongestSpike) {
+        if (decision.action === "short" && !custom && token.symbol !== strongestSpike) {
           const base = decision.reasoning.replace(/ Shorting the (spike|bounce)\./, "");
           const reasoning = dipFade && holdsShort
             ? `${base} Already short another market: one short at a time.`
@@ -342,7 +342,8 @@
           continue;
         }
         if (decision.action === "short") {
-          const notional = Math.min(cash, equityBefore * maxShare);
+          const shortShare = sizing ? wantedShare(sizing, window, maxShare).share : maxShare;
+          const notional = Math.min(cash, equityBefore * shortShare);
           if (notional < 1) {
             decisions.push({ symbol: token.symbol, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
             continue;
@@ -356,7 +357,8 @@
             trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: exposure * cost, reason: "signal" });
           } else {
             const quantity = (notional * (1 - cost)) / price;
-            positions[token.symbol] = { quantity, entryPrice: price, openedIndex: index, side: "short" };
+            // Lab short rules keep their stop at this price even after funding or a resize moves the entry.
+            positions[token.symbol] = { quantity, entryPrice: price, openedIndex: index, side: "short", ...(custom ? { stopPrice: price } : {}) };
             trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: notional * cost, reason: "signal" });
           }
         } else if (decision.action === "cover") {
@@ -406,6 +408,30 @@
               decisions.push({ symbol: token.symbol, action: "sell", reasoning: `${decision.reasoning} ${why}: selling $${gross.toFixed(2)}.`, indicators: decision.indicators });
               continue;
             }
+          }
+        }
+        // A short is resized by closing it and reopening at the wanted size at this price; the stop
+        // stays at the first entry. Never more than the cash can carry, cost included.
+        if (resizeHour && open && open.side === "short" && open.margin === undefined) {
+          const target = wantedShare(sizing, window, maxShare);
+          const free = cash + shortValue(open, price);
+          const held = open.quantity * price;
+          const wanted = Math.min(equityAt(cash, positions, prices) * target.share, (free + held * cost) / (1 + cost));
+          if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+            const why = `Daily resize: volatility is ${(target.volatility * 100).toFixed(0)}% a year, so the target is ${(target.share * 100).toFixed(1)}% of equity`;
+            const quantity = wanted / price;
+            const change = Math.abs(quantity - open.quantity);
+            const costUsd = change * price * cost;
+            cash = free - wanted - costUsd;
+            positions[token.symbol] = { quantity, entryPrice: price, openedIndex: open.openedIndex, side: "short", stopPrice: open.stopPrice ?? open.entryPrice };
+            if (quantity > open.quantity) {
+              trades.push({ index, symbol: token.symbol, side: "short", quantity: change, price, costUsd, reason: "resize" });
+              decisions.push({ symbol: token.symbol, action: "short", reasoning: `${decision.reasoning} ${why}: shorting $${(change * price).toFixed(2)} more.`, indicators: decision.indicators });
+            } else {
+              trades.push({ index, symbol: token.symbol, side: "cover", quantity: change, price, costUsd, reason: "resize", entryPrice: open.entryPrice });
+              decisions.push({ symbol: token.symbol, action: "cover", reasoning: `${decision.reasoning} ${why}: covering $${(change * price).toFixed(2)}.`, indicators: decision.indicators });
+            }
+            continue;
           }
         }
         decisions.push({ symbol: token.symbol, action: decision.action, reasoning: decision.reasoning, indicators: decision.indicators });
@@ -569,6 +595,11 @@
     rsi: { label: "RSI", unit: "rsi", periods: [14, 24] },
   };
 
+  // Lab only, never offered in the Studio: 7 day average perps funding, % a year.
+  function indicatorMeta(kind) {
+    return kind === "funding7d" ? { label: "7d funding", unit: "pct", periods: null } : INDICATORS[kind];
+  }
+
   const OPERATORS = { above: "above", below: "below", crossesAbove: "crosses above", crossesBelow: "crosses below" };
 
   const RULE_TEMPLATES = {
@@ -603,7 +634,8 @@
   /** Hours of history the rules need (largest period, plus one hour for "crosses"). */
   function rulesLookback(rules) {
     let hours = 2;
-    for (const condition of [...rules.entry.conditions, ...rules.exit.conditions]) {
+    const groups = [rules.entry, rules.exit, rules.shortEntry, rules.shortExit].filter(Boolean);
+    for (const condition of groups.flatMap((group) => group.conditions)) {
       const cross = condition.op === "crossesAbove" || condition.op === "crossesBelow" ? 1 : 0;
       for (const side of [condition.left, condition.right]) {
         if (side.hours) hours = Math.max(hours, side.hours + 1 + cross);
@@ -613,10 +645,13 @@
   }
 
   /** Value of an indicator at the end of `window` (closes, oldest first). */
-  function indicatorValue(indicator, window) {
+  function indicatorValue(indicator, window, funding) {
     const price = window[window.length - 1];
     const recent = (hours) => window.slice(-hours);
     switch (indicator.kind) {
+      // Lab only: 7 day average perps funding, annualised, in percent (missing hours count as 0).
+      case "funding7d":
+        return ((funding || []).slice(-168).reduce((sum, rate) => sum + (rate || 0), 0) * 365 * 100) / 7;
       case "price":
         return price;
       case "sma":
@@ -649,36 +684,52 @@
     }
   }
 
-  function sideValue(side, window) {
+  function sideValue(side, window, funding) {
     if (side.kind === "value") return side.value;
-    return indicatorValue(side, window) * (1 + (side.offsetPct || 0) / 100);
+    return indicatorValue(side, window, funding) * (1 + (side.offsetPct || 0) / 100);
   }
 
-  function checkCondition(condition, window) {
-    const left = sideValue(condition.left, window);
-    const right = sideValue(condition.right, window);
+  function checkCondition(condition, window, funding) {
+    const left = sideValue(condition.left, window, funding);
+    const right = sideValue(condition.right, window, funding);
     let met;
     if (condition.op === "above") met = left > right;
     else if (condition.op === "below") met = left < right;
     else {
       const previous = window.slice(0, -1);
-      const leftBefore = sideValue(condition.left, previous);
-      const rightBefore = sideValue(condition.right, previous);
+      const previousFunding = funding ? funding.slice(0, -1) : undefined;
+      const leftBefore = sideValue(condition.left, previous, previousFunding);
+      const rightBefore = sideValue(condition.right, previous, previousFunding);
       met = condition.op === "crossesAbove" ? leftBefore <= rightBefore && left > right : leftBefore >= rightBefore && left < right;
     }
     return { met, text: describeCondition(condition, left, right) };
   }
 
-  function evaluateRules(rules, window, hasPosition) {
+  /** held: true while long, "short" while short (Lab perps rules), false while flat. */
+  function evaluateRules(rules, window, held, funding) {
+    if (held === "short") {
+      const cover = rules.shortExit;
+      if (!cover || !cover.conditions.length) return { action: "hold", reasoning: "Holding the short until its stop loss." };
+      const coverChecks = cover.conditions.map((condition) => checkCondition(condition, window, funding));
+      const coverMet = cover.join === "all" ? coverChecks.every((check) => check.met) : coverChecks.some((check) => check.met);
+      return coverMet ? { action: "cover", reasoning: "Cover rule met. Covering." } : { action: "hold", reasoning: "Holding the short." };
+    }
+    const hasPosition = held === true;
     const group = hasPosition ? rules.exit : rules.entry;
     if (!group.conditions.length) {
       return { action: "hold", reasoning: "Holding until take profit, stop loss or max holding time." };
     }
-    const checks = group.conditions.map((condition) => checkCondition(condition, window));
+    const checks = group.conditions.map((condition) => checkCondition(condition, window, funding));
     const met = group.join === "all" ? checks.every((check) => check.met) : checks.some((check) => check.met);
     if (met) {
       const reasons = checks.filter((check) => check.met).map((check) => check.text).join("; ");
       return hasPosition ? { action: "sell", reasoning: `Sell rule met: ${reasons}. Selling.` } : { action: "buy", reasoning: `Buy rule met: ${reasons}. Buying.` };
+    }
+    // Flat with Lab short rules: the long entry first, then the short entry.
+    if (!hasPosition && rules.shortEntry && rules.shortEntry.conditions.length) {
+      const shortChecks = rules.shortEntry.conditions.map((condition) => checkCondition(condition, window, funding));
+      const shortMet = rules.shortEntry.join === "all" ? shortChecks.every((check) => check.met) : shortChecks.some((check) => check.met);
+      if (shortMet) return { action: "short", reasoning: "Short rule met. Shorting." };
     }
     const missing = checks.find((check) => !check.met);
     return {
@@ -690,13 +741,13 @@
   /** "price $735.20 above 48h average $721.00", "24h change +1.2% above +3.0%". */
   function describeCondition(condition, leftValue, rightValue) {
     // A plain number is shown in the unit of the indicator it is compared with.
-    const unit = INDICATORS[condition.left.kind].unit;
+    const unit = indicatorMeta(condition.left.kind).unit;
     return `${describeSide(condition.left, leftValue, unit)} ${OPERATORS[condition.op]} ${describeSide(condition.right, rightValue, unit)}`;
   }
 
   function describeSide(side, value, unit) {
     if (side.kind === "value") return formatUnit(unit, value);
-    const meta = INDICATORS[side.kind];
+    const meta = indicatorMeta(side.kind);
     const name = side.hours ? `${side.hours}h ${meta.label.toLowerCase()}` : meta.label.toLowerCase();
     const offset = side.offsetPct ? ` ${side.offsetPct > 0 ? "+" : "−"}${Math.abs(side.offsetPct)}%` : "";
     return `${name}${offset} ${formatUnit(meta.unit, value)}`;

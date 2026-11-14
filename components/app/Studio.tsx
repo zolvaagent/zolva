@@ -14,7 +14,7 @@ import { LiveSetup, liveReady, type LiveStatusView } from "@/components/app/Live
 import { DEFAULT_EXPIRY_DAYS, parseAiLimit, suggestedLimitUsd } from "@/lib/ai/limits";
 import { aiModel } from "@/lib/ai/models";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
-import { INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
+import { indicatorMeta, INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
 import { describeAgent } from "@/lib/engine/summary";
 import { RulesSummary } from "@/components/app/RulesSummary";
@@ -966,7 +966,7 @@ function GroupEditor({ title, group, onChange }: { title: string; group: RuleGro
 }
 
 function ConditionRow({ condition, onChange, onRemove }: { condition: Condition; onChange: (condition: Condition) => void; onRemove: () => void }) {
-  const leftUnit = INDICATORS[condition.left.kind].unit;
+  const leftUnit = indicatorMeta(condition.left.kind).unit;
 
   const setLeft = (kind: IndicatorKind) => {
     const periods = INDICATORS[kind].periods;
@@ -984,11 +984,11 @@ function ConditionRow({ condition, onChange, onRemove }: { condition: Condition;
 
   return (
     <div className="rule-row">
-      <IndicatorPicker kinds={KIND_ORDER} indicator={condition.left} onChange={(left) => (left.kind !== condition.left.kind ? setLeft(left.kind) : onChange({ ...condition, left }))} />
+      <IndicatorPicker kinds={KIND_ORDER} indicator={condition.left as { kind: IndicatorKind; hours?: number }} onChange={(left) => (left.kind !== condition.left.kind ? setLeft(left.kind) : onChange({ ...condition, left }))} />
       <Select value={condition.op} options={OPERATOR_OPTIONS} onChange={(op) => onChange({ ...condition, op })} label="Comparison" />
       {leftUnit === "price" ? (
         <>
-          <IndicatorPicker kinds={PRICE_KINDS} indicator={condition.right.kind === "value" ? { kind: "sma", hours: 48 } : condition.right} onChange={(right) => onChange({ ...condition, right: { ...right, offsetPct: condition.right.kind !== "value" ? condition.right.offsetPct : undefined } })} />
+          <IndicatorPicker kinds={PRICE_KINDS} indicator={condition.right.kind === "value" ? { kind: "sma", hours: 48 } : (condition.right as { kind: IndicatorKind; hours?: number })} onChange={(right) => onChange({ ...condition, right: { ...right, offsetPct: condition.right.kind !== "value" ? condition.right.offsetPct : undefined } })} />
           <label className="rule-offset">
             <input
               className="rule-input"

@@ -22,6 +22,7 @@ export const LAB_WALLETS = [
   "0x5174000000000000000000000000000000000004",
   "0x5174000000000000000000000000000000000005",
   "0x5174000000000000000000000000000000000006",
+  "0x5174000000000000000000000000000000000007",
 ] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
@@ -58,6 +59,30 @@ export const VOL_TREND_1200: Rules = {
   exit: { join: "any", conditions: [{ left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 1200 } }] },
   takeProfitPct: null,
   maxHoldHours: null,
+};
+
+/**
+ * VOL_TREND_1200 plus a short side with a funding filter (round 3, "variant C"): short once the
+ * price is more than 3% below its 1,200 hour average while the 7 day average funding is zero or
+ * positive (shorts are not paying longs); cover once the price is back above the average or funding
+ * turns negative. The tiny negative threshold makes "above" mean "zero or more".
+ */
+export const VOL_TREND_1200_LS: Rules = {
+  ...VOL_TREND_1200,
+  shortEntry: {
+    join: "all",
+    conditions: [
+      { left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 1200, offsetPct: -3 } },
+      { left: { kind: "funding7d", hours: 168 }, op: "above", right: { kind: "value", value: -0.0001 } },
+    ],
+  },
+  shortExit: {
+    join: "any",
+    conditions: [
+      { left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 1200 } },
+      { left: { kind: "funding7d", hours: 168 }, op: "below", right: { kind: "value", value: 0 } },
+    ],
+  },
 };
 
 /**
@@ -260,6 +285,19 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     name: `Lab · ${coin} Vol Trend`,
     strategy: "custom" as const,
     rules: VOL_TREND_1200,
+    symbols: [`${coin}-PERP`],
+    maxPositionPct: 100,
+    stopLossPct: 15,
+    venue: "perps" as const,
+    sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
+  })),
+  // The same coins long and short with the funding filter (round 3, "variant C", 2026-11-14),
+  // next to the long only agents above so both can be compared on the same hours. Frozen.
+  ...(["SOL", "XRP", "NEAR", "ZEC"] as const).map((coin) => ({
+    owner: LAB_WALLETS[6],
+    name: `Lab · ${coin} Vol Trend L+S`,
+    strategy: "custom" as const,
+    rules: VOL_TREND_1200_LS,
     symbols: [`${coin}-PERP`],
     maxPositionPct: 100,
     stopLossPct: 15,

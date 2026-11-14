@@ -29,7 +29,7 @@ export function describeAgent(params: AgentParams, options: SummaryOptions): str
   if (params.rules?.takeProfitPct) lines.push(`Take profit: sells everything ${pct(params.rules.takeProfitPct)} above the entry price.`);
   if (params.rules?.maxHoldHours) lines.push(`Sells after holding a market for ${hours(params.rules.maxHoldHours)}.`);
 
-  const shorts = params.strategy === "spike_fade" || params.strategy === "bounce_short" || params.strategy === "dip_fade";
+  const shorts = params.strategy === "spike_fade" || params.strategy === "bounce_short" || params.strategy === "dip_fade" || Boolean(params.rules?.shortEntry?.conditions.length);
   const longs = params.strategy !== "spike_fade" && params.strategy !== "bounce_short";
   if (longs) lines.push(`Stop loss: sells everything ${pct(params.stopLossPct)} below the entry price.`);
   if (shorts) lines.push(`Stop loss: covers everything ${pct(params.stopLossPct)} above the short price.`);
@@ -82,7 +82,13 @@ function strategyLines(params: AgentParams): string[] {
       const exit = params.rules.exit.conditions.length
         ? `Sells when ${group(params.rules.exit)}.`
         : "No sell rule: it exits only on the stop loss, take profit or max holding time.";
-      return [`Buys when ${group(params.rules.entry)}.`, exit];
+      const lines = [`Buys when ${group(params.rules.entry)}.`, exit];
+      // Lab perps rules can also short.
+      if (params.rules.shortEntry?.conditions.length) {
+        lines.push(`Shorts when ${group(params.rules.shortEntry)}.`);
+        if (params.rules.shortExit?.conditions.length) lines.push(`Covers when ${group(params.rules.shortExit)}.`);
+      }
+      return lines;
     }
   }
 }

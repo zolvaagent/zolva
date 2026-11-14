@@ -120,6 +120,12 @@ export type Position = {
    * margin + quantity x (entryPrice - price), never below zero, instead of the 1x formula above.
    */
   margin?: number;
+  /**
+   * Set only when the stop is measured from another price than entryPrice: a volatility sized short
+   * that was resized (its entry, the P&L basis, moved to the resize price; the stop stays at the
+   * first entry).
+   */
+  stopPrice?: number;
 };
 
 export type AgentState = {
@@ -139,8 +145,10 @@ export type Decision = {
   price?: number;
   /** Custom rules: every condition of the group checked this hour (see RuleCheck). */
   checks?: RuleCheck[];
+  /** Lab short rules while flat: the short entry group's conditions. */
+  shortChecks?: RuleCheck[];
   /** The position held when the hour started (after funding), if any. */
-  position?: { entryPrice: number; heldHours: number | null; side?: "short" };
+  position?: { entryPrice: number; heldHours: number | null; side?: "short"; stopPrice?: number };
 };
 
 export type RunHourOptions = {
@@ -215,7 +223,7 @@ export function runHour(
   const decisions: Decision[] = [];
   const fills: Fill[] = [];
   // What each token's decision was based on, added to its decision at the end (decision log details).
-  const context = new Map<string, Pick<Decision, "price" | "position" | "checks">>();
+  const context = new Map<string, Pick<Decision, "price" | "position" | "checks" | "shortChecks">>();
   // One position strategies: decided before the loop, from the positions held at the start of
   // the hour, so a sell this hour frees the slot for the next hour, not this one. Dip + fade
   // has one slot per side.
@@ -272,12 +280,13 @@ export function runHour(
               entryPrice: position.entryPrice,
               heldHours: position.openedAt === undefined ? null : Math.round((hourTime - position.openedAt) / 3600),
               ...(position.side === "short" ? { side: "short" as const } : {}),
+              ...(position.stopPrice !== undefined ? { stopPrice: position.stopPrice } : {}),
             },
           }
         : {}),
     });
 
-    if (position?.side === "short" && price >= position.entryPrice * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
+    if (position?.side === "short" && price >= (position.stopPrice ?? position.entryPrice) * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
       const fill = coverAll(token, position, price, "stop_loss", cost);
       cash += Math.max(0, shortValue(position, price) - fill.costUsd);
       delete positions[token];
@@ -326,10 +335,10 @@ export function runHour(
     }
 
     const signal = rules
-      ? evaluateRules(rules, window as number[], Boolean(position))
+      ? evaluateRules(rules, window as number[], position ? (position.side === "short" ? "short" : true) : false, options.funding?.[token]?.slice(Math.max(0, index - lookback), index + 1))
       : decide(preset, window as number[], Boolean(position), position?.side === "short" ? "short" : "long");
 
-    if (signal.checks) context.set(token, { ...context.get(token), checks: signal.checks });
+    if (signal.checks) context.set(token, { ...context.get(token), checks: signal.checks, ...(signal.shortChecks ? { shortChecks: signal.shortChecks } : {}) });
 
     const wantsTrade = signal.action === "buy" || signal.action === "short" || ((signal.action === "sell" || signal.action === "cover") && position);
     const passed = wantsTrade ? options.veto?.get(token) : undefined;
@@ -348,7 +357,7 @@ export function runHour(
       continue;
     }
 
-    if (signal.action === "short" && token !== strongestSpike) {
+    if (signal.action === "short" && !rules && token !== strongestSpike) {
       const base = signal.reasoning.replace(/ Shorting the (spike|bounce)\./, "");
       const reasoning = dipFade && holdsShort
         ? `${base} Already short another market: one short at a time.`
@@ -362,7 +371,8 @@ export function runHour(
     }
 
     if (signal.action === "short") {
-      const notional = Math.min(cash, equityBefore * maxShare);
+      const share = sizing ? wantedShare(sizing, window as number[], maxShare).share : maxShare;
+      const notional = Math.min(cash, equityBefore * share);
       if (notional < 1) {
         decisions.push({ token, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
         continue;
@@ -376,7 +386,8 @@ export function runHour(
         fills.push({ token, side: "short", quantity, price, costUsd: exposure * cost, reason: "signal" });
       } else {
         const quantity = (notional * (1 - cost)) / price;
-        positions[token] = { quantity, entryPrice: price, openedAt: hourTime, side: "short" };
+        // Lab short rules keep their stop at this price even after funding or a resize moves the entry.
+        positions[token] = { quantity, entryPrice: price, openedAt: hourTime, side: "short", ...(rules ? { stopPrice: price } : {}) };
         fills.push({ token, side: "short", quantity, price, costUsd: notional * cost, reason: "signal" });
       }
     } else if (signal.action === "cover" && position) {
@@ -432,6 +443,31 @@ export function runHour(
           decisions.push({ ...decision, action: "sell", reasoning: `${signal.reasoning} ${why}: selling ${formatUsd(gross)}.` });
           continue;
         }
+      }
+    }
+    // A short is resized by closing it and reopening at the wanted size at this price (its P&L basis
+    // moves to this price); the stop stays at the first entry. Cost is paid on the change only.
+    if (resizeHour && sizing && open && open.side === "short" && open.margin === undefined) {
+      const { share, volatility } = wantedShare(sizing, window as number[], maxShare);
+      const free = cash + shortValue(open, price);
+      const held = open.quantity * price;
+      // Never more than the cash can carry, cost included, so cash stays at or above zero.
+      const wanted = Math.min(equityAt({ cash, positions }, prices) * share, (free + held * cost) / (1 + cost));
+      if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+        const why = `Daily resize: volatility is ${(volatility * 100).toFixed(0)}% a year, so the target is ${(share * 100).toFixed(1)}% of equity`;
+        const quantity = wanted / price;
+        const change = Math.abs(quantity - open.quantity);
+        const costUsd = change * price * cost;
+        cash = free - wanted - costUsd;
+        positions[token] = { quantity, entryPrice: price, openedAt: open.openedAt, side: "short", stopPrice: open.stopPrice ?? open.entryPrice };
+        if (quantity > open.quantity) {
+          fills.push({ token, side: "short", quantity: change, price, costUsd, reason: "resize" });
+          decisions.push({ ...decision, action: "short", reasoning: `${signal.reasoning} ${why}: shorting ${formatUsd(change * price)} more.` });
+        } else {
+          fills.push({ token, side: "cover", quantity: change, price, costUsd, reason: "resize", entryPrice: open.entryPrice });
+          decisions.push({ ...decision, action: "cover", reasoning: `${signal.reasoning} ${why}: covering ${formatUsd(change * price)}.` });
+        }
+        continue;
       }
     }
     decisions.push(decision);

@@ -36,6 +36,8 @@ export type Signal = {
   indicators: Record<string, number>;
   /** Custom rules only: every condition of the group checked this hour (entry when flat, exit when holding), in order. */
   checks?: RuleCheck[];
+  /** Lab short rules only, while flat: the short entry group's conditions, checked after the long entry. */
+  shortChecks?: RuleCheck[];
 };
 
 /** One rule condition as checked in one hour: both sides' values (offset included) and whether it held. */

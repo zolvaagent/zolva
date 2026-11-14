@@ -640,3 +640,105 @@ describe("volatility sizing", () => {
     }
   });
 });
+
+describe("Lab long + short rules with a funding filter", () => {
+  // Variant C on short windows: long above SMA x 1.03, short below SMA x 0.97 while 7d funding >= 0.
+  const longShort: Rules = {
+    entry: { join: "all", conditions: [{ left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 120, offsetPct: 3 } }] },
+    exit: { join: "any", conditions: [{ left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 120 } }] },
+    shortEntry: {
+      join: "all",
+      conditions: [
+        { left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 120, offsetPct: -3 } },
+        { left: { kind: "funding7d", hours: 168 }, op: "above", right: { kind: "value", value: -0.000001 } },
+      ],
+    },
+    shortExit: {
+      join: "any",
+      conditions: [
+        { left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 120 } },
+        { left: { kind: "funding7d", hours: 168 }, op: "below", right: { kind: "value", value: 0 } },
+      ],
+    },
+    takeProfitPct: null,
+    maxHoldHours: null,
+  };
+  const params: AgentParams = { strategy: "custom", rules: longShort, maxPositionPct: 100, stopLossPct: 15, venue: "perps", sizing: { kind: "volTarget", targetPct: 20, hours: 72 } };
+  const falling = Array.from({ length: 200 }, (_, i) => 100 * (1 - i * 0.002) * (i % 2 ? 1.004 : 1));
+
+  it("annualises the last 168 hourly funding rates", () => {
+    const funding = Array<number>(200).fill(0.00001);
+    expect(paramsLookback(params)).toBe(169);
+    const hour = runHour({ cash: 1000, positions: {} }, params, { AAA: falling }, 199, 199 * 3600 + 1800, { funding: { AAA: funding } });
+    expect(hour.decisions[0].shortChecks?.[1].left).toBeCloseTo((168 * 0.00001 * 365 * 100) / 7, 4);
+  });
+
+  it("shorts a downtrend while funding is not negative, sized by volatility, and waits while it is negative", () => {
+    const positive = { AAA: Array<number>(200).fill(0.00001) };
+    const hour = runHour({ cash: 1000, positions: {} }, params, { AAA: falling }, 199, 199 * 3600 + 1800, { funding: positive });
+    expect(hour.fills).toHaveLength(1);
+    expect(hour.fills[0]).toMatchObject({ side: "short", reason: "signal" });
+    const share = 0.2 / realisedVolatility(falling.slice(0, 200), 72);
+    expect(hour.fills[0].quantity * falling[199] + hour.fills[0].costUsd).toBeCloseTo(1000 * Math.min(1, share), 6);
+    const negative = { AAA: Array<number>(200).fill(-0.00001) };
+    expect(runHour({ cash: 1000, positions: {} }, params, { AAA: falling }, 199, 199 * 3600 + 1800, { funding: negative }).fills).toEqual([]);
+  });
+
+  it("covers once funding turns negative", () => {
+    const short = { cash: 900, positions: { AAA: { quantity: 1, entryPrice: 70, openedAt: 0, side: "short" as const } } };
+    const negative = { AAA: Array<number>(200).fill(-0.00001) };
+    const hour = runHour(short, params, { AAA: falling }, 199, 199 * 3600 + 1800, { funding: negative });
+    expect(hour.fills[0]).toMatchObject({ side: "cover", reason: "signal" });
+  });
+
+  it("resizes a short at midnight: the entry moves to the price, the stop stays at the first entry", () => {
+    const price = falling[199];
+    const positive = { AAA: Array<number>(200).fill(0.00001) };
+    // Holding twice the wanted size.
+    const share = 0.2 / realisedVolatility(falling.slice(0, 200), 72);
+    const quantity = (2 * share * 1000) / price;
+    const heavy = { cash: 1000 - quantity * 70, positions: { AAA: { quantity, entryPrice: 70, openedAt: 0, side: "short" as const } } };
+    const hour = runHour(heavy, params, { AAA: falling }, 199, 86400 * 10, { funding: positive });
+    // Funding moves a short's entry a little each hour (it is paid from the position).
+    expect(hour.fills[0]).toMatchObject({ side: "cover", reason: "resize", entryPrice: expect.closeTo(70, 2) });
+    const after = hour.state.positions.AAA;
+    expect(after).toMatchObject({ side: "short", entryPrice: price, stopPrice: expect.closeTo(70, 2) });
+    expect(hour.state.cash).toBeGreaterThanOrEqual(0);
+    // Only the cost of the change (and this hour's small funding payment) leaves the equity.
+    expect(hour.equity).toBeCloseTo(equityAt(heavy, { AAA: price }) - hour.fills[0].costUsd, 1);
+    // The stop is measured from the first entry: 70 x 1.15 = 80.5, so 80 holds and 81 covers.
+    const stopped = runHour({ cash: 500, positions: { AAA: { ...after } } }, params, { AAA: [...falling.slice(0, 199), 81] }, 199, 199 * 3600 + 1800, { funding: positive });
+    expect(stopped.fills[0]).toMatchObject({ side: "cover", reason: "stop_loss" });
+    const held = runHour({ cash: 500, positions: { AAA: { ...after } } }, params, { AAA: [...falling.slice(0, 199), 80] }, 199, 199 * 3600 + 1800, { funding: positive });
+    expect(held.fills.some((fill) => fill.reason === "stop_loss")).toBe(false);
+  });
+
+  it("matches the prototype engine, longs and shorts, with funding and real hour times", () => {
+    const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+      simulate: (options: object) => { returnPct: number; roundTrips: number; trades: { index: number; side: string; symbol: string; reason: string }[] };
+    };
+    const series: Record<string, number[]> = { AAA: walk(7, 1500), BBB: walk(42, 1500), CCC: walk(99, 1500) };
+    const funding = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => Math.sin(i / 90 + t) * 0.00003)]));
+    const times = series.AAA.map((_, i) => 1_700_000_000 - (1_700_000_000 % 86400) + 5 * 3600 + i * 3600);
+    const ours = simulate({ series, params, capital: 10_000, fromIndex: 170, times, funding });
+    const theirs = prototype.simulate({
+      tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, funding: funding[symbol] })),
+      strategy: "custom",
+      rules: longShort,
+      venue: "perps",
+      sizing: params.sizing,
+      times,
+      capital: 10_000,
+      maxPositionPct: 100,
+      stopLossPct: 15,
+      fromIndex: 170,
+    });
+    expect(ours.fills.some((fill) => fill.side === "short" && fill.reason === "signal")).toBe(true);
+    expect(ours.fills.some((fill) => (fill.side === "short" || fill.side === "cover") && fill.reason === "resize")).toBe(true);
+    expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}:${fill.reason}`)).toEqual(
+      theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}:${trade.reason}`),
+    );
+    expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+    expect(ours.runs.every((run) => run.cash >= -1e-9)).toBe(true);
+  });
+});

@@ -66,3 +66,13 @@ describe("describeAgent", () => {
     }
   });
 });
+
+describe("describeAgent with Lab short rules", () => {
+  it("adds the short side and its funding filter in words", () => {
+    const ls = LAB_AGENTS.find((agent) => agent.name === "Lab · SOL Vol Trend L+S")!;
+    const lines = describeAgent({ strategy: ls.strategy, rules: ls.rules, maxPositionPct: ls.maxPositionPct, stopLossPct: ls.stopLossPct, venue: ls.venue, sizing: ls.sizing }, { symbols: ls.symbols });
+    expect(lines).toContain("Shorts when all of these hold: price below 1200h average −3%; 7d funding zero or positive.");
+    expect(lines).toContain("Covers when any of these holds: price above 1200h average; 7d funding negative.");
+    expect(lines).toContain("Stop loss: covers everything 15% above the short price.");
+  });
+});

@@ -4,7 +4,7 @@
  * (price, checks, position, indicators): exact, free and instant, never AI.
  */
 import type { AgentParams, Decision } from "./engine.ts";
-import { describeCondition, type Condition, type Indicator, type RuleGroup } from "./rules.ts";
+import { describeCondition, type Condition, type Indicator, type RuleGroup, type Rules } from "./rules.ts";
 import { BOUNCE_SHORT, DIP_FADE, MEAN_REVERSION, MOMENTUM, SPIKE_FADE, type RuleCheck } from "./strategies.ts";
 
 export type Explanation = {
@@ -22,7 +22,7 @@ export function explainDecision(decision: Decision, params: AgentParams, symbol:
   const paragraphs: string[] = [];
   let checks: Explanation["checks"] = [];
 
-  const custom = params.strategy === "custom" && params.rules ? explainRules(decision, params.rules.entry, params.rules.exit, symbol) : null;
+  const custom = params.strategy === "custom" && params.rules ? explainRules(decision, params.rules, symbol) : null;
   if (custom) {
     paragraphs.push(...custom.paragraphs);
     checks = custom.checks;
@@ -46,8 +46,10 @@ export function explainDecision(decision: Decision, params: AgentParams, symbol:
 // Custom rules
 // ---------------------------------------------------------------------------
 
-function explainRules(decision: Decision, entry: RuleGroup, exit: RuleGroup, symbol: string): { paragraphs: string[]; checks: Explanation["checks"] } | null {
+function explainRules(decision: Decision, rules: Rules, symbol: string): { paragraphs: string[]; checks: Explanation["checks"] } | null {
   if (decision.price === undefined || !decision.checks) return null;
+  const { entry, exit } = rules;
+  if (decision.position?.side === "short") return explainShort(decision, rules, symbol);
   // The engine checks the exit group while holding and the entry group while flat.
   const group = decision.position ? exit : entry;
   if (group.conditions.length !== decision.checks.length) return null;
@@ -60,7 +62,18 @@ function explainRules(decision: Decision, entry: RuleGroup, exit: RuleGroup, sym
     if (decision.action === "buy") {
       paragraphs.push(`It bought ${symbol} because ${list(pairs.filter((pair) => pair.check.met).map((pair) => goal(pair.condition, pair.check, symbol, "now")))}.`);
     } else {
-      paragraphs.push(...waiting(pairs, entry.join, symbol, "It holds cash until then."));
+      paragraphs.push(...waiting(pairs, entry.join, symbol, rules.shortEntry ? "" : "It holds cash until then."));
+      // Lab perps rules can also short: what that side waits for.
+      const shortGroup = rules.shortEntry;
+      if (shortGroup && decision.shortChecks?.length === shortGroup.conditions.length) {
+        const shortPairs = shortGroup.conditions.map((condition, i) => ({ condition, check: decision.shortChecks![i] }));
+        if (decision.action === "short") {
+          paragraphs.push(`It shorted ${symbol} because ${list(shortPairs.filter((pair) => pair.check.met).map((pair) => goal(pair.condition, pair.check, symbol, "now")))}.`);
+        } else {
+          paragraphs.push(...waiting(shortPairs, shortGroup.join, symbol, "It holds cash until one side is met.", "shorts"));
+        }
+        checks.push(...shortPairs.map(({ condition, check }) => ({ text: `short: ${valuesText(condition, check)}`, met: check.met })));
+      }
     }
   } else {
     const change = decision.price / decision.position.entryPrice - 1;
@@ -76,6 +89,24 @@ function explainRules(decision: Decision, entry: RuleGroup, exit: RuleGroup, sym
   return { paragraphs, checks };
 }
 
+/** A Lab rules short: why it keeps the short, or why it covered. */
+function explainShort(decision: Decision, rules: Rules, symbol: string): { paragraphs: string[]; checks: Explanation["checks"] } | null {
+  const group = rules.shortExit;
+  const position = decision.position!;
+  const paragraphs = [`It is short ${symbol} from ${money(position.entryPrice)} (the short is ${signedPct(1 - decision.price! / position.entryPrice)} since).`];
+  if (!group?.conditions.length || group.conditions.length !== decision.checks!.length) {
+    paragraphs.push("It has no cover rule: it covers only on the stop loss.");
+    return { paragraphs, checks: [] };
+  }
+  const pairs = group.conditions.map((condition, i) => ({ condition, check: decision.checks![i] }));
+  if (decision.action === "cover") {
+    paragraphs.push(`It covered because ${list(pairs.filter((pair) => pair.check.met).map((pair) => goal(pair.condition, pair.check, symbol, "now")))}.`);
+  } else {
+    paragraphs.push(...waiting(pairs, group.join, symbol, "Until then it keeps the short.", "covers"));
+  }
+  return { paragraphs, checks: pairs.map(({ condition, check }) => ({ text: valuesText(condition, check), met: check.met })) };
+}
+
 /** "This agent buys breakouts: …", from the shape of the entry rules. */
 function rulesIntro(entry: RuleGroup): string {
   const kinds = entry.conditions.map((condition) => ({ op: condition.op, right: condition.right.kind, left: condition.left.kind }));
@@ -88,16 +119,17 @@ function rulesIntro(entry: RuleGroup): string {
 }
 
 /** The unmet conditions as goals, then the met ones as "already met". */
-function waiting(pairs: { condition: Condition; check: RuleCheck }[], join: "all" | "any", symbol: string, until: string, verb: "buys" | "sells" = "buys"): string[] {
+function waiting(pairs: { condition: Condition; check: RuleCheck }[], join: "all" | "any", symbol: string, until: string, verb: "buys" | "sells" | "shorts" | "covers" = "buys"): string[] {
   const open = pairs.filter((pair) => !pair.check.met);
   const done = pairs.filter((pair) => pair.check.met);
   const lines: string[] = [];
   if (join === "any" && open.length > 1) {
     lines.push(`It ${verb} as soon as any of these happens: ${open.map((pair) => goal(pair.condition, pair.check, symbol, "until")).join("; ")}.`);
   } else {
-    for (const pair of open) lines.push(`It ${verb === "buys" ? "waits" : "waits to sell"} until ${goal(pair.condition, pair.check, symbol, "until")}.`);
+    const waits = { buys: "waits", sells: "waits to sell", shorts: "would short", covers: "waits to cover" }[verb];
+    for (const pair of open) lines.push(`It ${waits} ${verb === "shorts" ? "once" : "until"} ${goal(pair.condition, pair.check, symbol, "until")}.`);
   }
-  lines.push(until);
+  if (until) lines.push(until);
   if (done.length && join === "all") {
     lines.push(`${done.length === 1 ? "Its other rule" : "Its other rules"} (${done.map((pair) => describeCondition(pair.condition)).join("; ")}) ${done.length === 1 ? "is" : "are"} already met.`);
   }
@@ -132,6 +164,10 @@ function goal(condition: Condition, check: RuleCheck, symbol: string, mode: "unt
   if (leftKind === "zscore") {
     const what = `${symbol}'s price is ${up ? "unusually far above" : "unusually far below"} its ${spanAdjective(hours)} average (z score ${up ? "above" : "below"} ${signed(value)})`;
     return mode === "now" ? `${what}, at z ${signed(round(left, 2))}` : `${what}. Right now the z score is ${signed(round(left, 2))}`;
+  }
+  if (leftKind === "funding7d") {
+    const rate = signedPct(left / 100);
+    return mode === "now" ? `${describeCondition(condition, left)}` : `funding over the last 7 days is ${up ? "zero or positive" : "negative"}. Right now it is ${rate} a year`;
   }
   if (leftKind === "rsi") {
     const what = `the ${spanAdjective(hours)} RSI is ${up ? "above" : "below"} ${value}`;
@@ -232,7 +268,7 @@ function riskLines(decision: Decision, params: AgentParams, symbol: string): str
   const lines: string[] = [];
   const stop = params.stopLossPct / 100;
   if (position.side === "short") {
-    const level = position.entryPrice * (1 + stop);
+    const level = (position.stopPrice ?? position.entryPrice) * (1 + stop);
     lines.push(`If ${symbol} rises to ${money(level)}, ${pct(params.stopLossPct)} above where it shorted, the stop loss covers everything. That is ${pct((level / decision.price - 1) * 100)} above today's price.`);
     return lines;
   }

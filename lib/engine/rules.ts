@@ -10,7 +10,12 @@ import { formatPercent, mean, type Signal } from "./strategies.ts";
 export type IndicatorKind = "price" | "sma" | "high" | "low" | "change" | "zscore" | "rsi";
 export type Operator = "above" | "below" | "crossesAbove" | "crossesBelow";
 
-export type Indicator = { kind: IndicatorKind; hours?: number; offsetPct?: number };
+/**
+ * Lab only (never accepted by parseRules, so users cannot pick it): the 7 day average perps
+ * funding rate, annualised, in percent. Positive: longs pay shorts.
+ */
+export type LabIndicatorKind = "funding7d";
+export type Indicator = { kind: IndicatorKind | LabIndicatorKind; hours?: number; offsetPct?: number };
 export type ValueSide = { kind: "value"; value: number };
 export type Condition = { left: Indicator; op: Operator; right: Indicator | ValueSide };
 export type RuleGroup = { join: "all" | "any"; conditions: Condition[] };
@@ -18,6 +23,12 @@ export type RuleGroup = { join: "all" | "any"; conditions: Condition[] };
 export type Rules = {
   entry: RuleGroup;
   exit: RuleGroup;
+  /**
+   * Lab only, perps only (never accepted by parseRules): open a short when this group is met while
+   * flat (checked after the long entry), and cover it when `shortExit` is met.
+   */
+  shortEntry?: RuleGroup;
+  shortExit?: RuleGroup;
   /** Sell when this far above entry, in percent. */
   takeProfitPct: number | null;
   /** Sell after holding this many hours. */
@@ -35,6 +46,15 @@ export const INDICATORS: Record<IndicatorKind, { label: string; unit: Unit; peri
   zscore: { label: "Z score", unit: "z", periods: [24, 48, 72, 96] },
   rsi: { label: "RSI", unit: "rsi", periods: [14, 24] },
 };
+
+/** Funding over 7 days (168 hours), in % a year. */
+export const FUNDING_HOURS = 168;
+const FUNDING_META = { label: "7d funding", unit: "pct" as Unit, periods: null };
+
+/** Label, unit and periods of any indicator, the Lab-only funding one included. */
+export function indicatorMeta(kind: Indicator["kind"]): { label: string; unit: Unit; periods: number[] | null } {
+  return kind === "funding7d" ? FUNDING_META : INDICATORS[kind];
+}
 
 export const OPERATORS: Record<Operator, string> = {
   above: "above",
@@ -99,7 +119,8 @@ export const RULE_ERRORS = {
 /** Hours of history the rules need (largest period, plus one for "crosses"). */
 export function rulesLookback(rules: Rules): number {
   let hours = 2;
-  for (const condition of [...rules.entry.conditions, ...rules.exit.conditions]) {
+  const groups = [rules.entry, rules.exit, rules.shortEntry, rules.shortExit].filter((group): group is RuleGroup => Boolean(group));
+  for (const condition of groups.flatMap((group) => group.conditions)) {
     const cross = condition.op === "crossesAbove" || condition.op === "crossesBelow" ? 1 : 0;
     for (const side of [condition.left, condition.right]) {
       if ("hours" in side && side.hours) hours = Math.max(hours, side.hours + 1 + cross);
@@ -108,11 +129,18 @@ export function rulesLookback(rules: Rules): number {
   return hours;
 }
 
-/** Value of an indicator at the end of `window` (closes, oldest first). */
-export function indicatorValue(indicator: Indicator, window: number[]): number {
+/**
+ * Value of an indicator at the end of `window` (closes, oldest first). `funding` is the same hours'
+ * perps funding (signed fraction per hour, null counts as 0); only funding7d reads it.
+ */
+export function indicatorValue(indicator: Indicator, window: number[], funding?: (number | null)[]): number {
   const price = window[window.length - 1];
   const hours = indicator.hours ?? 0;
   switch (indicator.kind) {
+    case "funding7d": {
+      const rates = (funding ?? []).slice(-FUNDING_HOURS);
+      return (rates.reduce((sum: number, rate) => sum + (rate ?? 0), 0) * 365 * 100) / 7;
+    }
     case "price":
       return price;
     case "sma":
@@ -143,47 +171,76 @@ export function indicatorValue(indicator: Indicator, window: number[]): number {
   }
 }
 
-function sideValue(side: Indicator | ValueSide, window: number[]): number {
+function sideValue(side: Indicator | ValueSide, window: number[], funding?: (number | null)[]): number {
   if (side.kind === "value") return side.value;
-  return indicatorValue(side, window) * (1 + (side.offsetPct ?? 0) / 100);
+  return indicatorValue(side, window, funding) * (1 + (side.offsetPct ?? 0) / 100);
 }
 
-export function checkCondition(condition: Condition, window: number[]): { met: boolean; text: string; left: number; right: number } {
-  const left = sideValue(condition.left, window);
-  const right = sideValue(condition.right, window);
+export function checkCondition(condition: Condition, window: number[], funding?: (number | null)[]): { met: boolean; text: string; left: number; right: number } {
+  const left = sideValue(condition.left, window, funding);
+  const right = sideValue(condition.right, window, funding);
   let met: boolean;
   if (condition.op === "above") met = left > right;
   else if (condition.op === "below") met = left < right;
   else {
     const previous = window.slice(0, -1);
-    const leftBefore = sideValue(condition.left, previous);
-    const rightBefore = sideValue(condition.right, previous);
+    const previousFunding = funding?.slice(0, -1);
+    const leftBefore = sideValue(condition.left, previous, previousFunding);
+    const rightBefore = sideValue(condition.right, previous, previousFunding);
     met = condition.op === "crossesAbove" ? leftBefore <= rightBefore && left > right : leftBefore >= rightBefore && left < right;
   }
   return { met, text: describeCondition(condition, left, right), left, right };
 }
 
 /** The decision for one token from its rules; take profit and max hold are handled by the engine. */
-export function evaluateRules(rules: Rules, window: number[], hasPosition: boolean): Signal {
+/**
+ * @param held      true while long, "short" while short (Lab perps rules only), false while flat
+ * @param funding   the same hours' perps funding, for funding7d
+ */
+export function evaluateRules(rules: Rules, window: number[], held: boolean | "short", funding?: (number | null)[]): Signal {
+  if (held === "short") {
+    const cover = rules.shortExit;
+    if (!cover?.conditions.length) return { action: "hold", reasoning: "Holding the short until its stop loss.", indicators: {} };
+    const result = checkGroup(cover, window, funding);
+    return result.met
+      ? { action: "cover", reasoning: `Cover rule met: ${result.reasons}. Covering.`, indicators: {}, checks: result.values }
+      : { action: "hold", reasoning: `Holding the short. Not yet: ${result.missing}.`, indicators: {}, checks: result.values };
+  }
+  const hasPosition = held === true;
   const group = hasPosition ? rules.exit : rules.entry;
   if (!group.conditions.length) {
     return { action: "hold", reasoning: "Holding until take profit, stop loss or max holding time.", indicators: {} };
   }
-  const checks = group.conditions.map((condition) => checkCondition(condition, window));
+  const result = checkGroup(group, window, funding);
+  if (result.met) {
+    return hasPosition
+      ? { action: "sell", reasoning: `Sell rule met: ${result.reasons}. Selling.`, indicators: {}, checks: result.values }
+      : { action: "buy", reasoning: `Buy rule met: ${result.reasons}. Buying.`, indicators: {}, checks: result.values };
+  }
+  // Flat with Lab short rules: the long entry is checked first, then the short entry.
+  if (!hasPosition && rules.shortEntry?.conditions.length) {
+    const short = checkGroup(rules.shortEntry, window, funding);
+    return short.met
+      ? { action: "short", reasoning: `Short rule met: ${short.reasons}. Shorting.`, indicators: {}, checks: result.values, shortChecks: short.values }
+      : { action: "hold", reasoning: `Waiting. Not yet: ${result.missing}; for a short, not yet: ${short.missing}.`, indicators: {}, checks: result.values, shortChecks: short.values };
+  }
+  return { action: "hold", reasoning: `${hasPosition ? "Holding" : "Waiting"}. Not yet: ${result.missing}.`, indicators: {}, checks: result.values };
+}
+
+/** Checks one group: whether it is met, the met conditions' text, the first unmet one, and every value. */
+function checkGroup(group: RuleGroup, window: number[], funding?: (number | null)[]) {
+  const checks = group.conditions.map((condition) => checkCondition(condition, window, funding));
   const met = group.join === "all" ? checks.every((check) => check.met) : checks.some((check) => check.met);
-  // The values behind the decision, for the decision log's details (lib/engine/explain.ts).
-  const values = checks.map(({ left, right, met: ok }) => ({ left: round6(left), right: round6(right), met: ok }));
-  if (met) {
-    const reasons = checks
+  return {
+    met,
+    reasons: checks
       .filter((check) => check.met)
       .map((check) => check.text)
-      .join("; ");
-    return hasPosition
-      ? { action: "sell", reasoning: `Sell rule met: ${reasons}. Selling.`, indicators: {}, checks: values }
-      : { action: "buy", reasoning: `Buy rule met: ${reasons}. Buying.`, indicators: {}, checks: values };
-  }
-  const missing = checks.find((check) => !check.met)!;
-  return { action: "hold", reasoning: `${hasPosition ? "Holding" : "Waiting"}. Not yet: ${missing.text}.`, indicators: {}, checks: values };
+      .join("; "),
+    missing: checks.find((check) => !check.met)?.text ?? "",
+    // The values behind the decision, for the decision log's details (lib/engine/explain.ts).
+    values: checks.map(({ left, right, met: ok }) => ({ left: round6(left), right: round6(right), met: ok })),
+  };
 }
 
 /** Six significant digits: enough for any price or indicator, and keeps stored decisions small. */
@@ -193,13 +250,18 @@ function round6(value: number): number {
 
 /** "price $735.20 above 48h average $721.00", "24h change +1.2% above +3.0%". */
 export function describeCondition(condition: Condition, leftValue?: number, rightValue?: number): string {
-  const unit = INDICATORS[condition.left.kind].unit;
+  // The Lab funding filter compares with zero: say it in words, not "above −0.0%".
+  if (condition.left.kind === "funding7d" && condition.right.kind === "value" && Math.abs(condition.right.value) < 0.01) {
+    const now = leftValue === undefined ? "" : ` (${formatUnit("pct", leftValue)} a year)`;
+    return `7d funding ${condition.op === "above" || condition.op === "crossesAbove" ? "zero or positive" : "negative"}${now}`;
+  }
+  const unit = indicatorMeta(condition.left.kind).unit;
   return `${describeSide(condition.left, leftValue, unit)} ${OPERATORS[condition.op]} ${describeSide(condition.right, rightValue, unit)}`;
 }
 
 function describeSide(side: Indicator | ValueSide, value: number | undefined, unit: Unit): string {
   if (side.kind === "value") return formatUnit(unit, side.value);
-  const meta = INDICATORS[side.kind];
+  const meta = indicatorMeta(side.kind);
   const name = side.hours ? `${side.hours}h ${meta.label.toLowerCase()}` : meta.label.toLowerCase();
   const offset = side.offsetPct ? ` ${side.offsetPct > 0 ? "+" : "−"}${Math.abs(side.offsetPct)}%` : "";
   return value === undefined ? `${name}${offset}` : `${name}${offset} ${formatUnit(meta.unit, value)}`;
@@ -250,7 +312,7 @@ function parseCondition(value: unknown, errors: string[]): Condition | null {
     errors.push(RULE_ERRORS.unknownComparison);
     return null;
   }
-  const unit = INDICATORS[left.kind].unit;
+  const unit = indicatorMeta(left.kind).unit;
   const rawRight = (c.right ?? {}) as { kind?: string; value?: unknown };
   if (rawRight.kind === "value") {
     if (unit === "price") {
@@ -265,7 +327,7 @@ function parseCondition(value: unknown, errors: string[]): Condition | null {
     return { left, op: c.op, right: { kind: "value", value: number } };
   }
   const right = parseIndicator(rawRight);
-  if (!right || INDICATORS[right.kind].unit !== "price" || unit !== "price") {
+  if (!right || indicatorMeta(right.kind).unit !== "price" || unit !== "price") {
     errors.push(RULE_ERRORS.onlyPriceLines);
     return null;
   }
