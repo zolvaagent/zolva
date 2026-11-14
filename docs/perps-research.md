@@ -687,3 +687,37 @@ Reading: no new Lab perps agent on alts from this round. Holding is also not an 
 (size = target volatility / recent volatility, so a wild coin gets a small position), since the drop limit is the
 binding gate. A gate longer than 7 days would also need an engine change (Development, engine and prototype
 together) before any agent could run it.
+
+## Round 2 on alt perps: volatility sized trend filter (2026-11-14) — first rule to pass
+
+Round 1 failed only on the drop limit, so round 2 changed one thing: position size from recent volatility
+(size = min(100%, 20% or 40% target / realised 30 day volatility), resized daily when more than 25% off, or at
+entry only). Same coins, split, costs and pass rule; pre-registered in `24145a9`,
+`scripts/research-alt-volsize.mts`, read only. 256 rules per coin; 53 survive training; all 3 locked rules PASS.
+
+| Locked rule (long only, 20% volatility target, daily resize) | Coins passing | Worst drop | Test 2024 to now |
+|---|---|---|---|
+| price above 50 day average +3% buffer, exit below it, no stop | 3 of 4 (NEAR drop 30.0%) | 20% to 30% | SOL +19%, XRP +36%, NEAR +12%, ZEC +151% |
+| same with a 15% stop | 3 of 4 (identical; the stop never fires at this size) | 20% to 30% | same |
+| 20 day high breakout while above the 50 day average, exit below the 10 day low | **4 of 4** | 19% to 22% | SOL +36%, XRP +62%, NEAR +13%, ZEC +128% |
+
+By year, 50 day gate with stop (2021 / 22 / 23 / 24 / 25 / 26): SOL +91 / -9 / +50 / +13 / +4 / +2,
+XRP +26 / -7 / +6 / +34 / +1 / +1, NEAR +39 / -1 / +42 / +4 / -15 / +27, ZEC +36 / -3 / -17 / +32 / +46 / +31.
+Holding lost 59% to 94% in 2022; these rules lost 1% to 9%.
+
+Checks that were not used to pick (env COINS, COST, FUNDING, SHOW):
+- **Unseen coins BTC and ETH**: 50 day gate BTC +27 / -12 / +59 / +30 / +1 / +5 (drop 17%), ETH +37 / -7 / +27 /
+  +13 / +22 / +6 (drop 15%); breakout BTC drop 16%, ETH drop 17%, 5 of 6 years positive. Passes there too.
+- **Double cost and funding** (0.1% a fill, longs pay 20% a year): all 3 still pass, test returns 2 to 9 points lower.
+- 37 of all 256 rules pass on at least 3 coins; the neighbours of the locked rules (7 day breakout, 50 day gate)
+  pass too, so it is not one lucky setting. The 40% target fails the drop limit almost everywhere.
+
+Honest limits:
+- **Small returns**: the agent mostly holds cash (alts run 80% to 130% volatility, so a 20% target holds about
+  15% to 25% of equity). 2025 and 2026 were near flat for SOL and XRP. It is a "lose little in crashes" rule,
+  not a money printer. ZEC's +151% test is one coin's 2025 run.
+- Binance spot, not Lighter perps; funding is an assumption; four coins that survived; 256 rules tried
+  (mitigated by the unseen BTC/ETH check and the many passing neighbours).
+- **The engine cannot run it yet**: it needs a 50 day (1,200 hour) lookback and volatility sizing with a daily
+  resize. Lighter history in the database is about 134 days, enough for a 50 day average plus 30 day volatility.
+  Spec for Development: notes folder `alt-volsize-spec.md`.

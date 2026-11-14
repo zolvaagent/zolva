@@ -25,12 +25,13 @@
  */
 import { BINANCE_FIRST_HOUR, BINANCE_SYMBOLS, binanceCloses, HOUR_MS } from "./binance-history.mts";
 
-const COINS = ["SOL", "XRP", "NEAR", "ZEC"];
+/** Checks only, never for selection: COINS=BTC,ETH (unseen coins), COST, FUNDING (a year, longs). */
+const COINS = process.env.COINS ? process.env.COINS.split(",") : ["SOL", "XRP", "NEAR", "ZEC"];
 const START = Date.UTC(2020, 9, 15);
 const TRAIN_END = Date.UTC(2024, 0, 1);
 const YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
-const COST = 0.0005;
-const LONG_FUNDING_PER_HOUR = 0.1 / (365 * 24);
+const COST = Number(process.env.COST ?? 0.0005);
+const LONG_FUNDING_PER_HOUR = Number(process.env.FUNDING ?? 0.1) / (365 * 24);
 const DRAWDOWN_LIMIT = 0.3;
 const VOL_HOURS = 30 * 24;
 
@@ -277,6 +278,15 @@ async function main() {
       console.log(
         `    ${coin.padEnd(5)} years ${c.years.map((r) => pct(r).padStart(6)).join("")}  worst drop ${pct(c.wholeDrop).padStart(5)}  test ${pct(c.testRet).padStart(6)}  trades ${c.trades}`,
       );
+    }
+  }
+
+  // SHOW="<rule name>" prints that rule on the chosen coins (checks only, e.g. COINS=BTC,ETH).
+  for (const row of rows.filter((r) => process.env.SHOW && name(r.rule) === process.env.SHOW)) {
+    console.log(`  show ${name(row.rule)}`);
+    for (const coin of COINS) {
+      const c = row.perCoin[coin];
+      console.log(`    ${coin.padEnd(5)} years ${c.years.map((r) => pct(r).padStart(6)).join("")}  worst drop ${pct(c.wholeDrop)}  test ${pct(c.testRet)}  trades ${c.trades}`);
     }
   }
 
