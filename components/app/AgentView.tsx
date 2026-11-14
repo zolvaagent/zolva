@@ -21,7 +21,8 @@ import {
 import { DEFAULT_EXPIRY_DAYS, parseAiLimit } from "@/lib/ai/limits";
 import { aiModel, formatCredits } from "@/lib/ai/models";
 import type { Decision } from "@/lib/engine/engine";
-import { describeCondition, type Rules } from "@/lib/engine/rules";
+import type { Rules } from "@/lib/engine/rules";
+import { RulesSummary } from "@/components/app/RulesSummary";
 import {
   dateAt,
   dayAt,
@@ -55,6 +56,8 @@ type Props = {
   /** Same settings over the last 30 days, shown while the agent has no history yet. */
   preview: Preview;
   symbols: Record<string, string>;
+  /** The agent's rules in plain words (lib/engine/summary.ts). */
+  howItTrades: string[];
   /** How the viewer logged in, for signing a manual sale (live agents, owner only). */
   loginMethod?: "privy" | "wallet" | null;
 };
@@ -72,6 +75,7 @@ export function AgentView({
   prices,
   preview,
   symbols,
+  howItTrades,
   loginMethod = null,
 }: Props) {
   const router = useRouter();
@@ -695,33 +699,8 @@ export function AgentView({
           </div>
         ))}
       </div>
-      {rules && (
-        <div
-          className="stack stack--tight"
-          style={{ marginTop: "var(--space-200)" }}
-        >
-          <strong style={{ fontSize: 14 }}>
-            Buy when {rules.entry.join} of:
-          </strong>
-          <ul className="rule-summary">
-            {rules.entry.conditions.map((condition, i) => (
-              <li key={i}>{describeCondition(condition)}</li>
-            ))}
-          </ul>
-          <strong style={{ fontSize: 14 }}>
-            Sell when {rules.exit.join} of:
-          </strong>
-          <ul className="rule-summary">
-            {rules.exit.conditions.length ? (
-              rules.exit.conditions.map((condition, i) => (
-                <li key={i}>{describeCondition(condition)}</li>
-              ))
-            ) : (
-              <li>No rule: take profit, max holding time or stop loss</li>
-            )}
-          </ul>
-        </div>
-      )}
+      {/* The whole strategy in plain words, from the agent's params (lib/engine/summary.ts). */}
+      <RulesSummary lines={howItTrades} />
     </div>
   );
 

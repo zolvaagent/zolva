@@ -122,6 +122,8 @@ describe("publicAgentDetail", () => {
   it("carries positions with their side and keeps preset rules out", () => {
     expect(body.positions).toEqual([{ market: "NVDA", side: "long", quantity: 1.12345679, entryPrice: 201.5, openedAt: new Date((NOW - 2 * HOUR) * 1000).toISOString() }]);
     expect(body.agent.settings).toEqual({ maxPositionPct: 100, stopLossPct: 10, rules: null, aiCoPilot: false });
+    expect(body.agent.howItTrades[0]).toMatch(/^Trades /);
+    expect(body.agent.howItTrades.at(-1)).toBe("Paper money: virtual dollars at real prices.");
     expect(body.agent.paper).toBe(true);
   });
 

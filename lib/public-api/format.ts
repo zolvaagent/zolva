@@ -9,6 +9,8 @@ import type { AgentDetail, AgentSummary } from "../data/agents";
 import type { MarketDetail, MarketRow } from "../data/markets";
 import { STRATEGY_NAMES } from "../format";
 import { longbowListingFor, type LongbowListing } from "../longbow";
+import { agentParams } from "../agents/plan";
+import { describeAgent } from "../engine/summary";
 
 export const API_VERSION = "v1";
 const SITE = "https://zolvaagent.app";
@@ -104,6 +106,12 @@ export function publicAgentDetail(detail: AgentDetail, nowSeconds: number) {
         rules: agent.strategy === "custom" ? (agent.params.rules ?? null) : null,
         aiCoPilot: agent.ai_model !== null,
       },
+      // The strategy in plain words, built from the settings (never AI), one sentence per item.
+      howItTrades: describeAgent(agentParams(agent as Parameters<typeof agentParams>[0]), {
+        symbols: agent.token_addresses.map((address) => symbolOf.get(address) ?? address),
+        mode: agent.mode,
+        aiModel: agent.ai_model,
+      }),
     },
     // [time, agent value USD, value of holding the same markets USD], hourly, oldest first.
     equity: equity.map((run) => [iso(run.ts), round(run.equity, 2), round(run.holdEquity, 2)] as const),

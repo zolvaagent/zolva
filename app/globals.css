@@ -9602,3 +9602,30 @@ li.stats-ranks__row {
 .brand-kit-contact a:hover {
   text-decoration-color: currentColor;
 }
+
+/* "How it trades" (components/app/RulesSummary.tsx): the agent's rules in plain words. */
+.rules-summary {
+  margin-top: var(--space-200);
+  padding: var(--space-200);
+  border-radius: var(--radius-xl);
+  background: var(--color-tint);
+  text-align: left;
+}
+
+.rules-summary__title {
+  margin: 0 0 var(--space-75);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.rules-summary__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  margin: 0;
+  padding-left: var(--space-200);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-text-muted);
+}

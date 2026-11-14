@@ -16,6 +16,8 @@ import { aiModel } from "@/lib/ai/models";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
+import { describeAgent } from "@/lib/engine/summary";
+import { RulesSummary } from "@/components/app/RulesSummary";
 import { dayAt, percent, usd } from "@/lib/format";
 import { track } from "@/lib/funnel";
 import { openingPreset, PRESET_MAX_POSITION_PCT, PRESET_STOP_LOSS_PCT, scorePresets, suggestedName, type ScoredPreset } from "@/lib/studio/presets";
@@ -660,6 +662,12 @@ export function Studio({
               ? `It trades ${usd(agentCapital)} of real USDG from your wallet on Uniswap. Its first decision comes at the top of the next hour.`
               : "It trades virtual money only. Its first decision comes at the top of the next hour."}
           </p>
+          <RulesSummary
+            lines={describeAgent(
+              { strategy, rules: strategy === "custom" ? rules : undefined, maxPositionPct, stopLossPct, ...(perps ? { venue: "perps" as const } : {}) },
+              { symbols, mode: live ? "live" : "paper", aiModel: aiModelId },
+            )}
+          />
           {live ? (
             <div className="verdict">
               <i className={`ph ${liveReady(liveStatus) ? "ph-wallet" : "ph-warning-circle loss"}`} />

@@ -11,6 +11,7 @@ import { getMarket } from "@/lib/data/market";
 import { dayAt, percent, signedUsd } from "@/lib/format";
 import { getAgentShare } from "@/lib/share/agent-share";
 import { buyAndHold, costRateFor, paramsLookback, simulate } from "@/lib/engine/engine";
+import { describeAgent } from "@/lib/engine/summary";
 import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -75,5 +76,10 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
   // Display only: how to sign a manual sale on a live agent (Privy window or browser wallet).
   const method = (await cookies()).get(LOGIN_METHOD_COOKIE)?.value;
   const loginMethod = method === "privy" || method === "wallet" ? method : null;
-  return <AgentView detail={detail} isOwner={isOwner} credits={credits} prices={prices} preview={preview} symbols={symbols} loginMethod={loginMethod} />;
+  const howItTrades = describeAgent(agentParams(detail.agent), {
+    symbols: detail.agent.token_addresses.map((address) => symbols[address] ?? address),
+    mode: detail.agent.mode,
+    aiModel: detail.agent.ai_model,
+  });
+  return <AgentView detail={detail} isOwner={isOwner} credits={credits} prices={prices} preview={preview} symbols={symbols} howItTrades={howItTrades} loginMethod={loginMethod} />;
 }
