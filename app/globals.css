@@ -8920,3 +8920,551 @@ li.stats-ranks__row {
   cursor: pointer;
   margin-bottom: var(--space-100);
 }
+
+/* ---------- Brand kit (/brand) ----------
+   Press kit page. Approved design: prototype/brand.html. Prefixed brand-kit- so it never
+   collides with site classes. Preview grounds are fixed colors: a white mark always sits
+   on dark, whatever the page theme. */
+
+.brand-kit-intro {
+  padding-bottom: var(--space-600);
+}
+
+.brand-kit-intro h1 {
+  max-width: 14ch;
+  margin: var(--space-200) 0 0;
+  font-size: clamp(40px, 7vw, 72px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.brand-kit-intro__lead {
+  max-width: 52ch;
+  margin: var(--space-300) 0 0;
+  color: var(--color-text-muted);
+  font-size: 17px;
+}
+
+.brand-kit-intro__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-200);
+  margin-top: var(--space-400);
+}
+
+.brand-kit-intro__note {
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+
+.brand-kit-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-75) var(--space-300);
+  margin: var(--space-600) 0 0;
+  padding: var(--space-200) 0 0;
+  border-top: 1px solid var(--color-border);
+  list-style: none;
+  font-size: 14px;
+}
+
+.brand-kit-toc a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.brand-kit-toc a:hover {
+  color: var(--color-text);
+}
+
+.brand-kit-toc span,
+.brand-kit-section__number {
+  color: var(--color-text-faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.brand-kit-toc span {
+  margin-right: var(--space-75);
+}
+
+/* Sections: label column + content column; one column on phones */
+.brand-kit-section {
+  display: grid;
+  gap: var(--space-300);
+  padding: var(--space-600) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 960px) {
+  .brand-kit-section {
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: var(--space-600);
+    padding: var(--space-700) 0;
+  }
+
+  /* The label stays in view while its section scrolls, below the floating header */
+  .brand-kit-section__head {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-400));
+    align-self: start;
+  }
+}
+
+.brand-kit-section__number {
+  display: block;
+  margin-bottom: var(--space-75);
+}
+
+.brand-kit-section__head h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.brand-kit-section__head p {
+  margin: var(--space-100) 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.brand-kit-subhead {
+  margin: var(--space-500) 0 var(--space-200);
+  color: var(--color-text-faint);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.brand-kit-subhead:first-child {
+  margin-top: 0;
+}
+
+/* Logo tiles */
+.brand-kit-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: var(--space-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.brand-kit-assets--wide {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+}
+
+.brand-kit-asset {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-3xl);
+  background: var(--color-surface);
+}
+
+.brand-kit-asset__preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  padding: var(--space-300);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.brand-kit-assets--wide .brand-kit-asset__preview {
+  aspect-ratio: 16 / 7;
+}
+
+.brand-kit-asset__preview--light {
+  background: #ffffff;
+}
+
+.brand-kit-asset__preview--panel {
+  background: #f7f6f6;
+}
+
+.brand-kit-asset__preview--dark {
+  background: var(--color-dark);
+}
+
+.brand-kit-asset__preview img {
+  width: 38%;
+  max-width: 96px;
+  height: auto;
+}
+
+.brand-kit-asset__preview img.is-lockup {
+  width: 72%;
+  max-width: 240px;
+}
+
+.brand-kit-asset__body {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-200) var(--space-200) var(--space-300);
+}
+
+@media (min-width: 640px) {
+  .brand-kit-asset__body {
+    padding: var(--space-200) var(--space-300) var(--space-300);
+  }
+}
+
+.brand-kit-asset__name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.brand-kit-asset__use {
+  margin: 0;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+
+.brand-kit-asset__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--space-100);
+}
+
+.brand-kit-file,
+.brand-kit-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+  padding: 0 var(--space-75);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--duration-micro) var(--ease-out-expo);
+}
+
+.brand-kit-file:hover,
+.brand-kit-copy:hover {
+  background: var(--color-tint);
+}
+
+/* Colors */
+.brand-kit-swatches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 640px) {
+  .brand-kit-swatches {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.brand-kit-swatch {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: copy;
+  transition: border-color var(--duration-micro) var(--ease-out-expo);
+}
+
+.brand-kit-swatch:hover {
+  border-color: var(--color-text-faint);
+}
+
+.brand-kit-swatch__chip {
+  height: 112px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* Ink and Night sit close to the dark page, so outline every chip in dark mode */
+:root[data-theme="dark"] .brand-kit-swatch__chip {
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+
+.brand-kit-swatch__info {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-100) var(--space-200) var(--space-200);
+}
+
+.brand-kit-swatch__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.brand-kit-swatch__hex {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.brand-kit-swatch__role {
+  color: var(--color-text-faint);
+  font-size: 12px;
+}
+
+.brand-kit-note {
+  margin: var(--space-200) 0 0;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+
+/* Copy blocks */
+.brand-kit-copy-list {
+  display: grid;
+  margin: 0;
+}
+
+.brand-kit-copy-block {
+  display: grid;
+  gap: var(--space-100);
+  padding: var(--space-300) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.brand-kit-copy-block:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.brand-kit-copy-block__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-200);
+}
+
+.brand-kit-copy-block dt {
+  color: var(--color-text-faint);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.brand-kit-copy-block dd {
+  max-width: 64ch;
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.brand-kit-copy-block--lead dd {
+  font-size: 22px;
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.brand-kit-copy-block--legal dd {
+  color: var(--color-text-muted);
+  font-size: 15px;
+}
+
+.brand-kit-copy {
+  flex-shrink: 0;
+  padding: 0 var(--space-100);
+}
+
+.brand-kit-copy.is-copied {
+  border-color: transparent;
+  background: var(--color-purple-8);
+}
+
+/* Usage rules */
+.brand-kit-rules {
+  display: grid;
+  gap: var(--space-400);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.brand-kit-rule h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.brand-kit-rule > p {
+  max-width: 60ch;
+  margin: var(--space-50) 0 var(--space-200);
+  color: var(--color-text-muted);
+  font-size: 15px;
+}
+
+.brand-kit-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-200);
+}
+
+.brand-kit-compare figure {
+  margin: 0;
+}
+
+.brand-kit-compare__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 2 / 1;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-2xl);
+  background: var(--color-bg-panel);
+  color: var(--color-ink-fixed);
+}
+
+:root[data-theme="dark"] .brand-kit-compare__stage {
+  color: #ffffff;
+}
+
+/* Beats the dark-mode stage color, so the wrong color shows in both themes */
+:root .brand-kit-compare__stage.is-recolored {
+  color: #0a9a4c;
+}
+
+.brand-kit-compare__stage .brand-kit-mark {
+  width: 30%;
+  max-width: 72px;
+  height: auto;
+}
+
+.brand-kit-mark.is-stretched {
+  transform: scaleX(1.6);
+}
+
+.brand-kit-compare figcaption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-75);
+  margin-top: var(--space-75);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.brand-kit-verdict {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.brand-kit-verdict--do {
+  background: var(--color-gain);
+}
+
+.brand-kit-verdict--dont {
+  background: var(--color-loss);
+}
+
+/* Clear space guide: dashed box at 30% of the mark's width on every side */
+.brand-kit-clear-space {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 30%;
+  max-width: 72px;
+}
+
+.brand-kit-compare__stage .brand-kit-clear-space .brand-kit-mark {
+  position: relative;
+  width: 100%;
+  max-width: none;
+}
+
+.brand-kit-clear-space::before {
+  content: "";
+  position: absolute;
+  inset: -30%;
+  border: 1px dashed var(--color-purple-rich);
+  border-radius: 4px;
+  background: rgba(152, 150, 255, 0.08);
+}
+
+.brand-kit-crowded {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: clamp(11px, 2.4vw, 14px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.brand-kit-compare__stage .brand-kit-crowded .brand-kit-mark {
+  width: 28px;
+}
+
+.brand-kit-crowded__other {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--color-text-faint);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+/* Contact */
+.brand-kit-contact {
+  display: grid;
+  margin: 0;
+}
+
+.brand-kit-contact__row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--space-200);
+  align-items: baseline;
+  padding: var(--space-200) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+@media (min-width: 640px) {
+  .brand-kit-contact__row {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+}
+
+.brand-kit-contact__row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.brand-kit-contact dt {
+  color: var(--color-text-faint);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.brand-kit-contact dd {
+  margin: 0;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.brand-kit-contact a {
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 4px;
+}
+
+.brand-kit-contact a:hover {
+  text-decoration-color: currentColor;
+}
