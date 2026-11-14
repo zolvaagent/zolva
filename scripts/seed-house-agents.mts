@@ -63,6 +63,7 @@ async function main() {
         ...(config.rules ? { rules: config.rules } : {}),
         ...(config.venue ? { venue: config.venue } : {}),
         ...("leverage" in config && config.leverage ? { leverage: config.leverage } : {}),
+        ...("sizing" in config && config.sizing ? { sizing: config.sizing } : {}),
       },
       token_addresses: addresses,
       start_capital: 10_000,

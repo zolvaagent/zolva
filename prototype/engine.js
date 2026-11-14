@@ -45,6 +45,8 @@
   const BOUNCE_FAST_MAX = 0.015;
   // Share of the margin a leveraged short may lose before it is liquidated.
   const LIQUIDATION_LOSS = 0.95;
+  // Volatility sizing (custom rules only): resize once a day when more than 25% off the wanted size.
+  const RESIZE_BAND = 0.25;
 
   const STRATEGIES = {
     momentum: {
@@ -190,6 +192,10 @@
    * @param {number} [options.toIndex]          last hour (inclusive), defaults to the latest
    * @param {"dex"|"perps"} [options.venue]      perps: PERPS_COST_RATE and each token's funding
    *                                             (token.funding, signed fraction per hour, positive: longs pay)
+   * @param {{kind: "volTarget", targetPct: number, hours: number}} [options.sizing]  custom rules only:
+   *                                             buy equity x min(max %, target / realised volatility), and
+   *                                             resize once a day (00:00 UTC) when more than 25% off
+   * @param {number[]} [options.times]           hour start per index (unix seconds), default index x 3600
    */
   function simulate(options) {
     const perps = options.venue === "perps";
@@ -197,7 +203,9 @@
     // "custom" runs the user's rules (options.rules); the presets keep their own code.
     const custom = options.strategy === "custom";
     const strategy = STRATEGIES[options.strategy];
-    const warmup = custom ? rulesLookback(options.rules) : options.strategy === "dip_fade" || options.strategy === "bounce_short" ? TREND_HOURS : WARMUP_HOURS;
+    const sizing = custom ? options.sizing : undefined;
+    const ruleWarmup = custom ? rulesLookback(options.rules) : options.strategy === "dip_fade" || options.strategy === "bounce_short" ? TREND_HOURS : WARMUP_HOURS;
+    const warmup = sizing ? Math.max(ruleWarmup, sizing.hours + 1) : ruleWarmup;
     const lastIndex = options.toIndex ?? options.tokens[0].closes.length - 1;
     const maxShare = options.maxPositionPct / 100;
     const stopDistance = options.stopLossPct / 100;
@@ -215,6 +223,8 @@
       const prices = {};
       for (const token of options.tokens) prices[token.symbol] = token.closes[index];
       const equityBefore = equityAt(cash, positions, prices);
+      const hourTime = options.times ? options.times[index] : index * 3600;
+      const resizeHour = sizing !== undefined && hourTime % 86400 === 0;
       const decisions = [];
       // One position strategies: decided from the positions held at the start of the hour.
       // Dip + fade has one slot per side.
@@ -353,7 +363,8 @@
           cash += cover(trades, index, token.symbol, position, price, "signal", cost);
           delete positions[token.symbol];
         } else if (decision.action === "buy") {
-          const notional = Math.min(cash, equityBefore * maxShare);
+          const share = sizing ? wantedShare(sizing, window, maxShare).share : maxShare;
+          const notional = Math.min(cash, equityBefore * share);
           if (notional < 1) {
             decisions.push({ symbol: token.symbol, action: "hold", reasoning: "Signal to buy, but no cash left. Holding." });
             continue;
@@ -366,6 +377,36 @@
         } else if (decision.action === "sell") {
           cash += sell(trades, index, token.symbol, position, price, "signal", cost);
           delete positions[token.symbol];
+        }
+
+        // Daily resize of a volatility sized position that is still open; the first entry price stays.
+        const open = positions[token.symbol];
+        if (resizeHour && open && open.side !== "short") {
+          const target = wantedShare(sizing, window, maxShare);
+          const wanted = equityAt(cash, positions, prices) * target.share;
+          const held = open.quantity * price;
+          if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+            const why = `Daily resize: volatility is ${(target.volatility * 100).toFixed(0)}% a year, so the target is ${(target.share * 100).toFixed(1)}% of equity`;
+            if (held < wanted) {
+              const spend = Math.min(cash, wanted - held);
+              if (spend >= 1) {
+                const quantity = (spend * (1 - cost)) / price;
+                cash -= spend;
+                positions[token.symbol] = { ...open, quantity: open.quantity + quantity };
+                trades.push({ index, symbol: token.symbol, side: "buy", quantity, price, costUsd: spend * cost, reason: "resize" });
+                decisions.push({ symbol: token.symbol, action: "buy", reasoning: `${decision.reasoning} ${why}: buying $${spend.toFixed(2)} more.`, indicators: decision.indicators });
+                continue;
+              }
+            } else {
+              const quantity = (held - wanted) / price;
+              const gross = quantity * price;
+              cash += gross * (1 - cost);
+              positions[token.symbol] = { ...open, quantity: open.quantity - quantity };
+              trades.push({ index, symbol: token.symbol, side: "sell", quantity, price, costUsd: gross * cost, reason: "resize", entryPrice: open.entryPrice });
+              decisions.push({ symbol: token.symbol, action: "sell", reasoning: `${decision.reasoning} ${why}: selling $${gross.toFixed(2)}.`, indicators: decision.indicators });
+              continue;
+            }
+          }
         }
         decisions.push({ symbol: token.symbol, action: decision.action, reasoning: decision.reasoning, indicators: decision.indicators });
       }
@@ -447,9 +488,26 @@
       : Math.max(0, position.margin + position.quantity * (position.entryPrice - price));
   }
 
+  /** Annualised volatility of the last `hours` hourly log returns at the end of `window`. */
+  function realisedVolatility(window, hours) {
+    const closes = window.slice(-hours - 1);
+    const returns = [];
+    for (let i = 1; i < closes.length; i++) returns.push(Math.log(closes[i] / closes[i - 1]));
+    const average = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+    const variance = returns.reduce((sum, value) => sum + value * value, 0) / returns.length - average * average;
+    return Math.sqrt(Math.max(0, variance) * 8760);
+  }
+
+  /** Share of equity a volatility sized agent wants in one market, capped by the max position share. */
+  function wantedShare(sizing, window, maxShare) {
+    const volatility = realisedVolatility(window, sizing.hours);
+    return { share: volatility > 0 ? Math.min(maxShare, sizing.targetPct / 100 / volatility) : maxShare, volatility };
+  }
+
+  // A resize is not a round trip: only full exits count toward the win rate.
   function pairRoundTrips(trades, cost) {
     return trades
-      .filter((trade) => trade.side === "sell" || trade.side === "cover")
+      .filter((trade) => (trade.side === "sell" || trade.side === "cover") && trade.reason !== "resize")
       .map((trade) => (trade.side === "sell" ? trade.price * (1 - cost) - trade.entryPrice : trade.entryPrice - trade.price * (1 + cost)));
   }
 
@@ -675,6 +733,7 @@
     OPERATORS,
     RULE_TEMPLATES,
     rulesLookback,
+    realisedVolatility,
     validateRules,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

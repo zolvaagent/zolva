@@ -30,6 +30,11 @@
  *   empty, with the 7 day trend filter in strategies.ts.
  * - Bounce short (perps, paper only) follows spike fade's one position rule but enters the market
  *   with the deepest 7 day fall that is bouncing (see strategies.ts), not the highest z score.
+ * - Volatility sizing (custom rules only, `params.sizing`): a buy uses equity x min(max position %,
+ *   target / realised volatility) instead of the max position %. Once a day (00:00 UTC) an open
+ *   position is resized to that share when it is more than RESIZE_BAND away from it; the resize
+ *   pays the cost on the change only and keeps the first entry price, so the stop does not move.
+ *   Research: docs/perps-research.md, "Round 2 on alt perps".
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
 import { decide, presetLookback, type StrategyKey } from "./strategies.ts";
@@ -39,6 +44,9 @@ export const COST_RATE = 0.005;
 export const SHORT_BORROW_APR = 0.1;
 /** Cost per fill on Lighter perps: 0% fees today, 0.05% kept for slippage and a fee change. */
 export const PERPS_COST_RATE = 0.0005;
+/** Volatility sizing: resize once a day when the held size is more than this share away from the wanted size. */
+export const RESIZE_BAND = 0.25;
+const HOURS_PER_YEAR = 8760;
 
 export type Venue = "dex" | "perps";
 
@@ -62,7 +70,37 @@ export type AgentParams = {
    * refuses it elsewhere): a short then opens a position of leverage x the margin it puts in.
    */
   leverage?: number;
+  /**
+   * Custom rules only: size each buy by volatility instead of a fixed share. Wanted share of
+   * equity = min(maxPositionPct, targetPct / realised volatility), where realised volatility is
+   * the population standard deviation of the last `hours` hourly log returns x sqrt(8760).
+   */
+  sizing?: VolTargetSizing;
 };
+
+export type VolTargetSizing = { kind: "volTarget"; targetPct: number; hours: number };
+
+/** Hours of closes before an hour that runHour needs to decide on it. */
+export function paramsLookback(params: AgentParams): number {
+  const base = params.strategy === "custom" && params.rules ? rulesLookback(params.rules) : presetLookback(params.strategy as StrategyKey);
+  return params.strategy === "custom" && params.sizing ? Math.max(base, params.sizing.hours + 1) : base;
+}
+
+/** Annualised volatility of the last `hours` hourly log returns at the end of `window` (closes, oldest first). */
+export function realisedVolatility(window: number[], hours: number): number {
+  const closes = window.slice(-hours - 1);
+  const returns: number[] = [];
+  for (let i = 1; i < closes.length; i++) returns.push(Math.log(closes[i] / closes[i - 1]));
+  const average = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const variance = returns.reduce((sum, value) => sum + value * value, 0) / returns.length - average * average;
+  return Math.sqrt(Math.max(0, variance) * HOURS_PER_YEAR);
+}
+
+/** Share of equity a volatility sized agent wants in one market, capped by the max position share. */
+function wantedShare(sizing: VolTargetSizing, window: number[], maxShare: number): { share: number; volatility: number } {
+  const volatility = realisedVolatility(window, sizing.hours);
+  return { share: volatility > 0 ? Math.min(maxShare, sizing.targetPct / 100 / volatility) : maxShare, volatility };
+}
 
 /** Share of the margin a leveraged short may lose before it is liquidated. */
 export const LIQUIDATION_LOSS = 0.95;
@@ -120,7 +158,8 @@ export type Fill = {
   quantity: number;
   price: number;
   costUsd: number;
-  reason: "signal" | "stop_loss" | "take_profit" | "max_hold";
+  /** resize: a volatility sized position moved back toward its wanted size (not a round trip). */
+  reason: "signal" | "stop_loss" | "take_profit" | "max_hold" | "resize";
   /** Entry price of the position a sell or cover closed, for win rate. */
   entryPrice?: number;
 };
@@ -150,7 +189,10 @@ export function runHour(
 ): HourResult {
   const rules = params.strategy === "custom" ? params.rules : undefined;
   if (params.strategy === "custom" && !rules) throw new Error("Custom strategy without rules");
-  const lookback = rules ? rulesLookback(rules) : presetLookback(params.strategy as StrategyKey);
+  const lookback = paramsLookback(params);
+  // Volatility sizing is for custom (long only) rules; presets keep their fixed share.
+  const sizing = rules ? params.sizing : undefined;
+  const resizeHour = sizing !== undefined && hourTime % 86400 === 0;
   const tokens = Object.keys(series);
   const prices: Record<string, number | null> = Object.fromEntries(tokens.map((token) => [token, series[token][index] ?? null]));
   const equityBefore = equityAt(state, prices);
@@ -320,7 +362,8 @@ export function runHour(
       delete positions[token];
       fills.push(fill);
     } else if (signal.action === "buy") {
-      const notional = Math.min(cash, equityBefore * maxShare);
+      const share = sizing ? wantedShare(sizing, window as number[], maxShare).share : maxShare;
+      const notional = Math.min(cash, equityBefore * share);
       if (notional < 1) {
         decisions.push({ token, action: "hold", reasoning: "Signal to buy, but no cash left. Holding." });
         continue;
@@ -336,7 +379,39 @@ export function runHour(
       delete positions[token];
       fills.push(fill);
     }
-    decisions.push({ token, action: signal.action, reasoning: signal.reasoning, indicators: signal.indicators });
+    const decision: Decision = { token, action: signal.action, reasoning: signal.reasoning, indicators: signal.indicators };
+
+    // Daily resize of a volatility sized position that is still open after this hour's signal.
+    const open = positions[token];
+    if (resizeHour && sizing && open && open.side !== "short") {
+      const { share, volatility } = wantedShare(sizing, window as number[], maxShare);
+      const wanted = equityAt({ cash, positions }, prices) * share;
+      const held = open.quantity * price;
+      if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+        const why = `Daily resize: volatility is ${(volatility * 100).toFixed(0)}% a year, so the target is ${(share * 100).toFixed(1)}% of equity`;
+        if (held < wanted) {
+          const spend = Math.min(cash, wanted - held);
+          if (spend >= 1) {
+            const quantity = (spend * (1 - cost)) / price;
+            cash -= spend;
+            // The first entry price stays, so the stop loss does not move.
+            positions[token] = { ...open, quantity: open.quantity + quantity };
+            fills.push({ token, side: "buy", quantity, price, costUsd: spend * cost, reason: "resize" });
+            decisions.push({ ...decision, action: "buy", reasoning: `${signal.reasoning} ${why}: buying ${formatUsd(spend)} more.` });
+            continue;
+          }
+        } else {
+          const quantity = (held - wanted) / price;
+          const gross = quantity * price;
+          cash += gross * (1 - cost);
+          positions[token] = { ...open, quantity: open.quantity - quantity };
+          fills.push({ token, side: "sell", quantity, price, costUsd: gross * cost, reason: "resize", entryPrice: open.entryPrice });
+          decisions.push({ ...decision, action: "sell", reasoning: `${signal.reasoning} ${why}: selling ${formatUsd(gross)}.` });
+          continue;
+        }
+      }
+    }
+    decisions.push(decision);
   }
 
   const next = { cash, positions };
@@ -402,6 +477,10 @@ export function shortValue(position: Position, price: number): number {
     : Math.max(0, position.margin + position.quantity * (position.entryPrice - price));
 }
 
+function formatUsd(value: number): string {
+  return `$${value.toFixed(2)}`;
+}
+
 function formatChange(fraction: number): string {
   return `${fraction >= 0 ? "+" : ""}${(fraction * 100).toFixed(1)}%`;
 }
@@ -451,8 +530,9 @@ export function simulate(options: {
 
   const finalEquity = runs.length ? runs[runs.length - 1].equity : options.capital;
   const cost = costRateFor(options.params.venue);
+  // A resize is not a round trip: only full exits count toward the win rate.
   const profits = fills
-    .filter((fill) => fill.side === "sell" || fill.side === "cover")
+    .filter((fill) => (fill.side === "sell" || fill.side === "cover") && fill.reason !== "resize")
     .map((fill) =>
       fill.side === "sell" ? fill.price * (1 - cost) - (fill.entryPrice ?? fill.price) : (fill.entryPrice ?? fill.price) - fill.price * (1 + cost),
     );

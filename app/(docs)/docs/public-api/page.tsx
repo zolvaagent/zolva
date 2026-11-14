@@ -83,7 +83,7 @@ const TRADE_FIELDS: Field[] = [
   ["at", "Time of the hourly close the trade used, ISO 8601."],
   ["agentId, agentName, byZolva, strategy", "Which agent traded. The name is also in userText.agentName (text a user typed)."],
   ["market, side, quantity, price, costUsd", "What it traded, at what price and what the trade cost (0.5% of its size for spot paper trades, 0.05% for perps)."],
-  ["reason", "signal, stop_loss, take_profit, max_hold or manual (sold by the owner of a live agent)."],
+  ["reason", "signal, stop_loss, take_profit, max_hold, manual (sold by the owner of a live agent) or resize (a volatility sized Lab agent moved its position toward its target at 00:00 UTC)."],
   ["reasoning", "The agent's own explanation of the trade."],
 ];
 

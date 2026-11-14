@@ -6,6 +6,11 @@ import { buildCloseSeries, HOUR_SECONDS, OUTLIER_WINDOW, type CloseCandle } from
 
 /** Hours of closes sent to pages: 30 day backtests + a week of look-back + spare. */
 export const MARKET_HOURS = 900;
+/**
+ * Hours the hourly runner loads: enough for the longest rule an agent runs (the alt perps Lab
+ * agents' 1,200 hour average, plus one hour) and a week of catch-up. Pages keep MARKET_HOURS.
+ */
+export const RUNNER_MARKET_HOURS = 1400;
 
 export type AssetClass = "stock" | "crypto";
 /** uniswap: stock and crypto tokens on the DEX; lighter: perps (paper only, Lab agents). */
@@ -36,7 +41,7 @@ type RawToken = { address: string; symbol: string; name: string; assetClass?: As
 
 // Prices change once an hour; keep a built snapshot for a few minutes per Worker isolate.
 const CACHE_MS = 5 * 60 * 1000;
-let cached: { at: number; market: Market } | null = null;
+const cached = new Map<number, { at: number; market: Market }>();
 
 /**
  * The last MARKET_HOURS hourly closes of every enabled token, aligned to the
@@ -46,17 +51,18 @@ let cached: { at: number; market: Market } | null = null;
  * far run only for Lab agents, so market lists, the Studio, Swap and the APIs never
  * show them. The agent runner and agent pages ask for them.
  */
-export async function getMarket(db: SupabaseClient, options: { perps?: boolean } = {}): Promise<Market> {
-  const market = await loadMarket(db);
+export async function getMarket(db: SupabaseClient, options: { perps?: boolean; hours?: number } = {}): Promise<Market> {
+  const market = await loadMarket(db, options.hours ?? MARKET_HOURS);
   return options.perps ? market : { ...market, tokens: market.tokens.filter((token) => token.venue !== "lighter") };
 }
 
-async function loadMarket(db: SupabaseClient): Promise<Market> {
-  if (cached && Date.now() - cached.at < CACHE_MS) return cached.market;
+async function loadMarket(db: SupabaseClient, hours: number): Promise<Market> {
+  const hit = cached.get(hours);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.market;
 
   const latest = await latestCandleTime(db);
   if (latest === null) return { startTs: 0, hours: 0, tokens: [] };
-  const startTs = latest - (MARKET_HOURS - 1) * HOUR_SECONDS;
+  const startTs = latest - (hours - 1) * HOUR_SECONDS;
   // Load a day earlier than the window so the outlier filter starts warm.
   const from = startTs - OUTLIER_WINDOW * HOUR_SECONDS;
 
@@ -80,8 +86,8 @@ async function loadMarket(db: SupabaseClient): Promise<Market> {
     };
   });
 
-  const market = { startTs, hours: MARKET_HOURS, tokens };
-  cached = { at: Date.now(), market };
+  const market = { startTs, hours, tokens };
+  cached.set(hours, { at: Date.now(), market });
   return market;
 }
 
@@ -102,5 +108,5 @@ export async function latestCandleTime(db: SupabaseClient): Promise<number | nul
 
 /** Forget the cached snapshot (after the hourly tick wrote new prices). */
 export function clearMarketCache() {
-  cached = null;
+  cached.clear();
 }

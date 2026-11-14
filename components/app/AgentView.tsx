@@ -993,6 +993,9 @@ export function AgentView({
                           )}
                           {trade.reason === "manual" && (
                             <span className="pill" title="Sold by the owner with Sell position">Manual</span>
+                          )}
+                          {trade.reason === "resize" && (
+                            <span className="pill" title="Moved back toward the volatility target at 00:00 UTC">Resize</span>
                           )}{" "}
                           {trade.txHash && (
                             <a className="text-link" href={`${EXPLORER_URL}/tx/${trade.txHash}`} target="_blank" rel="noopener noreferrer" title="Swap on Blockscout">

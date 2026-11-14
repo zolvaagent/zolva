@@ -10,7 +10,7 @@ import { getCredits } from "@/lib/data/credits";
 import { getMarket } from "@/lib/data/market";
 import { dayAt, percent, signedUsd } from "@/lib/format";
 import { getAgentShare } from "@/lib/share/agent-share";
-import { buyAndHold, costRateFor, simulate } from "@/lib/engine/engine";
+import { buyAndHold, costRateFor, paramsLookback, simulate } from "@/lib/engine/engine";
 import { db } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -61,8 +61,9 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
     const series = Object.fromEntries(detail.agent.token_addresses.map((address, i) => [address, own[i]?.closes ?? []]));
     // Perps agents also pay funding (missing for DEX tokens, which the engine ignores).
     const funding = Object.fromEntries(detail.agent.token_addresses.map((address, i) => [address, own[i]?.funding ?? []]));
-    if (Object.values(series).every((closes) => closes[fromIndex - 80] != null)) {
-      const params = agentParams(detail.agent);
+    const params = agentParams(detail.agent);
+    // Only when the window holds the rule's whole look-back (the 1,200 hour Lab rules do not fit).
+    if (fromIndex - paramsLookback(params) >= 0 && Object.values(series).every((closes) => closes[fromIndex - paramsLookback(params)] != null)) {
       const result = simulate({ series, params, capital: detail.summary.startCapital, fromIndex, times: market.tokens[0].closes.map((_, i) => market.startTs + i * 3600), funding });
       const hold = buyAndHold(series, detail.summary.startCapital, fromIndex, undefined, costRateFor(params.venue));
       preview = { startTs: market.startTs + fromIndex * 3600, equity: result.runs.map((run) => run.equity), hold: hold.curve, returnPct: result.returnPct, holdReturnPct: hold.returnPct };

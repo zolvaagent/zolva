@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { withCopilot, type CopilotAgent } from "@/lib/agents/copilot-runner";
 import { planAgentHours, type PositionRow } from "@/lib/agents/plan";
-import { getMarket } from "@/lib/data/market";
+import { getMarket, RUNNER_MARKET_HOURS } from "@/lib/data/market";
 
 export type RunnerResult = {
   agents: number;
@@ -22,8 +22,8 @@ export type RunnerResult = {
  * running this twice (or two ticks at once) cannot double-trade.
  */
 export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult> {
-  // Perps included: Lab agents trade them on paper.
-  const market = await getMarket(db, { perps: true });
+  // Perps included: Lab agents trade them on paper. The longer window covers the longest rule.
+  const market = await getMarket(db, { perps: true, hours: RUNNER_MARKET_HOURS });
   const result: RunnerResult = { agents: 0, hoursWritten: 0, hoursSkipped: 0, failed: [], copilot: [] };
   if (!market.hours) return result;
   const latestTs = market.startTs + (market.hours - 1) * 3600;

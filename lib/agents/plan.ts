@@ -3,7 +3,7 @@
  * database), so the hourly runner and the tests share it. The runner then
  * writes each planned hour atomically with the `apply_agent_hour` function.
  */
-import { costRateFor, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions, type Venue } from "../engine/engine.ts";
+import { costRateFor, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions, type Venue, type VolTargetSizing } from "../engine/engine.ts";
 import type { Rules } from "../engine/rules.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
@@ -24,6 +24,8 @@ export type AgentRow = {
     venue?: Venue;
     /** Leveraged short size (bounce_short on perps only); missing means 1x. */
     leverage?: number;
+    /** Volatility sizing (custom rules on perps only); missing means the fixed max position share. */
+    sizing?: VolTargetSizing;
   };
   token_addresses: string[];
   start_capital: number;
@@ -68,6 +70,9 @@ export function agentParams(agent: AgentRow): AgentParams {
     stopLossPct: Number(agent.params.stop_loss_pct),
     venue: agent.params.venue,
     ...(agent.params.leverage ? { leverage: Number(agent.params.leverage) } : {}),
+    ...(agent.params.sizing
+      ? { sizing: { kind: "volTarget" as const, targetPct: Number(agent.params.sizing.targetPct), hours: Number(agent.params.sizing.hours) } }
+      : {}),
   };
 }
 

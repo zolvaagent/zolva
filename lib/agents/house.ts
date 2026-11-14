@@ -5,7 +5,7 @@
  * backtests, so what visitors see matches what actually runs.
  */
 import { RULE_TEMPLATES, type Rules } from "../engine/rules.ts";
-import type { Venue } from "../engine/engine.ts";
+import type { Venue, VolTargetSizing } from "../engine/engine.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
 /** Owner address of the house agents (not a real wallet; nobody can sign for it). */
@@ -21,6 +21,7 @@ export const LAB_WALLETS = [
   "0x5174000000000000000000000000000000000003",
   "0x5174000000000000000000000000000000000004",
   "0x5174000000000000000000000000000000000005",
+  "0x5174000000000000000000000000000000000006",
 ] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
@@ -39,11 +40,24 @@ export type HouseAgent = {
   venue?: Venue;
   /** Leveraged short size (bounce_short on perps only); missing means 1x. */
   leverage?: number;
+  /** Volatility sizing (custom rules on perps only); missing means the fixed max position share. */
+  sizing?: VolTargetSizing;
   /** An AI co-pilot model id (lib/ai/models.ts); missing: rules only. */
   aiModel?: string;
   /** The co-pilot's spending limit in USD and its end date (ISO), like a user's agent. */
   aiLimitUsd?: number;
   aiUntil?: string;
+};
+
+/**
+ * Long while the price is more than 3% above its 1,200 hour (50 day) average; out once it is
+ * below the average. Used with volatility sizing (20% target, 720 hours) on alt perps.
+ */
+export const VOL_TREND_1200: Rules = {
+  entry: { join: "all", conditions: [{ left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 1200, offsetPct: 3 } }] },
+  exit: { join: "any", conditions: [{ left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 1200 } }] },
+  takeProfitPct: null,
+  maxHoldHours: null,
 };
 
 /**
@@ -237,4 +251,19 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     venue: "perps",
     leverage: 3,
   },
+  // Volatility sized trend filter on alt perps (2026-11-14), one market per agent. Passed the
+  // pre-registered rule on 4 of 4 coins on Binance history 2020-2026 (docs/perps-research.md,
+  // "Round 2 on alt perps"; scripts/research-alt-volsize.mts). Frozen: do not tune. Expect mostly
+  // cash (about 15% to 25% of equity when in), small yearly returns and small drops.
+  ...(["SOL", "XRP", "NEAR", "ZEC"] as const).map((coin) => ({
+    owner: LAB_WALLETS[5],
+    name: `Lab · ${coin} Vol Trend`,
+    strategy: "custom" as const,
+    rules: VOL_TREND_1200,
+    symbols: [`${coin}-PERP`],
+    maxPositionPct: 100,
+    stopLossPct: 15,
+    venue: "perps" as const,
+    sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
+  })),
 ];
