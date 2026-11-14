@@ -235,12 +235,13 @@ async function main() {
     firstReal[coin] = loaded.firstReal;
   }
 
+  const holdLast30 = (coin: string) => stats(Float64Array.from(closes[coin]), hours, now - 30 * 24 * HOUR_MS, now + HOUR_MS)?.ret ?? 0;
   const holdYear = (coin: string, year: number) => {
     const s = stats(Float64Array.from(closes[coin]), hours, Date.UTC(year, 0, 1), Date.UTC(year + 1, 0, 1));
     return s?.ret ?? 0;
   };
 
-  type Row = { rule: Rule; perCoin: Record<string, { years: number[]; trainDrop: number; trainRet: number; wholeDrop: number; testRet: number; trades: number }> };
+  type Row = { rule: Rule; perCoin: Record<string, { years: number[]; trainDrop: number; trainRet: number; wholeDrop: number; testRet: number; trades: number; last30: number }> };
   const rows: Row[] = [];
   for (const rule of GRID) {
     const row: Row = { rule, perCoin: {} };
@@ -251,7 +252,8 @@ async function main() {
       const train = stats(equity, hours, START, TRAIN_END)!;
       const whole = stats(equity, hours, START, now + HOUR_MS)!;
       const test = stats(equity, hours, TRAIN_END, now + HOUR_MS)!;
-      row.perCoin[coin] = { years, trainDrop: train.drop, trainRet: train.ret, wholeDrop: whole.drop, testRet: test.ret, trades };
+      const last30 = stats(equity, hours, now - 30 * 24 * HOUR_MS, now + HOUR_MS)!.ret;
+      row.perCoin[coin] = { years, trainDrop: train.drop, trainRet: train.ret, wholeDrop: whole.drop, testRet: test.ret, trades, last30 };
     }
     rows.push(row);
   }
@@ -282,11 +284,13 @@ async function main() {
   }
 
   // SHOW="<rule name>" prints that rule on the chosen coins (checks only, e.g. COINS=BTC,ETH).
-  for (const row of rows.filter((r) => process.env.SHOW && name(r.rule) === process.env.SHOW)) {
-    console.log(`  show ${name(row.rule)}`);
+  // SHOW is a regular expression on the rule name; also prints the last 30 days (report only, never a selection).
+  for (const row of rows.filter((r) => process.env.SHOW && new RegExp(process.env.SHOW).test(name(r.rule)))) {
+    const passed = COINS.filter((coin) => passes(row.perCoin[coin])).length;
+    console.log(`  show ${name(row.rule)}  passes on ${passed}/${COINS.length}`);
     for (const coin of COINS) {
       const c = row.perCoin[coin];
-      console.log(`    ${coin.padEnd(5)} years ${c.years.map((r) => pct(r).padStart(6)).join("")}  worst drop ${pct(c.wholeDrop)}  test ${pct(c.testRet)}  trades ${c.trades}`);
+      console.log(`    ${coin.padEnd(5)} years ${c.years.map((r) => pct(r).padStart(6)).join("")}  worst drop ${pct(c.wholeDrop)}  test ${pct(c.testRet)}  last30d ${pct(c.last30)} (hold ${pct(holdLast30(coin))})  trades ${c.trades}`);
     }
   }
 

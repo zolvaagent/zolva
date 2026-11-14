@@ -721,3 +721,40 @@ Honest limits:
 - **The engine cannot run it yet**: it needs a 50 day (1,200 hour) lookback and volatility sizing with a daily
   resize. Lighter history in the database is about 134 days, enough for a 50 day average plus 30 day volatility.
   Spec for Development: notes folder `alt-volsize-spec.md`.
+
+## Adaptive to the current market? Regime check on the crash month (2026-11-14)
+
+Owner (via zolva-x): agents should adapt to the current crypto market. Live week: BTC -11% in 7 days, dip rules
+kept buying the fall (Lab · Dip Hunter, Lab · Perps Deep Dip re-bought an hour after their stops), short rules
+never fired (bounce short, spike fade: 0 trades), trend exits worked. Checked with round 2's script
+(`scripts/research-alt-volsize.mts`, env SHOW, Binance closes refreshed 2026-11-14). **The last 30 days are a
+report only, never a selection**: picking a rule on one crash month is how the regime matrix overfit before.
+
+Last 30 days (hold: SOL -26%, XRP -24%, NEAR -27%, ZEC -16%, BTC -17%, ETH -19%), 20% volatility target,
+daily resize, 15% stop, with the 6 year pass rule (4 of 6 years positive, worst drop under 30%):
+
+| Rule | Last 30 days | Passes 6 year rule |
+|---|---|---|
+| 50 day gate, long only (approved spec) | SOL 0, XRP 0, NEAR -2, ZEC -3, BTC -2, ETH 0 | alts 3 of 4, BTC ETH 2 of 2 |
+| 50 day gate, long + short | SOL **+10**, XRP **+9**, NEAR +1, ZEC -8, BTC **+6**, ETH **+9** | alts **1 of 4** (drops 30 to 33%), BTC ETH 2 of 2 |
+| 7 day breakout, long only (7 day lookback fits the engine) | -5 to 0 | alts 3 of 4 (ZEC drop 38%), BTC ETH 2 of 2 (drops 8 to 10%) |
+| 7 day gate, long only | -5 to -1 | alts 2 of 4 |
+| 7 day gate, fixed 100% size (round 1) | n/a | 0 of 4 |
+
+Answers to the four ideas:
+1. **Regime filter: yes, but only with volatility sizing.** The same 7 day gate with a fixed size failed
+   everywhere (round 1); sized by volatility, the trend rules lost 0% to 5% in the crash month while holding lost
+   16% to 27%. That is the adaptation: out of the market, or small, when it falls. Shorting below the 50 day
+   average made +6% to +10% this month and passes on BTC and ETH, but on alts it fails the drop limit (it gets
+   squeezed in alt rallies), so: long only on alts; long + short is a candidate for BTC ETH only, and was not
+   pre-registered there, so it needs its own paper holdout before anyone calls it good.
+2. **"Dip in uptrend, fade in downtrend": no.** That is the "dip + fade, trend filter" rule: -88.6% on 2020-2026.
+3. **Looser bounce short triggers: no.** Tuning them on this month is fitting the last 30 days; bounce short was
+   -93% on 2020-2026. Zero trades in a slow grind down is the rule doing what it says.
+4. **Funding as an input: untested.** Lighter funding stayed about +10.5% a year (longs pay) through the drop.
+   Binance futures funding history since 2019 is free, so this can be a pre-registered round of its own.
+
+Recommended change: none beyond the approved spec (`alt-volsize-spec.md`): trend gate plus volatility sizing.
+The one new thing the engine needs for "adaptive" is volatility sizing; the 7 day breakout variant needs no
+longer lookback than today (but its 30 day volatility does). Keep the existing dip and short Lab agents running
+as the out-of-sample record (owner: no pause).
