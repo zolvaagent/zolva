@@ -56,7 +56,7 @@ const COPY = [
     id: "about",
     label: "About Zolva",
     variant: "",
-    text: "Zolva is open-source trading agent software on Robinhood Chain. You describe a strategy for tokenized US stocks, ETFs or crypto, test it on the last 30 days of real onchain prices, and run it on paper. Each agent decides once an hour and writes down why in plain words. Published agents show every trade, and each one is compared with simply holding the same markets. Zolva is built on Robinhood Chain but is not affiliated with or endorsed by Robinhood.",
+    text: "Zolva is open-source trading agent software on Robinhood Chain. You describe a strategy for tokenized US stocks, ETFs or crypto, test it on the last 30 days of real onchain prices, and run it on paper. An agent can also trade real money from your own wallet, within small limits (up to $100 per agent); Zolva can only swap on Uniswap and never sends funds anywhere else. Each agent decides once an hour and writes down why in plain words. Published agents show every trade, and each one is compared with simply holding the same markets. Zolva is built on Robinhood Chain but is not affiliated with or endorsed by Robinhood.",
   },
   {
     id: "disclaimer",
