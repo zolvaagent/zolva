@@ -74,6 +74,27 @@ export const RULE_TEMPLATES: Record<"momentum" | "mean_reversion" | "breakout", 
 
 export const MAX_CONDITIONS = 3;
 export const MAX_LOOKBACK_HOURS = 168;
+/** Largest shift of a price line, in percent either way. */
+export const MAX_OFFSET_PCT = 50;
+export const TAKE_PROFIT_RANGE = { min: 1, max: 500 } as const;
+export const MAX_HOLD_RANGE = { min: 1, max: 24 * 30 } as const;
+
+/**
+ * Every message parseRules can return, in one place so /docs/rules lists them all
+ * (lib/docs-reference/rules.test.ts fails when one is missing there).
+ */
+export const RULE_ERRORS = {
+  tooManyConditions: (side: "buy" | "sell") => `Use at most ${MAX_CONDITIONS} ${side} rules.`,
+  noBuyRule: "Add at least one buy rule.",
+  noWayToSell: "Add a sell rule, a take profit or a max holding time, or the agent only sells on its stop loss.",
+  lookbackTooLong: "Rules may look back at most 7 days.",
+  unknownIndicator: "A rule has an unknown indicator.",
+  unknownComparison: "A rule has an unknown comparison.",
+  priceAgainstNumber: "Compare prices with another price line, not a plain number.",
+  missingNumber: "Every number in a rule needs a value.",
+  onlyPriceLines: "Only price lines can be compared with each other.",
+  outOfRange: (name: "Take profit" | "Max holding time", min: number, max: number) => `${name} must be between ${min} and ${max}.`,
+} as const;
 
 /** Hours of history the rules need (largest period, plus one for "crosses"). */
 export function rulesLookback(rules: Rules): number {
@@ -191,23 +212,23 @@ function formatUnit(unit: Unit, value: number): string {
 export function parseRules(input: unknown): { rules: Rules; errors: [] } | { rules: null; errors: string[] } {
   const errors: string[] = [];
   const raw = (input ?? {}) as Partial<Rules>;
-  const group = (value: unknown, name: string): RuleGroup => {
+  const group = (value: unknown, name: "buy" | "sell"): RuleGroup => {
     const g = (value ?? {}) as Partial<RuleGroup>;
     const conditions = Array.isArray(g.conditions) ? g.conditions : [];
-    if (conditions.length > MAX_CONDITIONS) errors.push(`Use at most ${MAX_CONDITIONS} ${name} rules.`);
+    if (conditions.length > MAX_CONDITIONS) errors.push(RULE_ERRORS.tooManyConditions(name));
     return { join: g.join === "any" ? "any" : "all", conditions: conditions.slice(0, MAX_CONDITIONS).map((c) => parseCondition(c, errors)).filter((c): c is Condition => c !== null) };
   };
   const rules: Rules = {
     entry: group(raw.entry, "buy"),
     exit: group(raw.exit, "sell"),
-    takeProfitPct: positiveOrNull(raw.takeProfitPct, 1, 500, "Take profit", errors),
-    maxHoldHours: positiveOrNull(raw.maxHoldHours, 1, 24 * 30, "Max holding time", errors),
+    takeProfitPct: positiveOrNull(raw.takeProfitPct, TAKE_PROFIT_RANGE.min, TAKE_PROFIT_RANGE.max, "Take profit", errors),
+    maxHoldHours: positiveOrNull(raw.maxHoldHours, MAX_HOLD_RANGE.min, MAX_HOLD_RANGE.max, "Max holding time", errors),
   };
-  if (!rules.entry.conditions.length) errors.push("Add at least one buy rule.");
+  if (!rules.entry.conditions.length) errors.push(RULE_ERRORS.noBuyRule);
   if (!rules.exit.conditions.length && !rules.takeProfitPct && !rules.maxHoldHours) {
-    errors.push("Add a sell rule, a take profit or a max holding time, or the agent only sells on its stop loss.");
+    errors.push(RULE_ERRORS.noWayToSell);
   }
-  if (rulesLookback(rules) > MAX_LOOKBACK_HOURS + 2) errors.push("Rules may look back at most 7 days.");
+  if (rulesLookback(rules) > MAX_LOOKBACK_HOURS + 2) errors.push(RULE_ERRORS.lookbackTooLong);
   return errors.length ? { rules: null, errors } : { rules, errors: [] };
 }
 
@@ -215,30 +236,30 @@ function parseCondition(value: unknown, errors: string[]): Condition | null {
   const c = (value ?? {}) as Partial<Condition>;
   const left = parseIndicator(c.left);
   if (!left) {
-    errors.push("A rule has an unknown indicator.");
+    errors.push(RULE_ERRORS.unknownIndicator);
     return null;
   }
   if (!c.op || !(c.op in OPERATORS)) {
-    errors.push("A rule has an unknown comparison.");
+    errors.push(RULE_ERRORS.unknownComparison);
     return null;
   }
   const unit = INDICATORS[left.kind].unit;
   const rawRight = (c.right ?? {}) as { kind?: string; value?: unknown };
   if (rawRight.kind === "value") {
     if (unit === "price") {
-      errors.push("Compare prices with another price line, not a plain number.");
+      errors.push(RULE_ERRORS.priceAgainstNumber);
       return null;
     }
     const number = Number(rawRight.value);
     if (!Number.isFinite(number)) {
-      errors.push("Every number in a rule needs a value.");
+      errors.push(RULE_ERRORS.missingNumber);
       return null;
     }
     return { left, op: c.op, right: { kind: "value", value: number } };
   }
   const right = parseIndicator(rawRight);
   if (!right || INDICATORS[right.kind].unit !== "price" || unit !== "price") {
-    errors.push("Only price lines can be compared with each other.");
+    errors.push(RULE_ERRORS.onlyPriceLines);
     return null;
   }
   return { left, op: c.op, right };
@@ -257,17 +278,17 @@ function parseIndicator(value: unknown): Indicator | null {
   }
   if (raw.offsetPct !== undefined && raw.offsetPct !== null && Number(raw.offsetPct) !== 0) {
     const offset = Number(raw.offsetPct);
-    if (!Number.isFinite(offset) || Math.abs(offset) > 50) return null;
+    if (!Number.isFinite(offset) || Math.abs(offset) > MAX_OFFSET_PCT) return null;
     indicator.offsetPct = offset;
   }
   return indicator;
 }
 
-function positiveOrNull(value: unknown, min: number, max: number, name: string, errors: string[]): number | null {
+function positiveOrNull(value: unknown, min: number, max: number, name: "Take profit" | "Max holding time", errors: string[]): number | null {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   if (!Number.isFinite(number) || number < min || number > max) {
-    errors.push(`${name} must be between ${min} and ${max}.`);
+    errors.push(RULE_ERRORS.outOfRange(name, min, max));
     return null;
   }
   return number;

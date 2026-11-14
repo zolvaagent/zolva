@@ -23,6 +23,7 @@ import { parseRules, rulesLookback } from "../engine/rules";
 import { STRATEGY_NAMES } from "../format";
 import { BACKTEST_MAX_DAYS, BACKTEST_MAX_MARKETS, parseBacktestRequest, runBacktest, type MarketData } from "../x402/premium";
 import { cleanUserText, DISCLAIMER, USER_TEXT_LIMITS } from "./format";
+import { KEY_LIMIT_MESSAGES } from "./limits";
 
 const SITE = "https://zolvaagent.app";
 
@@ -174,7 +175,7 @@ const agentId = z.string().uuid().describe("The agent id from my_agents");
 const confirm = z.boolean().optional().describe("false (default): only show what would happen. true: do it");
 const venue = z.enum(["spot", "perps"]).optional().describe("spot (default): stock and crypto tokens, long only. perps: Lighter perps, paper only");
 const markets = z.array(z.string().min(1).max(42)).min(1).max(14).describe("Market symbols (NVDA, ETH, BTC-PERP) or token addresses, from list_markets");
-const rules = z.record(z.string(), z.unknown()).describe("Custom rules JSON, as on /docs/public-api (entry, exit, takeProfitPct, maxHoldHours)");
+const rules = z.record(z.string(), z.unknown()).describe("Custom rules JSON, as on /docs/rules (entry, exit, takeProfitPct, maxHoldHours)");
 
 const backtestShape = {
   strategy: z.enum(["momentum", "mean_reversion", "custom"]).describe("A preset, or custom with rules"),
@@ -555,7 +556,7 @@ export async function runAction(name: ActionName, rawInput: unknown, context: Co
     throw new ActionError(403, "insufficient_scope", `This key cannot use ${name}: it needs the ${spec.scopes.join(" and ")} scope. Make a key with it in your Settings.`);
   }
   if (spec.kind === "write" && !(await deps.limit(caller.keyId, "write"))) {
-    throw new ActionError(429, "rate_limited", "Too many writes for this API key: 30 a minute.");
+    throw new ActionError(429, "rate_limited", KEY_LIMIT_MESSAGES.write);
   }
 
   const parsed = z.object(spec.input).strict().safeParse(rawInput ?? {});

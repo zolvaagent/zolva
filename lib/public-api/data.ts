@@ -14,8 +14,7 @@ import { DISCLAIMER, isPublicAgent, publicAgent, publicAgentDetail, publicMarket
  * through the same edge cache, so they always return the same data. null = not found.
  */
 
-/** How long each body may be reused, in seconds. */
-export const TTL = { agents: 300, markets: 60, activity: 60 } as const;
+export { TTL } from "./limits";
 
 export async function agentsBody() {
   const agents = (await listAgents(db())).sort((a, b) => b.returnPct - a.returnPct);

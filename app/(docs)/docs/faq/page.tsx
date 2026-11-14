@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { DocsArticle, H2 } from "@/components/site/Docs";
 import { docPage } from "@/lib/docs";
@@ -20,23 +21,6 @@ const FAQ: [string, string][] = [
   ["Who can use Zolva?", "Anyone outside the United States and sanctioned countries. Stock tokens are not offered to US persons."],
 ];
 
-const GLOSSARY: [string, string][] = [
-  ["Agent", "A strategy plus its markets and limits, running on its own every hour."],
-  ["Backtest", "A replay of the last 30 days with your exact settings, before you launch."],
-  ["Close", "The price at the end of an hour. Agents decide on hourly closes."],
-  ["Drawdown (worst drop)", "The largest fall from a previous high, in percent."],
-  ["Holding", "Buying the same tokens in equal parts at the start and never trading. The benchmark every agent is measured against."],
-  ["Max per token", "The largest share of an agent's value it puts into one token when it buys."],
-  ["Paper trading", "Trading with virtual money at real prices. Nothing is bought or sold for real."],
-  ["Pool", "The onchain market where a token trades against USDG. Zolva reads prices from it."],
-  ["RSI", "Relative strength index, 0 to 100: how much of the recent movement was up. Low values suggest oversold."],
-  ["Slippage", "The gap between the price you see and the price you get. Included in the 0.5% cost per trade."],
-  ["Stop loss", "An automatic sell when a position falls a set percentage below its entry price."],
-  ["Stock token", "A token on Robinhood Chain that tracks a US stock or ETF."],
-  ["Take profit", "An automatic sell when a position rises a set percentage above its entry price."],
-  ["USDG", "A dollar stablecoin on Robinhood Chain. Prices are quoted in it and counted as $1."],
-  ["Z score", "How far the price sits from its recent average, in standard deviations. −2 or lower is an unusual dip."],
-];
 
 /** FAQ structured data, so search engines can show the answers directly. */
 const FAQ_JSON_LD = {
@@ -59,15 +43,9 @@ export default function Faq() {
         ))}
       </div>
 
-      <H2 id="glossary">Glossary</H2>
-      <dl className="docs-glossary">
-        {GLOSSARY.map(([term, meaning]) => (
-          <div key={term}>
-            <dt>{term}</dt>
-            <dd>{meaning}</dd>
-          </div>
-        ))}
-      </dl>
+      <p>
+        Looking for a term? See the <Link href="/docs/glossary">Glossary</Link>.
+      </p>
     </DocsArticle>
   );
 }

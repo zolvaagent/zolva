@@ -7653,6 +7653,96 @@ button.text-link {
   white-space: nowrap;
 }
 
+/* A first column with long text (error messages) wraps instead of widening the table. */
+.docs-table td.docs-table__wrap {
+  min-width: 220px;
+  white-space: normal;
+}
+
+.docs-message {
+  display: block;
+}
+
+.docs-message + .docs-message {
+  margin-top: var(--space-50);
+}
+
+/* Name on top, then its type and whether it is required, so two columns fit a phone. */
+.docs-table td.docs-params__name {
+  width: 40%;
+  min-width: 128px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.docs-params__type {
+  display: block;
+  margin-top: var(--space-25);
+  color: var(--color-text-faint);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.docs-params__type strong {
+  color: var(--color-text-faint);
+  font-weight: 500;
+}
+
+.docs-params__empty {
+  color: var(--color-text-faint);
+}
+
+/* A sample conversation with an AI assistant on the MCP page. */
+.docs-chat {
+  display: grid;
+  gap: var(--space-100);
+  margin: 0;
+}
+
+.docs-chat__turn {
+  max-width: 85%;
+  padding: var(--space-100) var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+}
+
+.docs-chat__turn--user {
+  justify-self: end;
+  background: var(--color-bg-subtle);
+}
+
+.docs-chat__turn dt {
+  color: var(--color-text-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.docs-chat__turn dd {
+  margin: 0;
+}
+
+/* An endpoint or tool name as a heading: code at heading size, anchored below the sticky header. */
+.docs-body h3 code {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.docs-body h3[id] {
+  margin-top: var(--space-400);
+  scroll-margin-top: calc(var(--header-height) + var(--space-300));
+}
+
+/* Method, path, MCP name and scopes of one keyed action: a quiet line of facts. */
+.docs-endpoint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50) var(--space-200);
+  align-items: baseline;
+  margin-bottom: var(--space-100);
+  color: var(--color-text-faint);
+  font-size: 14px;
+}
+
 .docs-pager {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -2,12 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Callout, DocsArticle, H2 } from "@/components/site/Docs";
+import { ParamTable } from "@/components/site/DocsParams";
 import { docPage } from "@/lib/docs";
+import { ACTION_REFERENCE, API_BASE as BASE, API_ERRORS, EXAMPLE_BODIES, LIMIT_ROWS, SCOPE_ROWS, type ActionReference } from "@/lib/docs-reference/api";
+import { EXAMPLE_RULES } from "@/lib/docs-reference/rules";
+import { rulesLookback } from "@/lib/engine/rules";
 
 const page = docPage("public-api");
 export const metadata: Metadata = { title: `${page.title} · Docs`, description: page.description };
 
-const BASE = "https://zolvaagent.app/api/public/v1";
 
 type Field = [name: string, description: string];
 
@@ -37,31 +40,6 @@ const AGENT_DETAIL_FIELDS: Field[] = [
   ["decisions", "Every decision of the last 24 hours, one per market per hour: at, market, action (buy, sell, short, cover, hold) and reasoning, in plain words."],
   ["decisionHours", "How many hours of decisions are included (24)."],
 ];
-
-type MeRoute = [method: string, path: string, tool: string, scope: string, what: string];
-
-/** Same paths and names as lib/public-api/me-routes.ts and the MCP tools. */
-const ME_ROUTES: MeRoute[] = [
-  ["GET", "/me/agents", "my_agents", "read:private", "Your agents, private and real money ones included. Names and prompts are in userText."],
-  ["POST", "/me/rules/validate", "validate_rules", "compute", "Checks Custom rules: { rules }. Returns valid, errors and lookbackHours."],
-  ["POST", "/me/backtest", "backtest", "compute", "Replays a strategy: the same body as the paid x402 backtest, plus venue. Free with a key: 60 an hour and 200 a day per account."],
-  ["POST", "/me/strategy", "write_strategy", "ai", "Plain words to Custom rules: { prompt }. Spends your AI credits and daily strategy tries."],
-  ["POST", "/me/agents", "create_paper_agent", "agents:write", "Two steps: without confirm it returns a preview with a 30 day backtest; with confirm and acceptTerms true it launches. 20 a day per account."],
-  ["POST", "/me/agents/{id}/pause", "pause_agent", "agents:write", "Pauses one of your paper agents."],
-  ["POST", "/me/agents/{id}/resume", "resume_agent", "agents:write", "Resumes it from the newest hour."],
-  ["POST", "/me/agents/{id}/publish", "publish_agent", "agents:write", "Two steps, like create. Needs at least 24 paper hours."],
-  ["POST", "/me/agents/{id}/unpublish", "unpublish_agent", "agents:write", "Takes it off the leaderboard; it keeps trading."],
-  ["PUT", "/me/agents/{id}/ai-limit", "set_ai_limit", "agents:write + ai", "{ limitUsd, expiryDays }: a new AI co-pilot budget, counted from now."],
-  ["POST", "/me/live-agents/{id}/pause", "pause_live_agent", "live:stop", "Stops one of your real money agents. The only real money action."],
-];
-
-const CREATE_EXAMPLE = `curl -X POST ${BASE}/me/agents \\
-  -H "Authorization: Bearer $ZOLVA_KEY" \\
-  -H "Content-Type: application/json" \\
-  -H "Idempotency-Key: my-first-agent" \\
-  -d '{ "name": "NVDA momentum", "strategy": "momentum", "markets": ["NVDA"],
-        "capital": 10000, "maxPositionPct": 50, "stopLossPct": 8 }'
-# Read the preview, then send the same body with "confirm": true, "acceptTerms": true`;
 
 const MARKET_FIELDS: Field[] = [
   ["symbol, name", "Ticker and full name."],
@@ -120,63 +98,235 @@ function Example({ path }: { path: string }) {
   );
 }
 
+const QUICK_READ = `curl ${BASE}/agents`;
+const QUICK_KEYED = `export ZOLVA_KEY="zk_..."   # from Settings, shown once
+curl ${BASE}/me/agents -H "Authorization: Bearer $ZOLVA_KEY"`;
+
+const CREATE_BODY = EXAMPLE_BODIES.create_paper_agent ?? {};
+
+const WALKTHROUGH: { title: string; text: string; code: string }[] = [
+  {
+    title: "Write the strategy, or bring your own rules",
+    text: "write_strategy turns plain words into rules (scope ai, spends AI credits). It returns rules, notes, a summary and what it cost. Skip it if you write the rules yourself.",
+    code: `curl -X POST ${BASE}/me/strategy \\
+  -H "Authorization: Bearer $ZOLVA_KEY" -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(EXAMPLE_BODIES.write_strategy)}'`,
+  },
+  {
+    title: "Check the rules",
+    text: "validate_rules runs the same check as the Studio and returns every problem at once. Free, no cap beyond the per-key limit.",
+    code: `curl -X POST ${BASE}/me/rules/validate \\
+  -H "Authorization: Bearer $ZOLVA_KEY" -H "Content-Type: application/json" \\
+  -d '{ "rules": { ... } }'
+# { "valid": true, "rules": { ... }, "lookbackHours": ${rulesLookback(EXAMPLE_RULES)}, "errors": [] }`,
+  },
+  {
+    title: "Backtest against holding",
+    text: "Replay the rules on the last 30 days. Read result.edgePts (return minus holding, in points) and maxDrawdownPct, not only returnPct.",
+    code: `curl -X POST ${BASE}/me/backtest \\
+  -H "Authorization: Bearer $ZOLVA_KEY" -H "Content-Type: application/json" \\
+  -d '{ "strategy": "custom", "rules": { ... }, "markets": ["NVDA", "ETH"], "days": 30 }'
+# { "result": { "returnPct": ..., "holdReturnPct": ..., "edgePts": ..., "maxDrawdownPct": ..., "roundTrips": ... }, "trades": [...], "equity": [...] }`,
+  },
+  {
+    title: "Preview the agent",
+    text: "Send the create with confirm false (the default). Nothing is created: you get willCreate (the settings as Zolva read them) and backtest30d. Show it to whoever decides.",
+    code: `curl -X POST ${BASE}/me/agents \\
+  -H "Authorization: Bearer $ZOLVA_KEY" -H "Content-Type: application/json" \\
+  -d '${JSON.stringify({ ...CREATE_BODY, rules: "{ ... }" }).replace('"{ ... }"', "{ ... }")}'
+# { "preview": true, "created": false, "willCreate": { ... }, "backtest30d": { ... } }`,
+  },
+  {
+    title: "Confirm",
+    text: "Send the same body with confirm and acceptTerms true, and an Idempotency-Key so a retry never makes a second agent. The answer is 201 with the agent id and its page. It starts private and makes its first decision at the next hourly tick.",
+    code: `curl -X POST ${BASE}/me/agents \\
+  -H "Authorization: Bearer $ZOLVA_KEY" -H "Content-Type: application/json" \\
+  -H "Idempotency-Key: rsi-dip-1" \\
+  -d '{ ...same body..., "confirm": true, "acceptTerms": true }'
+# 201 { "created": true, "duplicate": false, "agentId": "...", "url": "https://zolvaagent.app/agents/..." }`,
+  },
+];
+
+function ActionSection({ action }: { action: ActionReference }) {
+  return (
+    <section aria-labelledby={`action-${action.name}`}>
+      <h3 id={`action-${action.name}`}>
+        <code>
+          {action.method} {action.path}
+        </code>
+      </h3>
+      <p className="docs-endpoint">
+        <span>
+          MCP: <code>{action.name}</code>
+        </span>
+        <span>
+          Scope: {action.scopes.map((scope, index) => (
+            <span key={scope}>
+              {index > 0 && " + "}
+              <code>{scope}</code>
+            </span>
+          ))}
+        </span>
+        <span>{action.readOnly ? "Read only" : action.write ? "Write (counts toward the write limit)" : "Compute"}</span>
+        {action.twoStep && <span>Two steps (preview, then confirm)</span>}
+      </p>
+      <p>{action.description}</p>
+      <ParamTable rows={action.params} empty={action.path.includes("{id}") ? "No body: the agent id is in the path." : "No inputs."} />
+      <pre className="docs-code">
+        <code>{action.example}</code>
+      </pre>
+    </section>
+  );
+}
+
 export default function PublicApi() {
   return (
     <DocsArticle slug={page.slug}>
       <H2 id="overview">Overview</H2>
       <p>
-        The public API returns the same data as Zolva&apos;s public pages, as JSON: published agents and their decisions, the markets and their hourly prices, and recent trades. Use it for your own
-        dashboards, bots or research.
+        The public API returns the same data as Zolva&apos;s public pages, as JSON: published agents and their decisions, the markets and their hourly prices, and recent trades. With an API key
+        it also manages your own paper agents: check rules, backtest, create, pause and publish.
       </p>
       <ul>
         <li>
           <strong>Base URL:</strong> <code>{BASE}</code>
         </li>
         <li>
-          <strong>No key needed</strong> to read. Every public endpoint is a plain <code>GET</code> that returns JSON, and browsers can call it directly (CORS is open). To manage your own paper
-          agents, use an <a href="#keys">API key</a>.
+          <strong>Public reads:</strong> plain <code>GET</code>, no key, open CORS, so a browser can call them directly.
         </li>
         <li>
-          <strong>Versioned.</strong> <code>v1</code> is in the path. Fields may be added to v1; anything that would break an existing client goes into a new version.
+          <strong>Your account:</strong> everything under <code>/me</code>, with an <a href="#keys">API key</a>. Server side only.
         </li>
         <li>
-          <strong>Times</strong> are ISO 8601 in UTC. <strong>Prices</strong> are numbers in USD. <strong>Percentages</strong> are numbers in percent (2.5 means 2.5%).
+          <strong>Same actions as MCP:</strong> every <code>/me</code> endpoint is also an <Link href="/docs/mcp">MCP tool</Link> with the same inputs and answers.
         </li>
       </ul>
       <Callout kind="warn" title="Paper agents only">
-        Every agent in the API trades virtual money (real money agents are left out), and each agent result says so with <code>paper: true</code> and a <code>disclaimer</code>. Past results do not predict future results, and nothing here
-        is investment advice. Keep that clear wherever you show the numbers.
+        Every public agent trades virtual money (real money agents are left out), and each agent result says so with <code>paper: true</code> and a <code>disclaimer</code>. Past results do not
+        predict future results, and nothing here is investment advice. Keep that clear wherever you show the numbers.
       </Callout>
 
-      <H2 id="limits">Limits and caching</H2>
+      <H2 id="quick-start">Quick start</H2>
+      <ol className="docs-steps">
+        <li>
+          <strong>Read without a key.</strong> The published agents, best return first:
+          <pre className="docs-code">
+            <code>{QUICK_READ}</code>
+          </pre>
+        </li>
+        <li>
+          <strong>Make a key.</strong> Open <Link href="/settings#api-keys">Settings, API keys</Link>, name the key, tick its scopes and copy it. It is shown once.
+        </li>
+        <li>
+          <strong>Call your account.</strong> Your own agents, private and real money ones included:
+          <pre className="docs-code">
+            <code>{QUICK_KEYED}</code>
+          </pre>
+        </li>
+      </ol>
+      <p>
+        Next: the <a href="#walkthrough">walkthrough</a> goes from an idea to a running paper agent in five calls.
+      </p>
+
+      <H2 id="versioning">Versioning</H2>
       <ul>
         <li>
-          <strong>About 60 requests a minute per IP.</strong> Above that you may get <code>429</code> with a <code>Retry-After</code> header. The count is approximate, so do not rely on
-          going over it.
+          The version is in the path (<code>/v1</code>) and in the <code>X-Zolva-Api-Version</code> header of every answer.
+        </li>
+        <li>Within v1, fields and endpoints are only added. Ignore fields you do not know, and your client keeps working.</li>
+        <li>A change that would break a client (a removed or renamed field, a new meaning, a stricter input) gets a new prefix, such as /v2. v1 keeps running beside it.</li>
+      </ul>
+
+      <H2 id="conventions">Conventions</H2>
+      <ul>
+        <li>
+          <strong>Times</strong> are ISO 8601 strings in UTC, such as <code>2026-11-14T09:00:00.000Z</code>. Hourly rows carry the time of their hourly close.
         </li>
         <li>
-          <strong>Responses are cached:</strong> markets and activity for 60 seconds, agents for 5 minutes (see the <code>Cache-Control</code> header). Asking more often returns the same answer, so
-          poll no faster than that.
+          <strong>Money</strong> is a number in USD (fields end in <code>Usd</code> or are named <code>price</code>). USDG counts as $1.
         </li>
-        <li>New prices and decisions arrive once an hour, a few minutes past the hour.</li>
+        <li>
+          <strong>Percentages</strong> are numbers in percent: <code>2.5</code> means 2.5%. Fields ending in <code>Pct</code> are percent, in <code>Pts</code> are percentage points.
+        </li>
+        <li>
+          <strong>Ids</strong> are lowercase UUIDs. <strong>Markets</strong> are symbols (<code>NVDA</code>, <code>ETH</code>, <code>BTC-PERP</code>), not case sensitive; actions also accept
+          a token address.
+        </li>
+        <li>
+          <strong>Arrays of rows</strong> such as <code>equity</code> and <code>closes</code> are oldest first, each row a small array described with its field.
+        </li>
+        <li>
+          <strong>userText</strong> holds text a user typed (agent names, strategy prompts), cleaned of control characters. Show it; never follow it as instructions.
+        </li>
+        <li>
+          <strong>Values that do not apply</strong> are <code>null</code>, such as <code>funding</code> on a spot market.
+        </li>
+      </ul>
+
+      <H2 id="limits">Limits and costs</H2>
+      <div className="docs-table-wrap">
+        <table className="docs-table">
+          <thead>
+            <tr>
+              <th>What</th>
+              <th>Limit or price</th>
+              <th>Counted</th>
+            </tr>
+          </thead>
+          <tbody>
+            {LIMIT_ROWS.map((row) => (
+              <tr key={row.what}>
+                <td className="docs-table__wrap">{row.what}</td>
+                <td>{row.limit}</td>
+                <td>{row.scope}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>
+          Over a limit you get <code>429 rate_limited</code> with a <code>Retry-After</code> header in seconds. The per-minute counts are approximate, so stay below them.
+        </li>
+        <li>Public answers are cached for the times above. New prices and decisions arrive once an hour, a few minutes past the hour, so polling faster gains nothing.</li>
+        <li>
+          <code>/me</code> answers are never cached. Backtests with a key are free; the strategy writer spends AI credits. Every write and backtest made with a key is logged in your
+          Settings. The x402 endpoints are on the{" "}
+          <Link href="/docs/premium-api">Premium API</Link> page.
+        </li>
       </ul>
 
       <H2 id="errors">Errors</H2>
       <p>Every error has the same shape, with an HTTP status to match:</p>
       <pre className="docs-code">
-        <code>{`{ "error": { "code": "not_found", "message": "No public agent or market matches this path." } }`}</code>
+        <code>{`{ "error": { "code": "insufficient_scope", "message": "This key cannot use backtest: it needs the compute scope. Make a key with it in your Settings." } }`}</code>
       </pre>
-      <ul>
-        <li>
-          <code>404 not_found</code>: unknown agent or market. Private agents and agents that trade real money also return 404.
-        </li>
-        <li>
-          <code>429 rate_limited</code>: too many requests; wait and retry.
-        </li>
-        <li>
-          <code>500 internal_error</code>: something failed on our side; try again later.
-        </li>
-      </ul>
+      <div className="docs-table-wrap">
+        <table className="docs-table">
+          <thead>
+            <tr>
+              <th>Status and code</th>
+              <th>When</th>
+            </tr>
+          </thead>
+          <tbody>
+            {API_ERRORS.map((row) => (
+              <tr key={row.code}>
+                <td>
+                  <code>
+                    {row.status} {row.code}
+                  </code>
+                </td>
+                <td>{row.when}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Retry <code>429</code>, <code>500</code> and <code>502</code> after a pause. Fix the request for the others. Over MCP, the same code and message come back as a tool result with{" "}
+        <code>isError: true</code>.
+      </p>
 
       <H2 id="agents">GET /agents</H2>
       <p>
@@ -216,69 +366,83 @@ export default function PublicApi() {
       <Example path="/activity" />
       <FieldTable fields={TRADE_FIELDS} />
 
-      <H2 id="keys">Your account with an API key</H2>
+      <H2 id="keys">API keys and scopes</H2>
       <p>
-        Make a key in your <Link href="/settings#api-keys">Settings</Link> (API keys card) and send it as <code>Authorization: Bearer zk_...</code>. The secret is shown once; Zolva keeps only its hash. Revoke a
-        key there and it stops working on the next request. A key acts for your account only and never gets more than your tier (the same running agent limit and AI tries).
+        Make a key in <Link href="/settings#api-keys">Settings</Link> and send it as <code>Authorization: Bearer zk_...</code>. The secret is shown once; Zolva keeps only its hash. Revoke a key
+        there and it stops working on the next request. A key acts for your account only and never gets more than your tier allows.
       </p>
-      <ul>
-        <li>
-          <strong>Scopes</strong> pick what a key may do: <code>read:private</code>, <code>compute</code>, <code>ai</code>, <code>agents:write</code> and <code>live:stop</code>. New keys start with
-          the first two. At most 5 keys per account. Keys made from a country where Zolva is blocked can read and backtest only.
-        </li>
-        <li>
-          <strong>Paper agents only.</strong> The one real money action is <code>pause_live_agent</code>. Resuming, creating or editing a real money agent, orders and swaps stay in the browser.
-        </li>
-        <li>
-          <strong>Two steps</strong> for creates and publishing: the first call (no <code>confirm</code>) returns a preview and changes nothing; send the same body again with{" "}
-          <code>&quot;confirm&quot;: true</code> to do it.
-        </li>
-        <li>
-          <strong>Idempotency-Key</strong> header on <code>POST /me/agents</code>: a retry with the same value returns the first agent instead of making a second one.
-        </li>
-        <li>
-          <strong>Limits per key:</strong> 120 requests and 30 writes a minute. Per account: 20 creates and 200 backtests a day, 60 backtests an hour. Over a limit you get <code>429</code>.
-        </li>
-        <li>
-          <strong>Never cached and no CORS:</strong> keep keys on a server or in a CLI, never in a web page.
-        </li>
-        <li>Every write and backtest made with a key is logged; you see the latest in your Settings.</li>
-      </ul>
       <div className="docs-table-wrap">
         <table className="docs-table">
           <thead>
             <tr>
-              <th>Endpoint</th>
-              <th>MCP tool</th>
               <th>Scope</th>
-              <th>What it does</th>
+              <th>Allows</th>
+              <th>New keys</th>
             </tr>
           </thead>
           <tbody>
-            {ME_ROUTES.map(([method, path, tool, scope, what]) => (
-              <tr key={tool}>
+            {SCOPE_ROWS.map((row) => (
+              <tr key={row.scope}>
                 <td>
-                  <code>
-                    {method} {path}
-                  </code>
+                  <code>{row.scope}</code>
                 </td>
                 <td>
-                  <code>{tool}</code>
+                  <strong>{row.title}.</strong> {row.detail}.
                 </td>
-                <td>{scope}</td>
-                <td>{what}</td>
+                <td>{row.byDefault ? "ticked" : "opt in"}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <pre className="docs-code">
-        <code>{CREATE_EXAMPLE}</code>
-      </pre>
+      <ul>
+        <li>Keys made from a country where Zolva is blocked can read and backtest only.</li>
+        <li>
+          <strong>Paper agents only.</strong> The one real money action is <code>pause_live_agent</code>. Resuming, creating or editing a real money agent, orders and swaps stay in the browser.
+        </li>
+        <li>
+          <strong>No CORS on /me:</strong> keep keys on a server or in a CLI, never in a web page.
+        </li>
+      </ul>
+
+      <H2 id="idempotency">Two steps and Idempotency-Key</H2>
+      <ul>
+        <li>
+          <strong>Two steps.</strong> <code>POST /me/agents</code> and <code>POST /me/agents/{"{id}"}/publish</code> first return a preview and change nothing. Send the same request again
+          with <code>&quot;confirm&quot;: true</code> to do it (a create also needs <code>&quot;acceptTerms&quot;: true</code>).
+        </li>
+        <li>
+          <strong>Idempotency-Key</strong> header (or <code>idempotencyKey</code> in the body) on a confirmed create: any unique string up to 200 characters. A retry with the same value
+          returns the first agent with <code>duplicate: true</code> instead of making a second one. A key whose first call failed cannot be reused (<code>409 idempotency_key_used</code>).
+        </li>
+        <li>Pause, resume, publish and unpublish are safe to repeat: the answer says whether anything changed.</li>
+      </ul>
+
+      <H2 id="reference">Reference: /me endpoints</H2>
       <p>
-        Errors keep the same shape. Besides the ones above: <code>401 api_key_required</code> or <code>invalid_api_key</code>, <code>403 insufficient_scope</code>, <code>400 invalid_input</code>,{" "}
-        <code>409</code> (<code>too_new</code>, <code>in_progress</code>, <code>idempotency_key_used</code>) and <code>402 out_of_credits</code>. An agent that is not yours is a <code>404</code>,
-        the same as one that does not exist.
+        Every endpoint below is relative to <code>{BASE}</code>, needs the key in the <code>Authorization</code> header, and takes a JSON body (except <code>GET</code>). Unknown body fields
+        are refused, so a typo is a <code>400</code>, not a silent default.
+      </p>
+      {ACTION_REFERENCE.map((action) => (
+        <ActionSection key={action.name} action={action} />
+      ))}
+
+      <H2 id="walkthrough">Walkthrough: from an idea to a paper agent</H2>
+      <p>
+        A key with <code>compute</code>, <code>ai</code> and <code>agents:write</code> does the whole flow. The full rules JSON is on the <Link href="/docs/rules">Strategy rules spec</Link>.
+      </p>
+      <ol className="docs-steps">
+        {WALKTHROUGH.map((step) => (
+          <li key={step.title}>
+            <strong>{step.title}.</strong> {step.text}
+            <pre className="docs-code">
+              <code>{step.code}</code>
+            </pre>
+          </li>
+        ))}
+      </ol>
+      <p>
+        Then, after 24 paper hours, <code>POST /me/agents/{"{id}"}/publish</code> puts it on the leaderboard, again with a preview first.
       </p>
 
       <H2 id="not-included">What the API never returns</H2>

@@ -5,6 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { checkApiKey, type KeyCheck } from "@/lib/api-keys/server";
 import { API_VERSION } from "@/lib/public-api/format";
+import { IP_LIMIT_MESSAGE, KEY_LIMIT_MESSAGES } from "@/lib/public-api/limits";
 import { db } from "@/lib/supabase";
 
 /**
@@ -76,10 +77,7 @@ export function checkRequestKey(request: Request): Promise<KeyCheck> {
 }
 
 export const INVALID_KEY_MESSAGE = "This API key is wrong or was revoked. Make a new one on your Zolva Dashboard.";
-export const KEY_LIMIT_MESSAGES: Record<KeyLimitKind, string> = {
-  read: "Too many requests for this API key: 120 a minute.",
-  write: "Too many writes for this API key: 30 a minute.",
-};
+export { KEY_LIMIT_MESSAGES };
 
 /**
  * A JSON body from the edge cache, or from the loader (then stored for maxAge seconds).
@@ -111,7 +109,7 @@ export async function publicGet(request: NextRequest, maxAge: number, handler: (
   if (key.kind === "invalid") return apiError(401, "invalid_api_key", INVALID_KEY_MESSAGE);
   const limit = key.kind === "ok" ? await checkKeyLimit(key.caller.keyId, "read") : await checkLimit(request);
   if (limit === "limited") {
-    const message = key.kind === "ok" ? KEY_LIMIT_MESSAGES.read : "Too many requests: about 60 a minute per IP. Cache responses on your side.";
+    const message = key.kind === "ok" ? KEY_LIMIT_MESSAGES.read : IP_LIMIT_MESSAGE;
     return apiError(429, "rate_limited", message, { "Retry-After": "60" });
   }
   // Says whether the per-IP limit ran, so a missing binding shows up in any response.
