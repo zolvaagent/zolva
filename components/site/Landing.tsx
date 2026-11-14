@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 
+import { HourlyRail } from "@/components/site/HourlyRail";
 import { GoToAppButton } from "@/components/site/SiteChrome";
 import { TokenPill } from "@/components/site/TokenAddress";
 import { LineChart } from "@/components/ui/LineChart";
@@ -183,6 +184,8 @@ export function Landing({ market, perps, backtests, agents, feed, ca }: Props) {
           </div>
         </div>
       </section>
+
+      <HourlyRail />
 
       <section className="section">
         <div className="container feed-section">

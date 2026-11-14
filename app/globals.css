@@ -9629,3 +9629,227 @@ li.stats-ranks__row {
   line-height: 18px;
   color: var(--color-text-muted);
 }
+
+/* ---------- Landing "Every hour" rail (components/site/HourlyRail.tsx) ----------
+   Approved design: prototype/hourly-rail.html. The section sits on the plain background, so the
+   markers use --color-bg to cover the track. */
+
+/* One sentence pair: the full container width so it sits on one line on desktop; the lead keeps
+   the usual reading width. */
+.section-heading--wide {
+  max-width: none;
+}
+
+.section-heading--wide .section-heading__title {
+  text-wrap: balance;
+}
+
+.section-heading--wide .section-heading__lead {
+  max-width: 46rem;
+}
+
+.rail {
+  /* One loop is one "hour": each of the 6 steps is lit for --rail-step. */
+  --rail-step: 1.6s;
+  --rail-cycle: calc(var(--rail-step) * 6);
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The track runs through the markers, from the first to the last: each step is 1/6 of the width,
+   so the markers' centers sit at 1/12 and 11/12. */
+.rail::before {
+  content: "";
+  position: absolute;
+  top: 19px;
+  left: calc(100% / 12);
+  right: calc(100% / 12);
+  height: 1px;
+  background: var(--color-border-strong);
+  pointer-events: none;
+}
+
+/* A lavender line fills the track step by step, then resets. */
+.rail::after {
+  content: "";
+  position: absolute;
+  top: 19px;
+  left: calc(100% / 12);
+  width: 0;
+  height: 1px;
+  background: var(--color-purple-rich);
+  pointer-events: none;
+  animation: rail-fill var(--rail-cycle) var(--ease-out-expo) infinite;
+}
+
+/* The full track is 10/12 of the width; each step adds 2/12. */
+@keyframes rail-fill {
+  0%, 12% { width: 0; opacity: 1; }
+  16.67%, 28.67% { width: calc(100% * 2 / 12); }
+  33.33%, 45.33% { width: calc(100% * 4 / 12); }
+  50%, 62% { width: calc(100% * 6 / 12); }
+  66.67%, 78.67% { width: calc(100% * 8 / 12); }
+  83.33%, 95% { width: calc(100% * 10 / 12); opacity: 1; }
+  99.9% { width: calc(100% * 10 / 12); opacity: 0; }
+  100% { width: 0; opacity: 0; }
+}
+
+.rail__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+}
+
+.rail__marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-inline: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 20px;
+  animation: rail-step-on var(--rail-cycle) linear infinite;
+  animation-delay: calc(var(--i) * var(--rail-step));
+}
+
+/* Lit while the line rests on it: one sixth of the loop. The resting colors come through
+   --marker-border / --marker-color, so the AI step keeps its lavender. */
+@keyframes rail-step-on {
+  0%, 15% {
+    border-color: var(--color-purple-rich);
+    color: var(--color-purple-rich);
+    background: var(--color-surface);
+  }
+  18%, 100% {
+    border-color: var(--marker-border, var(--color-border-strong));
+    color: var(--marker-color, var(--color-text-muted));
+    background: var(--color-bg);
+  }
+}
+
+.rail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  height: 100%;
+  padding: var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+}
+
+/* The AI step is optional and carries the headline: the one lavender card, dashed. */
+.rail__step--optional .rail__marker {
+  --marker-border: color-mix(in srgb, var(--color-purple-rich) 55%, transparent);
+  --marker-color: var(--color-purple-rich);
+  border-style: dashed;
+  border-color: var(--marker-border);
+  color: var(--marker-color);
+}
+
+.rail__step--optional .rail__body {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--color-purple-rich) 45%, transparent);
+  background: color-mix(in srgb, var(--color-purple-rich) 7%, var(--color-surface));
+}
+
+.rail__num {
+  color: var(--color-text-faint);
+  font: 12px/16px "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.rail__tag {
+  margin-left: var(--space-50);
+  padding: 1px 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  letter-spacing: 0.04em;
+}
+
+.rail__step--optional .rail__tag {
+  border-color: color-mix(in srgb, var(--color-purple-rich) 45%, transparent);
+  color: var(--color-purple-rich);
+}
+
+.rail__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.rail__text {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* Tablet: two rows of three. The track only makes sense on one line, so it goes. */
+@media (max-width: 1179px) {
+  .rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: var(--space-300);
+  }
+
+  .rail::before,
+  .rail::after {
+    display: none;
+  }
+
+  .rail__marker {
+    margin-inline: 0;
+  }
+}
+
+/* Phones: a vertical rail, with the line down the left through the markers. */
+@media (max-width: 640px) {
+  .rail {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-200);
+  }
+
+  .rail::before {
+    display: block;
+    top: 20px;
+    bottom: 20px;
+    left: 19.5px;
+    right: auto;
+    width: 1px;
+    height: auto;
+  }
+
+  .rail__step {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-200);
+  }
+
+  .rail__marker {
+    flex: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail::after {
+    display: none;
+  }
+
+  .rail__marker {
+    animation: none;
+  }
+}
