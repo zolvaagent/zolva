@@ -652,3 +652,38 @@ cost 0.5% per fill), `scripts/research-chip-breakout.mts`, read only.
   close; three stocks that went up a lot (survivor bias favours holding, not the rule).
 
 Reading: not a candidate for real money. Its live result is one falling month.
+
+## Trend filter round on alt perps: SOL, XRP, NEAR, ZEC (2026-11-14)
+
+Owner asked for more Lab crypto agents, on perps other than BTC and ETH. One strategy family, pre-registered
+(grid, split, costs and pass rule committed in `3e179e4` before the first run), `scripts/research-alt-trend.mts`,
+read only. Binance spot hourly closes 2020-08 to now (HYPE and LIT are too young for a 6 year test).
+
+- Rules (128 per coin): long when price is above its N day average (N = 7, 50, 100, 200) by a buffer (0 or 3%),
+  optionally only on a breakout above the 20 day high (72 hours for N = 7); exit when the trend turns; stop none
+  or 15%; size 100% or 50%; long only or long + short (mirror). Cost 0.05% a fill, longs pay 10% a year funding.
+- Training 2020-10 to 2023 picks the rules, 2024 to now is the test. Pass, on at least 3 of the 4 coins: positive
+  in at least 4 of 6 years (2021 to 2026), worst drop under 30%, positive on the test period.
+
+**Result: nothing passes, nothing even survives training.** 0 of 128 rules were train-OK on 3 coins
+(0 of the 32 rules with a 7 day gate, the only ones the engine can run today: rules look back at most 168 hours).
+
+| Coin | Rules positive in 2 of 3 training years | Rules with training drop under 30% | Smallest training drop |
+|---|---|---|---|
+| SOL | 128 | 2 | 30% |
+| XRP | 23 | 0 | 35% |
+| NEAR | 124 | 3 | 25% |
+| ZEC | 15 | 0 | 38% |
+
+- **The drop limit is what fails.** Trend filters do make money on SOL and NEAR in most years, but alts fall
+  60% to 95% from a peak before a 50 to 200 day average turns (for example 200 day gate, 3% buffer, 100%:
+  worst drop SOL 70%, XRP 95%, NEAR 92%, ZEC 97%). Half size still leaves 46% to 84%.
+- The 7 day gate (engine-ready) trades 230 to 310 times and loses to whipsaws: worst drop 61% to 88% at full size.
+- XRP and ZEC are positive in only 1 of the 3 training years for most rules (2022 and 2023 chop).
+- Shorts did not rescue it: no long + short rule survived either.
+
+Reading: no new Lab perps agent on alts from this round. Holding is also not an answer (SOL -94%, NEAR -91% in
+2022). If we try again, the one change worth a new pre-registered round is position size from volatility
+(size = target volatility / recent volatility, so a wild coin gets a small position), since the drop limit is the
+binding gate. A gate longer than 7 days would also need an engine change (Development, engine and prototype
+together) before any agent could run it.

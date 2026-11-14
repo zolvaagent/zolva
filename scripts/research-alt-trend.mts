@@ -236,6 +236,20 @@ async function main() {
     }
   }
 
+  // Diagnostics (not used to pick): which training gate binds, and a few reference rules.
+  const posOk = (c: Row["perCoin"][string]) => c.years.slice(0, 3).filter((r) => r > 0).length >= 2;
+  for (const coin of COINS) {
+    const cs = rows.map((row) => row.perCoin[coin]);
+    console.log(`  diag ${coin.padEnd(5)} train positive>=2/3: ${cs.filter(posOk).length}, train drop<30%: ${cs.filter((c) => c.trainDrop < DRAWDOWN_LIMIT).length}, both: ${cs.filter(trainOk).length}, min train drop ${pct(Math.min(...cs.map((c) => c.trainDrop)))}`);
+  }
+  for (const row of rows.filter((r) => r.rule.buffer === 0.03 && r.rule.stop === null && r.rule.entry === "gate" && !r.rule.shorts)) {
+    console.log(`  ref ${name(row.rule)}`);
+    for (const coin of COINS) {
+      const c = row.perCoin[coin];
+      console.log(`    ${coin.padEnd(5)} years ${c.years.map((r) => pct(r).padStart(6)).join("")}  train drop ${pct(c.trainDrop)}  whole drop ${pct(c.wholeDrop)}  trades ${c.trades}`);
+    }
+  }
+
   // Context only (not used to pick): how many of all 128 rules would pass, and the best 7 day gate rule.
   const allPass = rows.filter((row) => COINS.filter((coin) => passes(row.perCoin[coin])).length >= 3);
   console.log(`\nContext, not a selection: rules passing on >= 3 coins over the whole window: ${allPass.length} of ${rows.length}`);
