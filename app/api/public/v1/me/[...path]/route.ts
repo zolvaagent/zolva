@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { ActionError, runAction } from "@/lib/public-api/actions";
 import { API_VERSION } from "@/lib/public-api/format";
-import { checkKeyLimit, checkRequestKey, INVALID_KEY_MESSAGE, KEY_LIMIT_MESSAGES } from "@/lib/public-api/http";
+import { checkKeyLimit, checkRequestKey, INVALID_KEY_MESSAGE, KEY_LIMIT_MESSAGES, KEY_REQUIRED_MESSAGE } from "@/lib/public-api/http";
 import { matchMeRoute } from "@/lib/public-api/me-routes";
 import { actionDeps } from "@/lib/public-api/store";
 
@@ -33,7 +33,7 @@ async function handle(request: NextRequest, context: RouteContext<"/api/public/v
     console.error("me api key", cause);
     return fail(500, "internal_error", "Something went wrong on our side. Please try again later.");
   }
-  if (key.kind === "none") return fail(401, "api_key_required", "Send an API key: Authorization: Bearer zk_... Make one on your Zolva Dashboard.", { "WWW-Authenticate": 'Bearer realm="zolva"' });
+  if (key.kind === "none") return fail(401, "api_key_required", KEY_REQUIRED_MESSAGE, { "WWW-Authenticate": 'Bearer realm="zolva"' });
   if (key.kind === "invalid") return fail(401, "invalid_api_key", INVALID_KEY_MESSAGE, { "WWW-Authenticate": 'Bearer realm="zolva"' });
   if ((await checkKeyLimit(key.caller.keyId, "read")) === "limited") return fail(429, "rate_limited", KEY_LIMIT_MESSAGES.read, { "Retry-After": "60" });
 

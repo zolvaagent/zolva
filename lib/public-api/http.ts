@@ -5,19 +5,19 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { checkApiKey, type KeyCheck } from "@/lib/api-keys/server";
 import { API_VERSION } from "@/lib/public-api/format";
-import { IP_LIMIT_MESSAGE, KEY_LIMIT_MESSAGES } from "@/lib/public-api/limits";
+import { API_KEYS_URL, IP_LIMIT_MESSAGE, KEY_LIMIT_MESSAGES } from "@/lib/public-api/limits";
 import { db } from "@/lib/supabase";
 
 /**
  * Shared plumbing for every public API v1 route:
- * - a per-IP limit (Cloudflare rate limiting binding PUBLIC_API_LIMITER, 60 a minute;
+ * - a per-IP limit (Cloudflare rate limiting binding PUBLIC_API_LIMITER, see limits.ts;
  *   skipped where the binding does not exist, such as next dev),
  * - an edge cache (the Worker's Cache API) so repeated calls do not reach Supabase,
  * - open CORS, since the data is public and read-only,
  * - one error shape: { "error": { "code", "message" } },
  * - API keys: "Authorization: Bearer zk_..." (lib/api-keys). A valid key swaps the per-IP
- *   limit for the key's own limits (API_KEY_READ_LIMITER 120 a minute, API_KEY_WRITE_LIMITER
- *   30 a minute); a wrong or revoked key is a 401, never a silent fall back to keyless.
+ *   limit for the key's own limits (API_KEY_READ_LIMITER and API_KEY_WRITE_LIMITER, numbers
+ *   in limits.ts); a wrong or revoked key is a 401, never a silent fall back to keyless.
  */
 
 type RateLimiter = { limit: (options: { key: string }) => Promise<{ success: boolean }> };
@@ -76,8 +76,9 @@ export function checkRequestKey(request: Request): Promise<KeyCheck> {
   return checkApiKey(db(), request.headers);
 }
 
-export const INVALID_KEY_MESSAGE = "This API key is wrong or was revoked. Make a new one on your Zolva Dashboard.";
-export { KEY_LIMIT_MESSAGES };
+export const INVALID_KEY_MESSAGE = `This API key is wrong or was revoked. Make a new one in your Zolva Settings: ${API_KEYS_URL}`;
+export const KEY_REQUIRED_MESSAGE = `Send an API key: Authorization: Bearer zk_... Make one in your Zolva Settings: ${API_KEYS_URL}`;
+export { IP_LIMIT_MESSAGE, KEY_LIMIT_MESSAGES };
 
 /**
  * A JSON body from the edge cache, or from the loader (then stored for maxAge seconds).

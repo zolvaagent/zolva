@@ -4,6 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { env } from "@/lib/env";
 import { checkLimit } from "@/lib/public-api/http";
+import { RATE_LIMITS } from "@/lib/public-api/limits";
 import { db } from "@/lib/supabase";
 import { claimPayment, createChainClient, relayerFromEnv, releasePayment, settlePayment } from "@/lib/x402/facilitator";
 import { buildRequirements, checkPayment, decodePaymentHeader, paymentRequiredBody, settlementHeader } from "@/lib/x402/protocol";
@@ -43,7 +44,7 @@ export async function paidCall<Input>(request: NextRequest, endpoint: PaidEndpoi
   const relayer = relayerFromEnv();
   if (!config || !relayer) return error(503, "premium_closed", "The premium API is not open yet. The free public API is at /api/public/v1.");
 
-  if ((await checkLimit(request)) === "limited") return error(429, "rate_limited", "Too many requests: about 60 a minute per IP.", { "Retry-After": "60" });
+  if ((await checkLimit(request)) === "limited") return error(429, "rate_limited", `Too many requests: about ${RATE_LIMITS.ipPerMinute} a minute per IP.`, { "Retry-After": "60" });
 
   const url = new URL(request.url);
   const resource = `${url.origin}${url.pathname}`;

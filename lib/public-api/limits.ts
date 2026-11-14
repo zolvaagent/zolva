@@ -26,4 +26,7 @@ export const KEY_LIMIT_MESSAGES = {
   write: `Too many writes for this API key: ${RATE_LIMITS.keyWritePerMinute} a minute.`,
 } as const;
 
+/** Where a user makes, scopes and revokes API keys. */
+export const API_KEYS_URL = "https://zolvaagent.app/settings#api-keys";
+
 export const IP_LIMIT_MESSAGE = `Too many requests: about ${RATE_LIMITS.ipPerMinute} a minute per IP. Cache responses on your side.`;
