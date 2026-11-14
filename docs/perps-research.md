@@ -792,3 +792,9 @@ Limits: Binance funding, not Lighter's (Lighter pays hourly; same sign most of t
 Binance spot closes; six coins that survived; 24 rules on top of rounds 1 and 2 (but BTC ETH unseen and passing).
 Engine need, beyond the approved spec: shorts in custom perps rules and a 7 day average funding indicator
 (the funding data is already stored per hour in candles.funding_rate).
+
+Engine check (2026-11-14, Development's branch feat/variant-c at `b660110`, real `simulate` with real Binance funding):
+**match**. Variant C, years 2021 to 2026 and worst drop: SOL +76 / -2 / +59 / +4 / +7 / +9, 21%; XRP +12 / +18 / -13 /
++18 / -8 / +14, 29.8%; NEAR +31 / +14 / +53 / -2 / +1 / +37, 22%; ZEC +21 / +13 / -16 / +33 / +45 / +15, 25%;
+BTC 21%, ETH 20%. All within about 5 points of the research, entries within 1%. XRP's drop sits just under the
+30% limit in the engine (28% in research), so XRP is the one to watch on paper.
