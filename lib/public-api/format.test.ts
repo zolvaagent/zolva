@@ -110,7 +110,7 @@ describe("publicAgentDetail", () => {
   it("shares decision reasons for the last 24 hours only", () => {
     expect(body.decisionHours).toBe(DECISION_HOURS);
     expect(body.decisions).toHaveLength(DECISION_HOURS - 1);
-    expect(body.decisions[0]).toEqual({ at: new Date((NOW - 23 * HOUR) * 1000).toISOString(), market: "NVDA", action: "hold", reasoning: "hour 217" });
+    expect(body.decisions[0]).toEqual({ at: new Date((NOW - 23 * HOUR) * 1000).toISOString(), market: "NVDA", action: "hold", reasoning: "hour 217", explanation: null, checks: [] });
   });
 
   it("returns 7 days of value vs holding, oldest first", () => {

@@ -21,6 +21,8 @@ import {
 import { DEFAULT_EXPIRY_DAYS, parseAiLimit } from "@/lib/ai/limits";
 import { aiModel, formatCredits } from "@/lib/ai/models";
 import type { Decision } from "@/lib/engine/engine";
+import { explainDecision, type Explanation } from "@/lib/engine/explain";
+import { agentParams } from "@/lib/agents/plan";
 import type { Rules } from "@/lib/engine/rules";
 import { RulesSummary } from "@/components/app/RulesSummary";
 import {
@@ -199,6 +201,8 @@ export function AgentView({
     });
 
   const rules = agent.params.rules as Rules | undefined;
+  // The agent's settings as the engine sees them, for the decision log's plain-words details.
+  const engineParams = agentParams(agent as Parameters<typeof agentParams>[0]);
   const settings: [string, React.ReactNode][] = [
     ["Strategy", STRATEGY_NAMES[agent.strategy]],
     ["AI co-pilot", aiModel(agent.ai_model)?.label ?? "Off"],
@@ -908,6 +912,7 @@ export function AgentView({
                       action={decision.action}
                       reasoning={decision.reasoning}
                       ai={decision.ai}
+                      explanation={explainDecision(decision, engineParams, symbolOf(decision.token))}
                     />
                   ))}
                 </div>
@@ -1181,11 +1186,14 @@ export function DecisionRow({
   action,
   reasoning,
   ai,
+  explanation = null,
 }: {
   symbol: string;
   action: string;
   reasoning: string;
   ai?: Decision["ai"];
+  /** Plain-words details (lib/engine/explain.ts); null hides the Details toggle. */
+  explanation?: Explanation | null;
 }) {
   return (
     <div className="decision">
@@ -1206,6 +1214,25 @@ export function DecisionRow({
               {aiModel(ai.model)?.label ?? ai.model}
             </span>
           </span>
+        )}
+        {explanation && (
+          <details className="decision__details">
+            <summary>Details</summary>
+            {explanation.paragraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+            {explanation.checks.length > 0 && (
+              <ul className="decision__checks" aria-label="Rules checked this hour">
+                {explanation.checks.map((check) => (
+                  <li key={check.text} className={check.met ? "is-met" : undefined}>
+                    <i className={`ph ${check.met ? "ph-check" : "ph-x"}`} aria-hidden="true" />
+                    <span className="sr-only">{check.met ? "Met: " : "Not met: "}</span>
+                    {check.text}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
         )}
       </span>
     </div>

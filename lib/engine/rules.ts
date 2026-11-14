@@ -148,7 +148,7 @@ function sideValue(side: Indicator | ValueSide, window: number[]): number {
   return indicatorValue(side, window) * (1 + (side.offsetPct ?? 0) / 100);
 }
 
-export function checkCondition(condition: Condition, window: number[]): { met: boolean; text: string } {
+export function checkCondition(condition: Condition, window: number[]): { met: boolean; text: string; left: number; right: number } {
   const left = sideValue(condition.left, window);
   const right = sideValue(condition.right, window);
   let met: boolean;
@@ -160,7 +160,7 @@ export function checkCondition(condition: Condition, window: number[]): { met: b
     const rightBefore = sideValue(condition.right, previous);
     met = condition.op === "crossesAbove" ? leftBefore <= rightBefore && left > right : leftBefore >= rightBefore && left < right;
   }
-  return { met, text: describeCondition(condition, left, right) };
+  return { met, text: describeCondition(condition, left, right), left, right };
 }
 
 /** The decision for one token from its rules; take profit and max hold are handled by the engine. */
@@ -171,17 +171,24 @@ export function evaluateRules(rules: Rules, window: number[], hasPosition: boole
   }
   const checks = group.conditions.map((condition) => checkCondition(condition, window));
   const met = group.join === "all" ? checks.every((check) => check.met) : checks.some((check) => check.met);
+  // The values behind the decision, for the decision log's details (lib/engine/explain.ts).
+  const values = checks.map(({ left, right, met: ok }) => ({ left: round6(left), right: round6(right), met: ok }));
   if (met) {
     const reasons = checks
       .filter((check) => check.met)
       .map((check) => check.text)
       .join("; ");
     return hasPosition
-      ? { action: "sell", reasoning: `Sell rule met: ${reasons}. Selling.`, indicators: {} }
-      : { action: "buy", reasoning: `Buy rule met: ${reasons}. Buying.`, indicators: {} };
+      ? { action: "sell", reasoning: `Sell rule met: ${reasons}. Selling.`, indicators: {}, checks: values }
+      : { action: "buy", reasoning: `Buy rule met: ${reasons}. Buying.`, indicators: {}, checks: values };
   }
   const missing = checks.find((check) => !check.met)!;
-  return { action: "hold", reasoning: `${hasPosition ? "Holding" : "Waiting"}. Not yet: ${missing.text}.`, indicators: {} };
+  return { action: "hold", reasoning: `${hasPosition ? "Holding" : "Waiting"}. Not yet: ${missing.text}.`, indicators: {}, checks: values };
+}
+
+/** Six significant digits: enough for any price or indicator, and keeps stored decisions small. */
+function round6(value: number): number {
+  return Number.isFinite(value) ? Number(value.toPrecision(6)) : value;
 }
 
 /** "price $735.20 above 48h average $721.00", "24h change +1.2% above +3.0%". */

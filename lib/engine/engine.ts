@@ -37,7 +37,7 @@
  *   Research: docs/perps-research.md, "Round 2 on alt perps".
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
-import { decide, presetLookback, type StrategyKey } from "./strategies.ts";
+import { decide, presetLookback, type RuleCheck, type StrategyKey } from "./strategies.ts";
 
 export const COST_RATE = 0.005;
 /** Yearly borrow rate charged hourly on open shorts (Morpho was near 0% on 2026-11-03; cautious). */
@@ -135,6 +135,12 @@ export type Decision = {
   indicators?: Record<string, number>;
   /** Set when the AI co-pilot reviewed this hour's rule signal for the token. */
   ai?: { model: string; verdict: "approved" | "passed"; reasoning: string };
+  /** The token's close this hour. Stored from 2026-11-14 on, for the decision log's details. */
+  price?: number;
+  /** Custom rules: every condition of the group checked this hour (see RuleCheck). */
+  checks?: RuleCheck[];
+  /** The position held when the hour started (after funding), if any. */
+  position?: { entryPrice: number; heldHours: number | null; side?: "short" };
 };
 
 export type RunHourOptions = {
@@ -208,6 +214,8 @@ export function runHour(
   const positions: Record<string, Position> = { ...state.positions };
   const decisions: Decision[] = [];
   const fills: Fill[] = [];
+  // What each token's decision was based on, added to its decision at the end (decision log details).
+  const context = new Map<string, Pick<Decision, "price" | "position" | "checks">>();
   // One position strategies: decided before the loop, from the positions held at the start of
   // the hour, so a sell this hour frees the slot for the next hour, not this one. Dip + fade
   // has one slot per side.
@@ -255,6 +263,19 @@ export function runHour(
       decisions.push({ token, action: "hold", reasoning: "Not enough price history yet. Waiting." });
       continue;
     }
+
+    context.set(token, {
+      price,
+      ...(position
+        ? {
+            position: {
+              entryPrice: position.entryPrice,
+              heldHours: position.openedAt === undefined ? null : Math.round((hourTime - position.openedAt) / 3600),
+              ...(position.side === "short" ? { side: "short" as const } : {}),
+            },
+          }
+        : {}),
+    });
 
     if (position?.side === "short" && price >= position.entryPrice * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
       const fill = coverAll(token, position, price, "stop_loss", cost);
@@ -307,6 +328,8 @@ export function runHour(
     const signal = rules
       ? evaluateRules(rules, window as number[], Boolean(position))
       : decide(preset, window as number[], Boolean(position), position?.side === "short" ? "short" : "long");
+
+    if (signal.checks) context.set(token, { ...context.get(token), checks: signal.checks });
 
     const wantsTrade = signal.action === "buy" || signal.action === "short" || ((signal.action === "sell" || signal.action === "cover") && position);
     const passed = wantsTrade ? options.veto?.get(token) : undefined;
@@ -415,7 +438,8 @@ export function runHour(
   }
 
   const next = { cash, positions };
-  return { state: next, decisions, fills, equity: equityAt(next, prices) };
+  const detailed = decisions.map((decision) => ({ ...decision, ...context.get(decision.token) }));
+  return { state: next, decisions: detailed, fills, equity: equityAt(next, prices) };
 }
 
 /**

@@ -37,7 +37,7 @@ const AGENT_DETAIL_FIELDS: Field[] = [
   ["equity", "Hourly rows of [time, agent value USD, value of holding the same markets USD] for the last 7 days, oldest first."],
   ["positions", "Open positions: market, side (long or short), quantity, entryPrice, openedAt."],
   ["trades", "The latest 50 trades: at, market, side (buy, sell, short, cover), quantity, price, costUsd, reason (signal, stop_loss, take_profit, max_hold, or manual when the owner of a live agent sold by hand)."],
-  ["decisions", "Every decision of the last 24 hours, one per market per hour: at, market, action (buy, sell, short, cover, hold) and reasoning, in plain words."],
+  ["decisions", "Every decision of the last 24 hours, one per market per hour: at, market, action (buy, sell, short, cover, hold), reasoning (one line), explanation (a few plain-words sentences: what it waits for or why it keeps the position, how far away the trigger is, and the stop loss, take profit and max hold levels; null for hours before 2026-11-14) and checks (custom rules: each rule with its values and met true or false)."],
   ["decisionHours", "How many hours of decisions are included (24)."],
 ];
 

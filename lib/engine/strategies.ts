@@ -34,7 +34,12 @@ export type Signal = {
   action: "buy" | "sell" | "short" | "cover" | "hold";
   reasoning: string;
   indicators: Record<string, number>;
+  /** Custom rules only: every condition of the group checked this hour (entry when flat, exit when holding), in order. */
+  checks?: RuleCheck[];
 };
+
+/** One rule condition as checked in one hour: both sides' values (offset included) and whether it held. */
+export type RuleCheck = { left: number; right: number; met: boolean };
 
 /** Hours of history every strategy needs before its first decision. */
 export const LOOKBACK_HOURS = 48;
