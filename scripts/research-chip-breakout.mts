@@ -50,13 +50,24 @@ const PARAMS: AgentParams = { strategy: "custom", rules: RULES, maxPositionPct: 
 
 type Bars = [number, number][]; // [time ms, close]
 
+/** The parts of Yahoo's chart response this script reads. */
+type YahooChart = {
+  chart: {
+    result: {
+      timestamp: number[];
+      indicators: { quote: { close: (number | null)[] }[]; adjclose?: { adjclose: (number | null)[] }[] };
+    }[];
+  };
+};
+
 async function yahoo(symbol: string, query: string, key: string): Promise<Bars> {
   const file = join(CACHE, `${symbol}-${key}.json`);
   if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?${query}`;
   const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(30_000) });
   if (!response.ok) throw new Error(`${response.status} ${url}`);
-  const result = (await response.json()).chart.result[0];
+  const body = (await response.json()) as YahooChart;
+  const result = body.chart.result[0];
   const closes: (number | null)[] = result.indicators.adjclose?.[0]?.adjclose ?? result.indicators.quote[0].close;
   const bars: Bars = [];
   result.timestamp.forEach((seconds: number, i: number) => {
