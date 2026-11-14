@@ -11,11 +11,17 @@
  *
  * Available liquidity is deliberately not read: on Zolva's tokens it is 0 to ~93 USDG,
  * which would look broken next to a "borrow" number.
+ *
+ * Every link carries Zolva's Longbow builder code (`?builder=`). Longbow keeps it in the
+ * visitor's browser for 30 days and pays Zolva 50% of its performance fee on the borrows
+ * and deposits that follow, monthly in USDG. Pages that show the link say so.
  */
 
 import { USDG } from "./live/contracts";
 
 export const LONGBOW_URL = "https://www.longbow.finance";
+/** Zolva's Longbow builder code, registered 2026-11-14 with Zolva's own wallet (longbow.finance/builders). */
+export const LONGBOW_BUILDER_CODE = "Z68EKTE";
 const MARKETS_URL = `${LONGBOW_URL}/api/markets`;
 
 /** How long one read of the market list is reused (3 hours: listings change rarely). */
@@ -29,7 +35,7 @@ export type LongbowListing = {
   collateral: string;
   /** Liquidation loan-to-value, as a fraction (0.625 = 62.5%). */
   lltv: number;
-  /** The market's borrow page on Longbow. */
+  /** The market's borrow page on Longbow, with Zolva's builder code. */
   url: string;
 };
 
@@ -62,7 +68,7 @@ export function parseLongbowMarkets(body: unknown): LongbowListing[] {
     const collateral = market.collateralAddress.toLowerCase();
     const current = best.get(collateral);
     if (current && current.lltv >= lltv) continue;
-    best.set(collateral, { collateral, lltv, url: `${LONGBOW_URL}/borrow/${market.key}` });
+    best.set(collateral, { collateral, lltv, url: `${LONGBOW_URL}/borrow/${market.key}?builder=${LONGBOW_BUILDER_CODE}` });
   }
   return [...best.values()];
 }
@@ -87,7 +93,8 @@ export async function fetchLongbowMarkets({ timeoutMs = 3000, fetchImpl = fetch 
 // Two cache layers: this isolate's memory (also works in next dev), then the Worker's
 // edge cache (shared across isolates in a colo). Both hold the parsed listings only.
 let memory: { listings: LongbowListing[]; until: number } | null = null;
-const EDGE_KEY = "https://cache.zolvaagent.app/longbow/markets";
+// v2: links carry the builder code; the new key skips copies cached before that.
+const EDGE_KEY = "https://cache.zolvaagent.app/longbow/markets-v2";
 
 function edgeCache(): Cache | undefined {
   return (globalThis as { caches?: { default?: Cache } }).caches?.default;

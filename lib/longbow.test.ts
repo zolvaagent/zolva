@@ -36,14 +36,14 @@ const body = [
 describe("parseLongbowMarkets", () => {
   it("keeps live long USDG markets, keyed by lowercase collateral address", () => {
     expect(parseLongbowMarkets(body)).toEqual([
-      { collateral: NVDA.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA" },
-      { collateral: NVDA_ON.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDAon" },
+      { collateral: NVDA.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA?builder=Z68EKTE" },
+      { collateral: NVDA_ON.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDAon?builder=Z68EKTE" },
     ]);
   });
 
   it("keeps the highest LLTV when a token has two USDG markets", () => {
     const listings = parseLongbowMarkets([market({ key: "NVDA-LOW", lltv: 0.385 }), market({ key: "NVDA" })]);
-    expect(listings).toEqual([{ collateral: NVDA.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA" }]);
+    expect(listings).toEqual([{ collateral: NVDA.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA?builder=Z68EKTE" }]);
   });
 
   it("skips entries with a bad address, LLTV or key, and bodies that are not a list", () => {
@@ -57,8 +57,8 @@ describe("longbowListingFor", () => {
   const listings = parseLongbowMarkets(body);
 
   it("matches by address in any case, never by symbol", () => {
-    expect(longbowListingFor(listings, NVDA.toUpperCase().replace("0X", "0x"))?.url).toBe("https://www.longbow.finance/borrow/NVDA");
-    expect(longbowListingFor(listings, NVDA_ON)?.url).toBe("https://www.longbow.finance/borrow/NVDAon");
+    expect(longbowListingFor(listings, NVDA.toUpperCase().replace("0X", "0x"))?.url).toBe("https://www.longbow.finance/borrow/NVDA?builder=Z68EKTE");
+    expect(longbowListingFor(listings, NVDA_ON)?.url).toBe("https://www.longbow.finance/borrow/NVDAon?builder=Z68EKTE");
     expect(longbowListingFor(listings, "0x0000000000000000000000000000000000000001")).toBeNull();
   });
 });

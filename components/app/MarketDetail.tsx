@@ -276,6 +276,7 @@ export function MarketDetail({
                     <a className="session-note__link" href={longbow.url} target="_blank" rel="noopener noreferrer" title="Longbow, Morpho Blue lending on Robinhood Chain">
                       Longbow
                     </a>
+                    {" · "}Outside link, not advice. Zolva gets a share of Longbow&apos;s fee on borrows made through it.
                   </span>
                 </p>
               ) : null}
