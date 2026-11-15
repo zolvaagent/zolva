@@ -9,7 +9,7 @@ import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
 import { usd } from "@/lib/format";
 import { approveCall, v3PathFor, DEFAULT_SLIPPAGE_BPS, isAddressQuery, isDirect, MAX_IMPORTED, PRICE_WARNING_BPS, SWAP_ROUTER_02, swapCall, USDG, type SwapQuote, type SwapToken } from "@/lib/swap";
-import { PERMIT2, permit2ApproveCall, PONS_FEE_NOTE, UNIVERSAL_ROUTER, v3FeeSwapCall, WETH, wrapCall, zolvaLeg, zolvaSwapCall } from "@/lib/swap-zolva";
+import { PERMIT2, permit2ApproveCall, PONS_FEE_NOTE, UNIVERSAL_ROUTER, v3FeeSwapCall, WETH, wrapCall, ZOLVA_COINGECKO_URL, zolvaLeg, zolvaSwapCall } from "@/lib/swap-zolva";
 import { hasInjectedWallet, sendFromBrowserWallet, WalletError } from "@/lib/wallet-client";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -492,6 +492,11 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
               <a className="button button--ghost button--small" href={`${GECKO_TOKEN_URL}${result.token.address}`} target="_blank" rel="noopener noreferrer">
                 GeckoTerminal <i className="ph ph-arrow-up-right" aria-hidden="true" />
               </a>
+              {result.official && (
+                <a className="button button--ghost button--small" href={ZOLVA_COINGECKO_URL} target="_blank" rel="noopener noreferrer">
+                  CoinGecko <i className="ph ph-arrow-up-right" aria-hidden="true" />
+                </a>
+              )}
             </div>
           </div>
         )}

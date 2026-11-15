@@ -10018,3 +10018,10 @@ li.stats-ranks__row {
 .decision__checks .is-met i {
   color: var(--color-gain);
 }
+
+/* Swap chart footer: the token's outside pages side by side (Pons, and CoinGecko for ZOLVA). */
+.swap-chart__links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-200);
+}

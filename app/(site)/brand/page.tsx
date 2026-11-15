@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { BrandCopyButton, BrandSwatch } from "@/components/site/BrandKit";
 import { X_HANDLE, X_URL } from "@/lib/social";
+import { ZOLVA_COINGECKO_URL } from "@/lib/swap-zolva";
 
 export const metadata: Metadata = {
   title: "Brand kit",
@@ -280,6 +281,15 @@ export default function BrandPage() {
               <a href={X_URL} target="_blank" rel="noopener noreferrer">
                 @{X_HANDLE}
               </a>
+            </dd>
+          </div>
+          <div className="brand-kit-contact__row">
+            <dt>Listed on</dt>
+            <dd>
+              <a href={ZOLVA_COINGECKO_URL} target="_blank" rel="noopener noreferrer">
+                CoinGecko
+              </a>{" "}
+              (ZOLVA, Robinhood Chain)
             </dd>
           </div>
           {PRESS_EMAIL && (

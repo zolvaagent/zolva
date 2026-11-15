@@ -7,6 +7,7 @@ import { SwapDialog } from "@/components/app/SwapDialog";
 import { LineChart } from "@/components/ui/LineChart";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { EXPLORER_URL } from "@/lib/chain";
+import { ZOLVA, ZOLVA_COINGECKO_URL } from "@/lib/swap-zolva";
 import { percent, price, tone } from "@/lib/format";
 import type { SwapToken } from "@/lib/swap";
 
@@ -101,9 +102,16 @@ export function SwapWorkspace({ address, loginMethod }: { address: string | null
                   {buy.listed === false ? "Not on Zolva's list" : <>7 days of hourly closes{weekChange !== null && <> · <span className={tone(weekChange)}>{percent(weekChange)}</span></>}</>}
                 </span>
                 {buy.verified || buy.pons ? (
-                  <a className="text-link" href={`https://ponsfamily.com/launchpad/${buy.address}`} target="_blank" rel="noopener noreferrer">
-                    {buy.symbol} on Pons <i className="ph ph-arrow-up-right" aria-hidden="true" />
-                  </a>
+                  <span className="swap-chart__links">
+                    <a className="text-link" href={`https://ponsfamily.com/launchpad/${buy.address}`} target="_blank" rel="noopener noreferrer">
+                      {buy.symbol} on Pons <i className="ph ph-arrow-up-right" aria-hidden="true" />
+                    </a>
+                    {buy.address.toLowerCase() === ZOLVA && (
+                      <a className="text-link" href={ZOLVA_COINGECKO_URL} target="_blank" rel="noopener noreferrer">
+                        CoinGecko <i className="ph ph-arrow-up-right" aria-hidden="true" />
+                      </a>
+                    )}
+                  </span>
                 ) : buy.listed === false ? (
                   <a className="text-link" href={`https://www.geckoterminal.com/robinhood/tokens/${buy.address}`} target="_blank" rel="noopener noreferrer">
                     {buy.symbol} on GeckoTerminal <i className="ph ph-arrow-up-right" aria-hidden="true" />
