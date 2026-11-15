@@ -196,10 +196,11 @@
    *                                             buy equity x min(max %, target / realised volatility), and
    *                                             resize once a day (00:00 UTC) when more than 25% off
    * @param {number[]} [options.times]           hour start per index (unix seconds), default index x 3600
+   * @param {number} [options.costScale]         multiplies the cost per fill (2 = double costs), default 1
    */
   function simulate(options) {
     const perps = options.venue === "perps";
-    const cost = perps ? PERPS_COST_RATE : COST_RATE;
+    const cost = (perps ? PERPS_COST_RATE : COST_RATE) * (options.costScale ?? 1);
     // "custom" runs the user's rules (options.rules); the presets keep their own code.
     const custom = options.strategy === "custom";
     const strategy = STRATEGIES[options.strategy];

@@ -172,6 +172,30 @@ describe("parity with the prototype engine", () => {
     );
     expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
   });
+
+  it("matches trades and return at double costs, and pays twice the cost per fill", () => {
+    const series: Record<string, number[]> = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600) };
+    for (const venue of [undefined, "perps"] as const) {
+      const params: AgentParams = { ...momentum, ...(venue ? { venue } : {}) };
+      const ours = simulate({ series, params, capital: 10_000, fromIndex: 60, costScale: 2 });
+      const theirs = prototype.simulate({
+        tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes })),
+        strategy: "momentum",
+        ...(venue ? { venue } : {}),
+        capital: 10_000,
+        maxPositionPct: params.maxPositionPct,
+        stopLossPct: params.stopLossPct,
+        fromIndex: 60,
+        costScale: 2,
+      });
+      expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(
+        theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`),
+      );
+      expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+      const first = ours.fills[0];
+      expect(first.costUsd).toBeCloseTo((first.quantity * first.price * 2 * costRateFor(venue)) / (1 - 2 * costRateFor(venue)), 6);
+    }
+  });
 });
 
 /** The deep dip rule that passed the perps search (docs/perps-research.md). */

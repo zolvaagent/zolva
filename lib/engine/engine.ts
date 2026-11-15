@@ -163,6 +163,11 @@ export type RunHourOptions = {
    * shorts), aligned with the closes. A missing hour counts as zero.
    */
   funding?: Record<string, (number | null)[]>;
+  /**
+   * Backtests only: multiplies the cost per fill (2 = double costs, the Studio robustness check).
+   * Live and paper agents never set it.
+   */
+  costScale?: number;
 };
 
 export type Fill = {
@@ -212,7 +217,7 @@ export function runHour(
   const equityBefore = equityAt(state, prices);
   const maxShare = params.maxPositionPct / 100;
   const stopDistance = params.stopLossPct / 100;
-  const cost = costRateFor(params.venue);
+  const cost = costRateFor(params.venue) * (options.costScale ?? 1);
   const leverage = params.strategy === "bounce_short" && params.venue === "perps" ? Math.max(1, params.leverage ?? 1) : 1;
   // A leveraged short is stopped at the stop, or liquidated earlier when the stop is wider than
   // LIQUIDATION_LOSS of the margin: whichever price comes first.
@@ -574,6 +579,8 @@ export function simulate(options: {
   times?: number[];
   /** Perps funding per token and hour (see RunHourOptions.funding). */
   funding?: Record<string, (number | null)[]>;
+  /** Multiplies the cost per fill (see RunHourOptions.costScale). */
+  costScale?: number;
 }): SimulationResult {
   const tokens = Object.keys(options.series);
   const lastIndex = options.toIndex ?? options.series[tokens[0]].length - 1;
@@ -582,14 +589,14 @@ export function simulate(options: {
   const fills: (Fill & { index: number })[] = [];
 
   for (let index = options.fromIndex; index <= lastIndex; index++) {
-    const hour = runHour(state, options.params, options.series, index, options.times?.[index] ?? index * 3600, { funding: options.funding });
+    const hour = runHour(state, options.params, options.series, index, options.times?.[index] ?? index * 3600, { funding: options.funding, costScale: options.costScale });
     state = hour.state;
     fills.push(...hour.fills.map((fill) => ({ ...fill, index })));
     runs.push({ index, equity: hour.equity, cash: state.cash, decisions: hour.decisions });
   }
 
   const finalEquity = runs.length ? runs[runs.length - 1].equity : options.capital;
-  const cost = costRateFor(options.params.venue);
+  const cost = costRateFor(options.params.venue) * (options.costScale ?? 1);
   // A resize is not a round trip: only full exits count toward the win rate.
   const profits = fills
     .filter((fill) => (fill.side === "sell" || fill.side === "cover") && fill.reason !== "resize")

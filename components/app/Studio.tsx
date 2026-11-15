@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useAuth, useToast } from "@/components/ui/Providers";
 import { LineChart } from "@/components/ui/LineChart";
@@ -18,6 +18,7 @@ import { indicatorMeta, INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_
 import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
 import { describeAgent } from "@/lib/engine/summary";
 import { RulesSummary } from "@/components/app/RulesSummary";
+import { RobustnessCheck } from "@/components/app/RobustnessCheck";
 import { dayAt, percent, usd } from "@/lib/format";
 import { track } from "@/lib/funnel";
 import { openingPreset, PRESET_MAX_POSITION_PCT, PRESET_STOP_LOSS_PCT, scorePresets, suggestedName, type ScoredPreset } from "@/lib/studio/presets";
@@ -639,7 +640,27 @@ export function Studio({
               </div>
             </div>
           ) : (
-            <BacktestCard backtest={backtest} capital={capital} startTs={market.startTs + fromIndex * 3600} endTs={market.startTs + last * 3600} strategy={strategy} perps={perps} onLaunch={openLaunch} />
+            <BacktestCard
+              backtest={backtest}
+              capital={capital}
+              startTs={market.startTs + fromIndex * 3600}
+              endTs={market.startTs + last * 3600}
+              strategy={strategy}
+              perps={perps}
+              onLaunch={openLaunch}
+              robustness={
+                <RobustnessCheck
+                  settings={{
+                    strategy,
+                    ...(strategy === "custom" ? { rules } : {}),
+                    venue,
+                    tokens: symbols.map((symbol) => market.tokens.find((token) => token.symbol === symbol)!.address),
+                    maxPositionPct,
+                    stopLossPct,
+                  }}
+                />
+              }
+            />
           )}
         </aside>
       </div>
@@ -744,7 +765,26 @@ function StrategyChoice(props: { value: Strategy; current: Strategy; onChange: (
 
 type BacktestView = { result: ReturnType<typeof simulate>; hold: ReturnType<typeof buyAndHold>; edge: number };
 
-function BacktestCard({ backtest, capital, startTs, endTs, strategy, perps, onLaunch }: { backtest: BacktestView; capital: number; startTs: number; endTs: number; strategy: Strategy; perps: boolean; onLaunch: () => void }) {
+function BacktestCard({
+  backtest,
+  capital,
+  startTs,
+  endTs,
+  strategy,
+  perps,
+  onLaunch,
+  robustness,
+}: {
+  backtest: BacktestView;
+  capital: number;
+  startTs: number;
+  endTs: number;
+  strategy: Strategy;
+  perps: boolean;
+  onLaunch: () => void;
+  /** The "Check robustness" block, shown above Launch. */
+  robustness: ReactNode;
+}) {
   const { result, hold, edge } = backtest;
   const tradesPerWeek = (result.fills.length / 30) * 7;
   let verdict: { icon: string; text: string };
@@ -816,6 +856,8 @@ function BacktestCard({ backtest, capital, startTs, endTs, strategy, perps, onLa
           A strong backtest for rules tuned on this exact month. Results after launch are what count on the leaderboard.
         </p>
       )}
+
+      {robustness}
 
       <button className="button button--primary button--large" type="button" onClick={onLaunch}>
         Launch agent
