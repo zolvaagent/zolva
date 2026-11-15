@@ -77,6 +77,10 @@ export const env = {
   get privyAuthorizationKey(): string | null {
     return optional("PRIVY_AUTHORIZATION_KEY");
   },
+  /** Shared secret for the zolva-lighter Worker (perps live); null keeps perps live off. */
+  get lighterInternalToken(): string | null {
+    return optional("LIGHTER_INTERNAL_TOKEN");
+  },
   /** Turns on /api/dev/live-sign-check (local wrangler dev only; never set as a Worker secret). */
   get liveSignCheck(): boolean {
     return optional("LIVE_SIGN_CHECK") === "1";

@@ -74,6 +74,9 @@ export async function runLiveAgents(db: SupabaseClient): Promise<LiveResult> {
     .eq("mode", "live")
     .eq("status", "active");
   if (agentsError) throw new Error(`Loading live agents failed: ${agentsError.message}`);
+  // Perps live agents trade on Lighter through lib/live/perps-runner.ts, never through a Privy swap.
+  const spot = (agents as LiveAgent[]).filter((agent) => agent.params.venue !== "perps");
+  agents.splice(0, agents.length, ...spot);
   const agentOf = new Map((agents as LiveAgent[]).map((agent) => [agent.id, agent]));
   result.agents = agents.length;
 

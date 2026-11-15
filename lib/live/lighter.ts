@@ -60,7 +60,14 @@ export type LighterPosition = {
   marginMode: number;
 };
 
-export type LighterAccount = { index: number; collateral: number; available: number; positions: LighterPosition[] };
+export type LighterAccount = {
+  index: number;
+  collateral: number;
+  available: number;
+  /** Lighter's own account value: collateral plus unrealized P&L. The agent's equity. */
+  totalValue: number;
+  positions: LighterPosition[];
+};
 
 /** The account from GET /api/v1/account?by=index&value=…, with open positions only. */
 export function parseAccount(body: unknown): LighterAccount | null {
@@ -76,7 +83,10 @@ export function parseAccount(body: unknown): LighterAccount | null {
       marginMode: Number(p.margin_mode),
     }))
     .filter((p) => Number.isFinite(p.size) && p.size !== 0);
-  return { index: Number(raw.index ?? raw.account_index), collateral: Number(raw.collateral), available: Number(raw.available_balance), positions };
+  const collateral = Number(raw.collateral);
+  const reported = Number(raw.total_asset_value);
+  const totalValue = Number.isFinite(reported) ? reported : collateral + positions.reduce((sum, p) => sum + p.unrealizedPnl, 0);
+  return { index: Number(raw.index ?? raw.account_index), collateral, available: Number(raw.available_balance), totalValue, positions };
 }
 
 export type OrderRequest = {
@@ -138,4 +148,87 @@ export function checkFill(before: number, after: number, side: "buy" | "sell", p
 /** Lighter's client order index: unique per account across markets, at most 2^48 - 1. Milliseconds fit for millennia. */
 export function clientOrderIndex(nowMs: number): number {
   return Math.floor(nowMs) % 2 ** 48;
+}
+
+/** How an engine fill becomes a Lighter order: shorts are sells that open, covers are buys that only reduce. */
+export function lighterOrderFor(side: "buy" | "sell" | "short" | "cover"): { side: "buy" | "sell"; reduceOnly: boolean } {
+  if (side === "buy") return { side: "buy", reduceOnly: false };
+  if (side === "short") return { side: "sell", reduceOnly: false };
+  if (side === "cover") return { side: "buy", reduceOnly: true };
+  return { side: "sell", reduceOnly: true };
+}
+
+export type EnginePositionRow = {
+  token_address: string;
+  quantity: number;
+  avg_entry_price: number;
+  opened_at: string | null;
+  side: "long" | "short";
+  stop_price: number | null;
+};
+
+/**
+ * A Lighter account as the engine's state: positions (long, or short with its entry) and cash chosen so
+ * that cash plus the positions' engine value equals Lighter's account value. The engine values a long at
+ * quantity x price and a 1x short at quantity x (2 x entry - price), so cash absorbs funding, fees and
+ * anything else Lighter booked. Opened times and short stop prices are kept from the previous rows.
+ */
+export function engineStateFromLighter(
+  account: LighterAccount,
+  tokenOfMarket: ReadonlyMap<number, string>,
+  prices: Readonly<Record<string, number>>,
+  previous: readonly EnginePositionRow[],
+  nowIso: string,
+): { cash: number; positions: EnginePositionRow[]; unknownMarkets: number[] } {
+  const positions: EnginePositionRow[] = [];
+  const unknownMarkets: number[] = [];
+  let held = 0;
+  for (const position of account.positions) {
+    const token = tokenOfMarket.get(position.marketId);
+    if (!token) {
+      unknownMarkets.push(position.marketId);
+      continue;
+    }
+    const side = position.size < 0 ? "short" : "long";
+    const quantity = Math.abs(position.size);
+    const before = previous.find((row) => row.token_address === token && row.side === side);
+    const price = prices[token] ?? position.avgEntryPrice;
+    held += side === "long" ? quantity * price : quantity * (2 * position.avgEntryPrice - price);
+    positions.push({
+      token_address: token,
+      quantity,
+      avg_entry_price: position.avgEntryPrice,
+      opened_at: before?.opened_at ?? nowIso,
+      side,
+      stop_price: side === "short" ? (before?.stop_price ?? position.avgEntryPrice) : null,
+    });
+  }
+  return { cash: account.totalValue - held, positions, unknownMarkets };
+}
+
+export type Mismatch = { token: string; zolva: number; lighter: number };
+
+/**
+ * Positions that differ between Zolva and Lighter by more than `tolerance` (a share of the larger size),
+ * as signed sizes. Any mismatch outside a pending order pauses the agent: real money never runs on a
+ * state Zolva does not understand.
+ */
+export function reconcile(
+  zolva: readonly EnginePositionRow[],
+  account: LighterAccount,
+  tokenOfMarket: ReadonlyMap<number, string>,
+  tolerance = 0.01,
+): Mismatch[] {
+  const signed = new Map<string, { zolva: number; lighter: number }>();
+  for (const row of zolva) signed.set(row.token_address, { zolva: (row.side === "short" ? -1 : 1) * Number(row.quantity), lighter: 0 });
+  for (const position of account.positions) {
+    const token = tokenOfMarket.get(position.marketId) ?? `market:${position.marketId}`;
+    signed.set(token, { zolva: signed.get(token)?.zolva ?? 0, lighter: position.size });
+  }
+  const mismatches: Mismatch[] = [];
+  for (const [token, { zolva: ours, lighter }] of signed) {
+    const scale = Math.max(Math.abs(ours), Math.abs(lighter));
+    if (scale > 0 && Math.abs(ours - lighter) > tolerance * scale) mismatches.push({ token, zolva: ours, lighter });
+  }
+  return mismatches;
 }
