@@ -10025,3 +10025,61 @@ li.stats-ranks__row {
   flex-wrap: wrap;
   gap: var(--space-200);
 }
+
+/* "Verify this agent" (components/app/VerifyAgent.tsx). */
+.verify-agent {
+  display: grid;
+  gap: var(--space-75);
+  margin-top: var(--space-200);
+  padding: var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.verify-agent__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-75);
+}
+
+.verify-agent__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.verify-agent__lead,
+.verify-agent__how {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.verify-agent__how code {
+  font-size: 12px;
+}
+
+.verify-agent__result {
+  display: flex;
+  gap: var(--space-75);
+  align-items: baseline;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.verify-agent__result--match i {
+  color: var(--color-gain);
+}
+
+.verify-agent__result--differs i {
+  color: var(--color-loss);
+}
+
+.verify-agent__detail {
+  margin: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}

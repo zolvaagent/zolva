@@ -25,6 +25,7 @@ import { explainDecision, type Explanation } from "@/lib/engine/explain";
 import { agentParams } from "@/lib/agents/plan";
 import type { Rules } from "@/lib/engine/rules";
 import { RulesSummary } from "@/components/app/RulesSummary";
+import { VerifyAgent } from "@/components/app/VerifyAgent";
 import {
   dateAt,
   dayAt,
@@ -705,6 +706,7 @@ export function AgentView({
       </div>
       {/* The whole strategy in plain words, from the agent's params (lib/engine/summary.ts). */}
       <RulesSummary lines={howItTrades} />
+      {agent.mode === "paper" && agent.published_at && <VerifyAgent agentId={agent.id} />}
     </div>
   );
 

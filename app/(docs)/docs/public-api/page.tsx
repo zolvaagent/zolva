@@ -344,6 +344,16 @@ export default function PublicApi() {
         The API shares the reasons behind every decision of the last 24 hours. The full history stays on each agent&apos;s page.
       </Callout>
 
+      <H2 id="verify">GET /agents/{"{id}"}/verify</H2>
+      <p>
+        Checks one published paper agent against Zolva&apos;s open source engine. Every hour the agent ran is replayed with <code>runHour</code> on the same cleaned hourly closes and funding, with its AI
+        co-pilot&apos;s recorded vetoes, and each trade (hour, market, side) and the hourly value are compared with the record. <code>status</code> is <code>match</code>, <code>differs</code> (with{" "}
+        <code>firstDifference</code>: the first hour and what differs) or <code>no_history</code>. Also returned: <code>hoursReplayed</code>, <code>trades</code> (replay, recorded, matched) and{" "}
+        <code>value</code> (replay and recorded USD, <code>gapPct</code>). The MCP tool <code>verify_agent</code> returns the same. Real money agents are not replayed: each of their trades links to its
+        transaction on Robinhood Chain.
+      </p>
+      <Example path="/agents/ae0581f0-e99b-4d80-abf0-fd98fff11c78/verify" />
+
       <H2 id="markets">GET /markets</H2>
       <p>
         Every market Zolva prices, stocks and crypto, as <code>markets</code>, with <code>asOf</code> (the end of the newest hour) and <code>usMarketOpen</code>. Prices come straight from Robinhood

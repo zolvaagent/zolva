@@ -5,14 +5,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ApiCaller } from "@/lib/api-keys/keys";
 
 import type { ActionDeps } from "./actions";
-import { activityBody, agentBody, agentsBody, marketBody, marketsBody, TTL } from "./data";
+import { activityBody, agentBody, agentsBody, marketBody, marketsBody, TTL, verifyBody } from "./data";
 import { DISCLAIMER } from "./format";
 import { cachedBody } from "./http";
 import { KEYED_INSTRUCTIONS, registerActionTools } from "./mcp-actions";
 import { filterAgents, filterByAssetClass, filterTrades, READ_TOOLS } from "./tools";
 
 /**
- * Zolva's MCP server (docs: /docs/mcp): the public API as five read-only tools, so AI
+ * Zolva's MCP server (docs: /docs/mcp): the public API as six read-only tools, so AI
  * assistants can read published agents, their decisions, markets and trades. Same data,
  * same cache and same rules as /api/public/v1: paper agents only, no wallets, no login.
  *
@@ -58,6 +58,15 @@ export function createMcpServer(keyed?: { caller: ApiCaller; deps: ActionDeps })
     async ({ id }) => {
       const body = await cachedBody(`agents/${id.toLowerCase()}`, TTL.agents, () => agentBody(id));
       return body ? json(body) : notFound("No published agent has this id. Private agents and real money agents are not available.");
+    },
+  );
+
+  server.registerTool(
+    "verify_agent",
+    { ...READ_TOOLS.verify_agent, annotations: READ_ONLY },
+    async ({ id }) => {
+      const body = await cachedBody(`agents/${id.toLowerCase()}/verify`, TTL.agents, () => verifyBody(id));
+      return body ? json(body) : notFound("No published paper agent has this id. Real money agents are verified by their on-chain transactions instead.");
     },
   );
 

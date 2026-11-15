@@ -9,7 +9,7 @@ import { DECISION_HOURS, type PublicAgent } from "./format";
 export const AGENT_SORTS = ["return", "vs_holding", "drawdown"] as const;
 
 /**
- * The five keyless MCP tools: name, title, description and inputs. lib/public-api/mcp.ts
+ * The six keyless MCP tools: name, title, description and inputs. lib/public-api/mcp.ts
  * registers them with their handlers, and /docs/mcp renders its tool table from here.
  */
 export const READ_TOOLS = {
@@ -23,6 +23,12 @@ export const READ_TOOLS = {
       sortBy: z.enum(AGENT_SORTS).optional().describe("return (default, highest first), vs_holding (most ahead of holding first) or drawdown (smallest worst drop first)"),
       limit: z.number().int().min(1).max(50).optional().describe("How many agents to return, default 20"),
     },
+  },
+  verify_agent: {
+    title: "Verify agent",
+    description:
+      "Replays one published agent with Zolva's open source engine over every hour it ran, on the same prices and funding, and compares every trade and its value with the record. Returns match or the first hour that differs.",
+    inputSchema: { id: z.string().uuid().describe("The agent id from list_agents") },
   },
   get_agent: {
     title: "Get agent",

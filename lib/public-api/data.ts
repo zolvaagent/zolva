@@ -3,6 +3,7 @@ import "server-only";
 import { ACTIVITY_HOURS, getActivity } from "@/lib/data/activity";
 import { getAgentDetail, listAgents } from "@/lib/data/agents";
 import { getMarketDetail, getMarketOverview } from "@/lib/data/markets";
+import { loadAndVerifyAgent } from "@/lib/data/verify";
 import { getLongbowListings } from "@/lib/longbow";
 import { db } from "@/lib/supabase";
 
@@ -24,6 +25,37 @@ export async function agentsBody() {
 export async function agentBody(id: string) {
   const detail = await getAgentDetail(db(), id.toLowerCase());
   return detail && isPublicAgent(detail) ? publicAgentDetail(detail, Date.now() / 1000) : null;
+}
+
+/**
+ * "Verify this agent": the real engine replays every hour the agent ran on the same closes and funding,
+ * and every trade and the value are compared with what Zolva recorded. Published paper agents only.
+ */
+export async function verifyBody(id: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  const result = await loadAndVerifyAgent(db(), id.toLowerCase());
+  if (!result) return null;
+  const iso = (ts: number) => new Date(ts * 1000).toISOString();
+  return {
+    agentId: result.agentId,
+    status: result.status,
+    method: result.method,
+    hoursReplayed: result.hours,
+    hoursDiffering: result.hoursDiffering,
+    firstHour: result.firstHour,
+    lastHour: result.lastHour,
+    trades: result.trades,
+    value: { replay: Math.round(result.value.replay * 100) / 100, recorded: Math.round(result.value.recorded * 100) / 100, gapPct: Math.round(result.value.gapPct * 10000) / 10000 },
+    firstDifference: result.firstDifference ? { at: iso(result.firstDifference.at), detail: result.firstDifference.detail } : null,
+    lastDifference: result.lastDifference ? { at: iso(result.lastDifference.at), detail: result.lastDifference.detail } : null,
+    // Why, when the stored decisions can tell: the hour's closes were corrected after the agent acted.
+    cause: result.cause,
+    howItWorks:
+      result.method === "hour_by_hour"
+        ? "Each hour the agent ran is replayed with Zolva's engine (runHour, open source: lib/engine/engine.ts) from the state Zolva recorded at the start of that hour, on the same cleaned hourly closes, with its AI co-pilot's recorded vetoes; each trade (hour, market, side) and the hourly value are compared with the record. A price corrected in one hour does not carry into the next."
+        : "The agent is replayed with Zolva's engine (runHour, open source: lib/engine/engine.ts) from its first hour over every hour it ran, on the same cleaned hourly closes and funding; each trade (hour, market, side) and the hourly value are compared with the record. After a first difference, later hours can differ too.",
+    disclaimer: DISCLAIMER,
+  };
 }
 
 export async function marketsBody() {

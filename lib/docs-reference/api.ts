@@ -90,7 +90,7 @@ export const ACTION_REFERENCE: ActionReference[] = ME_ROUTES.map((route) => {
   };
 });
 
-/** The five keyless MCP tools. */
+/** The six keyless MCP tools. */
 export const READ_TOOL_REFERENCE = (Object.keys(READ_TOOLS) as (keyof typeof READ_TOOLS)[]).map((name) => ({
   name,
   title: READ_TOOLS[name].title,
