@@ -10083,3 +10083,73 @@ li.stats-ranks__row {
   color: var(--color-text-muted);
   overflow-wrap: anywhere;
 }
+
+/* Verify: loading state while the replay runs (a few seconds on older agents). */
+.verify-agent__spin {
+  animation: verify-spin 0.9s linear infinite;
+}
+
+@keyframes verify-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.verify-agent__loading {
+  display: grid;
+  gap: var(--space-75);
+}
+
+/* An indeterminate bar: a lavender segment sliding across a faint track. */
+.verify-agent__bar {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--color-tint);
+}
+
+.verify-agent__bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--color-purple-rich);
+  animation: verify-slide 1.4s var(--ease-out-expo) infinite;
+}
+
+@keyframes verify-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* Each step fades in as it replaces the one before. */
+.verify-agent__step {
+  margin: 0;
+  color: var(--color-text-muted);
+  animation: verify-fade 0.4s var(--ease-out-expo);
+}
+
+@keyframes verify-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .verify-agent__spin,
+  .verify-agent__bar span,
+  .verify-agent__step {
+    animation: none;
+  }
+
+  .verify-agent__bar span {
+    width: 100%;
+    opacity: 0.4;
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Difference = { at: string; detail: string } | null;
 type VerifyBody = {
@@ -17,6 +17,10 @@ type VerifyBody = {
 
 const when = (iso: string) => `${new Date(iso).toUTCString().slice(5, 22)} UTC`;
 
+/** What the replay is doing, shown in turn while it runs (it takes a few seconds on older agents). */
+const STEPS = ["Loading every hour this agent ran…", "Loading the prices it saw…", "Replaying each hour with the engine…", "Comparing every trade and its value…"];
+const STEP_MS = 1800;
+
 /**
  * "Verify this agent": asks the public API to replay the agent with Zolva's engine over every hour it ran
  * and compare each trade and its value with the record (lib/agents/verify.ts). Published paper agents only.
@@ -24,8 +28,17 @@ const when = (iso: string) => `${new Date(iso).toUTCString().slice(5, 22)} UTC`;
 export function VerifyAgent({ agentId }: { agentId: string }) {
   const [state, setState] = useState<{ busy: boolean; body: VerifyBody | null; error: string | null }>({ busy: false, body: null, error: null });
   const path = `/api/public/v1/agents/${agentId}/verify`;
+  const [step, setStep] = useState(0);
+
+  // Walk through the steps while the replay runs; stay on the last one if it takes longer.
+  useEffect(() => {
+    if (!state.busy) return;
+    const timer = setInterval(() => setStep((current) => Math.min(current + 1, STEPS.length - 1)), STEP_MS);
+    return () => clearInterval(timer);
+  }, [state.busy]);
 
   const run = async () => {
+    setStep(0);
     setState({ busy: true, body: null, error: null });
     try {
       const response = await fetch(path);
@@ -43,12 +56,22 @@ export function VerifyAgent({ agentId }: { agentId: string }) {
       <div className="verify-agent__head">
         <h3 className="verify-agent__title">Verify this agent</h3>
         <button className="button button--ghost button--small" type="button" onClick={run} disabled={state.busy}>
-          <i className={`ph ${state.busy ? "ph-circle-notch" : "ph-seal-check"}`} aria-hidden="true" />
+          <i className={`ph ${state.busy ? "ph-circle-notch verify-agent__spin" : "ph-seal-check"}`} aria-hidden="true" />
           {state.busy ? "Replaying…" : body ? "Run again" : "Replay with the engine"}
         </button>
       </div>
       <p className="verify-agent__lead">Replays every hour this agent ran with Zolva&apos;s open source engine, on the same prices, and checks each trade and its value against the record.</p>
       <div aria-live="polite">
+        {state.busy && (
+          <div className="verify-agent__loading" role="status">
+            <div className="verify-agent__bar" aria-hidden="true">
+              <span />
+            </div>
+            <p className="verify-agent__step" key={step}>
+              {STEPS[step]}
+            </p>
+          </div>
+        )}
         {state.error && <p className="field-error">{state.error}</p>}
         {body?.status === "match" && (
           <p className="verify-agent__result verify-agent__result--match">
