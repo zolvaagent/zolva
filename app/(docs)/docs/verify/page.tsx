@@ -6,6 +6,7 @@ import { TokenAddress } from "@/components/site/TokenAddress";
 import { EXPLORER_URL, LIVE_EARLIER_AGENT_HREF, LIVE_PROOF_HREF, LIVE_TRADING_WALLET } from "@/lib/chain";
 import { docPage } from "@/lib/docs";
 import { X_HANDLE, X_URL } from "@/lib/social";
+import { ZOLVA_COINGECKO_URL } from "@/lib/swap-zolva";
 import { zolvaTokenCard } from "@/lib/zolva-token";
 
 const page = docPage("verify");
@@ -109,6 +110,11 @@ export default function Verify() {
         <li>
           Code: <a href={GITHUB_URL}>github.com/zolvaagent/zolva</a>
         </li>
+        {token && (
+          <li>
+            Token listing: <a href={ZOLVA_COINGECKO_URL}>CoinGecko, Zolva Agent (ZOLVA)</a>
+          </li>
+        )}
       </ul>
       {token ? (
         <>
