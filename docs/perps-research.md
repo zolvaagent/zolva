@@ -810,3 +810,14 @@ with the backtest: worst drop against the backtest's and the 30% limit, and the 
 First run, 2026-11-15 03:00 UTC (about 20 hours live): all 8 OK; replay matches every trade and the equity to 0.00%.
 L+S agents short since 2026-11-14 08:00: SOL +1.85%, NEAR +1.04%, XRP +0.57%, ZEC -0.28% (holding -5.3%, -6.0%,
 -1.6%, +0.2%); the long-only four are flat in cash. Too early to judge the strategy; the replay check is the useful part.
+
+### Vol Trend on spot costs, for real money (2026-11-15)
+
+Real money agents trade spot on the DEX (perps are never live), so long only and 0.5% a fill, no funding.
+Same script (env COINS=BTC,ETH COST=0.005 FUNDING=0 SHOW=...), BTC and ETH:
+- **50 day gate, long only, 20% volatility, daily resize: still passes** at 0.5% a fill. BTC +26 / -14 / +60 / +31 /
+  0 / +3, drop 19%; ETH +35 / -8 / +27 / +10 / +22 / +5, drop 17%. Few trades (46 and 59 in 5 years), so cost
+  barely matters.
+- The 72 hour breakout variant fails at spot cost (BTC -26% test, drop 37%): about 60 trades a year eat it.
+Open questions before real money: the live executor must handle the daily resize fills (partial buys and sells),
+and trades of a few dollars pay gas and slippage the backtest does not model.
