@@ -798,3 +798,15 @@ Engine check (2026-11-14, Development's branch feat/variant-c at `b660110`, real
 +18 / -8 / +14, 29.8%; NEAR +31 / +14 / +53 / -2 / +1 / +37, 22%; ZEC +21 / +13 / -16 / +33 / +45 / +15, 25%;
 BTC 21%, ETH 20%. All within about 5 points of the research, entries within 1%. XRP's drop sits just under the
 30% limit in the engine (28% in research), so XRP is the one to watch on paper.
+
+### Vol Trend tracker (2026-11-15)
+
+`scripts/research-voltrend-tracker.mts` (read only), to run once a week. For each of the 8 "Lab · <coin> Vol Trend"
+agents it (1) replays the agent with the real engine on the same cleaned closes and funding the runner loads and
+checks every trade (hour and side) and the latest equity against the database, and (2) compares the live record
+with the backtest: worst drop against the backtest's and the 30% limit, and the entry pace (checked after 28 days).
+`ENGINE_ROOT` points at a checkout of the deployed commit when the shared checkout is behind.
+
+First run, 2026-11-15 03:00 UTC (about 20 hours live): all 8 OK; replay matches every trade and the equity to 0.00%.
+L+S agents short since 2026-11-14 08:00: SOL +1.85%, NEAR +1.04%, XRP +0.57%, ZEC -0.28% (holding -5.3%, -6.0%,
+-1.6%, +0.2%); the long-only four are flat in cash. Too early to judge the strategy; the replay check is the useful part.
