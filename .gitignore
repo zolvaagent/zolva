@@ -58,3 +58,6 @@ CLAUDE.md
 
 # MCP Registry domain-auth private key (never commit)
 .mcp-registry/
+
+# Lighter signer (downloaded and hash-checked by npm run lighter:signer)
+/workers/lighter/vendor/

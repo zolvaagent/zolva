@@ -28,7 +28,11 @@
     "token:launch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/token-launch.mts",
     "zolva:buyback": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/zolva-buyback.mts",
     "erc8004:register": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/erc8004-register.mts",
-    "erc8004:set-uri": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/erc8004-set-uri.mts"
+    "erc8004:set-uri": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/erc8004-set-uri.mts",
+    "lighter:signer": "node scripts/fetch-lighter-signer.mjs",
+    "lighter:dev": "wrangler dev -c workers/lighter/wrangler.jsonc",
+    "lighter:deploy": "node scripts/fetch-lighter-signer.mjs && wrangler deploy -c workers/lighter/wrangler.jsonc",
+    "lighter:register": "node scripts/lighter-register-key.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
