@@ -7,6 +7,7 @@ export { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES };
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isHouseOwner, LAB_AGENTS } from "@/lib/agents/house";
+import { periodsOf, type AgentPeriod, type PeriodRow, type PeriodStats } from "@/lib/agents/periods";
 import type { AgentRow } from "@/lib/agents/plan";
 import type { Decision } from "@/lib/engine/engine";
 import { isPerpSymbol } from "@/lib/format";
@@ -41,7 +42,14 @@ export type AgentSummary = {
   shorts: boolean;
   /** Trades real money from a wallet on Robinhood Chain (mode live). */
   live: boolean;
+  /**
+   * Leaderboard timeframes (listAgents with periods only): the return, edge over holding and worst drop over the
+   * agent's last 24 hours, 7 days and 30 days. null when the agent is younger than the period.
+   */
+  periods?: Record<AgentPeriod, PeriodStats | null>;
 };
+
+export { AGENT_PERIODS, type AgentPeriod, type PeriodStats } from "@/lib/agents/periods";
 
 export type AgentVenue = "spot" | "perps";
 
@@ -118,7 +126,7 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
 const STATS_COLUMNS = "id, owner, name, strategy, status, token_addresses, start_capital, equity, hold_equity, runs, max_drawdown, trades, created_at, last_ts, published_at, mode";
 
 /** Every published paper agent (active and paused), newest first. Private agents only show to their owner. */
-export async function listAgents(db: SupabaseClient): Promise<AgentSummary[]> {
+export async function listAgents(db: SupabaseClient, options: { periods?: boolean } = {}): Promise<AgentSummary[]> {
   const { data, error } = await db
     .from("agent_stats")
     .select(STATS_COLUMNS)
@@ -126,8 +134,25 @@ export async function listAgents(db: SupabaseClient): Promise<AgentSummary[]> {
     .not("published_at", "is", null)
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Loading agents failed: ${error.message}`);
-  return toSummaries(db, data as StatsRow[]);
+  const [summaries, periods] = await Promise.all([toSummaries(db, data as StatsRow[]), options.periods ? periodStats(db) : null]);
+  if (!periods) return summaries;
+  return summaries.map((summary) => ({ ...summary, periods: periodsOf(summary, periods.get(summary.id)) }));
 }
+
+
+/** Every published paper agent's starting values per timeframe (agent_period_stats), by agent id. */
+async function periodStats(db: SupabaseClient): Promise<Map<string, PeriodRow[]>> {
+  const { data, error } = await db.rpc("agent_period_stats");
+  // Timeframes are extra: the leaderboard still works on since-launch numbers without them.
+  if (error) {
+    console.error(`Loading timeframes failed: ${error.message}`);
+    return new Map();
+  }
+  const out = new Map<string, PeriodRow[]>();
+  for (const row of (data ?? []) as PeriodRow[]) out.set(row.agent_id, [...(out.get(row.agent_id) ?? []), row]);
+  return out;
+}
+
 
 export async function listAgentsByOwner(db: SupabaseClient, owner: string): Promise<AgentSummary[]> {
   const { data, error } = await db.from("agent_stats").select(STATS_COLUMNS).eq("owner", owner).order("created_at", { ascending: false });

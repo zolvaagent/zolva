@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AgentKindPills, matchesVenue, VENUE_FILTERS, type VenueFilter } from "@/components/app/AgentKind";
-import type { AgentSummary } from "@/lib/data/agents";
+import type { AgentPeriod, AgentSummary, PeriodStats } from "@/lib/data/agents";
 import { marketList, percent, points, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const SORTS = [
@@ -12,6 +12,23 @@ const SORTS = [
   ["edge", "Beat holding"],
   ["drawdown", "Smallest drop"],
 ] as const;
+
+/** Timeframes: the agent's last 24 hours, 7 days, 30 days, or everything since launch. */
+const TIMEFRAMES = [
+  ["24h", "24h"],
+  ["7d", "7d"],
+  ["30d", "30d"],
+  ["all", "All time"],
+] as const;
+type Timeframe = AgentPeriod | "all";
+
+/** The numbers ranked for a timeframe; null when the agent is younger than it. */
+function statsFor(agent: AgentSummary, timeframe: Timeframe): PeriodStats | null {
+  if (timeframe === "all") return { returnPct: agent.returnPct, edge: agent.edge, maxDrawdownPct: agent.maxDrawdownPct };
+  return agent.periods?.[timeframe] ?? null;
+}
+
+const TOO_YOUNG: Record<AgentPeriod, string> = { "24h": "Running for less than 24 hours", "7d": "Running for less than 7 days", "30d": "Running for less than 30 days" };
 
 function age(createdAt: number): string {
   const days = Math.floor((Date.now() / 1000 - createdAt) / 86400);
@@ -22,16 +39,20 @@ function age(createdAt: number): string {
 export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[]; viewer?: string | null }) {
   const [sort, setSort] = useState<(typeof SORTS)[number][0]>("return");
   const [filter, setFilter] = useState<VenueFilter>("all");
+  const [timeframe, setTimeframe] = useState<Timeframe>("all");
 
   const rows = useMemo(() => {
-    const list = agents.filter((agent) => matchesVenue(agent, filter));
-    const sorters = {
-      return: (a: AgentSummary, b: AgentSummary) => b.returnPct - a.returnPct,
-      edge: (a: AgentSummary, b: AgentSummary) => b.edge - a.edge,
-      drawdown: (a: AgentSummary, b: AgentSummary) => a.maxDrawdownPct - b.maxDrawdownPct,
-    };
-    return list.sort(sorters[sort]);
-  }, [agents, sort, filter]);
+    const list = agents.filter((agent) => matchesVenue(agent, filter)).map((agent) => ({ agent, stats: statsFor(agent, timeframe) }));
+    const key = (stats: PeriodStats) => (sort === "return" ? -stats.returnPct : sort === "edge" ? -stats.edge : stats.maxDrawdownPct);
+    // Agents younger than the timeframe go last, newest first.
+    return list.sort((a, b) => (a.stats && b.stats ? key(a.stats) - key(b.stats) : a.stats ? -1 : b.stats ? 1 : b.agent.createdAt - a.agent.createdAt));
+  }, [agents, sort, filter, timeframe]);
+  const tooYoung = timeframe === "all" ? "" : TOO_YOUNG[timeframe];
+  const dash = (
+    <span className="muted" title={tooYoung}>
+      –
+    </span>
+  );
 
   return (
     <>
@@ -39,6 +60,13 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
         <div className="tabs" role="tablist" aria-label="Sort by">
           {SORTS.map(([key, label]) => (
             <button key={key} className="tab" role="tab" type="button" aria-selected={sort === key} onClick={() => setSort(key)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="tabs" role="tablist" aria-label="Timeframe">
+          {TIMEFRAMES.map(([key, label]) => (
+            <button key={key} className="tab" role="tab" type="button" aria-selected={timeframe === key} onClick={() => setTimeframe(key)}>
               {label}
             </button>
           ))}
@@ -82,7 +110,7 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((agent, i) => (
+                  {rows.map(({ agent, stats }, i) => (
                     <tr key={agent.id} className={agent.owner === viewer ? "leaderboard__mine" : undefined}>
                       <td className="rank">{i + 1}</td>
                       <td>
@@ -107,9 +135,9 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                       <td className="muted" title={agent.tokens.map((token) => token.symbol).join(", ")}>
                         {marketList(agent.tokens.map((token) => token.symbol))}
                       </td>
-                      <td className={`num ${tone(agent.returnPct)}`}>{percent(agent.returnPct)}</td>
-                      <td className={`num ${tone(agent.edge)}`}>{points(agent.edge)}</td>
-                      <td className="num">{percent(-agent.maxDrawdownPct)}</td>
+                      <td className={`num ${stats ? tone(stats.returnPct) : ""}`}>{stats ? percent(stats.returnPct) : dash}</td>
+                      <td className={`num ${stats ? tone(stats.edge) : ""}`}>{stats ? points(stats.edge) : dash}</td>
+                      <td className="num">{stats ? percent(-stats.maxDrawdownPct) : dash}</td>
                       <td className="num">{agent.trades}</td>
                       <td className="muted">{age(agent.createdAt)}</td>
                     </tr>
@@ -119,7 +147,7 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
             </div>
           </div>
           <div className="leader-cards only-mobile">
-            {rows.map((agent, i) => (
+            {rows.map(({ agent, stats }, i) => (
               <Link key={agent.id} className="leader-card" href={`/agents/${agent.id}`}>
                 <span className="rank">{i + 1}</span>
                 <span>
@@ -132,11 +160,11 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                   </div>
                 </span>
                 <span style={{ textAlign: "right" }}>
-                  <span className={tone(agent.returnPct)} style={{ fontWeight: 600 }}>
-                    {percent(agent.returnPct)}
+                  <span className={stats ? tone(stats.returnPct) : "muted"} style={{ fontWeight: 600 }} title={stats ? undefined : tooYoung}>
+                    {stats ? percent(stats.returnPct) : "New"}
                   </span>
                   <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-                    {points(agent.edge)}
+                    {stats ? points(stats.edge) : tooYoung}
                   </div>
                 </span>
               </Link>

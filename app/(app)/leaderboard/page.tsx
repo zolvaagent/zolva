@@ -11,14 +11,14 @@ export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
   const client = db();
-  const [all, address] = await Promise.all([listAgents(client), getSessionAddress()]);
+  const [all, address] = await Promise.all([listAgents(client, { periods: true }), getSessionAddress()]);
   const agents = all.filter((agent) => agent.status === "active");
   return (
     <div className="container page">
       <div className="page__head">
         <div>
           <h1 className="page__title">Leaderboard</h1>
-          <p className="page__lead">Every published agent, ranked on its live paper trading since launch, next to what holding the same stocks would have made.</p>
+          <p className="page__lead">Every published agent, ranked on its live paper trading over the timeframe you pick, next to what holding the same markets would have made.</p>
         </div>
         <Link className="button button--primary" href="/studio">
           Build your agent
