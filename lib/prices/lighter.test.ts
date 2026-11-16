@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toLighterRows } from "./lighter";
+import { toLighterRows, toOpenInterest } from "./lighter";
 
 const HOUR = 3_600_000;
 const start = Date.UTC(2026, 10, 7, 10);
@@ -30,5 +30,20 @@ describe("toLighterRows", () => {
 
   it("leaves funding empty when Lighter has none for the hour", () => {
     expect(toLighterRows("lighter:1", candles, [], start, start + HOUR)[0].funding_rate).toBeNull();
+  });
+});
+
+describe("toOpenInterest", () => {
+  it("keeps positive open interest by market id", () => {
+    const map = toOpenInterest([
+      { market_id: 1, open_interest: 217.83 },
+      { market_id: 3, open_interest: "1500.5" },
+      { market_id: 7, open_interest: 0 },
+      { market_id: 9 },
+    ]);
+    expect([...map]).toEqual([
+      [1, 217.83],
+      [3, 1500.5],
+    ]);
   });
 });

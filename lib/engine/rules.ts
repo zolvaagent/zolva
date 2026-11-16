@@ -11,10 +11,13 @@ export type IndicatorKind = "price" | "sma" | "high" | "low" | "change" | "zscor
 export type Operator = "above" | "below" | "crossesAbove" | "crossesBelow";
 
 /**
- * Lab only (never accepted by parseRules, so users cannot pick it): the 7 day average perps
- * funding rate, annualised, in percent. Positive: longs pay shorts.
+ * Lab only (never accepted by parseRules, so users cannot pick them):
+ * - funding7d: the 7 day average perps funding rate, annualised, in percent. Positive: longs pay shorts.
+ * - oiChange: how much a perp's open interest changed over `hours` (168: 7 days), in percent. Lighter
+ *   keeps no history, so it reads the open interest Zolva stores each hour; while either end is
+ *   missing the value is NaN, which meets no condition: it blocks entries and never forces an exit.
  */
-export type LabIndicatorKind = "funding7d";
+export type LabIndicatorKind = "funding7d" | "oiChange";
 export type Indicator = { kind: IndicatorKind | LabIndicatorKind; hours?: number; offsetPct?: number };
 export type ValueSide = { kind: "value"; value: number };
 export type Condition = { left: Indicator; op: Operator; right: Indicator | ValueSide };
@@ -50,11 +53,18 @@ export const INDICATORS: Record<IndicatorKind, { label: string; unit: Unit; peri
 /** Funding over 7 days (168 hours), in % a year. */
 export const FUNDING_HOURS = 168;
 const FUNDING_META = { label: "7d funding", unit: "pct" as Unit, periods: null };
+const OI_META = { label: "Open interest change", unit: "pct" as Unit, periods: [168] };
 
-/** Label, unit and periods of any indicator, the Lab-only funding one included. */
+/** Label, unit and periods of any indicator, the Lab-only ones included. */
 export function indicatorMeta(kind: Indicator["kind"]): { label: string; unit: Unit; periods: number[] | null } {
-  return kind === "funding7d" ? FUNDING_META : INDICATORS[kind];
+  return kind === "funding7d" ? FUNDING_META : kind === "oiChange" ? OI_META : INDICATORS[kind];
 }
+
+/**
+ * Lab-only series a rule may read next to the closes, aligned with the same hours (oldest first):
+ * perps funding (signed fraction per hour, null counts as 0) and open interest (in coins, null = not stored).
+ */
+export type RuleInputs = { funding?: (number | null)[]; openInterest?: (number | null)[] };
 
 export const OPERATORS: Record<Operator, string> = {
   above: "above",
@@ -130,16 +140,23 @@ export function rulesLookback(rules: Rules): number {
 }
 
 /**
- * Value of an indicator at the end of `window` (closes, oldest first). `funding` is the same hours'
- * perps funding (signed fraction per hour, null counts as 0); only funding7d reads it.
+ * Value of an indicator at the end of `window` (closes, oldest first). `inputs` holds the same hours'
+ * Lab-only series (see RuleInputs); only funding7d and oiChange read them.
  */
-export function indicatorValue(indicator: Indicator, window: number[], funding?: (number | null)[]): number {
+export function indicatorValue(indicator: Indicator, window: number[], inputs: RuleInputs = {}): number {
   const price = window[window.length - 1];
   const hours = indicator.hours ?? 0;
   switch (indicator.kind) {
     case "funding7d": {
-      const rates = (funding ?? []).slice(-FUNDING_HOURS);
+      const rates = (inputs.funding ?? []).slice(-FUNDING_HOURS);
       return (rates.reduce((sum: number, rate) => sum + (rate ?? 0), 0) * 365 * 100) / 7;
+    }
+    case "oiChange": {
+      const series = inputs.openInterest ?? [];
+      const now = series[series.length - 1];
+      const then = series[series.length - 1 - hours];
+      // Either end not stored (or zero): unknown, so no condition on it can be met.
+      return now != null && then != null && then > 0 && series.length > hours ? (now / then - 1) * 100 : Number.NaN;
     }
     case "price":
       return price;
@@ -171,22 +188,22 @@ export function indicatorValue(indicator: Indicator, window: number[], funding?:
   }
 }
 
-function sideValue(side: Indicator | ValueSide, window: number[], funding?: (number | null)[]): number {
+function sideValue(side: Indicator | ValueSide, window: number[], inputs: RuleInputs): number {
   if (side.kind === "value") return side.value;
-  return indicatorValue(side, window, funding) * (1 + (side.offsetPct ?? 0) / 100);
+  return indicatorValue(side, window, inputs) * (1 + (side.offsetPct ?? 0) / 100);
 }
 
-export function checkCondition(condition: Condition, window: number[], funding?: (number | null)[]): { met: boolean; text: string; left: number; right: number } {
-  const left = sideValue(condition.left, window, funding);
-  const right = sideValue(condition.right, window, funding);
+export function checkCondition(condition: Condition, window: number[], inputs: RuleInputs = {}): { met: boolean; text: string; left: number; right: number } {
+  const left = sideValue(condition.left, window, inputs);
+  const right = sideValue(condition.right, window, inputs);
   let met: boolean;
   if (condition.op === "above") met = left > right;
   else if (condition.op === "below") met = left < right;
   else {
     const previous = window.slice(0, -1);
-    const previousFunding = funding?.slice(0, -1);
-    const leftBefore = sideValue(condition.left, previous, previousFunding);
-    const rightBefore = sideValue(condition.right, previous, previousFunding);
+    const previousInputs = { funding: inputs.funding?.slice(0, -1), openInterest: inputs.openInterest?.slice(0, -1) };
+    const leftBefore = sideValue(condition.left, previous, previousInputs);
+    const rightBefore = sideValue(condition.right, previous, previousInputs);
     met = condition.op === "crossesAbove" ? leftBefore <= rightBefore && left > right : leftBefore >= rightBefore && left < right;
   }
   return { met, text: describeCondition(condition, left, right), left, right };
@@ -195,13 +212,13 @@ export function checkCondition(condition: Condition, window: number[], funding?:
 /** The decision for one token from its rules; take profit and max hold are handled by the engine. */
 /**
  * @param held      true while long, "short" while short (Lab perps rules only), false while flat
- * @param funding   the same hours' perps funding, for funding7d
+ * @param inputs    the same hours' Lab-only series (funding for funding7d, open interest for oiChange)
  */
-export function evaluateRules(rules: Rules, window: number[], held: boolean | "short", funding?: (number | null)[]): Signal {
+export function evaluateRules(rules: Rules, window: number[], held: boolean | "short", inputs: RuleInputs = {}): Signal {
   if (held === "short") {
     const cover = rules.shortExit;
     if (!cover?.conditions.length) return { action: "hold", reasoning: "Holding the short until its stop loss.", indicators: {} };
-    const result = checkGroup(cover, window, funding);
+    const result = checkGroup(cover, window, inputs);
     return result.met
       ? { action: "cover", reasoning: `Cover rule met: ${result.reasons}. Covering.`, indicators: {}, checks: result.values }
       : { action: "hold", reasoning: `Holding the short. Not yet: ${result.missing}.`, indicators: {}, checks: result.values };
@@ -211,7 +228,7 @@ export function evaluateRules(rules: Rules, window: number[], held: boolean | "s
   if (!group.conditions.length) {
     return { action: "hold", reasoning: "Holding until take profit, stop loss or max holding time.", indicators: {} };
   }
-  const result = checkGroup(group, window, funding);
+  const result = checkGroup(group, window, inputs);
   if (result.met) {
     return hasPosition
       ? { action: "sell", reasoning: `Sell rule met: ${result.reasons}. Selling.`, indicators: {}, checks: result.values }
@@ -219,7 +236,7 @@ export function evaluateRules(rules: Rules, window: number[], held: boolean | "s
   }
   // Flat with Lab short rules: the long entry is checked first, then the short entry.
   if (!hasPosition && rules.shortEntry?.conditions.length) {
-    const short = checkGroup(rules.shortEntry, window, funding);
+    const short = checkGroup(rules.shortEntry, window, inputs);
     return short.met
       ? { action: "short", reasoning: `Short rule met: ${short.reasons}. Shorting.`, indicators: {}, checks: result.values, shortChecks: short.values }
       : { action: "hold", reasoning: `Waiting. Not yet: ${result.missing}; for a short, not yet: ${short.missing}.`, indicators: {}, checks: result.values, shortChecks: short.values };
@@ -228,8 +245,8 @@ export function evaluateRules(rules: Rules, window: number[], held: boolean | "s
 }
 
 /** Checks one group: whether it is met, the met conditions' text, the first unmet one, and every value. */
-function checkGroup(group: RuleGroup, window: number[], funding?: (number | null)[]) {
-  const checks = group.conditions.map((condition) => checkCondition(condition, window, funding));
+function checkGroup(group: RuleGroup, window: number[], inputs: RuleInputs) {
+  const checks = group.conditions.map((condition) => checkCondition(condition, window, inputs));
   const met = group.join === "all" ? checks.every((check) => check.met) : checks.some((check) => check.met);
   return {
     met,
@@ -254,6 +271,13 @@ export function describeCondition(condition: Condition, leftValue?: number, righ
   if (condition.left.kind === "funding7d" && condition.right.kind === "value" && Math.abs(condition.right.value) < 0.01) {
     const now = leftValue === undefined ? "" : ` (${formatUnit("pct", leftValue)} a year)`;
     return `7d funding ${condition.op === "above" || condition.op === "crossesAbove" ? "zero or positive" : "negative"}${now}`;
+  }
+  // The Lab open interest gate: say so when the stored hours do not reach back far enough yet.
+  if (condition.left.kind === "oiChange") {
+    const span = condition.left.hours === 168 ? "7d" : `${condition.left.hours}h`;
+    if (leftValue !== undefined && !Number.isFinite(leftValue)) return `${span} open interest change unknown (not enough stored hours yet)`;
+    const now = leftValue === undefined ? "" : ` (${formatUnit("pct", leftValue)})`;
+    if (condition.right.kind === "value" && condition.right.value === 0) return `${span} open interest ${condition.op === "above" || condition.op === "crossesAbove" ? "rising" : "falling"}${now}`;
   }
   const unit = indicatorMeta(condition.left.kind).unit;
   return `${describeSide(condition.left, leftValue, unit)} ${OPERATORS[condition.op]} ${describeSide(condition.right, rightValue, unit)}`;

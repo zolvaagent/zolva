@@ -75,3 +75,24 @@ export function toLighterRows(tokenAddress: string, candles: ApiCandle[], fundin
   }
   return rows;
 }
+
+type ApiOrderBook = { market_id: number; open_interest?: number | string };
+
+/**
+ * Current open interest (in coins) of every Lighter market, by market id, from one call. Lighter keeps
+ * no history of it, so the hourly ingest stores this value on the newest complete hour (oiChange).
+ */
+export async function fetchLighterOpenInterest(): Promise<Map<number, number>> {
+  const body = await getJson(`${LIGHTER_API}/orderBookDetails`);
+  return toOpenInterest((body.order_book_details as ApiOrderBook[]) ?? []);
+}
+
+/** Pure part of fetchLighterOpenInterest, for tests: positive finite values only. */
+export function toOpenInterest(books: ApiOrderBook[]): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const book of books) {
+    const value = Number(book.open_interest);
+    if (Number.isFinite(value) && value > 0) out.set(Number(book.market_id), value);
+  }
+  return out;
+}

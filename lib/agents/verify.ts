@@ -16,6 +16,8 @@ export type VerifyInput = {
   series: Record<string, (number | null)[]>;
   /** Perps funding per token and hour, aligned with series. */
   funding: Record<string, (number | null)[]>;
+  /** Perps open interest per token and hour (Lab oiChange gate), aligned with series. */
+  openInterest?: Record<string, (number | null)[]>;
   startTs: number;
   /** Every hour the agent ran, oldest first, with what was recorded. Decisions only matter for co-pilot vetoes. */
   runs: { ts: number; equity: number; decisions?: Decision[] }[];
@@ -86,7 +88,7 @@ export function verifyAgent(input: VerifyInput): VerifyResult {
     // The co-pilot's "passed" verdicts, exactly as recorded for this hour.
     const passed = (run.decisions ?? []).filter((decision) => decision.ai?.verdict === "passed");
     const veto = passed.length ? new Map(passed.map((decision) => [decision.token, decision.ai!.reasoning])) : undefined;
-    const hour = runHour(state, input.params, input.series, index, run.ts, { funding: input.funding, ...(veto ? { veto } : {}) });
+    const hour = runHour(state, input.params, input.series, index, run.ts, { funding: input.funding, ...(input.openInterest ? { openInterest: input.openInterest } : {}), ...(veto ? { veto } : {}) });
     state = hour.state;
     lastEquity = hour.equity;
 

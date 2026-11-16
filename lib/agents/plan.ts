@@ -54,6 +54,8 @@ export type MarketSeries = {
   closes: Record<string, (number | null)[]>;
   /** Perps funding per token and hour (signed fraction, positive: longs pay), aligned with closes. */
   funding?: Record<string, (number | null)[]>;
+  /** Perps open interest per token and hour (coins), aligned with closes, for the Lab oiChange gate. */
+  openInterest?: Record<string, (number | null)[]>;
 };
 
 export type HourWrite = {
@@ -101,9 +103,11 @@ export function planAgentHours(
 
   const series: Record<string, (number | null)[]> = {};
   const funding: Record<string, (number | null)[]> = {};
+  const openInterest: Record<string, (number | null)[]> = {};
   for (const address of agent.token_addresses) {
     series[address] = market.closes[address] ?? [];
     funding[address] = market.funding?.[address] ?? [];
+    openInterest[address] = market.openInterest?.[address] ?? [];
   }
 
   let state: AgentState = {
@@ -128,7 +132,7 @@ export function planAgentHours(
   for (let ts = firstTs; ts <= latestTs; ts += HOUR) {
     const index = (ts - market.startTs) / HOUR;
     if (index < 0) continue;
-    const hour = runHour(state, params, series, index, ts, { funding, ...(copilot && copilot.ts === ts ? { veto: copilot.veto } : {}) });
+    const hour = runHour(state, params, series, index, ts, { funding, openInterest, ...(copilot && copilot.ts === ts ? { veto: copilot.veto } : {}) });
     state = hour.state;
     writes.push({
       ts: new Date(ts * 1000).toISOString(),

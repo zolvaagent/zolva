@@ -48,10 +48,11 @@ export async function loadAndVerifyAgent(db: SupabaseClient, id: string): Promis
   const startTs = first - (paramsLookback(params) + 24) * HOUR_SECONDS;
   const { data: raw, error: closesError } = await db.rpc("candle_closes", { p_from: new Date((startTs - OUTLIER_WINDOW * HOUR_SECONDS) * 1000).toISOString() });
   if (closesError) throw new Error(`Loading prices failed: ${closesError.message}`);
-  const tokens = new Map((raw as { address: string; candles: [number, number, number | null][] }[]).map((token) => [token.address, token.candles]));
+  const tokens = new Map((raw as { address: string; candles: [number, number, (number | null)?, (number | null)?][] }[]).map((token) => [token.address, token.candles]));
 
   const series: Record<string, (number | null)[]> = {};
   const funding: Record<string, (number | null)[]> = {};
+  const openInterest: Record<string, (number | null)[]> = {};
   for (const address of agent.token_addresses as string[]) {
     const candles = tokens.get(address) ?? [];
     series[address] = buildCloseSeries(
@@ -61,6 +62,8 @@ export async function loadAndVerifyAgent(db: SupabaseClient, id: string): Promis
     ).closes;
     const rates = new Map(candles.map(([time, , rate]) => [Number(time), rate == null ? null : Number(rate)]));
     funding[address] = series[address].map((_, i) => rates.get(startTs + i * HOUR_SECONDS) ?? null);
+    const interest = new Map(candles.map(([time, , , value]) => [Number(time), value == null ? null : Number(value)]));
+    openInterest[address] = series[address].map((_, i) => interest.get(startTs + i * HOUR_SECONDS) ?? null);
   }
 
   // Spot long-only agents are checked hour by hour from the recorded state (see anchorsFromRecord).
@@ -75,6 +78,7 @@ export async function loadAndVerifyAgent(db: SupabaseClient, id: string): Promis
     startCapital: Number(agent.start_capital),
     series,
     funding,
+    openInterest,
     startTs,
     runs: runs.map((run) => ({ ts: Date.parse(run.ts) / 1000, equity: Number(run.equity), ...(run.decisions ? { decisions: run.decisions } : {}) })),
     trades: recordedTrades,

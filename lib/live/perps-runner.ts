@@ -71,6 +71,7 @@ export async function runLighterAgents(db: SupabaseClient, lighter: LighterBindi
   const latestIndex = market.hours - 1;
   const closes = Object.fromEntries(market.tokens.map((token) => [token.address, token.closes]));
   const funding = Object.fromEntries(market.tokens.filter((token) => token.funding).map((token) => [token.address, token.funding!]));
+  const openInterest = Object.fromEntries(market.tokens.filter((token) => token.openInterest).map((token) => [token.address, token.openInterest!]));
   const prices = Object.fromEntries(market.tokens.flatMap((token) => (token.closes[latestIndex] != null ? [[token.address, token.closes[latestIndex] as number]] : [])));
 
   const call = async (path: string, body?: unknown): Promise<Record<string, unknown>> => {
@@ -140,7 +141,7 @@ export async function runLighterAgents(db: SupabaseClient, lighter: LighterBindi
       const [hour] = planAgentHours(
         { ...agent, cash: state.cash, last_run_ts: new Date((latestTs - HOUR) * 1000).toISOString() },
         synced,
-        { startTs: market.startTs, closes, funding },
+        { startTs: market.startTs, closes, funding, openInterest },
         latestTs,
       );
       if (!hour) continue;

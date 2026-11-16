@@ -28,6 +28,8 @@ export type MarketToken = {
   venue: MarketVenue;
   /** Perps only: funding per hour as a signed fraction (positive: longs pay); null when unknown. */
   funding?: (number | null)[];
+  /** Perps only: open interest (coins) stored each hour from 2026-11-16, for the Lab oiChange gate; null when not stored. */
+  openInterest?: (number | null)[];
 };
 
 export type Market = {
@@ -37,7 +39,7 @@ export type Market = {
   tokens: MarketToken[];
 };
 
-type RawToken = { address: string; symbol: string; name: string; assetClass?: AssetClass; venue?: MarketVenue; candles: [number, number, (number | null)?][] };
+type RawToken = { address: string; symbol: string; name: string; assetClass?: AssetClass; venue?: MarketVenue; candles: [number, number, (number | null)?, (number | null)?][] };
 
 // Prices change once an hour; keep a built snapshot for a few minutes per Worker isolate.
 const CACHE_MS = 5 * 60 * 1000;
@@ -82,7 +84,7 @@ async function loadMarket(db: SupabaseClient, hours: number): Promise<Market> {
       firstIndex: firstIndex === -1 ? null : firstIndex,
       closes: series.closes,
       venue,
-      ...(venue === "lighter" ? { funding: fundingSeries(token.candles, startTs, latest) } : {}),
+      ...(venue === "lighter" ? { funding: hourlySeries(token.candles, 2, startTs, latest), openInterest: hourlySeries(token.candles, 3, startTs, latest) } : {}),
     };
   });
 
@@ -91,9 +93,9 @@ async function loadMarket(db: SupabaseClient, hours: number): Promise<Market> {
   return market;
 }
 
-/** Funding per hour from startTs to latest (inclusive); hours without a stored rate are null. */
-function fundingSeries(candles: RawToken["candles"], startTs: number, latest: number): (number | null)[] {
-  const byTime = new Map(candles.map(([time, , rate]) => [Number(time), rate == null ? null : Number(rate)]));
+/** One stored perps value per hour (2: funding rate, 3: open interest) from startTs to latest (inclusive); missing hours are null. */
+function hourlySeries(candles: RawToken["candles"], column: 2 | 3, startTs: number, latest: number): (number | null)[] {
+  const byTime = new Map(candles.map((candle) => [Number(candle[0]), candle[column] == null ? null : Number(candle[column])]));
   const out: (number | null)[] = [];
   for (let time = startTs; time <= latest; time += HOUR_SECONDS) out.push(byTime.get(time) ?? null);
   return out;

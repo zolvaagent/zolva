@@ -148,3 +148,28 @@ describe("parity with the prototype rule engine", () => {
     });
   }
 });
+
+describe("oiChange (Lab only)", () => {
+  const gate = { left: { kind: "oiChange" as const, hours: 3 }, op: "above" as const, right: { kind: "value" as const, value: 0 } };
+  const closes = [10, 10, 10, 10, 10];
+
+  it("is the open interest change over its hours, in percent", () => {
+    expect(indicatorValue(gate.left, closes, { openInterest: [100, 90, 95, 100, 110] })).toBeCloseTo(((110 / 90) - 1) * 100);
+    expect(checkCondition(gate, closes, { openInterest: [100, 90, 95, 100, 110] }).met).toBe(true);
+    expect(checkCondition(gate, closes, { openInterest: [100, 120, 95, 100, 110] }).met).toBe(false);
+  });
+
+  it("is unknown while either end is not stored, and then meets no condition", () => {
+    for (const openInterest of [[100, null, 95, 100, 110], [100, 90, 95, 100, null], [100, 90], undefined]) {
+      expect(Number.isNaN(indicatorValue(gate.left, closes, { openInterest }))).toBe(true);
+      expect(checkCondition(gate, closes, { openInterest }).met).toBe(false);
+      expect(checkCondition({ ...gate, op: "below" }, closes, { openInterest }).met).toBe(false);
+    }
+    expect(checkCondition(gate, closes, {}).text).toBe("3h open interest change unknown (not enough stored hours yet)");
+  });
+
+  it("is never accepted from users", () => {
+    const rules = { ...RULE_TEMPLATES.momentum, entry: { join: "all", conditions: [gate] } };
+    expect(parseRules(rules).rules).toBeNull();
+  });
+});

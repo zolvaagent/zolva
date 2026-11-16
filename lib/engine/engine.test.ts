@@ -832,3 +832,70 @@ describe("dca", () => {
     }
   });
 });
+
+describe("oiChange (Lab open interest gate)", () => {
+  const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+    simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string }[] };
+  };
+  const gated: Rules = {
+    entry: {
+      join: "all",
+      conditions: [
+        { left: { kind: "change", hours: 24 }, op: "above", right: { kind: "value", value: 1 } },
+        { left: { kind: "oiChange", hours: 168 }, op: "above", right: { kind: "value", value: 0 } },
+      ],
+    },
+    exit: { join: "any", conditions: [{ left: { kind: "change", hours: 24 }, op: "below", right: { kind: "value", value: -1 } }] },
+    shortEntry: {
+      join: "all",
+      conditions: [
+        { left: { kind: "change", hours: 24 }, op: "below", right: { kind: "value", value: -1 } },
+        { left: { kind: "oiChange", hours: 168 }, op: "above", right: { kind: "value", value: 0 } },
+      ],
+    },
+    shortExit: { join: "any", conditions: [{ left: { kind: "change", hours: 24 }, op: "above", right: { kind: "value", value: 1 } }] },
+    takeProfitPct: null,
+    maxHoldHours: null,
+  };
+  const params: AgentParams = { strategy: "custom", rules: gated, maxPositionPct: 50, stopLossPct: 10, venue: "perps" };
+  const series: Record<string, number[]> = { AAA: walk(7, 900), BBB: walk(42, 900) };
+  // Open interest is stored from hour 300 on, rising and falling in waves.
+  const openInterest = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => (i < 300 ? null : 1000 + 300 * Math.sin(i / 40 + t)))]));
+
+  it("blocks entries until 168 stored hours exist and while open interest is falling", () => {
+    const result = simulate({ series, params, capital: 10_000, fromIndex: 200, openInterest });
+    const opens = result.fills.filter((fill) => fill.side === "buy" || fill.side === "short");
+    expect(opens.length).toBeGreaterThan(0);
+    expect(opens.every((fill) => fill.index >= 300 + 168)).toBe(true);
+    for (const fill of opens) {
+      const oi = openInterest[fill.token];
+      expect(oi[fill.index]! / oi[fill.index - 168]!).toBeGreaterThan(1);
+    }
+    // With no open interest at all the gate never opens.
+    expect(simulate({ series, params, capital: 10_000, fromIndex: 200 }).fills).toEqual([]);
+  });
+
+  it("never forces an exit: a missing open interest only blocks entries", () => {
+    const missingLater = Object.fromEntries(Object.entries(openInterest).map(([token, values]) => [token, values.map((value, i) => (i >= 700 ? null : value))]));
+    const result = simulate({ series, params, capital: 10_000, fromIndex: 200, openInterest: missingLater });
+    expect(result.fills.filter((fill) => fill.index >= 700 && (fill.side === "buy" || fill.side === "short"))).toEqual([]);
+    expect(result.fills.some((fill) => fill.index >= 700 && (fill.side === "sell" || fill.side === "cover"))).toBe(true);
+  });
+
+  it("matches the prototype engine", () => {
+    const ours = simulate({ series, params, capital: 10_000, fromIndex: 200, openInterest });
+    const theirs = prototype.simulate({
+      tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, openInterest: openInterest[symbol] })),
+      strategy: "custom",
+      rules: gated,
+      venue: "perps",
+      capital: 10_000,
+      maxPositionPct: 50,
+      stopLossPct: 10,
+      fromIndex: 200,
+    });
+    expect(ours.fills.length).toBeGreaterThan(0);
+    expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
+    expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+  });
+});

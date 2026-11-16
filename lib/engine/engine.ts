@@ -174,6 +174,11 @@ export type RunHourOptions = {
    */
   funding?: Record<string, (number | null)[]>;
   /**
+   * Lab perps only: open interest per token and hour (in coins), aligned with the closes, for the
+   * oiChange rule indicator. A missing hour is null; the indicator then blocks entries.
+   */
+  openInterest?: Record<string, (number | null)[]>;
+  /**
    * Backtests only: multiplies the cost per fill (2 = double costs, the Studio robustness check).
    * Live and paper agents never set it.
    */
@@ -351,7 +356,10 @@ export function runHour(
     }
 
     const signal = rules
-      ? evaluateRules(rules, window as number[], position ? (position.side === "short" ? "short" : true) : false, options.funding?.[token]?.slice(Math.max(0, index - lookback), index + 1))
+      ? evaluateRules(rules, window as number[], position ? (position.side === "short" ? "short" : true) : false, {
+          funding: options.funding?.[token]?.slice(Math.max(0, index - lookback), index + 1),
+          openInterest: options.openInterest?.[token]?.slice(Math.max(0, index - lookback), index + 1),
+        })
       : decide(preset, window as number[], Boolean(position), position?.side === "short" ? "short" : "long");
 
     if (signal.checks) context.set(token, { ...context.get(token), checks: signal.checks, ...(signal.shortChecks ? { shortChecks: signal.shortChecks } : {}) });
@@ -646,6 +654,8 @@ export function simulate(options: {
   times?: number[];
   /** Perps funding per token and hour (see RunHourOptions.funding). */
   funding?: Record<string, (number | null)[]>;
+  /** Open interest per token and hour (see RunHourOptions.openInterest). */
+  openInterest?: Record<string, (number | null)[]>;
   /** Multiplies the cost per fill (see RunHourOptions.costScale). */
   costScale?: number;
 }): SimulationResult {
@@ -656,7 +666,7 @@ export function simulate(options: {
   const fills: (Fill & { index: number })[] = [];
 
   for (let index = options.fromIndex; index <= lastIndex; index++) {
-    const hour = runHour(state, options.params, options.series, index, options.times?.[index] ?? index * 3600, { funding: options.funding, costScale: options.costScale });
+    const hour = runHour(state, options.params, options.series, index, options.times?.[index] ?? index * 3600, { funding: options.funding, openInterest: options.openInterest, costScale: options.costScale });
     state = hour.state;
     fills.push(...hour.fills.map((fill) => ({ ...fill, index })));
     runs.push({ index, equity: hour.equity, cash: state.cash, decisions: hour.decisions });

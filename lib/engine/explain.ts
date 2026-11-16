@@ -169,6 +169,13 @@ function goal(condition: Condition, check: RuleCheck, symbol: string, mode: "unt
     const rate = signedPct(left / 100);
     return mode === "now" ? `${describeCondition(condition, left)}` : `funding over the last 7 days is ${up ? "zero or positive" : "negative"}. Right now it is ${rate} a year`;
   }
+  if (leftKind === "oiChange") {
+    // A stored NaN comes back as null: not enough stored hours for the change yet.
+    const known = typeof left === "number" && Number.isFinite(left);
+    const what = `open interest in ${symbol} has ${up ? "grown" : "shrunk"} over the last ${span(hours)}`;
+    if (!known) return `${what}. That is not known yet: Zolva stores open interest every hour from 2026-11-16, so the gate opens after ${span(hours)} of stored hours`;
+    return mode === "now" ? `${what} (${signedPct(left / 100)})` : `${what}. Right now it is ${signedPct(left / 100)}`;
+  }
   if (leftKind === "rsi") {
     const what = `the ${spanAdjective(hours)} RSI is ${up ? "above" : "below"} ${value}`;
     return mode === "now" ? `${what} (at ${round(left, 0)})` : `${what}. Right now it is ${round(left, 0)}`;

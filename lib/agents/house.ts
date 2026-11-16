@@ -23,6 +23,7 @@ export const LAB_WALLETS = [
   "0x5174000000000000000000000000000000000005",
   "0x5174000000000000000000000000000000000006",
   "0x5174000000000000000000000000000000000007",
+  "0x5174000000000000000000000000000000000008",
 ] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
@@ -83,6 +84,18 @@ export const VOL_TREND_1200_LS: Rules = {
       { left: { kind: "funding7d", hours: 168 }, op: "below", right: { kind: "value", value: 0 } },
     ],
   },
+};
+
+/**
+ * Open interest gate (round 4, docs/perps-research.md): only enter, long or short, while the perp's
+ * open interest grew over the last 7 days. Lab only (oiChange); while fewer than 168 stored hours
+ * exist the change is unknown and no entry happens. Exits are the same as VOL_TREND_1200_LS.
+ */
+const OI_RISING = { left: { kind: "oiChange" as const, hours: 168 }, op: "above" as const, right: { kind: "value" as const, value: 0 } };
+export const VOL_TREND_1200_LS_OI: Rules = {
+  ...VOL_TREND_1200_LS,
+  entry: { ...VOL_TREND_1200_LS.entry, join: "all", conditions: [...VOL_TREND_1200_LS.entry.conditions, OI_RISING] },
+  shortEntry: { ...VOL_TREND_1200_LS.shortEntry!, join: "all", conditions: [...VOL_TREND_1200_LS.shortEntry!.conditions, OI_RISING] },
 };
 
 /**
@@ -298,6 +311,21 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     name: `Lab · ${coin} Vol Trend L+S`,
     strategy: "custom" as const,
     rules: VOL_TREND_1200_LS,
+    symbols: [`${coin}-PERP`],
+    maxPositionPct: 100,
+    stopLossPct: 15,
+    venue: "perps" as const,
+    sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
+  })),
+  // Round 4 A/B (owner approved 2026-11-16): the L+S agents above are A; these B clones only enter
+  // while open interest grew over 7 days (VOL_TREND_1200_LS_OI). Paper. Decision rule fixed in
+  // advance: after 90 days keep the gate only if B has the higher median return over the 4 coins
+  // AND a median worst drop no larger than A's; otherwise remove the B agents. Own owner: 5 per owner.
+  ...(["SOL", "XRP", "NEAR", "ZEC"] as const).map((coin) => ({
+    owner: LAB_WALLETS[7],
+    name: `Lab · ${coin} Vol Trend L+S OI`,
+    strategy: "custom" as const,
+    rules: VOL_TREND_1200_LS_OI,
     symbols: [`${coin}-PERP`],
     maxPositionPct: 100,
     stopLossPct: 15,
