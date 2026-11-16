@@ -10427,3 +10427,12 @@ li.stats-ranks__row {
   font-size: 13px;
   line-height: 18px;
 }
+
+/* Activity: a trade's realised P&L (sell, cover) or unrealised P&L (open buy, short) under its amount. */
+.activity-trade__pnl {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

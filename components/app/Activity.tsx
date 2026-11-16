@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import { hourlyReports, REASON_LABELS, SIDE_VERBS, type ActivityHour, type ActivityPass, type ActivityTrade, type HourReport } from "@/lib/activity";
 import { aiModel } from "@/lib/ai/models";
-import { dateAt, price, STRATEGY_NAMES, usd } from "@/lib/format";
+import { dateAt, percent, price, signedUsd, STRATEGY_NAMES, tone, usd } from "@/lib/format";
 
 const FILTERS = [
   ["all", "All agents"],
@@ -88,6 +88,14 @@ function TradeRow({ trade }: { trade: ActivityTrade }) {
       <div className="activity-trade__amount">
         <strong>{usd(notional)}</strong>
         <span className="market-name">at {price(trade.price)}</span>
+        {trade.pnl && (
+          <span
+            className={`activity-trade__pnl ${tone(trade.pnl.pct)}`}
+            title={trade.pnl.kind === "realised" ? "Profit or loss this trade locked in, after costs" : "Paper profit or loss of this still-open position at the latest price, after costs"}
+          >
+            {trade.pnl.kind === "realised" ? "PnL" : "uPnL"} {signedUsd(trade.pnl.usd)} ({percent(trade.pnl.pct)})
+          </span>
+        )}
         <span className="market-name">{STRATEGY_NAMES[trade.strategy] ?? trade.strategy}</span>
       </div>
     </li>

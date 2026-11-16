@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ActivityPage() {
   const client = db();
-  const { hours, trades, passes, lastDay } = await getActivity(client);
+  const { hours, trades, passes, lastDay } = await getActivity(client, { pnl: true });
   return (
     <div className="container page">
       <div className="page__head">

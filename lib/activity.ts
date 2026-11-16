@@ -3,6 +3,8 @@
  * by hour. Pure, so it is unit tested and can filter on the client.
  */
 
+import type { TradePnl } from "./agents/trade-pnl";
+
 export type ActivityHour = { ts: number; checked: number; buys: number; sells: number };
 
 export type ActivityTrade = {
@@ -22,6 +24,8 @@ export type ActivityTrade = {
   reasoning: string | null;
   /** Set when the AI co-pilot reviewed this trade's signal (a trade means it approved). */
   ai?: { verdict: "approved" | "passed"; model: string } | null;
+  /** The activity page only: realised P&L of a sell or cover, unrealised of a still-open buy or short (lib/agents/trade-pnl.ts). */
+  pnl?: TradePnl | null;
 };
 
 /** A rule signal the AI co-pilot passed on: no trade happened. */
