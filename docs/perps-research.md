@@ -847,3 +847,33 @@ Reading: DCA is fine as a simple, honest template if it is described as "spread 
 than buying at once, smaller swings, no exit", not as a strategy that beats the market. Engine note: it needs a
 recurring-buy preset (cadence, number of buys, no sell rule), which custom rules cannot express today
 (parseRules requires a sell rule, take profit or max hold).
+
+## Round 4: market-flow filters, CVD and open interest (2026-11-16)
+
+Owner asked if "market-flow triggers (CVD, OI, funding)" can be tested (Hyper-Alpha-Arena, via @RoundtableSpace).
+Funding was already in the base (round 3). Pre-registered in `6d09885`: `scripts/research-flow.mts`, data from
+`scripts/research-flow-data.py` (free: Binance spot klines for taker volume, Binance USDT-M daily metrics for open
+interest in coins). OI starts 2021-12 on the alts, so every rule is scored 2022 to now (pass = 4 of 5 years
+positive, drop under 30%, positive since 2024). Filters gate entries only: CVD7 (7 day net taker buying share)
+> 0 for a long, < 0 for a short; OI7 (7 day change in open interest) > 0 for any entry.
+
+| Rule (50 day gate, vol sized) | Alts passing | Median return 2022-now | Median drop | BTC ETH passing |
+|---|---|---|---|---|
+| long only (baseline) | 2 of 4 | +60% | 23% | 2 of 2 |
+| long only + OI | 2 of 4 | +66% | 23% | 2 of 2 (return -3 and 0 pts) |
+| long only + CVD | 1 of 4 | +54% | 19% | 1 of 2 |
+| long + short f0 (baseline, live as Vol Trend L+S) | 2 of 4 | +97% | 24% | 2 of 2 |
+| long + short f0 + OI | 2 of 4 | +102% | 24% | 2 of 2 (BTC +13, ETH -31 pts) |
+| long + short f0 + CVD | 4 of 4 | +106% | 20% | **1 of 2** |
+| long + short f0 + CVD + OI | 4 of 4 | +86% | 19% | 2 of 2 |
+
+Against the decision rule fixed in advance:
+- **CVD: no.** It fails BTC/ETH alone, and with OI it costs 11 points of median return. Spot CVD7 is above 0 in only
+  10% to 60% of hours, so as a filter it mostly means "take fewer longs", not a flow signal.
+- **OI: passes the letter of the rule, but the gain is noise-sized.** Median return +5 to +6 points over almost five
+  years with the same drop, yet coin by coin it is mixed: better on NEAR, ZEC and BTC; worse on XRP (-12 and -9
+  points) and ETH (-31 points on long + short). Half the entries are skipped, so the result rests on fewer trades.
+Reading: no flow filter is worth an engine change now. Live use would also need hourly OI and taker flow from
+Lighter, which we do not ingest. If wanted, the cheap next step is a paper A/B (Vol Trend L+S with and without the OI
+gate) rather than engine work. Note for the 2022-now window: the round 3 rule itself passes on 2 of 4 alts here
+(4 of 6 years over 2021-now); 2021 is outside this window because OI data starts at its end.
