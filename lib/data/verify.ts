@@ -7,6 +7,8 @@ import { anchorsFromRecord, priceRevisions, verifyAgent, type VerifyResult } fro
 import { paramsLookback, type Decision } from "@/lib/engine/engine";
 import { buildCloseSeries, HOUR_SECONDS, OUTLIER_WINDOW } from "@/lib/engine/series";
 
+import { allRows } from "./paged";
+
 /**
  * Loads one published paper agent and everything its replay needs: every hour it ran, its trades, and the
  * cleaned closes and funding of its markets from before its first hour (the rules' look-back). The engine
@@ -30,10 +32,10 @@ export async function loadAndVerifyAgent(db: SupabaseClient, id: string): Promis
   if (!agent || agent.mode !== "paper" || agent.published_at === null) return null;
 
   const withDecisions = agent.ai_model !== null;
-  const runs = await all<{ ts: string; equity: number; cash: number; decisions?: Decision[] }>((from, to) =>
+  const runs = await allRows<{ ts: string; equity: number; cash: number; decisions?: Decision[] }>((from, to) =>
     db.from("agent_runs").select(withDecisions ? "ts, equity, cash, decisions" : "ts, equity, cash").eq("agent_id", id).order("ts").range(from, to),
   );
-  const trades = await all<{ ts: string; token_address: string; side: string; quantity: number; price: number; cost_usd: number }>((from, to) =>
+  const trades = await allRows<{ ts: string; token_address: string; side: string; quantity: number; price: number; cost_usd: number }>((from, to) =>
     db.from("trades").select("ts, token_address, side, quantity, price, cost_usd").eq("agent_id", id).order("ts").range(from, to),
   );
   const params = agentParams(agent as unknown as AgentRow);
@@ -102,16 +104,4 @@ async function causeOf(db: SupabaseClient, agentId: string, at: number, series: 
   const { data: tokens } = await db.from("tokens").select("address, symbol").in("address", revisions.map((r) => r.token));
   const symbolOf = new Map(((tokens ?? []) as { address: string; symbol: string }[]).map((t) => [t.address, t.symbol]));
   return { kind: "price_revised", revisions: revisions.map((r) => ({ market: symbolOf.get(r.token) ?? r.token, then: r.then, now: r.now })) };
-}
-
-/** Supabase returns at most 1,000 rows per call: page through. */
-async function all<T>(query: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await query(from, from + 999);
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as T[];
-    rows.push(...page);
-    if (page.length < 1000) return rows;
-  }
 }

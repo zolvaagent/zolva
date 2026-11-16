@@ -26,6 +26,8 @@ import { agentParams } from "@/lib/agents/plan";
 import type { Rules } from "@/lib/engine/rules";
 import { RulesSummary } from "@/components/app/RulesSummary";
 import { VerifyAgent } from "@/components/app/VerifyAgent";
+import { OrderLedger } from "@/components/app/OrderLedger";
+import type { Ledger } from "@/lib/agents/ledger";
 import {
   dateAt,
   dayAt,
@@ -61,6 +63,8 @@ type Props = {
   symbols: Record<string, string>;
   /** The agent's rules in plain words (lib/engine/summary.ts). */
   howItTrades: string[];
+  /** Every order with cash and P&L totals (lib/agents/ledger.ts). */
+  ledger: Ledger;
   /** How the viewer logged in, for signing a manual sale (live agents, owner only). */
   loginMethod?: "privy" | "wallet" | null;
 };
@@ -92,11 +96,12 @@ export function AgentView({
   preview,
   symbols,
   howItTrades,
+  ledger,
   loginMethod = null,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
-  const { agent, summary, runs, trades, positions } = detail;
+  const { agent, summary, runs, positions } = detail;
   const [range, setRange] = useState<keyof typeof RANGES>("all");
   const [showHolds, setShowHolds] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -945,102 +950,27 @@ export function AgentView({
             </ScrollArea>
           </div>
 
-          <div className="card">
-            <div className="card-head">
-              <h2 className="card__title">Trades</h2>
-              <span
-                className="muted"
-                style={{ fontSize: 14, lineHeight: "20px" }}
-              >
-                {isLive
-                  ? `${summary.trades} total, real fills, gas included`
-                  : `${summary.trades} total, ${agent.params.venue === "perps" ? "0.05% cost each plus hourly funding" : "0.5% cost each"}`}
-              </span>
-            </div>
-            {trades.length ? (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Side</th>
-                      <th>Stock</th>
-                      <th className="num">Price</th>
-                      <th className="num">Size</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map((trade, i) => (
-                      <tr key={i}>
-                        <td className="muted">{dateAt(trade.ts)}</td>
-                        <td>
-                          <span
-                            className={`decision__action decision__action--${trade.side}`}
-                          >
-                            {trade.side}
-                          </span>
-                        </td>
-                        <td>
-                          <strong>{trade.symbol}</strong>
-                        </td>
-                        <td className="num">{price(trade.price)}</td>
-                        <td className="num">
-                          {usd(trade.quantity * trade.price)}
-                        </td>
-                        <td>
-                          {trade.reason === "stop_loss" && (
-                            <span className="pill pill--warn">Stop loss</span>
-                          )}
-                          {trade.reason === "take_profit" && (
-                            <span className="pill pill--running">
-                              Take profit
-                            </span>
-                          )}
-                          {trade.reason === "max_hold" && (
-                            <span className="pill">Max hold</span>
-                          )}
-                          {trade.reason === "manual" && (
-                            <span className="pill" title="Sold by the owner with Sell position">Manual</span>
-                          )}
-                          {trade.reason === "resize" && (
-                            <span className="pill" title="Moved back toward the volatility target at 00:00 UTC">Resize</span>
-                          )}{" "}
-                          {trade.txHash && (
-                            <a className="text-link" href={`${EXPLORER_URL}/tx/${trade.txHash}`} target="_blank" rel="noopener noreferrer" title="Swap on Blockscout">
-                              Tx <i className="ph ph-arrow-up-right" aria-hidden="true" />
-                            </a>
-                          )}{" "}
-                          {!isMarketHours(trade.ts) && (
-                            <span
-                              className="pill"
-                              title="New York exchange closed. Price came from Robinhood Chain trading only."
-                            >
-                              DEX hours
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="empty">
-                <img
-                  src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`}
-                  alt=""
-                  width={72}
-                  height={72}
-                />
-                <h3 className="card__title">Waiting for its moment</h3>
-                <p>
-                  The agent only trades when its rules trigger. Every hour so
-                  far ended in a hold; the log above shows why.
-                </p>
-              </div>
-            )}
-          </div>
+          <OrderLedger
+            ledger={ledger}
+            live={isLive}
+            perps={agent.params.venue === "perps"}
+            wallet={agent.trading_wallet}
+            empty={
+                  <div className="empty">
+                    <img
+                      src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`}
+                      alt=""
+                      width={72}
+                      height={72}
+                    />
+                    <h3 className="card__title">Waiting for its moment</h3>
+                    <p>
+                      The agent only trades when its rules trigger. Every hour so
+                      far ended in a hold; the log above shows why.
+                    </p>
+                  </div>
+            }
+          />
 
           {isLive && (
             <div className="card">
