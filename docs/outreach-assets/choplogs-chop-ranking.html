@@ -1,0 +1,251 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=block" rel="stylesheet" />
+<style>
+  :root { --bg: #ffffff; --panel: #fafaf9; --border: #f1f1f0; --text: #252228; --muted: rgba(37,34,40,.65); --faint: #8f8e8e;
+          --purple: #8075ff; --purple-soft: #e5e5ff; --purple-mid: #bcbbff; --loss: #e04400; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1200px; background: var(--bg); }
+  body { font-family: Inter, system-ui, sans-serif; color: var(--text); padding: 48px 56px 40px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+  .logo svg { height: 30px; width: auto; display: block; }
+  h1 { font-size: 30px; font-weight: 600; letter-spacing: -.02em; margin-bottom: 8px; }
+  .sub { font-size: 16px; color: var(--muted); line-height: 1.5; max-width: 760px; }
+  table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  th { text-align: right; font-weight: 500; font-size: 13px; color: var(--faint); text-transform: uppercase; letter-spacing: .04em; padding: 0 12px 10px; border-bottom: 1px solid var(--border); }
+  th.l { text-align: left; }
+  td { padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  tr.pick td { background: var(--purple-soft); }
+  tr.pick td.sym { color: var(--purple); }
+  .rank { color: var(--faint); width: 40px; font-variant-numeric: tabular-nums; }
+  .sym { font-weight: 600; width: 120px; }
+  .tag { font-size: 11px; font-weight: 500; color: var(--faint); margin-left: 8px; text-transform: uppercase; letter-spacing: .04em; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); width: 120px; }
+  .num.strong { color: var(--text); font-weight: 600; }
+  .num.thin { color: var(--loss); }
+  .bar { width: 340px; }
+  .track { position: relative; height: 10px; border-radius: 5px; background: var(--panel); }
+  .swing, .net { position: absolute; left: 0; top: 0; height: 10px; border-radius: 5px; }
+  .swing { background: var(--purple-mid); }
+  .net { background: var(--purple); z-index: 1; min-width: 3px; }
+  .legend { display: flex; gap: 22px; font-size: 13px; color: var(--muted); margin: 18px 0 0; flex-wrap: wrap; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  footer { margin-top: 18px; font-size: 13px; color: var(--faint); line-height: 1.6; }
+</style></head><body>
+<header>
+  <div>
+    <h1>Which Robinhood Chain tokens chop the most</h1>
+    <p class="sub">Last 30 days of hourly closes (721 per market) from each token's USDG pool on Robinhood Chain. Lower efficiency = more back-and-forth that goes nowhere.</p>
+  </div>
+  <div class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -2120.34 10960.80 2192.68" role="img" aria-label="Zolva"><g fill="#252228"><path transform="translate(0 -2120.34) scale(4.93846) translate(-186.63 -279.0)" fill-rule="evenodd" d="M801.376 371.373L718.376 288.373C712.374 282.371 704.235 279 695.748 279H308.258C299.771 279 291.632 282.371 285.63 288.373L201.13 372.873C188.634 385.369 188.634 405.631 201.13 418.127L259.376 476.373C271.872 488.869 271.872 509.131 259.376 521.627L199.13 581.873C186.634 594.369 186.634 614.631 199.13 627.127L285.63 713.627C291.632 719.629 299.771 723 308.258 723H694.748C703.235 723 711.374 719.629 717.376 713.627L801.376 629.627C813.872 617.131 813.872 596.869 801.376 584.373L740.13 523.127C727.634 510.631 727.634 490.369 740.13 477.873L801.376 416.627C813.872 404.131 813.872 383.869 801.376 371.373ZM306.317 311.686L254.074 363.929C247.774 370.229 252.236 381 261.145 381H402.376C416.63 381 423.769 398.234 413.689 408.314L230.97 591.033C224.472 597.531 224.77 608.154 231.623 614.277L301.724 676.921C308.053 682.577 317.697 682.306 323.699 676.304L665.689 334.314C675.769 324.234 668.63 307 654.376 307H317.63C313.387 307 309.317 308.686 306.317 311.686ZM691.846 526.657L642.16 576.343C637.12 581.383 640.689 590 647.817 590H747.189C754.317 590 757.886 581.383 752.846 576.343L703.16 526.657C700.036 523.533 694.97 523.533 691.846 526.657Z"/><path d="M4162.72 0V-231L5212.72 -1737H4156.72V-2048H5672.72V-1817L4623.72 -311H5678.72V0Z M6608.24 30Q6383.24 30 6218.24 -69.0Q6053.24 -168 5962.74 -346.0Q5872.24 -524 5872.24 -762Q5872.24 -1000 5962.74 -1179.0Q6053.24 -1358 6218.24 -1457.0Q6383.24 -1556 6608.24 -1556Q6833.24 -1556 6998.24 -1457.0Q7163.24 -1358 7253.74 -1179.0Q7344.24 -1000 7344.24 -762Q7344.24 -524 7253.74 -346.0Q7163.24 -168 6998.24 -69.0Q6833.24 30 6608.24 30ZM6610.24 -260Q6732.24 -260 6814.24 -327.5Q6896.24 -395 6936.74 -509.0Q6977.24 -623 6977.24 -763Q6977.24 -904 6936.74 -1018.5Q6896.24 -1133 6814.24 -1201.0Q6732.24 -1269 6610.24 -1269Q6485.24 -1269 6402.74 -1201.0Q6320.24 -1133 6279.74 -1018.5Q6239.24 -904 6239.24 -763Q6239.24 -623 6279.74 -509.0Q6320.24 -395 6402.74 -327.5Q6485.24 -260 6610.24 -260Z M7927.76 -2048V0H7565.76V-2048Z M9587.28 -1536 9040.28 0H8640.28L8093.280000000001 -1536H8479.28L8832.28 -395H8848.28L9202.28 -1536Z M10149.800000000001 31Q10003.800000000001 31 9887.300000000001 -21.5Q9770.800000000001 -74 9703.300000000001 -177.0Q9635.800000000001 -280 9635.800000000001 -431Q9635.800000000001 -561 9683.800000000001 -646.0Q9731.800000000001 -731 9814.800000000001 -782.0Q9897.800000000001 -833 10002.300000000001 -859.5Q10106.800000000001 -886 10218.800000000001 -898Q10353.800000000001 -912 10437.800000000001 -923.5Q10521.800000000001 -935 10560.300000000001 -959.5Q10598.800000000001 -984 10598.800000000001 -1036V-1042Q10598.800000000001 -1155 10531.800000000001 -1217.0Q10464.800000000001 -1279 10338.800000000001 -1279Q10205.800000000001 -1279 10128.300000000001 -1221.0Q10050.800000000001 -1163 10023.800000000001 -1084L9685.800000000001 -1132Q9725.800000000001 -1272 9817.800000000001 -1366.5Q9909.800000000001 -1461 10042.800000000001 -1508.5Q10175.800000000001 -1556 10336.800000000001 -1556Q10447.800000000001 -1556 10557.800000000001 -1530.0Q10667.800000000001 -1504 10758.800000000001 -1444.5Q10849.800000000001 -1385 10905.300000000001 -1283.0Q10960.800000000001 -1181 10960.800000000001 -1028V0H10612.800000000001V-211H10600.800000000001Q10567.800000000001 -147 10508.300000000001 -91.5Q10448.800000000001 -36 10359.300000000001 -2.5Q10269.800000000001 31 10149.800000000001 31ZM10243.800000000001 -235Q10352.800000000001 -235 10432.800000000001 -278.5Q10512.800000000001 -322 10556.300000000001 -394.0Q10599.800000000001 -466 10599.800000000001 -551V-732Q10582.800000000001 -718 10542.300000000001 -706.0Q10501.800000000001 -694 10451.800000000001 -685.0Q10401.800000000001 -676 10352.800000000001 -669.0Q10303.800000000001 -662 10267.800000000001 -657Q10186.800000000001 -646 10122.800000000001 -621.0Q10058.800000000001 -596 10021.800000000001 -551.5Q9984.800000000001 -507 9984.800000000001 -437Q9984.800000000001 -337 10057.800000000001 -286.0Q10130.800000000001 -235 10243.800000000001 -235Z"/></g></svg>
+</div>
+</header>
+<table>
+  <thead><tr><th class="l">#</th><th class="l">Market</th><th class="l">Swing vs net move</th><th>Swing 30d</th><th>Net 30d</th><th>Efficiency</th><th>Moving hrs</th></tr></thead>
+  <tbody>
+  <tr class="">
+    <td class="rank">1</td>
+    <td class="sym">MSTR</td>
+    <td class="bar"><div class="track"><div class="net" style="width:9.254807692307693%"></div><div class="swing" style="width:100%"></div></div></td>
+    <td class="num">416%</td>
+    <td class="num">38.5%</td>
+    <td class="num strong">0.092</td>
+    <td class="num ">95%</td>
+  </tr>
+  <tr class="pick">
+    <td class="rank">2</td>
+    <td class="sym">MU</td>
+    <td class="bar"><div class="track"><div class="net" style="width:4.759615384615385%"></div><div class="swing" style="width:93.0048076923077%"></div></div></td>
+    <td class="num">387%</td>
+    <td class="num">19.8%</td>
+    <td class="num strong">0.051</td>
+    <td class="num ">94%</td>
+  </tr>
+  <tr class="pick">
+    <td class="rank">3</td>
+    <td class="sym">AMC</td>
+    <td class="bar"><div class="track"><div class="net" style="width:1.6105769230769234%"></div><div class="swing" style="width:84.90384615384615%"></div></div></td>
+    <td class="num">353%</td>
+    <td class="num">6.7%</td>
+    <td class="num strong">0.019</td>
+    <td class="num ">95%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">4</td>
+    <td class="sym">CRCL</td>
+    <td class="bar"><div class="track"><div class="net" style="width:9.423076923076925%"></div><div class="swing" style="width:86.49038461538461%"></div></div></td>
+    <td class="num">360%</td>
+    <td class="num">39.2%</td>
+    <td class="num strong">0.109</td>
+    <td class="num ">90%</td>
+  </tr>
+  <tr class="pick">
+    <td class="rank">5</td>
+    <td class="sym">SPCX</td>
+    <td class="bar"><div class="track"><div class="net" style="width:2.644230769230769%"></div><div class="swing" style="width:76.70673076923077%"></div></div></td>
+    <td class="num">319%</td>
+    <td class="num">11.0%</td>
+    <td class="num strong">0.035</td>
+    <td class="num ">100%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">6</td>
+    <td class="sym">GOOGL</td>
+    <td class="bar"><div class="track"><div class="net" style="width:4.350961538461539%"></div><div class="swing" style="width:69.73557692307692%"></div></div></td>
+    <td class="num">290%</td>
+    <td class="num">18.1%</td>
+    <td class="num strong">0.062</td>
+    <td class="num ">100%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">7</td>
+    <td class="sym">NVDA</td>
+    <td class="bar"><div class="track"><div class="net" style="width:7.331730769230769%"></div><div class="swing" style="width:71.70673076923077%"></div></div></td>
+    <td class="num">298%</td>
+    <td class="num">30.5%</td>
+    <td class="num strong">0.102</td>
+    <td class="num ">100%</td>
+  </tr>
+  <tr class="pick">
+    <td class="rank">8</td>
+    <td class="sym">TSLA</td>
+    <td class="bar"><div class="track"><div class="net" style="width:0.6971153846153846%"></div><div class="swing" style="width:60.3125%"></div></div></td>
+    <td class="num">251%</td>
+    <td class="num">2.9%</td>
+    <td class="num strong">0.012</td>
+    <td class="num ">86%</td>
+  </tr>
+  <tr class="pick">
+    <td class="rank">9</td>
+    <td class="sym">BABA</td>
+    <td class="bar"><div class="track"><div class="net" style="width:1.7788461538461537%"></div><div class="swing" style="width:60.60096153846154%"></div></div></td>
+    <td class="num">252%</td>
+    <td class="num">7.4%</td>
+    <td class="num strong">0.029</td>
+    <td class="num thin">69%</td>
+  </tr>
+  <tr class="pick">
+    <td class="rank">10</td>
+    <td class="sym">USO</td>
+    <td class="bar"><div class="track"><div class="net" style="width:1.8028846153846152%"></div><div class="swing" style="width:57.49999999999999%"></div></div></td>
+    <td class="num">239%</td>
+    <td class="num">7.5%</td>
+    <td class="num strong">0.032</td>
+    <td class="num ">86%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">11</td>
+    <td class="sym">ETH<span class="tag">crypto</span></td>
+    <td class="bar"><div class="track"><div class="net" style="width:7.043269230769231%"></div><div class="swing" style="width:62.30769230769231%"></div></div></td>
+    <td class="num">259%</td>
+    <td class="num">29.3%</td>
+    <td class="num strong">0.113</td>
+    <td class="num ">100%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">12</td>
+    <td class="sym">PLTR</td>
+    <td class="bar"><div class="track"><div class="net" style="width:4.663461538461537%"></div><div class="swing" style="width:55.38461538461539%"></div></div></td>
+    <td class="num">230%</td>
+    <td class="num">19.4%</td>
+    <td class="num strong">0.084</td>
+    <td class="num thin">68%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">13</td>
+    <td class="sym">RDDT</td>
+    <td class="bar"><div class="track"><div class="net" style="width:11.875%"></div><div class="swing" style="width:57.49999999999999%"></div></div></td>
+    <td class="num">239%</td>
+    <td class="num">49.4%</td>
+    <td class="num strong">0.206</td>
+    <td class="num thin">56%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">14</td>
+    <td class="sym">GME</td>
+    <td class="bar"><div class="track"><div class="net" style="width:2.4759615384615388%"></div><div class="swing" style="width:45.28846153846154%"></div></div></td>
+    <td class="num">188%</td>
+    <td class="num">10.3%</td>
+    <td class="num strong">0.055</td>
+    <td class="num ">99%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">15</td>
+    <td class="sym">BTC<span class="tag">crypto</span></td>
+    <td class="bar"><div class="track"><div class="net" style="width:5.673076923076923%"></div><div class="swing" style="width:48.36538461538461%"></div></div></td>
+    <td class="num">201%</td>
+    <td class="num">23.6%</td>
+    <td class="num strong">0.117</td>
+    <td class="num ">99%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">16</td>
+    <td class="sym">TSM</td>
+    <td class="bar"><div class="track"><div class="net" style="width:1.7548076923076923%"></div><div class="swing" style="width:42.90865384615385%"></div></div></td>
+    <td class="num">179%</td>
+    <td class="num">7.3%</td>
+    <td class="num strong">0.041</td>
+    <td class="num thin">46%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">17</td>
+    <td class="sym">META</td>
+    <td class="bar"><div class="track"><div class="net" style="width:3.6778846153846154%"></div><div class="swing" style="width:44.59134615384615%"></div></div></td>
+    <td class="num">186%</td>
+    <td class="num">15.3%</td>
+    <td class="num strong">0.083</td>
+    <td class="num ">75%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">18</td>
+    <td class="sym">AMZN</td>
+    <td class="bar"><div class="track"><div class="net" style="width:0.7211538461538461%"></div><div class="swing" style="width:39.37500000000001%"></div></div></td>
+    <td class="num">164%</td>
+    <td class="num">3.0%</td>
+    <td class="num strong">0.018</td>
+    <td class="num ">78%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">19</td>
+    <td class="sym">QQQ</td>
+    <td class="bar"><div class="track"><div class="net" style="width:1.9471153846153846%"></div><div class="swing" style="width:33.14903846153846%"></div></div></td>
+    <td class="num">138%</td>
+    <td class="num">8.1%</td>
+    <td class="num strong">0.059</td>
+    <td class="num ">98%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">20</td>
+    <td class="sym">AAPL</td>
+    <td class="bar"><div class="track"><div class="net" style="width:1.0096153846153846%"></div><div class="swing" style="width:29.01442307692308%"></div></div></td>
+    <td class="num">121%</td>
+    <td class="num">4.2%</td>
+    <td class="num strong">0.035</td>
+    <td class="num ">99%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">21</td>
+    <td class="sym">GLD</td>
+    <td class="bar"><div class="track"><div class="net" style="width:2.043269230769231%"></div><div class="swing" style="width:28.677884615384613%"></div></div></td>
+    <td class="num">119%</td>
+    <td class="num">8.5%</td>
+    <td class="num strong">0.071</td>
+    <td class="num ">99%</td>
+  </tr>
+  <tr class="">
+    <td class="rank">22</td>
+    <td class="sym">SPY</td>
+    <td class="bar"><div class="track"><div class="net" style="width:0.7211538461538461%"></div><div class="swing" style="width:8.870192307692307%"></div></div></td>
+    <td class="num">37%</td>
+    <td class="num">3.0%</td>
+    <td class="num strong">0.081</td>
+    <td class="num thin">58%</td>
+  </tr></tbody>
+</table>
+<div class="legend">
+  <span><span class="dot" style="background:var(--purple-mid)"></span>Swing: sum of every hourly move</span>
+  <span><span class="dot" style="background:var(--purple)"></span>Net: start-to-end move</span>
+  <span><span class="dot" style="background:var(--purple-soft)"></span>Clean chop: big swing, little net move</span>
+  <span><span class="dot" style="background:var(--loss)"></span>Moving hrs under 70%: thin pool hours</span>
+</div>
+<footer>Data: zolvaagent.app/docs/public-api (GET /api/public/v1/markets/{symbol}), pulled 2026-11-15. Pool prices include some between-trade noise. Past price movement only; not a forecast and not investment advice.</footer>
+</body></html>
