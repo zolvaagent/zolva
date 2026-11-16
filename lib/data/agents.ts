@@ -209,6 +209,8 @@ export type AgentDetail = {
     /** paper = virtual money; live = real swaps from trading_wallet. */
     mode: "paper" | "live";
     trading_wallet: string | null;
+    /** Prompt mode only: the creator's own words the rules were written from (and the co-pilot reads). */
+    strategy_prompt: string | null;
   };
   /** What the AI co-pilot has spent on this agent so far, USD. */
   aiSpentUsd: number;
@@ -230,7 +232,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db
     .from("agents")
-    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, first_published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet")
+    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, first_published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet, strategy_prompt")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);

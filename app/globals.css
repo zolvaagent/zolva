@@ -9709,6 +9709,21 @@ li.stats-ranks__row {
   font-weight: 600;
 }
 
+.strategy-prompt__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.strategy-prompt__note {
+  margin: var(--space-75) 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
 .rules-summary__list {
   display: flex;
   flex-direction: column;

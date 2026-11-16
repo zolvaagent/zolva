@@ -49,4 +49,11 @@ describe("hourlyReports", () => {
     expect(reports[0].trades).toEqual([]);
     expect(reports[2].trades.map((item) => item.symbol)).toEqual(["NVDA", "AMZN"]);
   });
+
+  it("puts each AI pass in its own hour, and none without passes", () => {
+    const pass = { ts: 11 * H, agentId: "a", agentName: "Agent", isHouse: false, symbol: "NVDA", model: "deepseek/deepseek-v4.1-flash", reasoning: "Still falling." };
+    const reports = hourlyReports(hours, trades, [pass]);
+    expect(reports.map((report) => report.passes.length)).toEqual([0, 1, 0]);
+    expect(hourlyReports(hours, trades).every((report) => report.passes.length === 0)).toBe(true);
+  });
 });

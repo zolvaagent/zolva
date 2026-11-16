@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
-import { hourlyReports, REASON_LABELS, SIDE_VERBS, type ActivityHour, type ActivityTrade, type HourReport } from "@/lib/activity";
+import { hourlyReports, REASON_LABELS, SIDE_VERBS, type ActivityHour, type ActivityPass, type ActivityTrade, type HourReport } from "@/lib/activity";
+import { aiModel } from "@/lib/ai/models";
 import { dateAt, price, STRATEGY_NAMES, usd } from "@/lib/format";
 
 const FILTERS = [
@@ -22,7 +23,7 @@ function blocks(reports: HourReport[]): Block[] {
   const out: Block[] = [];
   for (const report of reports) {
     const last = out[out.length - 1];
-    if (report.trades.length) out.push({ kind: "hour", report });
+    if (report.trades.length || report.passes.length) out.push({ kind: "hour", report });
     else if (last?.kind === "quiet") {
       last.from = report.ts;
       last.hours += 1;
@@ -33,6 +34,32 @@ function blocks(reports: HourReport[]): Block[] {
 }
 
 const hourLabel = (ts: number) => dateAt(ts).replace(" UTC", "");
+
+const modelName = (id: string) => aiModel(id)?.label ?? id;
+
+/** A rule signal the AI co-pilot passed on, with its reason (no trade happened). */
+function PassRow({ pass }: { pass: ActivityPass }) {
+  return (
+    <li className="activity-trade activity-trade--pass">
+      <TickerAvatar symbol={pass.symbol} />
+      <div className="activity-trade__body">
+        <p className="activity-trade__line">
+          <Link href={`/agents/${pass.agentId}`}>{pass.agentName}</Link>
+          {pass.isHouse && <span className="pill">by Zolva</span>} <span className="muted">skipped a signal on</span>{" "}
+          <Link href={`/markets/${pass.symbol}`}>
+            <strong>{pass.symbol}</strong>
+          </Link>
+        </p>
+        <p className="activity-trade__why">
+          <span className="pill pill--paused">AI passed</span> {pass.reasoning}
+        </p>
+      </div>
+      <div className="activity-trade__amount">
+        <span className="market-name">{modelName(pass.model)}</span>
+      </div>
+    </li>
+  );
+}
 
 function TradeRow({ trade }: { trade: ActivityTrade }) {
   const notional = trade.quantity * trade.price;
@@ -49,7 +76,13 @@ function TradeRow({ trade }: { trade: ActivityTrade }) {
           </Link>
         </p>
         <p className="activity-trade__why">
-          <span className="pill pill--accent">{REASON_LABELS[trade.reason]}</span> {trade.reasoning ?? `${SIDE_VERBS[trade.side][0].toUpperCase()}${SIDE_VERBS[trade.side].slice(1)}.`}
+          <span className="pill pill--accent">{REASON_LABELS[trade.reason]}</span>{" "}
+          {trade.ai?.verdict === "approved" && (
+            <span className="pill pill--running" title={`The AI co-pilot (${modelName(trade.ai.model)}) reviewed this signal and let it trade`}>
+              AI approved
+            </span>
+          )}{" "}
+          {trade.reasoning ?? `${SIDE_VERBS[trade.side][0].toUpperCase()}${SIDE_VERBS[trade.side].slice(1)}.`}
         </p>
       </div>
       <div className="activity-trade__amount">
@@ -61,13 +94,13 @@ function TradeRow({ trade }: { trade: ActivityTrade }) {
   );
 }
 
-export function Activity({ hours, trades }: { hours: ActivityHour[]; trades: ActivityTrade[] }) {
+export function Activity({ hours, trades, passes }: { hours: ActivityHour[]; trades: ActivityTrade[]; passes: ActivityPass[] }) {
   const [filter, setFilter] = useState<Filter>("all");
 
   const list = useMemo(() => {
-    const visible = trades.filter((trade) => filter === "all" || (filter === "house" ? trade.isHouse : !trade.isHouse));
-    return blocks(hourlyReports(hours, visible));
-  }, [hours, trades, filter]);
+    const shown = (item: { isHouse: boolean }) => filter === "all" || (filter === "house" ? item.isHouse : !item.isHouse);
+    return blocks(hourlyReports(hours, trades.filter(shown), passes.filter(shown)));
+  }, [hours, trades, passes, filter]);
 
   const hasTrades = list.some((block) => block.kind === "hour");
 
@@ -117,12 +150,16 @@ export function Activity({ hours, trades }: { hours: ActivityHour[]; trades: Act
                       {" "}
                       · {block.report.checked} agents checked · {block.report.trades.filter((trade) => trade.side === "buy").length} bought ·{" "}
                       {block.report.trades.filter((trade) => trade.side === "sell").length} sold
+                      {block.report.passes.length > 0 && ` · AI passed on ${block.report.passes.length}`}
                     </span>
                   </span>
                 </div>
                 <ul className="activity-trades">
                   {block.report.trades.map((trade) => (
                     <TradeRow key={`${trade.agentId}-${trade.symbol}-${trade.side}`} trade={trade} />
+                  ))}
+                  {block.report.passes.map((pass) => (
+                    <PassRow key={`pass-${pass.agentId}-${pass.symbol}`} pass={pass} />
                   ))}
                 </ul>
               </li>

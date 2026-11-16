@@ -4,7 +4,7 @@ import Link from "next/link";
 import { RealMoneyPill } from "@/components/app/AgentKind";
 import { copyBlock } from "@/lib/agents/copy";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 
 import { ShareMenu } from "@/components/app/ShareMenu";
 import { SellPositionButton } from "@/components/app/SwapDialog";
@@ -70,6 +70,19 @@ const RANGES = { "7d": 7 * 24, "30d": 30 * 24, all: Infinity } as const;
 /** Live order statuses (executions.status) in plain words. */
 const ORDER_LABELS: Record<string, string> = { pending: "Pending", submitted: "Sent", confirmed: "Filled", failed: "Failed", cancelled: "Not sent" };
 const ORDER_PILLS: Record<string, string> = { confirmed: "pill--running", failed: "pill--warn", submitted: "pill--accent", pending: "pill--accent" };
+
+/**
+ * Minutes until the next hourly run, kept current in the browser. The server render has no clock
+ * of the viewer's, so it returns null there and the page hydrates without a text mismatch.
+ */
+const subscribeToMinutes = (onChange: () => void) => {
+  const timer = setInterval(onChange, 15_000);
+  return () => clearInterval(timer);
+};
+const minutesToNextHour = () => 60 - new Date().getUTCMinutes();
+function useMinutesToNextRun(): number | null {
+  return useSyncExternalStore(subscribeToMinutes, minutesToNextHour, () => null);
+}
 
 export function AgentView({
   detail,
@@ -140,7 +153,7 @@ export function AgentView({
   // "Copy to Studio" when the Studio can rebuild this agent, otherwise the reason it can't.
   const copyReason = copyBlock({ ...summary, live: isLive, published: agent.published_at !== null });
   const isActive = agent.status === "active";
-  const minutesToNextRun = 60 - new Date().getUTCMinutes();
+  const minutesToNextRun = useMinutesToNextRun();
   const symbolOf = (token: string) => symbols[token] ?? token;
 
   const togglePause = async () => {
@@ -329,7 +342,9 @@ export function AgentView({
           <span aria-hidden="true">·</span>
           <span>
             {agent.status === "active"
-              ? `Next decision in ${minutesToNextRun} min`
+              ? minutesToNextRun === null
+                ? "Next decision at the top of the hour"
+                : `Next decision in ${minutesToNextRun} min`
               : "Not trading while paused"}
           </span>
         </div>
@@ -706,6 +721,14 @@ export function AgentView({
       </div>
       {/* The whole strategy in plain words, from the agent's params (lib/engine/summary.ts). */}
       <RulesSummary lines={howItTrades} />
+      {/* The creator's own words (prompt mode). Shown to the owner, and to everyone once published. */}
+      {agent.strategy_prompt && (isOwner || agent.published_at) && (
+        <section className="rules-summary strategy-prompt" aria-label="Strategy in the creator's words">
+          <h3 className="rules-summary__title">In the creator&apos;s words</h3>
+          <p className="strategy-prompt__text">{agent.strategy_prompt}</p>
+          <p className="strategy-prompt__note">The rules above were written from this. The AI co-pilot reads it too, but can only pass on a rule&apos;s trade, never add one.</p>
+        </section>
+      )}
       {agent.mode === "paper" && agent.published_at && <VerifyAgent agentId={agent.id} />}
     </div>
   );
@@ -744,7 +767,7 @@ export function AgentView({
                 </h2>
                 <p>
                   {agent.status === "active"
-                    ? `The agent checks prices at the top of every hour, in about ${minutesToNextRun} minutes. Trades and reasoning show up here.`
+                    ? `The agent checks prices at the top of every hour${minutesToNextRun === null ? "" : `, in about ${minutesToNextRun} minutes`}. Trades and reasoning show up here.`
                     : "Resume it and it starts deciding from the next hour."}
                 </p>
               </div>

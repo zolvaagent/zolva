@@ -81,5 +81,7 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
     mode: detail.agent.mode,
     aiModel: detail.agent.ai_model,
   });
-  return <AgentView detail={detail} isOwner={isOwner} credits={credits} prices={prices} preview={preview} symbols={symbols} howItTrades={howItTrades} loginMethod={loginMethod} />;
+  // The creator's prompt reaches the browser only for the owner, or while the agent is published.
+  const shown = isOwner || detail.agent.published_at ? detail : { ...detail, agent: { ...detail.agent, strategy_prompt: null } };
+  return <AgentView detail={shown} isOwner={isOwner} credits={credits} prices={prices} preview={preview} symbols={symbols} howItTrades={howItTrades} loginMethod={loginMethod} />;
 }
