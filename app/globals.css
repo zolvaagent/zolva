@@ -8366,16 +8366,14 @@ button.text-link {
   min-width: 0;
 }
 
-/* The swap card and the recurring buy card under the Swap / Recurring buy switch. */
-.swap-workspace__main > div:not(.swap-mode),
-.swap-workspace__main > .recurring-buy {
+/* The swap card and the DCA card share the column (the Swap / DCA switch sits inside each card). */
+.swap-workspace__card {
   display: flex;
   justify-content: center;
   width: 100%;
-  max-width: 480px;
 }
 
-.swap-workspace__main > div[hidden] {
+.swap-workspace__card[hidden] {
   display: none;
 }
 
@@ -10302,44 +10300,130 @@ li.stats-ranks__row {
   gap: var(--space-100);
 }
 
-/* Swap page: Swap / Recurring buy switch, and the recurring buy card (components/app/RecurringBuy.tsx). */
-.swap-mode {
-  margin-bottom: var(--space-100);
+/* Swap card: the Swap / DCA switch in its head, and the DCA mode (components/app/RecurringBuy.tsx). */
+.swapbox__modes {
+  display: inline-flex;
+  gap: var(--space-25);
 }
 
-.swap-workspace__main > .recurring-buy {
+.swapbox__mode {
+  padding: var(--space-50) var(--space-100);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.swapbox__mode:hover {
+  color: var(--color-text);
+}
+
+.swapbox__mode[aria-selected="true"] {
+  background: var(--color-tint);
+  color: var(--color-purple-rich);
+}
+
+.swapbox__token--fixed {
+  cursor: default;
+}
+
+.dca__hint {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-50);
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.dca__grid {
   display: grid;
-  gap: var(--space-200);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-75);
 }
 
-.recurring-buy .card__title {
+.dca__field {
+  cursor: text;
+}
+
+.dca__inputs {
   display: flex;
   align-items: center;
   gap: var(--space-75);
-  margin: 0;
+  min-width: 0;
 }
 
-.recurring-buy__lead,
-.recurring-buy__plan {
+.dca__number {
+  width: 2.2ch;
+  min-width: 0;
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.dca__unit {
+  min-width: 0;
+}
+
+/* The shared Select (components/ui/Select.tsx) as a pill next to the number. */
+.dca__unit .select {
+  height: 34px;
+  padding: 0 var(--space-75) 0 var(--space-100);
+  border-color: var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 14px;
+}
+
+.dca__summary {
   margin: 0;
+  padding: var(--space-100) var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
   font-size: 14px;
   line-height: 20px;
 }
 
-.recurring-buy__plan {
-  margin-top: var(--space-100);
+.dca__summary strong {
+  font-weight: 600;
 }
 
-.recurring-buy__costs {
+.dca__summary--error {
+  border-color: var(--color-loss);
+  color: var(--color-loss);
+}
+
+.dca__fund {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.dca__confirm {
+  display: grid;
+  gap: var(--space-100);
+}
+
+.dca__confirm p {
+  margin: 0;
+}
+
+.dca__notes {
   display: grid;
   gap: var(--space-50);
   margin: 0;
   padding-left: var(--space-200);
   font-size: 13px;
   line-height: 18px;
-}
-
-.recurring-buy__checks {
-  display: grid;
-  gap: var(--space-100);
 }

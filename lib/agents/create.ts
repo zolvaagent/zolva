@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { DCA_BUYS, DCA_CADENCES, maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
+import { dcaPlanError, maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 import { getMarket, latestCandleTime } from "@/lib/data/market";
 import { parseAiLimit, type AiLimit } from "@/lib/ai/limits";
 import { aiModel } from "@/lib/ai/models";
@@ -116,8 +116,8 @@ export async function checkAgentInput(db: SupabaseClient, owner: string, input: 
     const raw = (input.dca ?? {}) as { buys?: unknown; everyHours?: unknown };
     const buys = Number(raw.buys);
     const everyHours = Number(raw.everyHours);
-    if (!(DCA_BUYS as readonly number[]).includes(buys)) throw new AgentInputError(`Pick ${DCA_BUYS.join(", ")} buys.`);
-    if (!DCA_CADENCES.some((cadence) => cadence.everyHours === everyHours)) throw new AgentInputError("Pick daily or weekly buys.");
+    const planError = dcaPlanError(buys, everyHours);
+    if (planError) throw new AgentInputError(planError);
     dcaChoice = { buys, everyHours };
   }
 

@@ -16,7 +16,7 @@
  */
 import { z } from "zod";
 
-import { DCA_BUYS, DCA_CADENCES, STUDIO_STRATEGIES } from "../agents/copy";
+import { DCA_LIMITS, STUDIO_STRATEGIES } from "../agents/copy";
 import type { ApiCaller, ApiKeyScope } from "../api-keys/keys";
 import type { AgentSummary } from "../data/agents";
 import { parseRules, rulesLookback } from "../engine/rules";
@@ -201,8 +201,8 @@ const createShape = {
   rules: rules.optional(),
   dca: z
     .object({
-      buys: z.number().int().refine((value) => (DCA_BUYS as readonly number[]).includes(value), `One of ${DCA_BUYS.join(", ")}`).describe(`Number of equal buys: ${DCA_BUYS.join(", ")}`),
-      everyHours: z.number().int().refine((value) => DCA_CADENCES.some((cadence) => cadence.everyHours === value), "24 or 168").describe("Hours between buys: 24 (daily) or 168 (weekly)"),
+      buys: z.number().int().min(DCA_LIMITS.minBuys).max(DCA_LIMITS.maxBuys).describe(`Number of equal buys, ${DCA_LIMITS.minBuys} to ${DCA_LIMITS.maxBuys}`),
+      everyHours: z.number().int().min(1).max(DCA_LIMITS.maxEveryHours).describe("Hours between buys: 1 (hourly), 24 (daily), 168 (weekly), up to 720"),
     })
     .optional()
     .describe("dca only: the schedule. The first buy is the agent's first hour; capital is split equally across the buys and the markets"),

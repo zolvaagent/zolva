@@ -21,12 +21,22 @@ export function maxMarketsFor(strategy: string): number {
   return strategy === "dip_hunter" || strategy === "spike_fade" ? STUDIO_MAX_MARKETS_WIDE : STUDIO_MAX_MARKETS;
 }
 
-/** DCA: how many buys and how often (the Studio's choices; agent creation accepts the same). */
+/** DCA: the Studio's quick choices of how many buys and how often (any valid plan is accepted, see dcaPlanError). */
 export const DCA_BUYS = [12, 26, 52] as const;
 export const DCA_CADENCES = [
   { everyHours: 24, label: "Daily" },
   { everyHours: 168, label: "Weekly" },
 ] as const;
+
+/** DCA plan limits, also checked by the database (agents_dca_plan): 1 hour to 30 days between buys. */
+export const DCA_LIMITS = { minBuys: 2, maxBuys: 104, maxEveryHours: 720 } as const;
+
+/** Why a DCA plan is not allowed, or null when it is. */
+export function dcaPlanError(buys: number, everyHours: number): string | null {
+  if (!Number.isInteger(buys) || buys < DCA_LIMITS.minBuys || buys > DCA_LIMITS.maxBuys) return `Pick ${DCA_LIMITS.minBuys} to ${DCA_LIMITS.maxBuys} orders.`;
+  if (!Number.isInteger(everyHours) || everyHours < 1 || everyHours > DCA_LIMITS.maxEveryHours) return "Pick every 1 to 24 hours, 1 to 30 days or 1 to 4 weeks.";
+  return null;
+}
 
 /** Spike Fade opens shorts, and shorts trade perps only (spot is long only). */
 export function strategyNeedsPerps(strategy: string): boolean {

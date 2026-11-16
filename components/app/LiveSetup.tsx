@@ -29,7 +29,11 @@ export const liveReady = (status: LiveStatusView | null) => Boolean(status && st
  * it with USDG and a little ETH for gas. Reports the wallet status up so the Studio can
  * cap the capital and enable the launch.
  */
-export function LiveSetup({ onStatus }: { onStatus: (status: LiveStatusView | null) => void }) {
+/**
+ * The real money wallet's status (/api/live/setup) and the "allow Zolva's signer" step, shared by
+ * LiveSetup (the Studio) and the swap card's DCA mode. `onStatus` must be stable (a state setter).
+ */
+export function useLiveWallet(onStatus?: (status: LiveStatusView | null) => void) {
   const { address, privy, openLogin } = useAuth();
   const [status, setStatus] = useState<LiveStatusView | null>(null);
   const [version, setVersion] = useState(0);
@@ -44,26 +48,15 @@ export function LiveSetup({ onStatus }: { onStatus: (status: LiveStatusView | nu
       .then((body) => {
         if (cancelled) return;
         setStatus(body);
-        onStatus(body);
+        onStatus?.(body);
       })
       .catch(() => {
-        if (!cancelled) onStatus(null);
+        if (!cancelled) onStatus?.(null);
       });
     return () => {
       cancelled = true;
     };
   }, [address, version, onStatus]);
-
-  if (!address) {
-    return (
-      <div className="live-setup">
-        <p>Real money trades from a wallet Zolva makes for you. Log in with email or Google to get one.</p>
-        <button className="button button--primary" type="button" onClick={() => openLogin()}>
-          Log in
-        </button>
-      </div>
-    );
-  }
 
   const allow = async () => {
     const handle = privy();
@@ -77,7 +70,7 @@ export function LiveSetup({ onStatus }: { onStatus: (status: LiveStatusView | nu
       const prepared = await fetch("/api/live/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ step: "prepare" }) });
       const plan = (await prepared.json().catch(() => ({}))) as { signerId?: string; policyId?: string; error?: string };
       if (!prepared.ok || !plan.signerId || !plan.policyId) throw new Error(plan.error ?? "Setting up real money failed. Please try again.");
-      await handle.addSigner(address, plan.signerId, [plan.policyId]);
+      await handle.addSigner(address!, plan.signerId, [plan.policyId]);
       const confirmed = await fetch("/api/live/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ step: "confirm", policyId: plan.policyId }) });
       const done = (await confirmed.json().catch(() => ({}))) as { error?: string };
       if (!confirmed.ok) throw new Error(done.error ?? "Setting up real money failed. Please try again.");
@@ -88,6 +81,22 @@ export function LiveSetup({ onStatus }: { onStatus: (status: LiveStatusView | nu
       setBusy(false);
     }
   };
+
+  return { address, openLogin, status, busy, error, allow, refresh: () => setVersion((value) => value + 1) };
+}
+
+export function LiveSetup({ onStatus }: { onStatus: (status: LiveStatusView | null) => void }) {
+  const { address, openLogin, status, busy, error, allow, refresh } = useLiveWallet(onStatus);
+  if (!address) {
+    return (
+      <div className="live-setup">
+        <p>Real money trades from a wallet Zolva makes for you. Log in with email or Google to get one.</p>
+        <button className="button button--primary" type="button" onClick={() => openLogin()}>
+          Log in
+        </button>
+      </div>
+    );
+  }
 
   if (!status) return <div className="live-setup muted">Checking your wallet…</div>;
   if (!status.open) return <div className="live-setup">Real money trading is paused right now. Paper trading stays open.</div>;
@@ -118,7 +127,7 @@ export function LiveSetup({ onStatus }: { onStatus: (status: LiveStatusView | nu
           </span>
           <span className="live-balance mono">
             {status.usdg.toFixed(2)} USDG · {status.eth.toFixed(5)} ETH
-            <button className="text-link" type="button" onClick={() => setVersion((value) => value + 1)}>
+            <button className="text-link" type="button" onClick={() => refresh()}>
               Refresh
             </button>
           </span>

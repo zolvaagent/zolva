@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { formatUnits, parseUnits, type Hex } from "viem";
 
 import { useAuth } from "@/components/ui/Providers";
@@ -47,6 +47,8 @@ type Props = {
   onSwapped?: (txHash: Hex) => Promise<void> | void;
   /** Told which token is being bought, whenever it changes (the swap page's chart follows it). */
   onPair?: (buy: SwapToken | null) => void;
+  /** Inline only: replaces the "Swap" title (the swap page's Swap / DCA switch). */
+  head?: ReactNode;
 };
 
 type Listing = { tokens: SwapToken[]; balances: Record<string, string> | null; ethWei: string | null };
@@ -100,7 +102,7 @@ function usdValue(token: SwapToken | null, raw: string | bigint | null): number 
  * USDG pool, or two through USDG), each signed by the user in Privy's window or the browser
  * wallet. Balances come from the logged in wallet.
  */
-export function SwapDialog({ address, loginMethod, open: openProp = false, onClose, preset, onSwapped, onPair, inline = false }: Props) {
+export function SwapDialog({ address, loginMethod, open: openProp = false, onClose, preset, onSwapped, onPair, inline = false, head }: Props) {
   const open = inline || openProp;
   const { privy, openLogin } = useAuth();
   const router = useRouter();
@@ -515,7 +517,7 @@ export function SwapDialog({ address, loginMethod, open: openProp = false, onClo
   const body = (
     <div className="swapbox">
       <div className="swapbox__head">
-        <strong className="swapbox__title">{preset?.title ?? "Swap"}</strong>
+        {head ?? <strong className="swapbox__title">{preset?.title ?? "Swap"}</strong>}
         <button className="swapbox__settings" type="button" onClick={() => setSettings((value) => !value)} aria-expanded={settings} aria-label="Slippage settings">
           <span>{slippageBps / 100}% slippage</span>
           <i className="ph ph-sliders-horizontal" aria-hidden="true" />

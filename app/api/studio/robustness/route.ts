@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { DCA_BUYS, DCA_CADENCES, maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
+import { dcaPlanError, maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 import { getMarket } from "@/lib/data/market";
 import type { AgentParams } from "@/lib/engine/engine";
 import { parseRules } from "@/lib/engine/rules";
@@ -52,7 +52,8 @@ export async function POST(request: NextRequest) {
     const buys = Number(raw.buys);
     const everyHours = Number(raw.everyHours);
     if (perps) return NextResponse.json({ error: "DCA buys spot tokens." }, { status: 400 });
-    if (!(DCA_BUYS as readonly number[]).includes(buys) || !DCA_CADENCES.some((cadence) => cadence.everyHours === everyHours)) return NextResponse.json({ error: "Pick a DCA schedule." }, { status: 400 });
+    const planError = dcaPlanError(buys, everyHours);
+    if (planError) return NextResponse.json({ error: planError }, { status: 400 });
     // startTs is set per test window (lib/studio/robustness.ts).
     dca = { buys, everyHours, startTs: 0 };
   }
