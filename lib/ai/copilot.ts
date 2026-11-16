@@ -57,6 +57,8 @@ const PRESET_DESCRIPTIONS: Record<StrategyKey, string> = {
     "Dip + fade: watches many markets and holds at most one long and one short; buys the market furthest below its 48 hour average (z score under -2.5) unless it fell more than 5% over 7 days, shorts the one furthest above it (z score over 2.5) unless it rose more than 5% over 7 days, and closes each when the price returns past the average.",
   bounce_short:
     "Bounce short: watches many markets and holds one at a time, short only; shorts the market with the deepest fall over 7 days (more than 5% down) once its price bounces back above the 48 hour average, unless it already rose more than 1.5% in 24 hours, and covers when the price falls back below the average.",
+  // DCA agents run without the co-pilot (the Studio and the database refuse it); listed for completeness.
+  dca: "DCA: buys the same dollar amount on a fixed schedule and never sells.",
 };
 
 export const SYSTEM_PROMPT = [

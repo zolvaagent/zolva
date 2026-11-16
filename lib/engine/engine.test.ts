@@ -766,3 +766,69 @@ describe("Lab long + short rules with a funding filter", () => {
     expect(ours.runs.every((run) => run.cash >= -1e-9)).toBe(true);
   });
 });
+
+describe("dca", () => {
+  const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+    simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string; quantity: number }[] };
+  };
+  const START = 1_700_006_400; // 00:00 UTC
+  const times = Array.from({ length: 600 }, (_, i) => START + i * 3600);
+  const plan = { buys: 12, everyHours: 24, startTs: START + 10 * 3600 };
+  const dca: AgentParams = { strategy: "dca", maxPositionPct: 33, stopLossPct: 8, dca: plan };
+
+  it("buys cash / buys left on schedule, split across markets, and never sells", () => {
+    const series = { AAA: walk(7, 600), BBB: walk(42, 600) };
+    const result = simulate({ series, params: dca, capital: 12_000, fromIndex: 0, times });
+    expect(result.fills.every((fill) => fill.side === "buy")).toBe(true);
+    expect(result.fills).toHaveLength(24);
+    expect(result.fills.map((fill) => fill.index).filter((_, i) => i % 2 === 0)).toEqual(Array.from({ length: 12 }, (_, k) => 10 + k * 24));
+    // Every buy spends the same: 12,000 / 12 / 2 markets.
+    for (const fill of result.fills) expect(fill.quantity * fill.price + fill.costUsd).toBeCloseTo(500, 6);
+    expect(result.state.cash).toBeCloseTo(0, 6);
+    // The entry is the average paid per token, cost included.
+    const aaa = result.fills.filter((fill) => fill.token === "AAA");
+    const paid = aaa.reduce((sum, fill) => sum + fill.quantity * fill.price + fill.costUsd, 0);
+    const quantity = aaa.reduce((sum, fill) => sum + fill.quantity, 0);
+    expect(result.state.positions.AAA.entryPrice).toBeCloseTo(paid / quantity, 9);
+  });
+
+  it("does not sell on a crash (no stop loss) and says when the next buy is", () => {
+    const crash = [...flat(200), ...Array.from({ length: 400 }, (_, i) => 100 * (1 - (0.8 * i) / 400))];
+    const result = simulate({ series: { AAA: crash }, params: { ...dca, stopLossPct: 2 }, capital: 1_000, fromIndex: 0, times });
+    expect(result.fills.every((fill) => fill.side === "buy")).toBe(true);
+    const hold = result.runs[11].decisions[0];
+    expect(hold.action).toBe("hold");
+    expect(hold.reasoning).toBe("Next scheduled buy in 23 hours (1 of 12 done).");
+    expect(result.runs.at(-1)!.decisions[0].reasoning).toBe("All 12 buys done. Holding with no exit.");
+  });
+
+  it("keeps a market's share in cash while it has no price", () => {
+    const late = [...Array.from({ length: 40 }, () => null), ...walk(5, 560)];
+    const result = simulate({ series: { AAA: walk(7, 600), BBB: late }, params: dca, capital: 12_000, fromIndex: 0, times });
+    // Hour 10: only AAA has a price and gets half of the first buy; BBB's half stays in cash.
+    const first = result.fills.filter((fill) => fill.index === 10);
+    expect(first.map((fill) => fill.token)).toEqual(["AAA"]);
+    expect(first[0].quantity * first[0].price + first[0].costUsd).toBeCloseTo(500, 6);
+    expect(result.state.cash).toBeCloseTo(0, 6);
+  });
+
+  it("matches the prototype engine", () => {
+    const series: Record<string, number[]> = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600) };
+    for (const venuePlan of [plan, { buys: 4, everyHours: 168, startTs: START }]) {
+      const ours = simulate({ series, params: { ...dca, dca: venuePlan }, capital: 10_000, fromIndex: 0, times });
+      const theirs = prototype.simulate({
+        tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes })),
+        strategy: "dca",
+        dca: venuePlan,
+        capital: 10_000,
+        maxPositionPct: 33,
+        stopLossPct: 8,
+        fromIndex: 0,
+        times,
+      });
+      expect(ours.fills.length).toBeGreaterThan(0);
+      expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
+      expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+    }
+  });
+});

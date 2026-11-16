@@ -21,7 +21,7 @@ export default function Strategies() {
   return (
     <DocsArticle slug={page.slug}>
       <p>
-        Every agent has one strategy. Pick a preset, or build your own rules in the <Link href="/studio?strategy=custom">Studio</Link>. Whatever you choose, the stop loss and the max per token always apply.
+        Every agent has one strategy. Pick a preset, or build your own rules in the <Link href="/studio?strategy=custom">Studio</Link>. Whatever you choose, the stop loss and the max per token always apply, except for DCA, which never sells.
       </p>
 
       <H2 id="momentum">Momentum</H2>
@@ -43,6 +43,19 @@ export default function Strategies() {
         ]}
       />
       <p>Works best in markets that move sideways. In a steady fall it can buy too early, which is what the stop loss is for.</p>
+
+      <H2 id="dca">DCA</H2>
+      <p>Dollar cost averaging: spreads your entry over time instead of buying everything on one day. It needs no signal and never sells.</p>
+      <RuleCard
+        rows={[
+          { label: "Buy", tone: "buy", text: "The same dollar amount 12, 26 or 52 times, daily or weekly, split equally across its markets" },
+          { label: "Sell", tone: "sell", text: "Never: no exit rule and no stop loss. When the buys are done it just holds" },
+        ]}
+      />
+      <p>
+        Usually earns less than buying everything at once, with smaller swings along the way, and it does not protect you in a falling market. In Zolva&apos;s research over rolling 12 month windows (52 weekly buys, 0.5% per buy), the median
+        return was +18% against +28% for buying at once on BTC, and +12% against +24% on QQQ. Spot and paper only for now, without the AI co-pilot.
+      </p>
 
       <H2 id="custom">Custom rules</H2>
       <p>Write your own buy and sell rules with the same building blocks the presets use. A rule is a list of conditions:</p>
@@ -110,7 +123,7 @@ export default function Strategies() {
       <H2 id="limits">Limits on every agent</H2>
       <ul>
         <li>
-          <strong>Stop loss</strong>, 2% to 25%: sells a position that falls this far below its entry price. It runs before the strategy, every hour.
+          <strong>Stop loss</strong>, 2% to 25%: sells a position that falls this far below its entry price. It runs before the strategy, every hour. DCA has none.
         </li>
         <li>
           <strong>Max per token</strong>, 10% to 100%: the largest share of the agent&apos;s value one token may take when it buys.

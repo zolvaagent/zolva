@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
+import { DCA_BUYS, DCA_CADENCES, maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 import { getMarket, latestCandleTime } from "@/lib/data/market";
 import { parseAiLimit, type AiLimit } from "@/lib/ai/limits";
 import { aiModel } from "@/lib/ai/models";
@@ -36,6 +36,8 @@ export type CreateAgentInput = {
   mode?: unknown;
   /** "spot" (default: stock and crypto tokens on the DEX) or "perps" (Lighter perps, paper only). */
   venue?: unknown;
+  /** DCA only: { buys: 12 | 26 | 52, everyHours: 24 | 168 }. The first buy is the agent's first hour. */
+  dca?: unknown;
 };
 
 /** What a live launch needs from the chain, read by the route: the owner's USDG balance. */
@@ -107,6 +109,18 @@ export async function checkAgentInput(db: SupabaseClient, owner: string, input: 
   if (strategyNeedsPerps(strategy) && !perps) throw new AgentInputError("Spike fade opens shorts, which trade perps. Switch to Perps to launch it.");
   // Real money stays on the strategies it has run with; Dip hunter is paper only for now.
   if (mode === "live" && (strategy === "dip_hunter" || strategy === "spike_fade")) throw new AgentInputError("Dip hunter and Spike fade trade paper money only for now.");
+  // DCA: paper, spot and rules only for now (each small live buy would pay gas; the database checks it too).
+  let dcaChoice: { buys: number; everyHours: number } | null = null;
+  if (strategy === "dca") {
+    if (perps) throw new AgentInputError("DCA buys spot tokens. Switch to Spot.");
+    if (mode === "live") throw new AgentInputError("DCA trades paper money only for now.");
+    const raw = (input.dca ?? {}) as { buys?: unknown; everyHours?: unknown };
+    const buys = Number(raw.buys);
+    const everyHours = Number(raw.everyHours);
+    if (!(DCA_BUYS as readonly number[]).includes(buys)) throw new AgentInputError(`Pick ${DCA_BUYS.join(", ")} buys.`);
+    if (!DCA_CADENCES.some((cadence) => cadence.everyHours === everyHours)) throw new AgentInputError("Pick daily or weekly buys.");
+    dcaChoice = { buys, everyHours };
+  }
 
   let rules: Rules | undefined;
   if (strategy === "custom") {
@@ -122,6 +136,7 @@ export async function checkAgentInput(db: SupabaseClient, owner: string, input: 
   // Only models from our list; whether credits cover it is checked every hour.
   const aiModelId = typeof input.aiModel === "string" && input.aiModel ? input.aiModel : null;
   if (aiModelId && !aiModel(aiModelId)) throw new AgentInputError("Pick an AI model from the list, or turn the co-pilot off.");
+  if (aiModelId && strategy === "dca") throw new AgentInputError("DCA buys on a schedule, with no signals for the AI co-pilot to review. Turn it off to launch.");
   if (aiModelId && mode === "live") throw new AgentInputError("Real money agents trade on their rules alone. Turn the AI co-pilot off to launch.");
   let aiLimit: AiLimit | null = null;
   if (aiModelId) {
@@ -152,7 +167,8 @@ export async function checkAgentInput(db: SupabaseClient, owner: string, input: 
   // Every token (stock, coin or perp) must be on the allowlist and have enough clean history right now.
   const market = await getMarket(db, { perps });
   const lastIndex = market.hours - 1;
-  const lookback = rules ? rulesLookback(rules) : LOOKBACK_HOURS;
+  // DCA needs no history, only a price.
+  const lookback = rules ? rulesLookback(rules) : strategy === "dca" ? 0 : LOOKBACK_HOURS;
   // Live agents swap on Uniswap v3 pools only (what SwapRouter02 and the wallet policy allow).
   if (mode === "live") {
     const { data: v3 } = await db.from("tokens").select("address").eq("enabled", true).eq("pool_kind", "v3").in("address", tokens);
@@ -175,7 +191,15 @@ export async function checkAgentInput(db: SupabaseClient, owner: string, input: 
     owner,
     name,
     strategy,
-    params: { max_position_pct: maxPositionPct, stop_loss_pct: stopLossPct, start_prices: startPrices, ...(rules ? { rules } : {}), ...(perps ? { venue: "perps" } : {}) },
+    params: {
+      max_position_pct: maxPositionPct,
+      stop_loss_pct: stopLossPct,
+      start_prices: startPrices,
+      ...(rules ? { rules } : {}),
+      ...(perps ? { venue: "perps" } : {}),
+      // The first buy is the first hour the agent decides on: the hour after the newest close.
+      ...(dcaChoice ? { dca: { ...dcaChoice, startTs: market.startTs + (lastIndex + 1) * 3600 } } : {}),
+    },
     token_addresses: tokens,
     start_capital: capital,
     cash: capital,

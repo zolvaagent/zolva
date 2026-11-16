@@ -15,6 +15,8 @@ export type RobustnessSettings = {
   tokens: string[];
   maxPositionPct: number;
   stopLossPct: number;
+  /** DCA only: the schedule (the first buy is each test window's first hour). */
+  dca?: { buys: number; everyHours: number };
 };
 
 type Ready = Extract<RobustnessReport, { ok: true }>;

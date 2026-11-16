@@ -57,7 +57,9 @@ function windowFor(market: Market, tokens: MarketToken[], params: AgentParams): 
   return lastIndex - fromIndex + 1 >= MIN_WINDOW_DAYS * 24 ? { tokens, fromIndex, lastIndex } : null;
 }
 
-function run(market: Market, window: Window, params: AgentParams, capital: number, costScale = 1) {
+function run(market: Market, window: Window, agentParams: AgentParams, capital: number, costScale = 1) {
+  // DCA's first buy is the window's first hour.
+  const params = agentParams.dca ? { ...agentParams, dca: { ...agentParams.dca, startTs: market.startTs + window.fromIndex * HOUR_SECONDS } } : agentParams;
   const series = Object.fromEntries(window.tokens.map((token) => [token.address, token.closes]));
   const perps = params.venue === "perps";
   const result = simulate({

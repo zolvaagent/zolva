@@ -16,7 +16,7 @@
  */
 import { z } from "zod";
 
-import { STUDIO_STRATEGIES } from "../agents/copy";
+import { DCA_BUYS, DCA_CADENCES, STUDIO_STRATEGIES } from "../agents/copy";
 import type { ApiCaller, ApiKeyScope } from "../api-keys/keys";
 import type { AgentSummary } from "../data/agents";
 import { parseRules, rulesLookback } from "../engine/rules";
@@ -64,6 +64,8 @@ export type AgentDraft = {
   aiModel?: string;
   aiLimitUsd?: number;
   aiExpiryDays?: number;
+  /** DCA only: how many buys and how often. */
+  dca?: { buys: number; everyHours: number };
 };
 
 export type ClaimResult =
@@ -190,13 +192,20 @@ const backtestShape = {
 
 const createShape = {
   name: z.string().min(1).max(40).describe("The agent's name, up to 40 characters"),
-  strategy: z.enum(STUDIO_STRATEGIES).describe("Preset or custom (needs rules). spike_fade opens shorts and needs venue perps"),
+  strategy: z.enum(STUDIO_STRATEGIES).describe("Preset or custom (needs rules). spike_fade opens shorts and needs venue perps. dca buys on a schedule and never sells (needs dca, spot, no aiModel)"),
   markets,
   venue,
   capital: z.number().min(1000).max(1_000_000).describe("Virtual dollars, 1000 to 1000000"),
   maxPositionPct: z.number().int().min(10).max(100).describe("Most of the capital in one market, 10 to 100"),
   stopLossPct: z.number().int().min(2).max(25).describe("Stop loss per position, 2 to 25"),
   rules: rules.optional(),
+  dca: z
+    .object({
+      buys: z.number().int().refine((value) => (DCA_BUYS as readonly number[]).includes(value), `One of ${DCA_BUYS.join(", ")}`).describe(`Number of equal buys: ${DCA_BUYS.join(", ")}`),
+      everyHours: z.number().int().refine((value) => DCA_CADENCES.some((cadence) => cadence.everyHours === value), "24 or 168").describe("Hours between buys: 24 (daily) or 168 (weekly)"),
+    })
+    .optional()
+    .describe("dca only: the schedule. The first buy is the agent's first hour; capital is split equally across the buys and the markets"),
   strategyPrompt: z.string().max(USER_TEXT_LIMITS.prompt).optional().describe("Custom only: the plain words the rules came from, read by the AI co-pilot"),
   aiModel: z.string().max(80).optional().describe("AI co-pilot model id (needs the ai scope); leave out for rules only"),
   aiLimitUsd: z.number().positive().optional().describe("With aiModel: the most the co-pilot may spend, USD"),
@@ -351,6 +360,7 @@ export const ACTIONS = {
         aiModel: input.aiModel,
         aiLimitUsd: input.aiLimitUsd,
         aiExpiryDays: input.aiExpiryDays,
+        ...(input.dca ? { dca: input.dca } : {}),
       };
 
       if (!input.confirm) {

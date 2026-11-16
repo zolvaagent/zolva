@@ -23,7 +23,7 @@ import { dayAt, percent, usd } from "@/lib/format";
 import { track } from "@/lib/funnel";
 import { openingPreset, PRESET_MAX_POSITION_PCT, PRESET_STOP_LOSS_PCT, scorePresets, suggestedName, type ScoredPreset } from "@/lib/studio/presets";
 import type { Market } from "@/lib/data/market";
-import { maxMarketsFor, strategyNeedsPerps, type StudioStrategy } from "@/lib/agents/copy";
+import { DCA_BUYS, DCA_CADENCES, maxMarketsFor, strategyNeedsPerps, type StudioStrategy } from "@/lib/agents/copy";
 
 const BACKTEST_HOURS = 30 * 24;
 const MAX_ACTIVE = 5;
@@ -75,6 +75,9 @@ type StudioDraft = {
   aiLimitTouched: boolean;
   customMode: CustomMode;
   generated: Generated | null;
+  /** DCA schedule; missing on drafts saved before DCA. */
+  dcaBuys?: number;
+  dcaEveryHours?: number;
 };
 
 function saveDraft(draft: Omit<StudioDraft, "savedAt">): void {
@@ -114,8 +117,8 @@ function readDraft(market: Market): StudioDraft | null {
   return symbols.length ? { ...draft, symbols } : null;
 }
 
-/** Dip hunter and Spike fade enter one market at a time, so they cannot trade real money yet. */
-const PAPER_ONLY_STRATEGIES: readonly Strategy[] = ["dip_hunter", "spike_fade"];
+/** Dip hunter and Spike fade enter one market at a time, so they cannot trade real money yet; DCA's small buys would each pay gas. */
+const PAPER_ONLY_STRATEGIES: readonly Strategy[] = ["dip_hunter", "spike_fade", "dca"];
 
 export function Studio({
   market,
@@ -135,7 +138,7 @@ export function Studio({
   const router = useRouter();
   const toast = useToast();
   const { address, openLogin } = useAuth();
-  const startStrategy: Strategy = initialStrategy === "mean_reversion" || initialStrategy === "custom" ? initialStrategy : "momentum";
+  const startStrategy: Strategy = initialStrategy === "mean_reversion" || initialStrategy === "custom" || initialStrategy === "dca" ? initialStrategy : "momentum";
   const startStock = market.tokens.find((token) => token.symbol === initialStock?.toUpperCase() && token.venue !== "lighter")?.symbol ?? "NVDA";
 
   // Until the user types a name, the agent is named after its markets and strategy.
@@ -149,6 +152,10 @@ export function Studio({
   const templateSymbols = template?.symbols.filter((symbol) => market.tokens.some((token) => token.symbol === symbol)) ?? [];
   const [strategy, setStrategy] = useState<Strategy>(template?.strategy ?? opening?.strategy ?? startStrategy);
   const [rules, setRules] = useState<Rules>(clone(template?.rules ?? RULE_TEMPLATES.momentum));
+  // DCA: how many equal buys and how often (lib/engine/engine.ts dcaHour).
+  const [dcaBuys, setDcaBuys] = useState<number>(DCA_BUYS[0]);
+  const [dcaEveryHours, setDcaEveryHours] = useState<number>(DCA_CADENCES[1].everyHours);
+  const dca = strategy === "dca";
   const [symbols, setSymbols] = useState<string[]>(templateSymbols.length ? templateSymbols : opening ? [...opening.symbols] : [startStock]);
   // Spot: stock and crypto tokens on the DEX. Perps: Lighter perps, paper only, the venue for shorts.
   const [venue, setVenue] = useState<Venue>(template?.venue ?? "spot");
@@ -200,7 +207,15 @@ export function Studio({
     const series = Object.fromEntries(symbols.map((symbol) => [symbol, market.tokens.find((token) => token.symbol === symbol)!.closes]));
     const result = simulate({
       series,
-      params: { strategy, rules: strategy === "custom" ? rules : undefined, maxPositionPct, stopLossPct, ...(perps ? { venue: "perps" as const } : {}) },
+      params: {
+        strategy,
+        rules: strategy === "custom" ? rules : undefined,
+        maxPositionPct,
+        stopLossPct,
+        ...(perps ? { venue: "perps" as const } : {}),
+        // DCA's first buy is the backtest's first hour.
+        ...(dca ? { dca: { buys: dcaBuys, everyHours: dcaEveryHours, startTs: market.startTs + fromIndex * 3600 } } : {}),
+      },
       capital: agentCapital,
       fromIndex,
       times: market.tokens[0].closes.map((_, i) => market.startTs + i * 3600),
@@ -209,7 +224,7 @@ export function Studio({
     });
     const hold = buyAndHold(series, agentCapital, fromIndex);
     return { result, hold, edge: result.returnPct - hold.returnPct };
-  }, [symbols, strategy, rules, maxPositionPct, stopLossPct, agentCapital, market, fromIndex, ruleErrors.length, perps]);
+  }, [symbols, strategy, rules, maxPositionPct, stopLossPct, agentCapital, market, fromIndex, ruleErrors.length, perps, dca, dcaBuys, dcaEveryHours]);
 
   const toggleSymbol = (symbol: string) => setSymbols((list) => (list.includes(symbol) ? list.filter((item) => item !== symbol) : list.length >= maxMarkets ? list : [...list, symbol]));
 
@@ -218,6 +233,8 @@ export function Studio({
     setStrategy(next);
     setSymbols((list) => list.slice(0, maxMarketsFor(next)));
     if (PAPER_ONLY_STRATEGIES.includes(next)) setMode("paper");
+    // DCA buys on a schedule: no signals for the AI co-pilot to review.
+    if (next === "dca") setAiModelId(null);
   };
 
   /** Spot and perps have different markets: switching starts the pick over (perps also means paper only). */
@@ -228,6 +245,8 @@ export function Studio({
     setSymbols(first ? [first.symbol] : []);
     if (next === "perps") setMode("paper");
     if (next === "spot" && strategyNeedsPerps(strategy)) setStrategy("momentum");
+    // DCA buys spot tokens only.
+    if (next === "perps" && strategy === "dca") setStrategy("momentum");
   };
 
   // Set when a draft saved before a login came back after a reload: the launch dialog opens
@@ -256,6 +275,8 @@ export function Studio({
     setAiLimitTouched(draft.aiLimitTouched);
     setCustomMode(draft.customMode);
     setGenerated(draft.generated);
+    if (draft.dcaBuys) setDcaBuys(draft.dcaBuys);
+    if (draft.dcaEveryHours) setDcaEveryHours(draft.dcaEveryHours);
     setDraftVersion((version) => version + 1);
     resumeLaunch.current = true;
   }, [market]);
@@ -277,7 +298,7 @@ export function Studio({
     };
     track("launch_click", address ? undefined : "logged_out");
     if (address) return show();
-    saveDraft({ name, nameTouched, strategy, rules, symbols, venue, capital, mode, liveCapital, maxPositionPct, stopLossPct, aiModelId, aiLimit, aiLimitTouched, customMode, generated });
+    saveDraft({ name, nameTouched, strategy, rules, symbols, venue, capital, mode, liveCapital, maxPositionPct, stopLossPct, aiModelId, aiLimit, aiLimitTouched, customMode, generated, dcaBuys, dcaEveryHours });
     openLogin(
       () => {
         clearDraft();
@@ -328,6 +349,7 @@ export function Studio({
         aiExpiryDays: aiModelId && !live ? aiLimit.days : undefined,
         // Only a prompt that actually produced these rules is kept.
         strategyPrompt: strategy === "custom" && customMode === "prompt" ? generated?.prompt : undefined,
+        dca: dca ? { buys: dcaBuys, everyHours: dcaEveryHours } : undefined,
       }),
     });
     const body = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
@@ -485,8 +507,53 @@ export function Studio({
                 text={perps ? "Shorts the strongest spike among up to 8 perps, one at a time. Paper only." : "Shorts the strongest spike. Perps only: switch Markets to trade to Perps."}
                 disabled={!perps}
               />
+              <StrategyChoice
+                value="dca"
+                current={strategy}
+                onChange={chooseStrategy}
+                glyph="ph-calendar-check"
+                title="DCA"
+                text={perps ? "Buys spot tokens on a schedule. Switch Markets to trade to Spot." : "Spreads your entry over time: the same amount on a schedule. Never sells. Paper only."}
+                disabled={perps}
+              />
             </div>
           </div>
+
+          {dca && (
+            <div className="form-section">
+              <div className="form-section__label" id="dca-label">
+                Schedule <span className="form-section__hint">Your capital split into equal buys</span>
+              </div>
+              <div className="dca-schedule">
+                <div className="tabs" role="radiogroup" aria-label="Number of buys">
+                  {DCA_BUYS.map((buys) => (
+                    <button key={buys} className="tab" type="button" role="radio" aria-checked={dcaBuys === buys} onClick={() => setDcaBuys(buys)}>
+                      {buys} buys
+                    </button>
+                  ))}
+                </div>
+                <div className="tabs" role="radiogroup" aria-label="How often">
+                  {DCA_CADENCES.map((cadence) => (
+                    <button
+                      key={cadence.everyHours}
+                      className="tab"
+                      type="button"
+                      role="radio"
+                      aria-checked={dcaEveryHours === cadence.everyHours}
+                      onClick={() => setDcaEveryHours(cadence.everyHours)}
+                    >
+                      {cadence.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="note">
+                <i className="ph ph-info" />
+                About {usd(agentCapital / dcaBuys)} per buy, {dcaEveryHours === 24 ? "every day" : "every week"} for {dcaEveryHours === 24 ? `${dcaBuys} days` : `${dcaBuys} weeks`}, split across your markets. It never sells: no exit and no stop loss.
+                Usually earns less than buying everything at once, with smaller swings.
+              </p>
+            </div>
+          )}
 
           {strategy === "custom" && (
             <PromptWriter
@@ -507,7 +574,7 @@ export function Studio({
           )}
           {strategy === "custom" && <RuleBuilder rules={rules} onChange={setRules} errors={showErrors ? ruleErrors : []} />}
 
-          {!live && (
+          {!live && !dca && (
           <AiCopilotPicker
             value={aiModelId}
             onChange={chooseAiModel}
@@ -605,6 +672,9 @@ export function Studio({
           </div>
           )}
 
+          {/* DCA has no max position and no stop loss: it only buys on its schedule. */}
+          {!dca && (
+          <>
           <div className="form-section">
             <label className="form-section__label" htmlFor="max-position">
               Max per token <span className="form-section__hint">Share of the agent&apos;s money in one stock or coin</span>
@@ -628,6 +698,8 @@ export function Studio({
               Checked once an hour, so a fast drop can go past it.
             </p>
           </div>
+          </>
+          )}
         </form>
 
         <aside className="studio__result" aria-live="polite">
@@ -647,12 +719,14 @@ export function Studio({
               endTs={market.startTs + last * 3600}
               strategy={strategy}
               perps={perps}
+              dcaBuys={dca ? dcaBuys : null}
               onLaunch={openLaunch}
               robustness={
                 <RobustnessCheck
                   settings={{
                     strategy,
                     ...(strategy === "custom" ? { rules } : {}),
+                    ...(dca ? { dca: { buys: dcaBuys, everyHours: dcaEveryHours } } : {}),
                     venue,
                     tokens: symbols.map((symbol) => market.tokens.find((token) => token.symbol === symbol)!.address),
                     maxPositionPct,
@@ -772,6 +846,7 @@ function BacktestCard({
   endTs,
   strategy,
   perps,
+  dcaBuys,
   onLaunch,
   robustness,
 }: {
@@ -781,11 +856,15 @@ function BacktestCard({
   endTs: number;
   strategy: Strategy;
   perps: boolean;
+  /** DCA only: the planned number of buys. */
+  dcaBuys: number | null;
   onLaunch: () => void;
   /** The "Check robustness" block, shown above Launch. */
   robustness: ReactNode;
 }) {
   const { result, hold, edge } = backtest;
+  // DCA: scheduled buys made in the window (one hour can buy several markets).
+  const dcaMade = new Set(result.fills.map((fill) => fill.index)).size;
   const tradesPerWeek = (result.fills.length / 30) * 7;
   let verdict: { icon: string; text: string };
   if (result.returnPct > 0 && edge >= 0) verdict = { icon: "ph-fill ph-check-circle gain", text: `Beat simply holding these markets by ${Math.abs(edge).toFixed(1)} points over 30 days.` };
@@ -803,7 +882,7 @@ function BacktestCard({
           <div className={`big-number ${result.returnPct > 0.05 ? "gain" : result.returnPct < -0.05 ? "loss" : ""}`}>{percent(result.returnPct)}</div>
         </div>
         <div className="result-head__aside">
-          <div className="eyebrow">Holding instead</div>
+          <div className="eyebrow">{dcaBuys ? "Buying all at once" : "Holding instead"}</div>
           <div className="mono" style={{ fontSize: 20, lineHeight: "28px", fontWeight: 600 }}>
             {percent(hold.returnPct)}
           </div>
@@ -844,6 +923,15 @@ function BacktestCard({
         </div>
       </div>
 
+      {dcaBuys !== null && (
+        <p className="note">
+          <i className="ph ph-info" />
+          {dcaMade < dcaBuys
+            ? `In these 30 days it made ${dcaMade} of its ${dcaBuys} buys; the rest of the money is still cash, waiting for the next ones.`
+            : `It made all ${dcaBuys} buys in these 30 days and has held since.`}{" "}
+          &quot;Buying all at once&quot; puts everything in on the first day.
+        </p>
+      )}
       {tradesPerWeek > 14 && (
         <p className="note">
           <i className="ph ph-warning" />

@@ -24,6 +24,7 @@ export function describeAgent(params: AgentParams, options: SummaryOptions): str
   const lines: string[] = [];
 
   lines.push(`Trades ${list(options.symbols)}${perps ? " on Lighter perps" : ""}.`);
+  if (params.strategy === "dca") return [...lines, ...dcaLines(params, options)];
   lines.push(...strategyLines(params));
 
   if (params.rules?.takeProfitPct) lines.push(`Take profit: sells everything ${pct(params.rules.takeProfitPct)} above the entry price.`);
@@ -52,6 +53,21 @@ export function describeAgent(params: AgentParams, options: SummaryOptions): str
   return lines;
 }
 
+/** DCA has no signals, stop loss or max position: only the schedule. */
+function dcaLines(params: AgentParams, options: SummaryOptions): string[] {
+  const plan = params.dca;
+  const cadence = plan?.everyHours === 24 ? "day" : plan?.everyHours === 168 ? "week" : plan ? hours(plan.everyHours) : "period";
+  return [
+    plan
+      ? `Buys the same dollar amount ${plan.buys} times, once a ${cadence}, split equally across its markets: about 1/${plan.buys} of the starting cash each time.`
+      : "Buys the same dollar amount on a fixed schedule.",
+    "Never sells: no exit rule and no stop loss. When the buys are done it just holds.",
+    `Each buy pays ${pct(costRateFor(params.venue) * 100)} for fees and slippage.`,
+    "Usually earns less than buying everything at once, with smaller swings along the way.",
+    options.mode === "live" ? "Real money from your own wallet." : "Paper money: virtual dollars at real prices.",
+  ];
+}
+
 function strategyLines(params: AgentParams): string[] {
   switch (params.strategy) {
     case "momentum":
@@ -77,6 +93,8 @@ function strategyLines(params: AgentParams): string[] {
         `Covers once the z score is back to ${signed(BOUNCE_SHORT.exitZ)} or lower.`,
         "Holds one short at a time: the market with the deepest 7 day fall.",
       ];
+    case "dca":
+      return [];
     case "custom": {
       if (!params.rules) return [];
       const exit = params.rules.exit.conditions.length

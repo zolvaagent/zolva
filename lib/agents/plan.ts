@@ -3,7 +3,7 @@
  * database), so the hourly runner and the tests share it. The runner then
  * writes each planned hour atomically with the `apply_agent_hour` function.
  */
-import { costRateFor, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions, type Venue, type VolTargetSizing } from "../engine/engine.ts";
+import { costRateFor, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions, type DcaPlan, type Venue, type VolTargetSizing } from "../engine/engine.ts";
 import type { Rules } from "../engine/rules.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
@@ -26,6 +26,8 @@ export type AgentRow = {
     leverage?: number;
     /** Volatility sizing (custom rules on perps only); missing means the fixed max position share. */
     sizing?: VolTargetSizing;
+    /** DCA only: the buying schedule (see engine DcaPlan). */
+    dca?: DcaPlan;
   };
   token_addresses: string[];
   start_capital: number;
@@ -74,6 +76,9 @@ export function agentParams(agent: AgentRow): AgentParams {
     ...(agent.params.leverage ? { leverage: Number(agent.params.leverage) } : {}),
     ...(agent.params.sizing
       ? { sizing: { kind: "volTarget" as const, targetPct: Number(agent.params.sizing.targetPct), hours: Number(agent.params.sizing.hours) } }
+      : {}),
+    ...(agent.params.dca
+      ? { dca: { buys: Number(agent.params.dca.buys), everyHours: Number(agent.params.dca.everyHours), startTs: Number(agent.params.dca.startTs) } }
       : {}),
   };
 }

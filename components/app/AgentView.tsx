@@ -272,8 +272,10 @@ export function AgentView({
       : []),
     ["Stocks", summary.tokens.map((token) => token.symbol).join(", ")],
     ["Starting capital", usd(summary.startCapital)],
-    ["Max per stock", `${agent.params.max_position_pct}%`],
-    ["Stop loss", `${agent.params.stop_loss_pct}%`],
+    // DCA has no max position or stop loss: its schedule instead.
+    ...(engineParams.dca
+      ? ([["Schedule", `${engineParams.dca.buys} buys, ${engineParams.dca.everyHours === 24 ? "daily" : engineParams.dca.everyHours === 168 ? "weekly" : `every ${engineParams.dca.everyHours} hours`}`], ["Stop loss", "None, never sells"]] as [string, string][])
+      : ([["Max per stock", `${agent.params.max_position_pct}%`], ["Stop loss", `${agent.params.stop_loss_pct}%`]] as [string, string][])),
     ...(rules?.takeProfitPct
       ? ([["Take profit", `${rules.takeProfitPct}%`]] as [string, string][])
       : []),

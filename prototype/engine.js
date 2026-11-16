@@ -197,6 +197,9 @@
    *                                             resize once a day (00:00 UTC) when more than 25% off
    * @param {number[]} [options.times]           hour start per index (unix seconds), default index x 3600
    * @param {number} [options.costScale]         multiplies the cost per fill (2 = double costs), default 1
+   * @param {{buys: number, everyHours: number, startTs: number}} [options.dca]  strategy "dca" only: buy cash / buys left,
+   *                                             split equally across its markets, at startTs and every everyHours
+   *                                             after, `buys` times; never sells (no stop loss, no max position)
    */
   function simulate(options) {
     const perps = options.venue === "perps";
@@ -225,6 +228,11 @@
       for (const token of options.tokens) prices[token.symbol] = token.closes[index];
       const equityBefore = equityAt(cash, positions, prices);
       const hourTime = options.times ? options.times[index] : index * 3600;
+      if (options.strategy === "dca") {
+        cash = dcaHour(options.dca, options.tokens, positions, prices, cash, index, hourTime, cost, trades);
+        runs.push({ index, equity: equityAt(cash, positions, prices), cash, decisions: [] });
+        continue;
+      }
       const resizeHour = sizing !== undefined && hourTime % 86400 === 0;
       const decisions = [];
       // One position strategies: decided from the positions held at the start of the hour.
@@ -455,6 +463,29 @@
       winRatePct: closedTrades.length ? (closedTrades.filter((profit) => profit > 0).length / closedTrades.length) * 100 : null,
       roundTrips: closedTrades.length,
     };
+  }
+
+  /** One DCA hour: on schedule, buy cash / buys left split across all markets (unpriced ones keep theirs in cash). Returns the new cash. */
+  function dcaHour(plan, tokens, positions, prices, cash, index, hourTime, cost, trades) {
+    const every = plan.everyHours * 3600;
+    const done = hourTime < plan.startTs ? 0 : Math.floor((hourTime - plan.startTs) / every);
+    const scheduled = hourTime >= plan.startTs && (hourTime - plan.startTs) % every === 0 && done < plan.buys;
+    if (!scheduled) return cash;
+    const priced = tokens.filter((token) => prices[token.symbol] != null);
+    if (!priced.length) return cash;
+    const share = cash / (plan.buys - done) / tokens.length;
+    if (share < 1) return cash;
+    for (const token of priced) {
+      const price = prices[token.symbol];
+      const quantity = (share * (1 - cost)) / price;
+      const position = positions[token.symbol];
+      cash -= share;
+      positions[token.symbol] = position
+        ? { ...position, quantity: position.quantity + quantity, entryPrice: (position.quantity * position.entryPrice + share) / (position.quantity + quantity) }
+        : { quantity, entryPrice: share / quantity, openedIndex: index };
+      trades.push({ index, symbol: token.symbol, side: "buy", quantity, price, costUsd: share * cost, reason: "signal" });
+    }
+    return cash;
   }
 
   /**

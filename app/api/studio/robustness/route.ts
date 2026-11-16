@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
+import { DCA_BUYS, DCA_CADENCES, maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 import { getMarket } from "@/lib/data/market";
 import type { AgentParams } from "@/lib/engine/engine";
 import { parseRules } from "@/lib/engine/rules";
@@ -46,7 +46,17 @@ export async function POST(request: NextRequest) {
   const maxMarkets = maxMarketsFor(strategy);
   if (tokens.length < 1 || tokens.length > maxMarkets) return NextResponse.json({ error: `Pick 1 to ${maxMarkets} markets.` }, { status: 400 });
 
-  const params: AgentParams = { strategy, ...(rules ? { rules } : {}), maxPositionPct, stopLossPct, ...(perps ? { venue: "perps" as const } : {}) };
+  let dca: AgentParams["dca"];
+  if (strategy === "dca") {
+    const raw = (body.dca ?? {}) as { buys?: unknown; everyHours?: unknown };
+    const buys = Number(raw.buys);
+    const everyHours = Number(raw.everyHours);
+    if (perps) return NextResponse.json({ error: "DCA buys spot tokens." }, { status: 400 });
+    if (!(DCA_BUYS as readonly number[]).includes(buys) || !DCA_CADENCES.some((cadence) => cadence.everyHours === everyHours)) return NextResponse.json({ error: "Pick a DCA schedule." }, { status: 400 });
+    // startTs is set per test window (lib/studio/robustness.ts).
+    dca = { buys, everyHours, startTs: 0 };
+  }
+  const params: AgentParams = { strategy, ...(rules ? { rules } : {}), maxPositionPct, stopLossPct, ...(perps ? { venue: "perps" as const } : {}), ...(dca ? { dca } : {}) };
   const market = await getMarket(db(), { perps: true, hours: ROBUSTNESS_HOURS });
   const report = checkRobustness(market, tokens, params);
   if (!report.ok) return NextResponse.json({ error: report.reason }, { status: 422 });

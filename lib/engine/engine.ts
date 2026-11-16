@@ -35,6 +35,11 @@
  *   position is resized to that share when it is more than RESIZE_BAND away from it; the resize
  *   pays the cost on the change only and keeps the first entry price, so the stop does not move.
  *   Research: docs/perps-research.md, "Round 2 on alt perps".
+ * - DCA (dollar cost averaging, spot paper only, `params.dca`): no signals and no exits. On each
+ *   scheduled hour (startTs, then every everyHours, `buys` times) it buys cash / buys left, split
+ *   equally across its markets; a market without a price that hour keeps its share in cash for
+ *   the next buys. Adding to a holding moves its entry to the average paid. Stop loss and max
+ *   position do not apply. Research: docs/perps-research.md, "DCA template check".
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
 import { decide, presetLookback, type RuleCheck, type StrategyKey } from "./strategies.ts";
@@ -76,7 +81,12 @@ export type AgentParams = {
    * the population standard deviation of the last `hours` hourly log returns x sqrt(8760).
    */
   sizing?: VolTargetSizing;
+  /** DCA only: the buying schedule. */
+  dca?: DcaPlan;
 };
+
+/** DCA: `buys` equal buys, the first at startTs (unix seconds, start of an hour), then every everyHours. */
+export type DcaPlan = { buys: number; everyHours: number; startTs: number };
 
 export type VolTargetSizing = { kind: "volTarget"; targetPct: number; hours: number };
 
@@ -206,6 +216,7 @@ export function runHour(
   hourTime: number = index * 3600,
   options: RunHourOptions = {},
 ): HourResult {
+  if (params.strategy === "dca") return dcaHour(state, params, series, index, hourTime, options);
   const rules = params.strategy === "custom" ? params.rules : undefined;
   if (params.strategy === "custom" && !rules) throw new Error("Custom strategy without rules");
   const lookback = paramsLookback(params);
@@ -520,6 +531,62 @@ function coverAll(token: string, position: Position, price: number, reason: Fill
 function sellAll(token: string, position: Position, price: number, reason: Fill["reason"], cost: number): Fill {
   const gross = position.quantity * price;
   return { token, side: "sell", quantity: position.quantity, price, costUsd: gross * cost, reason, entryPrice: position.entryPrice };
+}
+
+/**
+ * One DCA hour (see the rules at the top): a scheduled buy, or a hold that says when the next one is.
+ * It never sells, so it has no stop loss and no max position.
+ */
+function dcaHour(state: AgentState, params: AgentParams, series: Record<string, (number | null)[]>, index: number, hourTime: number, options: RunHourOptions): HourResult {
+  const plan = params.dca;
+  if (!plan) throw new Error("DCA strategy without a plan");
+  const tokens = Object.keys(series);
+  const prices: Record<string, number | null> = Object.fromEntries(tokens.map((token) => [token, series[token][index] ?? null]));
+  const cost = costRateFor(params.venue) * (options.costScale ?? 1);
+  const every = plan.everyHours * 3600;
+  const done = hourTime < plan.startTs ? 0 : Math.floor((hourTime - plan.startTs) / every);
+  const scheduled = hourTime >= plan.startTs && (hourTime - plan.startTs) % every === 0 && done < plan.buys;
+  const priced = tokens.filter((token) => prices[token] != null);
+
+  let cash = state.cash;
+  const positions: Record<string, Position> = { ...state.positions };
+  const decisions: Decision[] = [];
+  const fills: Fill[] = [];
+  // Cash / buys left, so every buy is about the same size, split equally across all its markets; a
+  // market without a price keeps its share in cash, and later buys spread it out.
+  const share = scheduled && priced.length ? cash / (plan.buys - done) / tokens.length : 0;
+  const number = done + 1;
+
+  for (const token of tokens) {
+    const price = prices[token];
+    if (price == null) {
+      decisions.push({ token, action: "hold", reasoning: scheduled ? "No price this hour. This market's share stays in cash for the next buy." : "No price yet. Waiting." });
+      continue;
+    }
+    const position = positions[token];
+    const context = { price, ...(position ? { position: { entryPrice: position.entryPrice, heldHours: position.openedAt === undefined ? null : Math.round((hourTime - position.openedAt) / 3600) } } : {}) };
+    if (scheduled && share >= 1) {
+      const quantity = (share * (1 - cost)) / price;
+      cash -= share;
+      // Entry is the average paid per token, cost included.
+      positions[token] = position
+        ? { ...position, quantity: position.quantity + quantity, entryPrice: (position.quantity * position.entryPrice + share) / (position.quantity + quantity) }
+        : { quantity, entryPrice: share / quantity, openedAt: hourTime };
+      fills.push({ token, side: "buy", quantity, price, costUsd: share * cost, reason: "signal" });
+      decisions.push({ token, action: "buy", reasoning: `Scheduled buy ${number} of ${plan.buys}: ${formatUsd(share)} at ${formatUsd(price)}.`, ...context });
+      continue;
+    }
+    const left = plan.buys - (hourTime < plan.startTs ? 0 : Math.min(plan.buys, done + 1));
+    const nextTs = hourTime < plan.startTs ? plan.startTs : plan.startTs + (done + 1) * every;
+    const reasoning =
+      scheduled
+        ? "Scheduled buy, but too little cash left for this market. Holding."
+        : left <= 0
+          ? `All ${plan.buys} buys done. Holding with no exit.`
+          : `Next scheduled buy in ${Math.round((nextTs - hourTime) / 3600)} hours (${plan.buys - left} of ${plan.buys} done).`;
+    decisions.push({ token, action: "hold", reasoning, ...context });
+  }
+  return { state: { cash, positions }, decisions, fills, equity: equityAt({ cash, positions }, prices) };
 }
 
 /** Cash plus positions at the given prices (a short: locked cash plus gain); a token without a price is valued at its entry. */
