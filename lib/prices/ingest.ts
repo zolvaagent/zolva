@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { env } from "@/lib/env";
 import { completeHoursOnly, fetchHourlyCandles, repairBatch, REQUEST_SPACING_MS, sleep, toCandleRow } from "@/lib/prices/geckoterminal";
-import { fetchLighterHours } from "@/lib/prices/lighter";
+import { fetchLighterHours, fetchLighterOpenInterest } from "@/lib/prices/lighter";
 import { blockBefore, checkAgainstFeeds, createChainClient, readFeedPrices, readPrices, type PricePool } from "@/lib/prices/onchain";
 
 const HOUR_MS = 3_600_000;
@@ -157,6 +157,27 @@ export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Da
     } catch (cause) {
       // Only perps agents depend on this; DEX agents and prices are unaffected.
       result.failed.push({ step: `lighter ${token.symbol}`, error: cause instanceof Error ? cause.message : String(cause) });
+    }
+  }
+
+  // 4. Lighter open interest (Lab oiChange gate): Lighter has no history of it, so each tick stores the
+  // current value on the newest complete hour. A missed tick leaves that hour empty, which only keeps
+  // the gate closed; the second tick of the hour (pg_cron backup) rewrites the same hour.
+  if (perps.length) {
+    try {
+      const openInterest = await fetchLighterOpenInterest();
+      const newestHour = new Date(currentHourStart - HOUR_MS).toISOString();
+      for (const token of perps) {
+        const value = openInterest.get(Number(token.lighter_market_id));
+        if (value === undefined) {
+          result.warnings.push({ step: `open interest ${token.symbol}`, error: "not in Lighter's order book list" });
+          continue;
+        }
+        const { error: oiError } = await db.from("candles").update({ open_interest: value }).eq("token_address", token.address).eq("ts", newestHour);
+        if (oiError) result.warnings.push({ step: `open interest ${token.symbol}`, error: oiError.message });
+      }
+    } catch (cause) {
+      result.warnings.push({ step: "open interest", error: cause instanceof Error ? cause.message : String(cause) });
     }
   }
 

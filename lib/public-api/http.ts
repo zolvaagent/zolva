@@ -5,18 +5,19 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { checkApiKey, type KeyCheck } from "@/lib/api-keys/server";
 import { API_VERSION } from "@/lib/public-api/format";
+import { API_KEYS_URL, IP_LIMIT_MESSAGE, KEY_LIMIT_MESSAGES } from "@/lib/public-api/limits";
 import { db } from "@/lib/supabase";
 
 /**
  * Shared plumbing for every public API v1 route:
- * - a per-IP limit (Cloudflare rate limiting binding PUBLIC_API_LIMITER, 60 a minute;
+ * - a per-IP limit (Cloudflare rate limiting binding PUBLIC_API_LIMITER, see limits.ts;
  *   skipped where the binding does not exist, such as next dev),
  * - an edge cache (the Worker's Cache API) so repeated calls do not reach Supabase,
  * - open CORS, since the data is public and read-only,
  * - one error shape: { "error": { "code", "message" } },
  * - API keys: "Authorization: Bearer zk_..." (lib/api-keys). A valid key swaps the per-IP
- *   limit for the key's own limits (API_KEY_READ_LIMITER 120 a minute, API_KEY_WRITE_LIMITER
- *   30 a minute); a wrong or revoked key is a 401, never a silent fall back to keyless.
+ *   limit for the key's own limits (API_KEY_READ_LIMITER and API_KEY_WRITE_LIMITER, numbers
+ *   in limits.ts); a wrong or revoked key is a 401, never a silent fall back to keyless.
  */
 
 type RateLimiter = { limit: (options: { key: string }) => Promise<{ success: boolean }> };
@@ -75,11 +76,9 @@ export function checkRequestKey(request: Request): Promise<KeyCheck> {
   return checkApiKey(db(), request.headers);
 }
 
-export const INVALID_KEY_MESSAGE = "This API key is wrong or was revoked. Make a new one on your Zolva Dashboard.";
-export const KEY_LIMIT_MESSAGES: Record<KeyLimitKind, string> = {
-  read: "Too many requests for this API key: 120 a minute.",
-  write: "Too many writes for this API key: 30 a minute.",
-};
+export const INVALID_KEY_MESSAGE = `This API key is wrong or was revoked. Make a new one in your Zolva Settings: ${API_KEYS_URL}`;
+export const KEY_REQUIRED_MESSAGE = `Send an API key: Authorization: Bearer zk_... Make one in your Zolva Settings: ${API_KEYS_URL}`;
+export { IP_LIMIT_MESSAGE, KEY_LIMIT_MESSAGES };
 
 /**
  * A JSON body from the edge cache, or from the loader (then stored for maxAge seconds).
@@ -111,7 +110,7 @@ export async function publicGet(request: NextRequest, maxAge: number, handler: (
   if (key.kind === "invalid") return apiError(401, "invalid_api_key", INVALID_KEY_MESSAGE);
   const limit = key.kind === "ok" ? await checkKeyLimit(key.caller.keyId, "read") : await checkLimit(request);
   if (limit === "limited") {
-    const message = key.kind === "ok" ? KEY_LIMIT_MESSAGES.read : "Too many requests: about 60 a minute per IP. Cache responses on your side.";
+    const message = key.kind === "ok" ? KEY_LIMIT_MESSAGES.read : IP_LIMIT_MESSAGE;
     return apiError(429, "rate_limited", message, { "Retry-After": "60" });
   }
   // Says whether the per-IP limit ran, so a missing binding shows up in any response.

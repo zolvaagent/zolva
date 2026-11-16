@@ -9,6 +9,9 @@ import type { AgentDetail, AgentSummary } from "../data/agents";
 import type { MarketDetail, MarketRow } from "../data/markets";
 import { STRATEGY_NAMES } from "../format";
 import { longbowListingFor, type LongbowListing } from "../longbow";
+import { agentParams } from "../agents/plan";
+import { describeAgent } from "../engine/summary";
+import { explainDecision } from "../engine/explain";
 
 export const API_VERSION = "v1";
 const SITE = "https://zolvaagent.app";
@@ -84,15 +87,16 @@ export function publicAgentDetail(detail: AgentDetail, nowSeconds: number) {
   const runs = [...detail.runs].sort((a, b) => a.ts - b.ts);
   const equity = runs.filter((run) => run.ts > nowSeconds - EQUITY_HOURS * 3600);
   const symbolOf = new Map(summary.tokens.map((token) => [token.address, token.symbol]));
+  const params = agentParams(agent as Parameters<typeof agentParams>[0]);
   const decisions = runs
     .filter((run) => run.ts > nowSeconds - DECISION_HOURS * 3600)
     .flatMap((run) =>
-      run.decisions.map((decision) => ({
-        at: iso(run.ts),
-        market: symbolOf.get(decision.token) ?? decision.token,
-        action: decision.action,
-        reasoning: decision.reasoning,
-      })),
+      run.decisions.map((decision) => {
+        const market = symbolOf.get(decision.token) ?? decision.token;
+        // The same plain-words details as the agent page (lib/engine/explain.ts); null for older hours.
+        const explanation = explainDecision(decision, params, market);
+        return { at: iso(run.ts), market, action: decision.action, reasoning: decision.reasoning, explanation: explanation?.paragraphs ?? null, checks: explanation?.checks ?? [] };
+      }),
     );
   return {
     agent: {
@@ -104,6 +108,12 @@ export function publicAgentDetail(detail: AgentDetail, nowSeconds: number) {
         rules: agent.strategy === "custom" ? (agent.params.rules ?? null) : null,
         aiCoPilot: agent.ai_model !== null,
       },
+      // The strategy in plain words, built from the settings (never AI), one sentence per item.
+      howItTrades: describeAgent(params, {
+        symbols: agent.token_addresses.map((address) => symbolOf.get(address) ?? address),
+        mode: agent.mode,
+        aiModel: agent.ai_model,
+      }),
     },
     // [time, agent value USD, value of holding the same markets USD], hourly, oldest first.
     equity: equity.map((run) => [iso(run.ts), round(run.equity, 2), round(run.holdEquity, 2)] as const),

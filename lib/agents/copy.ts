@@ -6,7 +6,7 @@
 import type { AgentSummary } from "@/lib/data/agents";
 
 /** Strategies the Studio builds. */
-export const STUDIO_STRATEGIES = ["momentum", "mean_reversion", "custom", "dip_hunter", "spike_fade"] as const;
+export const STUDIO_STRATEGIES = ["momentum", "mean_reversion", "custom", "dip_hunter", "spike_fade", "dca"] as const;
 export type StudioStrategy = (typeof STUDIO_STRATEGIES)[number];
 /** Most markets for momentum, mean reversion and custom agents. */
 export const STUDIO_MAX_MARKETS = 3;
@@ -20,6 +20,13 @@ export const STUDIO_MAX_MARKETS_WIDE = 8;
 export function maxMarketsFor(strategy: string): number {
   return strategy === "dip_hunter" || strategy === "spike_fade" ? STUDIO_MAX_MARKETS_WIDE : STUDIO_MAX_MARKETS;
 }
+
+/** DCA: how many buys and how often (the Studio's choices; agent creation accepts the same). */
+export const DCA_BUYS = [12, 26, 52] as const;
+export const DCA_CADENCES = [
+  { everyHours: 24, label: "Daily" },
+  { everyHours: 168, label: "Weekly" },
+] as const;
 
 /** Spike Fade opens shorts, and shorts trade perps only (spot is long only). */
 export function strategyNeedsPerps(strategy: string): boolean {

@@ -45,6 +45,7 @@ function toCreateInput(draft: AgentDraft): CreateAgentInput {
     // Never live over the API.
     mode: "paper",
     venue: draft.venue,
+    dca: draft.dca,
   };
 }
 

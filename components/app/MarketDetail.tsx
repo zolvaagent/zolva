@@ -90,7 +90,11 @@ export function MarketDetail({
             {row.assetClass === "crypto" ? (
               <span className="pill pill--running">Trades 24/7</span>
             ) : (
-              <span className={`pill ${marketOpen ? "pill--running" : "pill--paused"}`}>{marketOpen ? "US market open" : "US market closed"}</span>
+              <>
+                <span className={`pill ${marketOpen ? "pill--running" : "pill--paused"}`}>{marketOpen ? "US market open" : "US market closed"}</span>
+                {/* Off hours the token's price comes from onchain trading only and can drift from the stock. */}
+                {!marketOpen && <span className="pill" title="While Nasdaq is closed, this price comes from onchain trading only">Onchain price only</span>}
+              </>
             )}
             {session && blocksTrading(session.verdict) ? (
               <span className="pill pill--paused" title={session.reason}>

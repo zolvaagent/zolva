@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { DocsArticle, H2 } from "@/components/site/Docs";
 import { docPage } from "@/lib/docs";
+import { PREMIUM_ENDPOINTS } from "@/lib/x402/catalog";
 
 const page = docPage("faq");
 export const metadata: Metadata = { title: `${page.title} · Docs`, description: page.description };
@@ -16,27 +18,14 @@ const FAQ: [string, string][] = [
   ["Why compare with holding?", "Because it is the easiest alternative. If an agent cannot beat simply buying the same tokens and waiting, you should know before you trust it."],
   ["How many agents can I run?", "Up to five at once, each with its own virtual capital. Pause one to launch another."],
   ["Who can see my agents?", "Only you, until you publish one. Published agents appear on the leaderboard with their settings, decisions and trades."],
+  [
+    "What does Zolva cost?",
+    `Paper trading, the public API and the MCP server are free. The AI co-pilot and prompt mode run on AI credits (new accounts get $0.50 free). The premium API costs ${PREMIUM_ENDPOINTS.scan.price} USDG per market scan and ${PREMIUM_ENDPOINTS.backtest.price} USDG per backtest, paid per call over x402. Swaps between USDG, ETH, BTC, ZOLVA and Pons tokens carry a 0.25% Zolva fee; stock token swaps carry none.`,
+  ],
   ["What does the AI co-pilot cost?", "New accounts get $0.50 of free credits for Lite models. A typical Lite model costs cents a month, and every agent has its own spending limit and end date."],
   ["Who can use Zolva?", "Anyone outside the United States and sanctioned countries. Stock tokens are not offered to US persons."],
 ];
 
-const GLOSSARY: [string, string][] = [
-  ["Agent", "A strategy plus its markets and limits, running on its own every hour."],
-  ["Backtest", "A replay of the last 30 days with your exact settings, before you launch."],
-  ["Close", "The price at the end of an hour. Agents decide on hourly closes."],
-  ["Drawdown (worst drop)", "The largest fall from a previous high, in percent."],
-  ["Holding", "Buying the same tokens in equal parts at the start and never trading. The benchmark every agent is measured against."],
-  ["Max per token", "The largest share of an agent's value it puts into one token when it buys."],
-  ["Paper trading", "Trading with virtual money at real prices. Nothing is bought or sold for real."],
-  ["Pool", "The onchain market where a token trades against USDG. Zolva reads prices from it."],
-  ["RSI", "Relative strength index, 0 to 100: how much of the recent movement was up. Low values suggest oversold."],
-  ["Slippage", "The gap between the price you see and the price you get. Included in the 0.5% cost per trade."],
-  ["Stop loss", "An automatic sell when a position falls a set percentage below its entry price."],
-  ["Stock token", "A token on Robinhood Chain that tracks a US stock or ETF."],
-  ["Take profit", "An automatic sell when a position rises a set percentage above its entry price."],
-  ["USDG", "A dollar stablecoin on Robinhood Chain. Prices are quoted in it and counted as $1."],
-  ["Z score", "How far the price sits from its recent average, in standard deviations. −2 or lower is an unusual dip."],
-];
 
 /** FAQ structured data, so search engines can show the answers directly. */
 const FAQ_JSON_LD = {
@@ -59,15 +48,9 @@ export default function Faq() {
         ))}
       </div>
 
-      <H2 id="glossary">Glossary</H2>
-      <dl className="docs-glossary">
-        {GLOSSARY.map(([term, meaning]) => (
-          <div key={term}>
-            <dt>{term}</dt>
-            <dd>{meaning}</dd>
-          </div>
-        ))}
-      </dl>
+      <p>
+        Looking for a term? See the <Link href="/docs/glossary">Glossary</Link>.
+      </p>
     </DocsArticle>
   );
 }

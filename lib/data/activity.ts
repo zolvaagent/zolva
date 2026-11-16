@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isHouseOwner } from "@/lib/agents/house";
-import { summarize, type ActivityHour, type ActivitySummary, type ActivityTrade } from "@/lib/activity";
+import { summarize, type ActivityHour, type ActivityPass, type ActivitySummary, type ActivityTrade } from "@/lib/activity";
 
 /** Hours of history on the activity page. */
 export const ACTIVITY_HOURS = 48;
@@ -11,6 +11,8 @@ export const ACTIVITY_HOURS = 48;
 export type Activity = {
   hours: ActivityHour[];
   trades: ActivityTrade[];
+  /** Rule signals the AI co-pilot passed on. */
+  passes: ActivityPass[];
   /** Totals for the last 24 hours. */
   lastDay: ActivitySummary;
   /** Unix seconds when the report was built. */
@@ -32,7 +34,11 @@ type RawActivity = {
     cost_usd: number;
     reason: ActivityTrade["reason"];
     reasoning: string | null;
+    ai_verdict?: "approved" | "passed" | null;
+    ai_model?: string | null;
   }[];
+  /** Missing before migration 20261116000200_activity_ai_verdicts. */
+  passes?: { ts: string; agent_id: string; agent_name: string; owner: string; symbol: string; ai_model: string; ai_reasoning: string }[];
 };
 
 /** Every paper agent's hourly checks and trades over the last two days. */
@@ -56,6 +62,16 @@ export async function getActivity(db: SupabaseClient): Promise<Activity> {
     costUsd: Number(trade.cost_usd),
     reason: trade.reason,
     reasoning: trade.reasoning,
+    ai: trade.ai_verdict && trade.ai_model ? { verdict: trade.ai_verdict, model: trade.ai_model } : null,
   }));
-  return { hours, trades, lastDay: summarize(hours, trades, now - 24 * 3600), builtAt: now };
+  const passes = (raw.passes ?? []).map((pass) => ({
+    ts: Date.parse(pass.ts) / 1000,
+    agentId: pass.agent_id,
+    agentName: pass.agent_name,
+    isHouse: isHouseOwner(pass.owner),
+    symbol: pass.symbol,
+    model: pass.ai_model,
+    reasoning: pass.ai_reasoning,
+  }));
+  return { hours, trades, passes, lastDay: summarize(hours, trades, now - 24 * 3600), builtAt: now };
 }

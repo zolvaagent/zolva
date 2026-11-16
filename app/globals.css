@@ -2921,7 +2921,8 @@ main:focus {
   color: var(--color-text);
 }
 
-.tab[aria-selected="true"] {
+.tab[aria-selected="true"],
+.tab[aria-checked="true"] {
   background: var(--color-surface);
   color: var(--color-text);
   box-shadow: 0 1px 2px var(--color-shadow-soft);
@@ -7653,6 +7654,96 @@ button.text-link {
   white-space: nowrap;
 }
 
+/* A first column with long text (error messages) wraps instead of widening the table. */
+.docs-table td.docs-table__wrap {
+  min-width: 220px;
+  white-space: normal;
+}
+
+.docs-message {
+  display: block;
+}
+
+.docs-message + .docs-message {
+  margin-top: var(--space-50);
+}
+
+/* Name on top, then its type and whether it is required, so two columns fit a phone. */
+.docs-table td.docs-params__name {
+  width: 40%;
+  min-width: 128px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.docs-params__type {
+  display: block;
+  margin-top: var(--space-25);
+  color: var(--color-text-faint);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.docs-params__type strong {
+  color: var(--color-text-faint);
+  font-weight: 500;
+}
+
+.docs-params__empty {
+  color: var(--color-text-faint);
+}
+
+/* A sample conversation with an AI assistant on the MCP page. */
+.docs-chat {
+  display: grid;
+  gap: var(--space-100);
+  margin: 0;
+}
+
+.docs-chat__turn {
+  max-width: 85%;
+  padding: var(--space-100) var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+}
+
+.docs-chat__turn--user {
+  justify-self: end;
+  background: var(--color-bg-subtle);
+}
+
+.docs-chat__turn dt {
+  color: var(--color-text-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.docs-chat__turn dd {
+  margin: 0;
+}
+
+/* An endpoint or tool name as a heading: code at heading size, anchored below the sticky header. */
+.docs-body h3 code {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.docs-body h3[id] {
+  margin-top: var(--space-400);
+  scroll-margin-top: calc(var(--header-height) + var(--space-300));
+}
+
+/* Method, path, MCP name and scopes of one keyed action: a quiet line of facts. */
+.docs-endpoint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50) var(--space-200);
+  align-items: baseline;
+  margin-bottom: var(--space-100);
+  color: var(--color-text-faint);
+  font-size: 14px;
+}
+
 .docs-pager {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -9601,4 +9692,597 @@ li.stats-ranks__row {
 
 .brand-kit-contact a:hover {
   text-decoration-color: currentColor;
+}
+
+/* "How it trades" (components/app/RulesSummary.tsx): the agent's rules in plain words. */
+.rules-summary {
+  margin-top: var(--space-200);
+  padding: var(--space-200);
+  border-radius: var(--radius-xl);
+  background: var(--color-tint);
+  text-align: left;
+}
+
+.rules-summary__title {
+  margin: 0 0 var(--space-75);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.strategy-prompt__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.strategy-prompt__note {
+  margin: var(--space-75) 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.rules-summary__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  margin: 0;
+  padding-left: var(--space-200);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-text-muted);
+}
+
+/* ---------- Landing "Every hour" rail (components/site/HourlyRail.tsx) ----------
+   Approved design: prototype/hourly-rail.html. The section sits on the plain background, so the
+   markers use --color-bg to cover the track. */
+
+/* One sentence pair: the full container width so it sits on one line on desktop; the lead keeps
+   the usual reading width. */
+.section-heading--wide {
+  max-width: none;
+}
+
+.section-heading--wide .section-heading__title {
+  text-wrap: balance;
+}
+
+.section-heading--wide .section-heading__lead {
+  max-width: 46rem;
+}
+
+.rail {
+  /* One loop is one "hour": each of the 6 steps is lit for --rail-step. */
+  --rail-step: 1.6s;
+  --rail-cycle: calc(var(--rail-step) * 6);
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-200);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The track runs through the markers, from the first to the last: each step is 1/6 of the width,
+   so the markers' centers sit at 1/12 and 11/12. */
+.rail::before {
+  content: "";
+  position: absolute;
+  top: 19px;
+  left: calc(100% / 12);
+  right: calc(100% / 12);
+  height: 1px;
+  background: var(--color-border-strong);
+  pointer-events: none;
+}
+
+/* A lavender line fills the track step by step, then resets. */
+.rail::after {
+  content: "";
+  position: absolute;
+  top: 19px;
+  left: calc(100% / 12);
+  width: 0;
+  height: 1px;
+  background: var(--color-purple-rich);
+  pointer-events: none;
+  animation: rail-fill var(--rail-cycle) var(--ease-out-expo) infinite;
+}
+
+/* The full track is 10/12 of the width; each step adds 2/12. */
+@keyframes rail-fill {
+  0%, 12% { width: 0; opacity: 1; }
+  16.67%, 28.67% { width: calc(100% * 2 / 12); }
+  33.33%, 45.33% { width: calc(100% * 4 / 12); }
+  50%, 62% { width: calc(100% * 6 / 12); }
+  66.67%, 78.67% { width: calc(100% * 8 / 12); }
+  83.33%, 95% { width: calc(100% * 10 / 12); opacity: 1; }
+  99.9% { width: calc(100% * 10 / 12); opacity: 0; }
+  100% { width: 0; opacity: 0; }
+}
+
+.rail__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+}
+
+.rail__marker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-inline: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 20px;
+  animation: rail-step-on var(--rail-cycle) linear infinite;
+  animation-delay: calc(var(--i) * var(--rail-step));
+}
+
+/* Lit while the line rests on it: one sixth of the loop. The resting colors come through
+   --marker-border / --marker-color, so the AI step keeps its lavender. */
+@keyframes rail-step-on {
+  0%, 15% {
+    border-color: var(--color-purple-rich);
+    color: var(--color-purple-rich);
+    background: var(--color-surface);
+  }
+  18%, 100% {
+    border-color: var(--marker-border, var(--color-border-strong));
+    color: var(--marker-color, var(--color-text-muted));
+    background: var(--color-bg);
+  }
+}
+
+.rail__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  height: 100%;
+  padding: var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  background: var(--color-surface);
+}
+
+/* The AI step is optional and carries the headline: the one lavender card, dashed. */
+.rail__step--optional .rail__marker {
+  --marker-border: color-mix(in srgb, var(--color-purple-rich) 55%, transparent);
+  --marker-color: var(--color-purple-rich);
+  border-style: dashed;
+  border-color: var(--marker-border);
+  color: var(--marker-color);
+}
+
+.rail__step--optional .rail__body {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--color-purple-rich) 45%, transparent);
+  background: color-mix(in srgb, var(--color-purple-rich) 7%, var(--color-surface));
+}
+
+.rail__num {
+  color: var(--color-text-faint);
+  font: 12px/16px "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.rail__tag {
+  margin-left: var(--space-50);
+  padding: 1px 6px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  letter-spacing: 0.04em;
+}
+
+.rail__step--optional .rail__tag {
+  border-color: color-mix(in srgb, var(--color-purple-rich) 45%, transparent);
+  color: var(--color-purple-rich);
+}
+
+.rail__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.rail__text {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* Tablet: two rows of three. The track only makes sense on one line, so it goes. */
+@media (max-width: 1179px) {
+  .rail {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: var(--space-300);
+  }
+
+  .rail::before,
+  .rail::after {
+    display: none;
+  }
+
+  .rail__marker {
+    margin-inline: 0;
+  }
+}
+
+/* Phones: a vertical rail, with the line down the left through the markers. */
+@media (max-width: 640px) {
+  .rail {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-200);
+  }
+
+  .rail::before {
+    display: block;
+    top: 20px;
+    bottom: 20px;
+    left: 19.5px;
+    right: auto;
+    width: 1px;
+    height: auto;
+  }
+
+  .rail__step {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-200);
+  }
+
+  .rail__marker {
+    flex: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail::after {
+    display: none;
+  }
+
+  .rail__marker {
+    animation: none;
+  }
+}
+
+/* Decision log "Details" (components/app/AgentView.tsx DecisionRow): the decision in plain words
+   (lib/engine/explain.ts), then each rule with its values. */
+.decision__details {
+  margin-top: var(--space-75);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.decision__details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-50);
+  color: var(--color-text-faint);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+
+.decision__details summary::-webkit-details-marker {
+  display: none;
+}
+
+.decision__details summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform var(--duration-micro) var(--ease-out-expo);
+}
+
+.decision__details[open] summary::after {
+  margin-top: 3px;
+  transform: rotate(-135deg);
+}
+
+.decision__details summary:hover {
+  color: var(--color-text);
+}
+
+.decision__details p {
+  margin: var(--space-75) 0 0;
+  color: var(--color-text);
+}
+
+.decision__checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  margin: var(--space-100) 0 0;
+  padding: var(--space-100);
+  border-radius: var(--radius-lg);
+  background: var(--color-tint);
+  list-style: none;
+  font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.decision__checks li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-75);
+}
+
+.decision__checks i {
+  color: var(--color-loss);
+}
+
+.decision__checks .is-met i {
+  color: var(--color-gain);
+}
+
+/* Swap chart footer: the token's outside pages side by side (Pons, and CoinGecko for ZOLVA). */
+.swap-chart__links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-200);
+}
+
+/* "Verify this agent" (components/app/VerifyAgent.tsx). */
+.verify-agent {
+  display: grid;
+  gap: var(--space-75);
+  margin-top: var(--space-200);
+  padding: var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.verify-agent__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-75);
+}
+
+.verify-agent__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.verify-agent__lead,
+.verify-agent__how {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.verify-agent__how code {
+  font-size: 12px;
+}
+
+.verify-agent__result {
+  display: flex;
+  gap: var(--space-75);
+  align-items: baseline;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.verify-agent__result--match i {
+  color: var(--color-gain);
+}
+
+.verify-agent__result--differs i {
+  color: var(--color-loss);
+}
+
+.verify-agent__detail {
+  margin: 0;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Verify: loading state while the replay runs (a few seconds on older agents). */
+.verify-agent__spin {
+  animation: verify-spin 0.9s linear infinite;
+}
+
+@keyframes verify-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.verify-agent__loading {
+  display: grid;
+  gap: var(--space-75);
+}
+
+/* An indeterminate bar: a lavender segment sliding across a faint track. */
+.verify-agent__bar {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--color-tint);
+}
+
+.verify-agent__bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--color-purple-rich);
+  animation: verify-slide 1.4s var(--ease-out-expo) infinite;
+}
+
+@keyframes verify-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* Each step fades in as it replaces the one before. */
+.verify-agent__step {
+  margin: 0;
+  color: var(--color-text-muted);
+  animation: verify-fade 0.4s var(--ease-out-expo);
+}
+
+@keyframes verify-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .verify-agent__spin,
+  .verify-agent__bar span,
+  .verify-agent__step {
+    animation: none;
+  }
+
+  .verify-agent__bar span {
+    width: 100%;
+    opacity: 0.4;
+  }
+}
+
+/* Studio "Check robustness" (components/app/RobustnessCheck.tsx). Its loading state reuses the
+   verify-agent spinner, bar and steps above. */
+.robustness {
+  display: grid;
+  gap: var(--space-75);
+  padding: var(--space-200);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.robustness__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-75);
+}
+
+.robustness__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.robustness__lead,
+.robustness__days {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.robustness__result {
+  display: grid;
+  gap: var(--space-100);
+}
+
+.robustness__summary {
+  display: grid;
+  gap: var(--space-50);
+  margin: 0;
+  padding-left: var(--space-200);
+}
+
+/* ---------- Order ledger on the agent page (components/app/OrderLedger.tsx) ---------- */
+/* The ledger sits in the page's narrower main column: two by two, amounts on one line. */
+.stat-grid.ledger__stats {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ledger__stats .stat__value {
+  white-space: nowrap;
+}
+
+.ledger__notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-75) var(--space-300);
+  margin: var(--space-200) 0 0;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.ledger__notes div {
+  display: flex;
+  gap: var(--space-75);
+}
+
+.ledger__notes dt {
+  color: var(--color-text-muted);
+}
+
+.ledger__notes dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger__check {
+  display: flex;
+  gap: var(--space-75);
+  align-items: baseline;
+  margin: var(--space-100) 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-text-muted);
+}
+
+.ledger__check i {
+  flex: none;
+}
+
+.ledger__table {
+  margin-top: var(--space-200);
+}
+
+.ledger__table td,
+.ledger__table th {
+  white-space: nowrap;
+}
+
+.ledger__order {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
+}
+
+.ledger__more {
+  margin-top: var(--space-100);
+}
+
+/* Studio DCA schedule: number of buys and how often, side by side (wraps on phones). */
+.dca-schedule {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-100);
 }

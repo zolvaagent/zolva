@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { withCopilot, type CopilotAgent } from "@/lib/agents/copilot-runner";
 import { planAgentHours, type PositionRow } from "@/lib/agents/plan";
-import { getMarket } from "@/lib/data/market";
+import { getMarket, RUNNER_MARKET_HOURS } from "@/lib/data/market";
 
 export type RunnerResult = {
   agents: number;
@@ -22,13 +22,14 @@ export type RunnerResult = {
  * running this twice (or two ticks at once) cannot double-trade.
  */
 export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult> {
-  // Perps included: Lab agents trade them on paper.
-  const market = await getMarket(db, { perps: true });
+  // Perps included: Lab agents trade them on paper. The longer window covers the longest rule.
+  const market = await getMarket(db, { perps: true, hours: RUNNER_MARKET_HOURS });
   const result: RunnerResult = { agents: 0, hoursWritten: 0, hoursSkipped: 0, failed: [], copilot: [] };
   if (!market.hours) return result;
   const latestTs = market.startTs + (market.hours - 1) * 3600;
   const closes = Object.fromEntries(market.tokens.map((token) => [token.address, token.closes]));
   const funding = Object.fromEntries(market.tokens.filter((token) => token.funding).map((token) => [token.address, token.funding!]));
+  const openInterest = Object.fromEntries(market.tokens.filter((token) => token.openInterest).map((token) => [token.address, token.openInterest!]));
   const symbols = Object.fromEntries(market.tokens.map((token) => [token.address, token.symbol]));
 
   const { data: agents, error } = await db
@@ -42,7 +43,7 @@ export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult>
 
   const { data: positions, error: positionsError } = await db
     .from("positions")
-    .select("agent_id, token_address, quantity, avg_entry_price, opened_at, side, margin")
+    .select("agent_id, token_address, quantity, avg_entry_price, opened_at, side, margin, stop_price")
     .in(
       "agent_id",
       agents.map((agent) => agent.id),
@@ -52,7 +53,7 @@ export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult>
   for (const agent of agents as CopilotAgent[]) {
     try {
       const own = (positions as (PositionRow & { agent_id: string })[]).filter((position) => position.agent_id === agent.id);
-      const series = { startTs: market.startTs, closes, funding };
+      const series = { startTs: market.startTs, closes, funding, openInterest };
       const planned = planAgentHours(agent, own, series, latestTs);
       const { writes, note } = await withCopilot(db, agent, own, { ...series, symbols }, latestTs, planned);
       if (note) result.copilot.push({ agentId: agent.id, note });

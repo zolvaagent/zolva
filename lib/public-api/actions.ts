@@ -16,13 +16,14 @@
  */
 import { z } from "zod";
 
-import { STUDIO_STRATEGIES } from "../agents/copy";
+import { DCA_BUYS, DCA_CADENCES, STUDIO_STRATEGIES } from "../agents/copy";
 import type { ApiCaller, ApiKeyScope } from "../api-keys/keys";
 import type { AgentSummary } from "../data/agents";
 import { parseRules, rulesLookback } from "../engine/rules";
 import { STRATEGY_NAMES } from "../format";
 import { BACKTEST_MAX_DAYS, BACKTEST_MAX_MARKETS, parseBacktestRequest, runBacktest, type MarketData } from "../x402/premium";
 import { cleanUserText, DISCLAIMER, USER_TEXT_LIMITS } from "./format";
+import { KEY_LIMIT_MESSAGES } from "./limits";
 
 const SITE = "https://zolvaagent.app";
 
@@ -63,6 +64,8 @@ export type AgentDraft = {
   aiModel?: string;
   aiLimitUsd?: number;
   aiExpiryDays?: number;
+  /** DCA only: how many buys and how often. */
+  dca?: { buys: number; everyHours: number };
 };
 
 export type ClaimResult =
@@ -174,7 +177,7 @@ const agentId = z.string().uuid().describe("The agent id from my_agents");
 const confirm = z.boolean().optional().describe("false (default): only show what would happen. true: do it");
 const venue = z.enum(["spot", "perps"]).optional().describe("spot (default): stock and crypto tokens, long only. perps: Lighter perps, paper only");
 const markets = z.array(z.string().min(1).max(42)).min(1).max(14).describe("Market symbols (NVDA, ETH, BTC-PERP) or token addresses, from list_markets");
-const rules = z.record(z.string(), z.unknown()).describe("Custom rules JSON, as on /docs/public-api (entry, exit, takeProfitPct, maxHoldHours)");
+const rules = z.record(z.string(), z.unknown()).describe("Custom rules JSON, as on /docs/rules (entry, exit, takeProfitPct, maxHoldHours)");
 
 const backtestShape = {
   strategy: z.enum(["momentum", "mean_reversion", "custom"]).describe("A preset, or custom with rules"),
@@ -189,13 +192,20 @@ const backtestShape = {
 
 const createShape = {
   name: z.string().min(1).max(40).describe("The agent's name, up to 40 characters"),
-  strategy: z.enum(STUDIO_STRATEGIES).describe("Preset or custom (needs rules). spike_fade opens shorts and needs venue perps"),
+  strategy: z.enum(STUDIO_STRATEGIES).describe("Preset or custom (needs rules). spike_fade opens shorts and needs venue perps. dca buys on a schedule and never sells (needs dca, spot, no aiModel)"),
   markets,
   venue,
   capital: z.number().min(1000).max(1_000_000).describe("Virtual dollars, 1000 to 1000000"),
   maxPositionPct: z.number().int().min(10).max(100).describe("Most of the capital in one market, 10 to 100"),
   stopLossPct: z.number().int().min(2).max(25).describe("Stop loss per position, 2 to 25"),
   rules: rules.optional(),
+  dca: z
+    .object({
+      buys: z.number().int().refine((value) => (DCA_BUYS as readonly number[]).includes(value), `One of ${DCA_BUYS.join(", ")}`).describe(`Number of equal buys: ${DCA_BUYS.join(", ")}`),
+      everyHours: z.number().int().refine((value) => DCA_CADENCES.some((cadence) => cadence.everyHours === value), "24 or 168").describe("Hours between buys: 24 (daily) or 168 (weekly)"),
+    })
+    .optional()
+    .describe("dca only: the schedule. The first buy is the agent's first hour; capital is split equally across the buys and the markets"),
   strategyPrompt: z.string().max(USER_TEXT_LIMITS.prompt).optional().describe("Custom only: the plain words the rules came from, read by the AI co-pilot"),
   aiModel: z.string().max(80).optional().describe("AI co-pilot model id (needs the ai scope); leave out for rules only"),
   aiLimitUsd: z.number().positive().optional().describe("With aiModel: the most the co-pilot may spend, USD"),
@@ -350,6 +360,7 @@ export const ACTIONS = {
         aiModel: input.aiModel,
         aiLimitUsd: input.aiLimitUsd,
         aiExpiryDays: input.aiExpiryDays,
+        ...(input.dca ? { dca: input.dca } : {}),
       };
 
       if (!input.confirm) {
@@ -555,7 +566,7 @@ export async function runAction(name: ActionName, rawInput: unknown, context: Co
     throw new ActionError(403, "insufficient_scope", `This key cannot use ${name}: it needs the ${spec.scopes.join(" and ")} scope. Make a key with it in your Settings.`);
   }
   if (spec.kind === "write" && !(await deps.limit(caller.keyId, "write"))) {
-    throw new ActionError(429, "rate_limited", "Too many writes for this API key: 30 a minute.");
+    throw new ActionError(429, "rate_limited", KEY_LIMIT_MESSAGES.write);
   }
 
   const parsed = z.object(spec.input).strict().safeParse(rawInput ?? {});

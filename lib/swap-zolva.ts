@@ -44,6 +44,8 @@ export function ponsPoolKey(token: Hex): PoolKey {
 }
 
 export const ZOLVA = "0x8e04549484d0612be8373a0263b11928a5f7681f";
+/** ZOLVA's CoinGecko page (listed 2026-11-15 as "Zolva Agent", id zolva-agent, same contract). A listing, not a partnership. */
+export const ZOLVA_COINGECKO_URL = "https://www.coingecko.com/en/coins/zolva-agent";
 /** ZOLVA's Pons pool: read from the PoolManager's Initialize event for pool id ZOLVA_POOL_ID (a test checks the hash). */
 export const ZOLVA_POOL_ID = "0x417e1f5361a5296f93a133142651e07d203f7a4ddecaa2de4460f1fb182e6d74";
 export const ZOLVA_POOL_KEY = ponsPoolKey(ZOLVA);

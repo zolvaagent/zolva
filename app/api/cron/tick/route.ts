@@ -4,6 +4,9 @@ import { env } from "@/lib/env";
 import { secretsMatch } from "@/lib/secrets";
 import { runActiveAgents } from "@/lib/agents/runner";
 import { clearMarketCache } from "@/lib/data/market";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
+
+import { runLighterAgents, type LighterBinding, type PerpsLiveResult } from "@/lib/live/perps-runner";
 import { runLiveAgents, type LiveResult } from "@/lib/live/runner";
 import { hourlyMembershipUpkeep } from "@/lib/membership";
 import { ingestLatestCandles } from "@/lib/prices/ingest";
@@ -37,6 +40,15 @@ export async function POST(request: NextRequest) {
   } catch (cause) {
     live = { error: cause instanceof Error ? cause.message : String(cause) };
   }
+  // Real money perps on Lighter (owner only). Off unless live trading is on and the LIGHTER service
+  // binding (the zolva-lighter Worker) and its token are set. Never stops anything above.
+  let perps: PerpsLiveResult | { error: string };
+  try {
+    const binding = (getCloudflareContext().env as unknown as { LIGHTER?: LighterBinding }).LIGHTER ?? null;
+    perps = await runLighterAgents(client, binding, env.lighterInternalToken);
+  } catch (cause) {
+    perps = { error: cause instanceof Error ? cause.message : String(cause) };
+  }
   // GeckoTerminal problems are warnings only; on-chain prices are what agents need.
   // ZOLVA holder tiers: the hourly price for the 7 day average, and stale balance reads. Best effort.
   const membership = await hourlyMembershipUpkeep(client, Math.floor(Date.now() / 3_600_000) * 3600).catch((cause: unknown) => ({
@@ -45,7 +57,8 @@ export async function POST(request: NextRequest) {
     note: cause instanceof Error ? cause.message : String(cause),
   }));
   const liveOk = !("error" in live) && live.failed.length === 0;
-  const ok = ingest.failed.length === 0 && agents.failed.length === 0 && liveOk;
-  return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents, live, membership }, { status: ok ? 200 : 502 });
+  const perpsOk = !("error" in perps) && perps.failed.length === 0;
+  const ok = ingest.failed.length === 0 && agents.failed.length === 0 && liveOk && perpsOk;
+  return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents, live, perps, membership }, { status: ok ? 200 : 502 });
 }
 

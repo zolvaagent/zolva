@@ -4,7 +4,7 @@ import Link from "next/link";
 import { RealMoneyPill } from "@/components/app/AgentKind";
 import { copyBlock } from "@/lib/agents/copy";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 
 import { ShareMenu } from "@/components/app/ShareMenu";
 import { SellPositionButton } from "@/components/app/SwapDialog";
@@ -21,7 +21,13 @@ import {
 import { DEFAULT_EXPIRY_DAYS, parseAiLimit } from "@/lib/ai/limits";
 import { aiModel, formatCredits } from "@/lib/ai/models";
 import type { Decision } from "@/lib/engine/engine";
-import { describeCondition, type Rules } from "@/lib/engine/rules";
+import { explainDecision, type Explanation } from "@/lib/engine/explain";
+import { agentParams } from "@/lib/agents/plan";
+import type { Rules } from "@/lib/engine/rules";
+import { RulesSummary } from "@/components/app/RulesSummary";
+import { VerifyAgent } from "@/components/app/VerifyAgent";
+import { OrderLedger } from "@/components/app/OrderLedger";
+import type { Ledger } from "@/lib/agents/ledger";
 import {
   dateAt,
   dayAt,
@@ -55,6 +61,10 @@ type Props = {
   /** Same settings over the last 30 days, shown while the agent has no history yet. */
   preview: Preview;
   symbols: Record<string, string>;
+  /** The agent's rules in plain words (lib/engine/summary.ts). */
+  howItTrades: string[];
+  /** Every order with cash and P&L totals (lib/agents/ledger.ts). */
+  ledger: Ledger;
   /** How the viewer logged in, for signing a manual sale (live agents, owner only). */
   loginMethod?: "privy" | "wallet" | null;
 };
@@ -65,6 +75,19 @@ const RANGES = { "7d": 7 * 24, "30d": 30 * 24, all: Infinity } as const;
 const ORDER_LABELS: Record<string, string> = { pending: "Pending", submitted: "Sent", confirmed: "Filled", failed: "Failed", cancelled: "Not sent" };
 const ORDER_PILLS: Record<string, string> = { confirmed: "pill--running", failed: "pill--warn", submitted: "pill--accent", pending: "pill--accent" };
 
+/**
+ * Minutes until the next hourly run, kept current in the browser. The server render has no clock
+ * of the viewer's, so it returns null there and the page hydrates without a text mismatch.
+ */
+const subscribeToMinutes = (onChange: () => void) => {
+  const timer = setInterval(onChange, 15_000);
+  return () => clearInterval(timer);
+};
+const minutesToNextHour = () => 60 - new Date().getUTCMinutes();
+function useMinutesToNextRun(): number | null {
+  return useSyncExternalStore(subscribeToMinutes, minutesToNextHour, () => null);
+}
+
 export function AgentView({
   detail,
   isOwner,
@@ -72,11 +95,13 @@ export function AgentView({
   prices,
   preview,
   symbols,
+  howItTrades,
+  ledger,
   loginMethod = null,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
-  const { agent, summary, runs, trades, positions } = detail;
+  const { agent, summary, runs, positions } = detail;
   const [range, setRange] = useState<keyof typeof RANGES>("all");
   const [showHolds, setShowHolds] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -133,7 +158,7 @@ export function AgentView({
   // "Copy to Studio" when the Studio can rebuild this agent, otherwise the reason it can't.
   const copyReason = copyBlock({ ...summary, live: isLive, published: agent.published_at !== null });
   const isActive = agent.status === "active";
-  const minutesToNextRun = 60 - new Date().getUTCMinutes();
+  const minutesToNextRun = useMinutesToNextRun();
   const symbolOf = (token: string) => symbols[token] ?? token;
 
   const togglePause = async () => {
@@ -195,6 +220,8 @@ export function AgentView({
     });
 
   const rules = agent.params.rules as Rules | undefined;
+  // The agent's settings as the engine sees them, for the decision log's plain-words details.
+  const engineParams = agentParams(agent as Parameters<typeof agentParams>[0]);
   const settings: [string, React.ReactNode][] = [
     ["Strategy", STRATEGY_NAMES[agent.strategy]],
     ["AI co-pilot", aiModel(agent.ai_model)?.label ?? "Off"],
@@ -245,8 +272,10 @@ export function AgentView({
       : []),
     ["Stocks", summary.tokens.map((token) => token.symbol).join(", ")],
     ["Starting capital", usd(summary.startCapital)],
-    ["Max per stock", `${agent.params.max_position_pct}%`],
-    ["Stop loss", `${agent.params.stop_loss_pct}%`],
+    // DCA has no max position or stop loss: its schedule instead.
+    ...(engineParams.dca
+      ? ([["Schedule", `${engineParams.dca.buys} buys, ${engineParams.dca.everyHours === 24 ? "daily" : engineParams.dca.everyHours === 168 ? "weekly" : `every ${engineParams.dca.everyHours} hours`}`], ["Stop loss", "None, never sells"]] as [string, string][])
+      : ([["Max per stock", `${agent.params.max_position_pct}%`], ["Stop loss", `${agent.params.stop_loss_pct}%`]] as [string, string][])),
     ...(rules?.takeProfitPct
       ? ([["Take profit", `${rules.takeProfitPct}%`]] as [string, string][])
       : []),
@@ -320,7 +349,9 @@ export function AgentView({
           <span aria-hidden="true">·</span>
           <span>
             {agent.status === "active"
-              ? `Next decision in ${minutesToNextRun} min`
+              ? minutesToNextRun === null
+                ? "Next decision at the top of the hour"
+                : `Next decision in ${minutesToNextRun} min`
               : "Not trading while paused"}
           </span>
         </div>
@@ -695,33 +726,17 @@ export function AgentView({
           </div>
         ))}
       </div>
-      {rules && (
-        <div
-          className="stack stack--tight"
-          style={{ marginTop: "var(--space-200)" }}
-        >
-          <strong style={{ fontSize: 14 }}>
-            Buy when {rules.entry.join} of:
-          </strong>
-          <ul className="rule-summary">
-            {rules.entry.conditions.map((condition, i) => (
-              <li key={i}>{describeCondition(condition)}</li>
-            ))}
-          </ul>
-          <strong style={{ fontSize: 14 }}>
-            Sell when {rules.exit.join} of:
-          </strong>
-          <ul className="rule-summary">
-            {rules.exit.conditions.length ? (
-              rules.exit.conditions.map((condition, i) => (
-                <li key={i}>{describeCondition(condition)}</li>
-              ))
-            ) : (
-              <li>No rule: take profit, max holding time or stop loss</li>
-            )}
-          </ul>
-        </div>
+      {/* The whole strategy in plain words, from the agent's params (lib/engine/summary.ts). */}
+      <RulesSummary lines={howItTrades} />
+      {/* The creator's own words (prompt mode). Shown to the owner, and to everyone once published. */}
+      {agent.strategy_prompt && (isOwner || agent.published_at) && (
+        <section className="rules-summary strategy-prompt" aria-label="Strategy in the creator's words">
+          <h3 className="rules-summary__title">In the creator&apos;s words</h3>
+          <p className="strategy-prompt__text">{agent.strategy_prompt}</p>
+          <p className="strategy-prompt__note">The rules above were written from this. The AI co-pilot reads it too, but can only pass on a rule&apos;s trade, never add one.</p>
+        </section>
       )}
+      {agent.mode === "paper" && agent.published_at && <VerifyAgent agentId={agent.id} />}
     </div>
   );
 
@@ -759,7 +774,7 @@ export function AgentView({
                 </h2>
                 <p>
                   {agent.status === "active"
-                    ? `The agent checks prices at the top of every hour, in about ${minutesToNextRun} minutes. Trades and reasoning show up here.`
+                    ? `The agent checks prices at the top of every hour${minutesToNextRun === null ? "" : `, in about ${minutesToNextRun} minutes`}. Trades and reasoning show up here.`
                     : "Resume it and it starts deciding from the next hour."}
                 </p>
               </div>
@@ -929,6 +944,7 @@ export function AgentView({
                       action={decision.action}
                       reasoning={decision.reasoning}
                       ai={decision.ai}
+                      explanation={explainDecision(decision, engineParams, symbolOf(decision.token))}
                     />
                   ))}
                 </div>
@@ -936,99 +952,27 @@ export function AgentView({
             </ScrollArea>
           </div>
 
-          <div className="card">
-            <div className="card-head">
-              <h2 className="card__title">Trades</h2>
-              <span
-                className="muted"
-                style={{ fontSize: 14, lineHeight: "20px" }}
-              >
-                {isLive
-                  ? `${summary.trades} total, real fills, gas included`
-                  : `${summary.trades} total, ${agent.params.venue === "perps" ? "0.05% cost each plus hourly funding" : "0.5% cost each"}`}
-              </span>
-            </div>
-            {trades.length ? (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Time</th>
-                      <th>Side</th>
-                      <th>Stock</th>
-                      <th className="num">Price</th>
-                      <th className="num">Size</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map((trade, i) => (
-                      <tr key={i}>
-                        <td className="muted">{dateAt(trade.ts)}</td>
-                        <td>
-                          <span
-                            className={`decision__action decision__action--${trade.side}`}
-                          >
-                            {trade.side}
-                          </span>
-                        </td>
-                        <td>
-                          <strong>{trade.symbol}</strong>
-                        </td>
-                        <td className="num">{price(trade.price)}</td>
-                        <td className="num">
-                          {usd(trade.quantity * trade.price)}
-                        </td>
-                        <td>
-                          {trade.reason === "stop_loss" && (
-                            <span className="pill pill--warn">Stop loss</span>
-                          )}
-                          {trade.reason === "take_profit" && (
-                            <span className="pill pill--running">
-                              Take profit
-                            </span>
-                          )}
-                          {trade.reason === "max_hold" && (
-                            <span className="pill">Max hold</span>
-                          )}
-                          {trade.reason === "manual" && (
-                            <span className="pill" title="Sold by the owner with Sell position">Manual</span>
-                          )}{" "}
-                          {trade.txHash && (
-                            <a className="text-link" href={`${EXPLORER_URL}/tx/${trade.txHash}`} target="_blank" rel="noopener noreferrer" title="Swap on Blockscout">
-                              Tx <i className="ph ph-arrow-up-right" aria-hidden="true" />
-                            </a>
-                          )}{" "}
-                          {!isMarketHours(trade.ts) && (
-                            <span
-                              className="pill"
-                              title="New York exchange closed. Price came from Robinhood Chain trading only."
-                            >
-                              DEX hours
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="empty">
-                <img
-                  src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`}
-                  alt=""
-                  width={72}
-                  height={72}
-                />
-                <h3 className="card__title">Waiting for its moment</h3>
-                <p>
-                  The agent only trades when its rules trigger. Every hour so
-                  far ended in a hold; the log above shows why.
-                </p>
-              </div>
-            )}
-          </div>
+          <OrderLedger
+            ledger={ledger}
+            live={isLive}
+            perps={agent.params.venue === "perps"}
+            wallet={agent.trading_wallet}
+            empty={
+                  <div className="empty">
+                    <img
+                      src={`/img/icons/${agent.strategy === "mean_reversion" ? "mean-reversion" : agent.strategy === "custom" ? "backtest" : "momentum"}.png`}
+                      alt=""
+                      width={72}
+                      height={72}
+                    />
+                    <h3 className="card__title">Waiting for its moment</h3>
+                    <p>
+                      The agent only trades when its rules trigger. Every hour so
+                      far ended in a hold; the log above shows why.
+                    </p>
+                  </div>
+            }
+          />
 
           {isLive && (
             <div className="card">
@@ -1199,11 +1143,14 @@ export function DecisionRow({
   action,
   reasoning,
   ai,
+  explanation = null,
 }: {
   symbol: string;
   action: string;
   reasoning: string;
   ai?: Decision["ai"];
+  /** Plain-words details (lib/engine/explain.ts); null hides the Details toggle. */
+  explanation?: Explanation | null;
 }) {
   return (
     <div className="decision">
@@ -1224,6 +1171,25 @@ export function DecisionRow({
               {aiModel(ai.model)?.label ?? ai.model}
             </span>
           </span>
+        )}
+        {explanation && (
+          <details className="decision__details">
+            <summary>Details</summary>
+            {explanation.paragraphs.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+            {explanation.checks.length > 0 && (
+              <ul className="decision__checks" aria-label="Rules checked this hour">
+                {explanation.checks.map((check) => (
+                  <li key={check.text} className={check.met ? "is-met" : undefined}>
+                    <i className={`ph ${check.met ? "ph-check" : "ph-x"}`} aria-hidden="true" />
+                    <span className="sr-only">{check.met ? "Met: " : "Not met: "}</span>
+                    {check.text}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
         )}
       </span>
     </div>

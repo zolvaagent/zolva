@@ -1,5 +1,5 @@
 /**
- * Docs navigation: one entry per page under app/(site)/docs, in reading order.
+ * Docs navigation: one entry per page under app/(docs)/docs, in reading order.
  * The sidebar, the previous/next links and page metadata all read this list,
  * so a page only has to be added here once.
  */
@@ -56,6 +56,12 @@ export const DOC_PAGES: DocPage[] = [
     group: "Results",
   },
   {
+    slug: "rules",
+    title: "Strategy rules spec",
+    description: "The Custom rules JSON in full: every field, indicator and operator, the limits, and every error the check can return.",
+    group: "Developers",
+  },
+  {
     slug: "public-api",
     title: "Public API",
     description: "Read Zolva's published agents, their decisions, the markets and recent trades as JSON with no key, and manage your own paper agents with an API key.",
@@ -99,8 +105,14 @@ export const DOC_PAGES: DocPage[] = [
   },
   {
     slug: "faq",
-    title: "FAQ and glossary",
-    description: "Short answers to common questions, and the terms used across Zolva.",
+    title: "FAQ",
+    description: "Short answers to common questions about Zolva, paper trading and agents.",
+    group: "Help",
+  },
+  {
+    slug: "glossary",
+    title: "Glossary",
+    description: "The terms used across Zolva, its API and its MCP server, from vs holding and drawdown to venue, funding and veto.",
     group: "Help",
   },
 ];

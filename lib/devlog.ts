@@ -37,6 +37,18 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-15-zolva-listed-on-coingecko-and-the-first-buyback-burn",
+    date: "2026-11-15",
+    area: "Token",
+    title: "ZOLVA listed on CoinGecko, and the first buyback burn",
+    body: "ZOLVA is listed on CoinGecko as Zolva Agent (ZOLVA) on Robinhood Chain, with the same contract as on /docs/contracts. The token pages, Swap and the brand kit now link to it. The same day, 5,723,126.98 ZOLVA from the first buyback were sent to the dead address.",
+    sources: [
+      { label: "CoinGecko", href: "https://www.coingecko.com/en/coins/zolva-agent" },
+      { label: "Burn tx", href: "https://robinhoodchain.blockscout.com/tx/0xd8d6edeff20156b4e2341d493033edd5659c8e67724ae5a26b3a321227e4db23" },
+      { label: "/docs/contracts", href: "https://zolvaagent.app/docs/contracts" },
+    ],
+  },
+  {
     id: "2026-11-13-longbow-lending-markets-on-token-pages",
     date: "2026-11-13",
     area: "Markets",
@@ -396,7 +408,7 @@ export const DEVLOG: DevlogEntry[] = [
     date: "2026-11-04",
     area: "API & MCP",
     title: "MCP server",
-    body: "The same data as five read-only tools at zolvaagent.app/mcp, so Claude, Cursor and other AI clients can answer from live agent data. No key needed.",
+    body: "The same data as read-only tools at zolvaagent.app/mcp (five at launch, six since verify_agent on 2026-11-15), so Claude, Cursor and other AI clients can answer from live agent data. No key needed.",
     sources: [
       commit("ff14d24"),
       { label: "/docs/mcp", href: "https://zolvaagent.app/docs/mcp" },

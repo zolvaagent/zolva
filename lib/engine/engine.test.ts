@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 
 import { describe, expect, it } from "vitest";
 
-import { buyAndHold, COST_RATE, costRateFor, equityAt, maxDrawdown, PERPS_COST_RATE, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
+import { buyAndHold, COST_RATE, costRateFor, equityAt, maxDrawdown, paramsLookback, PERPS_COST_RATE, realisedVolatility, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
 import type { Rules } from "./rules";
 import { decide, LOOKBACK_HOURS } from "./strategies";
 
@@ -171,6 +171,30 @@ describe("parity with the prototype engine", () => {
       theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`),
     );
     expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+  });
+
+  it("matches trades and return at double costs, and pays twice the cost per fill", () => {
+    const series: Record<string, number[]> = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600) };
+    for (const venue of [undefined, "perps"] as const) {
+      const params: AgentParams = { ...momentum, ...(venue ? { venue } : {}) };
+      const ours = simulate({ series, params, capital: 10_000, fromIndex: 60, costScale: 2 });
+      const theirs = prototype.simulate({
+        tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes })),
+        strategy: "momentum",
+        ...(venue ? { venue } : {}),
+        capital: 10_000,
+        maxPositionPct: params.maxPositionPct,
+        stopLossPct: params.stopLossPct,
+        fromIndex: 60,
+        costScale: 2,
+      });
+      expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(
+        theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`),
+      );
+      expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+      const first = ours.fills[0];
+      expect(first.costUsd).toBeCloseTo((first.quantity * first.price * 2 * costRateFor(venue)) / (1 - 2 * costRateFor(venue)), 6);
+    }
   });
 });
 
@@ -526,5 +550,352 @@ describe("leveraged bounce short", () => {
       expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
       expect(ours.runs.every((run) => run.cash >= 0)).toBe(true);
     }
+  });
+});
+
+describe("volatility sizing", () => {
+  // Trend rule like the alt perps Lab agents, on shorter windows so the tests stay fast.
+  const trend: Rules = {
+    entry: { join: "all", conditions: [{ left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 120, offsetPct: 3 } }] },
+    exit: { join: "any", conditions: [{ left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 120 } }] },
+    takeProfitPct: null,
+    maxHoldHours: null,
+  };
+  const sized: AgentParams = { strategy: "custom", rules: trend, maxPositionPct: 100, stopLossPct: 15, venue: "perps", sizing: { kind: "volTarget", targetPct: 20, hours: 72 } };
+
+  it("annualises the population standard deviation of hourly log returns", () => {
+    const closes = [100, 101, 99, 102, 100];
+    const returns = closes.slice(1).map((close, i) => Math.log(close / closes[i]));
+    const average = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+    const variance = returns.reduce((sum, value) => sum + (value - average) ** 2, 0) / returns.length;
+    expect(realisedVolatility(closes, 4)).toBeCloseTo(Math.sqrt(variance * 8760), 12);
+    expect(realisedVolatility(flat(10), 9)).toBe(0);
+  });
+
+  it("needs the longer of the rule and volatility windows", () => {
+    expect(paramsLookback(sized)).toBe(121);
+    expect(paramsLookback({ ...sized, sizing: { kind: "volTarget", targetPct: 20, hours: 720 } })).toBe(721);
+    expect(paramsLookback({ ...sized, sizing: undefined })).toBe(121);
+  });
+
+  it("buys equity x target / volatility, capped by the max position share", () => {
+    // Alternating +-1% moves: about 94% volatility a year, so a 20% target wants about 21% of equity.
+    const choppy = Array.from({ length: 130 }, (_, i) => 100 * (i % 2 ? 1.01 : 1));
+    const series = { AAA: [...choppy, 130] };
+    const window = series.AAA.slice(-122);
+    const share = 0.2 / realisedVolatility(window, 72);
+    const hour = runHour({ cash: 1000, positions: {} }, sized, series, 130, 130 * 3600 + 1800);
+    expect(hour.fills).toHaveLength(1);
+    expect(hour.fills[0].quantity * 130 + hour.fills[0].costUsd).toBeCloseTo(1000 * share, 6);
+    // A target far above the volatility is capped at maxPositionPct.
+    const capped = runHour({ cash: 1000, positions: {} }, { ...sized, maxPositionPct: 40, sizing: { kind: "volTarget", targetPct: 500, hours: 72 } }, series, 130, 130 * 3600 + 1800);
+    expect(capped.fills[0].quantity * 130 + capped.fills[0].costUsd).toBeCloseTo(400, 6);
+  });
+
+  it("resizes at 00:00 UTC only when more than 25% off, and keeps the first entry price", () => {
+    const rising = Array.from({ length: 200 }, (_, i) => 100 * (1 + i * 0.002) * (i % 2 ? 1.004 : 1));
+    const series = { AAA: rising };
+    const index = 190;
+    const price = rising[index];
+    const window = rising.slice(index - 121, index + 1);
+    const share = 0.2 / realisedVolatility(window, 72);
+    // Holds twice the wanted size: sells down to it at midnight.
+    const entryPrice = 90;
+    const heavy = { cash: 1000 - (2 * share * 1000) + 0, positions: { AAA: { quantity: (2 * share * 1000) / price, entryPrice, openedAt: 0 } } };
+    const midnight = runHour(heavy, sized, series, index, 86400 * 10);
+    expect(midnight.fills).toHaveLength(1);
+    expect(midnight.fills[0]).toMatchObject({ side: "sell", reason: "resize", entryPrice });
+    expect(midnight.state.positions.AAA.entryPrice).toBe(entryPrice);
+    expect(midnight.state.positions.AAA.quantity * price).toBeCloseTo(share * equityAt(heavy, { AAA: price }), 6);
+    expect(midnight.decisions[0]).toMatchObject({ action: "sell", reasoning: expect.stringMatching(/Daily resize/) });
+    // Same position, not midnight: nothing happens.
+    expect(runHour(heavy, sized, series, index, 86400 * 10 + 3600).fills).toEqual([]);
+    // Within the 25% band: nothing happens, even at midnight.
+    const close = { cash: 1000 - 1.2 * share * 1000, positions: { AAA: { quantity: (1.2 * share * 1000) / price, entryPrice, openedAt: 0 } } };
+    expect(runHour(close, sized, series, index, 86400 * 10).fills).toEqual([]);
+    // Too small: buys up to the wanted size from cash.
+    const light = { cash: 1000 - 0.5 * share * 1000, positions: { AAA: { quantity: (0.5 * share * 1000) / price, entryPrice, openedAt: 0 } } };
+    const topUp = runHour(light, sized, series, index, 86400 * 10);
+    expect(topUp.fills[0]).toMatchObject({ side: "buy", reason: "resize" });
+    expect(topUp.state.positions.AAA.entryPrice).toBe(entryPrice);
+  });
+
+  it("does not count a resize as a round trip, and agents without sizing never resize", () => {
+    const series = { AAA: walk(11, 1200), BBB: walk(3, 1200) };
+    const result = simulate({ series, params: sized, capital: 10_000, fromIndex: 130 });
+    const resizes = result.fills.filter((fill) => fill.reason === "resize");
+    expect(resizes.length).toBeGreaterThan(0);
+    const exits = result.fills.filter((fill) => (fill.side === "sell" || fill.side === "cover") && fill.reason !== "resize");
+    expect(result.roundTrips).toBe(exits.length);
+    expect(result.runs.every((run) => run.cash >= -1e-9)).toBe(true);
+    const plain = simulate({ series, params: { ...sized, sizing: undefined }, capital: 10_000, fromIndex: 130 });
+    expect(plain.fills.some((fill) => fill.reason === "resize")).toBe(false);
+  });
+
+  it("matches the prototype engine, with funding and real hour times", () => {
+    const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+      simulate: (options: object) => { returnPct: number; roundTrips: number; trades: { index: number; side: string; symbol: string; reason: string }[] };
+    };
+    const series: Record<string, number[]> = { AAA: walk(7, 1500), BBB: walk(42, 1500), CCC: walk(99, 1500) };
+    const funding = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => Math.sin(i / 17 + t) * 0.00003)]));
+    // Index 0 starts at 05:00 UTC, so midnight falls on index 19, 43, ...
+    const times = series.AAA.map((_, i) => 1_700_000_000 - (1_700_000_000 % 86400) + 5 * 3600 + i * 3600);
+    for (const targetPct of [20, 60]) {
+      const params: AgentParams = { ...sized, sizing: { kind: "volTarget", targetPct, hours: 72 } };
+      const ours = simulate({ series, params, capital: 10_000, fromIndex: 130, times, funding });
+      const theirs = prototype.simulate({
+        tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, funding: funding[symbol] })),
+        strategy: "custom",
+        rules: trend,
+        venue: "perps",
+        sizing: params.sizing,
+        times,
+        capital: 10_000,
+        maxPositionPct: 100,
+        stopLossPct: 15,
+        fromIndex: 130,
+      });
+      expect(ours.fills.some((fill) => fill.reason === "resize")).toBe(true);
+      expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}:${fill.reason}`)).toEqual(
+        theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}:${trade.reason}`),
+      );
+      expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+      expect(ours.roundTrips).toBe(theirs.roundTrips);
+    }
+  });
+});
+
+describe("Lab long + short rules with a funding filter", () => {
+  // Variant C on short windows: long above SMA x 1.03, short below SMA x 0.97 while 7d funding >= 0.
+  const longShort: Rules = {
+    entry: { join: "all", conditions: [{ left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 120, offsetPct: 3 } }] },
+    exit: { join: "any", conditions: [{ left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 120 } }] },
+    shortEntry: {
+      join: "all",
+      conditions: [
+        { left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 120, offsetPct: -3 } },
+        { left: { kind: "funding7d", hours: 168 }, op: "above", right: { kind: "value", value: -0.000001 } },
+      ],
+    },
+    shortExit: {
+      join: "any",
+      conditions: [
+        { left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 120 } },
+        { left: { kind: "funding7d", hours: 168 }, op: "below", right: { kind: "value", value: 0 } },
+      ],
+    },
+    takeProfitPct: null,
+    maxHoldHours: null,
+  };
+  const params: AgentParams = { strategy: "custom", rules: longShort, maxPositionPct: 100, stopLossPct: 15, venue: "perps", sizing: { kind: "volTarget", targetPct: 20, hours: 72 } };
+  const falling = Array.from({ length: 200 }, (_, i) => 100 * (1 - i * 0.002) * (i % 2 ? 1.004 : 1));
+
+  it("annualises the last 168 hourly funding rates", () => {
+    const funding = Array<number>(200).fill(0.00001);
+    expect(paramsLookback(params)).toBe(169);
+    const hour = runHour({ cash: 1000, positions: {} }, params, { AAA: falling }, 199, 199 * 3600 + 1800, { funding: { AAA: funding } });
+    expect(hour.decisions[0].shortChecks?.[1].left).toBeCloseTo((168 * 0.00001 * 365 * 100) / 7, 4);
+  });
+
+  it("shorts a downtrend while funding is not negative, sized by volatility, and waits while it is negative", () => {
+    const positive = { AAA: Array<number>(200).fill(0.00001) };
+    const hour = runHour({ cash: 1000, positions: {} }, params, { AAA: falling }, 199, 199 * 3600 + 1800, { funding: positive });
+    expect(hour.fills).toHaveLength(1);
+    expect(hour.fills[0]).toMatchObject({ side: "short", reason: "signal" });
+    const share = 0.2 / realisedVolatility(falling.slice(0, 200), 72);
+    expect(hour.fills[0].quantity * falling[199] + hour.fills[0].costUsd).toBeCloseTo(1000 * Math.min(1, share), 6);
+    const negative = { AAA: Array<number>(200).fill(-0.00001) };
+    expect(runHour({ cash: 1000, positions: {} }, params, { AAA: falling }, 199, 199 * 3600 + 1800, { funding: negative }).fills).toEqual([]);
+  });
+
+  it("covers once funding turns negative", () => {
+    const short = { cash: 900, positions: { AAA: { quantity: 1, entryPrice: 70, openedAt: 0, side: "short" as const } } };
+    const negative = { AAA: Array<number>(200).fill(-0.00001) };
+    const hour = runHour(short, params, { AAA: falling }, 199, 199 * 3600 + 1800, { funding: negative });
+    expect(hour.fills[0]).toMatchObject({ side: "cover", reason: "signal" });
+  });
+
+  it("resizes a short at midnight: the entry moves to the price, the stop stays at the first entry", () => {
+    const price = falling[199];
+    const positive = { AAA: Array<number>(200).fill(0.00001) };
+    // Holding twice the wanted size.
+    const share = 0.2 / realisedVolatility(falling.slice(0, 200), 72);
+    const quantity = (2 * share * 1000) / price;
+    const heavy = { cash: 1000 - quantity * 70, positions: { AAA: { quantity, entryPrice: 70, openedAt: 0, side: "short" as const } } };
+    const hour = runHour(heavy, params, { AAA: falling }, 199, 86400 * 10, { funding: positive });
+    // Funding moves a short's entry a little each hour (it is paid from the position).
+    expect(hour.fills[0]).toMatchObject({ side: "cover", reason: "resize", entryPrice: expect.closeTo(70, 2) });
+    const after = hour.state.positions.AAA;
+    expect(after).toMatchObject({ side: "short", entryPrice: price, stopPrice: expect.closeTo(70, 2) });
+    expect(hour.state.cash).toBeGreaterThanOrEqual(0);
+    // Only the cost of the change (and this hour's small funding payment) leaves the equity.
+    expect(hour.equity).toBeCloseTo(equityAt(heavy, { AAA: price }) - hour.fills[0].costUsd, 1);
+    // The stop is measured from the first entry: 70 x 1.15 = 80.5, so 80 holds and 81 covers.
+    const stopped = runHour({ cash: 500, positions: { AAA: { ...after } } }, params, { AAA: [...falling.slice(0, 199), 81] }, 199, 199 * 3600 + 1800, { funding: positive });
+    expect(stopped.fills[0]).toMatchObject({ side: "cover", reason: "stop_loss" });
+    const held = runHour({ cash: 500, positions: { AAA: { ...after } } }, params, { AAA: [...falling.slice(0, 199), 80] }, 199, 199 * 3600 + 1800, { funding: positive });
+    expect(held.fills.some((fill) => fill.reason === "stop_loss")).toBe(false);
+  });
+
+  it("matches the prototype engine, longs and shorts, with funding and real hour times", () => {
+    const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+      simulate: (options: object) => { returnPct: number; roundTrips: number; trades: { index: number; side: string; symbol: string; reason: string }[] };
+    };
+    const series: Record<string, number[]> = { AAA: walk(7, 1500), BBB: walk(42, 1500), CCC: walk(99, 1500) };
+    const funding = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => Math.sin(i / 90 + t) * 0.00003)]));
+    const times = series.AAA.map((_, i) => 1_700_000_000 - (1_700_000_000 % 86400) + 5 * 3600 + i * 3600);
+    const ours = simulate({ series, params, capital: 10_000, fromIndex: 170, times, funding });
+    const theirs = prototype.simulate({
+      tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, funding: funding[symbol] })),
+      strategy: "custom",
+      rules: longShort,
+      venue: "perps",
+      sizing: params.sizing,
+      times,
+      capital: 10_000,
+      maxPositionPct: 100,
+      stopLossPct: 15,
+      fromIndex: 170,
+    });
+    expect(ours.fills.some((fill) => fill.side === "short" && fill.reason === "signal")).toBe(true);
+    expect(ours.fills.some((fill) => (fill.side === "short" || fill.side === "cover") && fill.reason === "resize")).toBe(true);
+    expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}:${fill.reason}`)).toEqual(
+      theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}:${trade.reason}`),
+    );
+    expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+    expect(ours.runs.every((run) => run.cash >= -1e-9)).toBe(true);
+  });
+});
+
+describe("dca", () => {
+  const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+    simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string; quantity: number }[] };
+  };
+  const START = 1_700_006_400; // 00:00 UTC
+  const times = Array.from({ length: 600 }, (_, i) => START + i * 3600);
+  const plan = { buys: 12, everyHours: 24, startTs: START + 10 * 3600 };
+  const dca: AgentParams = { strategy: "dca", maxPositionPct: 33, stopLossPct: 8, dca: plan };
+
+  it("buys cash / buys left on schedule, split across markets, and never sells", () => {
+    const series = { AAA: walk(7, 600), BBB: walk(42, 600) };
+    const result = simulate({ series, params: dca, capital: 12_000, fromIndex: 0, times });
+    expect(result.fills.every((fill) => fill.side === "buy")).toBe(true);
+    expect(result.fills).toHaveLength(24);
+    expect(result.fills.map((fill) => fill.index).filter((_, i) => i % 2 === 0)).toEqual(Array.from({ length: 12 }, (_, k) => 10 + k * 24));
+    // Every buy spends the same: 12,000 / 12 / 2 markets.
+    for (const fill of result.fills) expect(fill.quantity * fill.price + fill.costUsd).toBeCloseTo(500, 6);
+    expect(result.state.cash).toBeCloseTo(0, 6);
+    // The entry is the average paid per token, cost included.
+    const aaa = result.fills.filter((fill) => fill.token === "AAA");
+    const paid = aaa.reduce((sum, fill) => sum + fill.quantity * fill.price + fill.costUsd, 0);
+    const quantity = aaa.reduce((sum, fill) => sum + fill.quantity, 0);
+    expect(result.state.positions.AAA.entryPrice).toBeCloseTo(paid / quantity, 9);
+  });
+
+  it("does not sell on a crash (no stop loss) and says when the next buy is", () => {
+    const crash = [...flat(200), ...Array.from({ length: 400 }, (_, i) => 100 * (1 - (0.8 * i) / 400))];
+    const result = simulate({ series: { AAA: crash }, params: { ...dca, stopLossPct: 2 }, capital: 1_000, fromIndex: 0, times });
+    expect(result.fills.every((fill) => fill.side === "buy")).toBe(true);
+    const hold = result.runs[11].decisions[0];
+    expect(hold.action).toBe("hold");
+    expect(hold.reasoning).toBe("Next scheduled buy in 23 hours (1 of 12 done).");
+    expect(result.runs.at(-1)!.decisions[0].reasoning).toBe("All 12 buys done. Holding with no exit.");
+  });
+
+  it("keeps a market's share in cash while it has no price", () => {
+    const late = [...Array.from({ length: 40 }, () => null), ...walk(5, 560)];
+    const result = simulate({ series: { AAA: walk(7, 600), BBB: late }, params: dca, capital: 12_000, fromIndex: 0, times });
+    // Hour 10: only AAA has a price and gets half of the first buy; BBB's half stays in cash.
+    const first = result.fills.filter((fill) => fill.index === 10);
+    expect(first.map((fill) => fill.token)).toEqual(["AAA"]);
+    expect(first[0].quantity * first[0].price + first[0].costUsd).toBeCloseTo(500, 6);
+    expect(result.state.cash).toBeCloseTo(0, 6);
+  });
+
+  it("matches the prototype engine", () => {
+    const series: Record<string, number[]> = { AAA: walk(7, 600), BBB: walk(42, 600), CCC: walk(99, 600) };
+    for (const venuePlan of [plan, { buys: 4, everyHours: 168, startTs: START }]) {
+      const ours = simulate({ series, params: { ...dca, dca: venuePlan }, capital: 10_000, fromIndex: 0, times });
+      const theirs = prototype.simulate({
+        tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes })),
+        strategy: "dca",
+        dca: venuePlan,
+        capital: 10_000,
+        maxPositionPct: 33,
+        stopLossPct: 8,
+        fromIndex: 0,
+        times,
+      });
+      expect(ours.fills.length).toBeGreaterThan(0);
+      expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
+      expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+    }
+  });
+});
+
+describe("oiChange (Lab open interest gate)", () => {
+  const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+    simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string }[] };
+  };
+  const gated: Rules = {
+    entry: {
+      join: "all",
+      conditions: [
+        { left: { kind: "change", hours: 24 }, op: "above", right: { kind: "value", value: 1 } },
+        { left: { kind: "oiChange", hours: 168 }, op: "above", right: { kind: "value", value: 0 } },
+      ],
+    },
+    exit: { join: "any", conditions: [{ left: { kind: "change", hours: 24 }, op: "below", right: { kind: "value", value: -1 } }] },
+    shortEntry: {
+      join: "all",
+      conditions: [
+        { left: { kind: "change", hours: 24 }, op: "below", right: { kind: "value", value: -1 } },
+        { left: { kind: "oiChange", hours: 168 }, op: "above", right: { kind: "value", value: 0 } },
+      ],
+    },
+    shortExit: { join: "any", conditions: [{ left: { kind: "change", hours: 24 }, op: "above", right: { kind: "value", value: 1 } }] },
+    takeProfitPct: null,
+    maxHoldHours: null,
+  };
+  const params: AgentParams = { strategy: "custom", rules: gated, maxPositionPct: 50, stopLossPct: 10, venue: "perps" };
+  const series: Record<string, number[]> = { AAA: walk(7, 900), BBB: walk(42, 900) };
+  // Open interest is stored from hour 300 on, rising and falling in waves.
+  const openInterest = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => (i < 300 ? null : 1000 + 300 * Math.sin(i / 40 + t)))]));
+
+  it("blocks entries until 168 stored hours exist and while open interest is falling", () => {
+    const result = simulate({ series, params, capital: 10_000, fromIndex: 200, openInterest });
+    const opens = result.fills.filter((fill) => fill.side === "buy" || fill.side === "short");
+    expect(opens.length).toBeGreaterThan(0);
+    expect(opens.every((fill) => fill.index >= 300 + 168)).toBe(true);
+    for (const fill of opens) {
+      const oi = openInterest[fill.token];
+      expect(oi[fill.index]! / oi[fill.index - 168]!).toBeGreaterThan(1);
+    }
+    // With no open interest at all the gate never opens.
+    expect(simulate({ series, params, capital: 10_000, fromIndex: 200 }).fills).toEqual([]);
+  });
+
+  it("never forces an exit: a missing open interest only blocks entries", () => {
+    const missingLater = Object.fromEntries(Object.entries(openInterest).map(([token, values]) => [token, values.map((value, i) => (i >= 700 ? null : value))]));
+    const result = simulate({ series, params, capital: 10_000, fromIndex: 200, openInterest: missingLater });
+    expect(result.fills.filter((fill) => fill.index >= 700 && (fill.side === "buy" || fill.side === "short"))).toEqual([]);
+    expect(result.fills.some((fill) => fill.index >= 700 && (fill.side === "sell" || fill.side === "cover"))).toBe(true);
+  });
+
+  it("matches the prototype engine", () => {
+    const ours = simulate({ series, params, capital: 10_000, fromIndex: 200, openInterest });
+    const theirs = prototype.simulate({
+      tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, openInterest: openInterest[symbol] })),
+      strategy: "custom",
+      rules: gated,
+      venue: "perps",
+      capital: 10_000,
+      maxPositionPct: 50,
+      stopLossPct: 10,
+      fromIndex: 200,
+    });
+    expect(ours.fills.length).toBeGreaterThan(0);
+    expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
+    expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
   });
 });

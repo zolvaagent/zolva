@@ -45,6 +45,8 @@
   const BOUNCE_FAST_MAX = 0.015;
   // Share of the margin a leveraged short may lose before it is liquidated.
   const LIQUIDATION_LOSS = 0.95;
+  // Volatility sizing (custom rules only): resize once a day when more than 25% off the wanted size.
+  const RESIZE_BAND = 0.25;
 
   const STRATEGIES = {
     momentum: {
@@ -189,15 +191,25 @@
    * @param {number} options.fromIndex          first hour the agent may act on
    * @param {number} [options.toIndex]          last hour (inclusive), defaults to the latest
    * @param {"dex"|"perps"} [options.venue]      perps: PERPS_COST_RATE and each token's funding
-   *                                             (token.funding, signed fraction per hour, positive: longs pay)
+   *                                             (token.funding, signed fraction per hour, positive: longs pay; token.openInterest, coins per hour, for oiChange)
+   * @param {{kind: "volTarget", targetPct: number, hours: number}} [options.sizing]  custom rules only:
+   *                                             buy equity x min(max %, target / realised volatility), and
+   *                                             resize once a day (00:00 UTC) when more than 25% off
+   * @param {number[]} [options.times]           hour start per index (unix seconds), default index x 3600
+   * @param {number} [options.costScale]         multiplies the cost per fill (2 = double costs), default 1
+   * @param {{buys: number, everyHours: number, startTs: number}} [options.dca]  strategy "dca" only: buy cash / buys left,
+   *                                             split equally across its markets, at startTs and every everyHours
+   *                                             after, `buys` times; never sells (no stop loss, no max position)
    */
   function simulate(options) {
     const perps = options.venue === "perps";
-    const cost = perps ? PERPS_COST_RATE : COST_RATE;
+    const cost = (perps ? PERPS_COST_RATE : COST_RATE) * (options.costScale ?? 1);
     // "custom" runs the user's rules (options.rules); the presets keep their own code.
     const custom = options.strategy === "custom";
     const strategy = STRATEGIES[options.strategy];
-    const warmup = custom ? rulesLookback(options.rules) : options.strategy === "dip_fade" || options.strategy === "bounce_short" ? TREND_HOURS : WARMUP_HOURS;
+    const sizing = custom ? options.sizing : undefined;
+    const ruleWarmup = custom ? rulesLookback(options.rules) : options.strategy === "dip_fade" || options.strategy === "bounce_short" ? TREND_HOURS : WARMUP_HOURS;
+    const warmup = sizing ? Math.max(ruleWarmup, sizing.hours + 1) : ruleWarmup;
     const lastIndex = options.toIndex ?? options.tokens[0].closes.length - 1;
     const maxShare = options.maxPositionPct / 100;
     const stopDistance = options.stopLossPct / 100;
@@ -215,6 +227,13 @@
       const prices = {};
       for (const token of options.tokens) prices[token.symbol] = token.closes[index];
       const equityBefore = equityAt(cash, positions, prices);
+      const hourTime = options.times ? options.times[index] : index * 3600;
+      if (options.strategy === "dca") {
+        cash = dcaHour(options.dca, options.tokens, positions, prices, cash, index, hourTime, cost, trades);
+        runs.push({ index, equity: equityAt(cash, positions, prices), cash, decisions: [] });
+        continue;
+      }
+      const resizeHour = sizing !== undefined && hourTime % 86400 === 0;
       const decisions = [];
       // One position strategies: decided from the positions held at the start of the hour.
       // Dip + fade has one slot per side.
@@ -262,7 +281,7 @@
           continue;
         }
 
-        if (position && position.side === "short" && price >= position.entryPrice * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
+        if (position && position.side === "short" && price >= (position.stopPrice ?? position.entryPrice) * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
           cash += cover(trades, index, token.symbol, position, price, "stop_loss", cost);
           delete positions[token.symbol];
           const liquidated = position.margin !== undefined && LIQUIDATION_LOSS / leverage < stopDistance;
@@ -306,7 +325,10 @@
         }
 
         const decision = custom
-          ? evaluateRules(options.rules, window, Boolean(position))
+          ? evaluateRules(options.rules, window, position ? (position.side === "short" ? "short" : true) : false, {
+              funding: token.funding ? token.funding.slice(Math.max(0, index - warmup), index + 1) : undefined,
+              openInterest: token.openInterest ? token.openInterest.slice(Math.max(0, index - warmup), index + 1) : undefined,
+            })
           : dipFade
             ? strategy.decide(window, price, position ? (position.side === "short" ? "short" : "long") : null)
             : strategy.decide(window, price, Boolean(position));
@@ -319,7 +341,7 @@
           decisions.push({ symbol: token.symbol, action: "hold", reasoning, indicators: decision.indicators });
           continue;
         }
-        if (decision.action === "short" && token.symbol !== strongestSpike) {
+        if (decision.action === "short" && !custom && token.symbol !== strongestSpike) {
           const base = decision.reasoning.replace(/ Shorting the (spike|bounce)\./, "");
           const reasoning = dipFade && holdsShort
             ? `${base} Already short another market: one short at a time.`
@@ -332,7 +354,8 @@
           continue;
         }
         if (decision.action === "short") {
-          const notional = Math.min(cash, equityBefore * maxShare);
+          const shortShare = sizing ? wantedShare(sizing, window, maxShare).share : maxShare;
+          const notional = Math.min(cash, equityBefore * shortShare);
           if (notional < 1) {
             decisions.push({ symbol: token.symbol, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
             continue;
@@ -346,14 +369,16 @@
             trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: exposure * cost, reason: "signal" });
           } else {
             const quantity = (notional * (1 - cost)) / price;
-            positions[token.symbol] = { quantity, entryPrice: price, openedIndex: index, side: "short" };
+            // Lab short rules keep their stop at this price even after funding or a resize moves the entry.
+            positions[token.symbol] = { quantity, entryPrice: price, openedIndex: index, side: "short", ...(custom ? { stopPrice: price } : {}) };
             trades.push({ index, symbol: token.symbol, side: "short", quantity, price, costUsd: notional * cost, reason: "signal" });
           }
         } else if (decision.action === "cover") {
           cash += cover(trades, index, token.symbol, position, price, "signal", cost);
           delete positions[token.symbol];
         } else if (decision.action === "buy") {
-          const notional = Math.min(cash, equityBefore * maxShare);
+          const share = sizing ? wantedShare(sizing, window, maxShare).share : maxShare;
+          const notional = Math.min(cash, equityBefore * share);
           if (notional < 1) {
             decisions.push({ symbol: token.symbol, action: "hold", reasoning: "Signal to buy, but no cash left. Holding." });
             continue;
@@ -366,6 +391,60 @@
         } else if (decision.action === "sell") {
           cash += sell(trades, index, token.symbol, position, price, "signal", cost);
           delete positions[token.symbol];
+        }
+
+        // Daily resize of a volatility sized position that is still open; the first entry price stays.
+        const open = positions[token.symbol];
+        if (resizeHour && open && open.side !== "short") {
+          const target = wantedShare(sizing, window, maxShare);
+          const wanted = equityAt(cash, positions, prices) * target.share;
+          const held = open.quantity * price;
+          if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+            const why = `Daily resize: volatility is ${(target.volatility * 100).toFixed(0)}% a year, so the target is ${(target.share * 100).toFixed(1)}% of equity`;
+            if (held < wanted) {
+              const spend = Math.min(cash, wanted - held);
+              if (spend >= 1) {
+                const quantity = (spend * (1 - cost)) / price;
+                cash -= spend;
+                positions[token.symbol] = { ...open, quantity: open.quantity + quantity };
+                trades.push({ index, symbol: token.symbol, side: "buy", quantity, price, costUsd: spend * cost, reason: "resize" });
+                decisions.push({ symbol: token.symbol, action: "buy", reasoning: `${decision.reasoning} ${why}: buying $${spend.toFixed(2)} more.`, indicators: decision.indicators });
+                continue;
+              }
+            } else {
+              const quantity = (held - wanted) / price;
+              const gross = quantity * price;
+              cash += gross * (1 - cost);
+              positions[token.symbol] = { ...open, quantity: open.quantity - quantity };
+              trades.push({ index, symbol: token.symbol, side: "sell", quantity, price, costUsd: gross * cost, reason: "resize", entryPrice: open.entryPrice });
+              decisions.push({ symbol: token.symbol, action: "sell", reasoning: `${decision.reasoning} ${why}: selling $${gross.toFixed(2)}.`, indicators: decision.indicators });
+              continue;
+            }
+          }
+        }
+        // A short is resized by closing it and reopening at the wanted size at this price; the stop
+        // stays at the first entry. Never more than the cash can carry, cost included.
+        if (resizeHour && open && open.side === "short" && open.margin === undefined) {
+          const target = wantedShare(sizing, window, maxShare);
+          const free = cash + shortValue(open, price);
+          const held = open.quantity * price;
+          const wanted = Math.min(equityAt(cash, positions, prices) * target.share, (free + held * cost) / (1 + cost));
+          if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+            const why = `Daily resize: volatility is ${(target.volatility * 100).toFixed(0)}% a year, so the target is ${(target.share * 100).toFixed(1)}% of equity`;
+            const quantity = wanted / price;
+            const change = Math.abs(quantity - open.quantity);
+            const costUsd = change * price * cost;
+            cash = free - wanted - costUsd;
+            positions[token.symbol] = { quantity, entryPrice: price, openedIndex: open.openedIndex, side: "short", stopPrice: open.stopPrice ?? open.entryPrice };
+            if (quantity > open.quantity) {
+              trades.push({ index, symbol: token.symbol, side: "short", quantity: change, price, costUsd, reason: "resize" });
+              decisions.push({ symbol: token.symbol, action: "short", reasoning: `${decision.reasoning} ${why}: shorting $${(change * price).toFixed(2)} more.`, indicators: decision.indicators });
+            } else {
+              trades.push({ index, symbol: token.symbol, side: "cover", quantity: change, price, costUsd, reason: "resize", entryPrice: open.entryPrice });
+              decisions.push({ symbol: token.symbol, action: "cover", reasoning: `${decision.reasoning} ${why}: covering $${(change * price).toFixed(2)}.`, indicators: decision.indicators });
+            }
+            continue;
+          }
         }
         decisions.push({ symbol: token.symbol, action: decision.action, reasoning: decision.reasoning, indicators: decision.indicators });
       }
@@ -387,6 +466,29 @@
       winRatePct: closedTrades.length ? (closedTrades.filter((profit) => profit > 0).length / closedTrades.length) * 100 : null,
       roundTrips: closedTrades.length,
     };
+  }
+
+  /** One DCA hour: on schedule, buy cash / buys left split across all markets (unpriced ones keep theirs in cash). Returns the new cash. */
+  function dcaHour(plan, tokens, positions, prices, cash, index, hourTime, cost, trades) {
+    const every = plan.everyHours * 3600;
+    const done = hourTime < plan.startTs ? 0 : Math.floor((hourTime - plan.startTs) / every);
+    const scheduled = hourTime >= plan.startTs && (hourTime - plan.startTs) % every === 0 && done < plan.buys;
+    if (!scheduled) return cash;
+    const priced = tokens.filter((token) => prices[token.symbol] != null);
+    if (!priced.length) return cash;
+    const share = cash / (plan.buys - done) / tokens.length;
+    if (share < 1) return cash;
+    for (const token of priced) {
+      const price = prices[token.symbol];
+      const quantity = (share * (1 - cost)) / price;
+      const position = positions[token.symbol];
+      cash -= share;
+      positions[token.symbol] = position
+        ? { ...position, quantity: position.quantity + quantity, entryPrice: (position.quantity * position.entryPrice + share) / (position.quantity + quantity) }
+        : { quantity, entryPrice: share / quantity, openedIndex: index };
+      trades.push({ index, symbol: token.symbol, side: "buy", quantity, price, costUsd: share * cost, reason: "signal" });
+    }
+    return cash;
   }
 
   /**
@@ -447,9 +549,26 @@
       : Math.max(0, position.margin + position.quantity * (position.entryPrice - price));
   }
 
+  /** Annualised volatility of the last `hours` hourly log returns at the end of `window`. */
+  function realisedVolatility(window, hours) {
+    const closes = window.slice(-hours - 1);
+    const returns = [];
+    for (let i = 1; i < closes.length; i++) returns.push(Math.log(closes[i] / closes[i - 1]));
+    const average = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+    const variance = returns.reduce((sum, value) => sum + value * value, 0) / returns.length - average * average;
+    return Math.sqrt(Math.max(0, variance) * 8760);
+  }
+
+  /** Share of equity a volatility sized agent wants in one market, capped by the max position share. */
+  function wantedShare(sizing, window, maxShare) {
+    const volatility = realisedVolatility(window, sizing.hours);
+    return { share: volatility > 0 ? Math.min(maxShare, sizing.targetPct / 100 / volatility) : maxShare, volatility };
+  }
+
+  // A resize is not a round trip: only full exits count toward the win rate.
   function pairRoundTrips(trades, cost) {
     return trades
-      .filter((trade) => trade.side === "sell" || trade.side === "cover")
+      .filter((trade) => (trade.side === "sell" || trade.side === "cover") && trade.reason !== "resize")
       .map((trade) => (trade.side === "sell" ? trade.price * (1 - cost) - trade.entryPrice : trade.entryPrice - trade.price * (1 + cost)));
   }
 
@@ -511,6 +630,14 @@
     rsi: { label: "RSI", unit: "rsi", periods: [14, 24] },
   };
 
+  // Lab only, never offered in the Studio: 7 day average perps funding (% a year) and the open
+  // interest change over `hours` (%).
+  function indicatorMeta(kind) {
+    if (kind === "funding7d") return { label: "7d funding", unit: "pct", periods: null };
+    if (kind === "oiChange") return { label: "Open interest change", unit: "pct", periods: [168] };
+    return INDICATORS[kind];
+  }
+
   const OPERATORS = { above: "above", below: "below", crossesAbove: "crosses above", crossesBelow: "crosses below" };
 
   const RULE_TEMPLATES = {
@@ -545,7 +672,8 @@
   /** Hours of history the rules need (largest period, plus one hour for "crosses"). */
   function rulesLookback(rules) {
     let hours = 2;
-    for (const condition of [...rules.entry.conditions, ...rules.exit.conditions]) {
+    const groups = [rules.entry, rules.exit, rules.shortEntry, rules.shortExit].filter(Boolean);
+    for (const condition of groups.flatMap((group) => group.conditions)) {
       const cross = condition.op === "crossesAbove" || condition.op === "crossesBelow" ? 1 : 0;
       for (const side of [condition.left, condition.right]) {
         if (side.hours) hours = Math.max(hours, side.hours + 1 + cross);
@@ -554,11 +682,26 @@
     return hours;
   }
 
-  /** Value of an indicator at the end of `window` (closes, oldest first). */
-  function indicatorValue(indicator, window) {
+  /**
+   * Value of an indicator at the end of `window` (closes, oldest first). `inputs` holds the same
+   * hours' Lab-only series: { funding, openInterest }.
+   */
+  function indicatorValue(indicator, window, inputs) {
+    const funding = inputs && inputs.funding;
     const price = window[window.length - 1];
     const recent = (hours) => window.slice(-hours);
     switch (indicator.kind) {
+      // Lab only: 7 day average perps funding, annualised, in percent (missing hours count as 0).
+      case "funding7d":
+        return ((funding || []).slice(-168).reduce((sum, rate) => sum + (rate || 0), 0) * 365 * 100) / 7;
+      // Lab only: open interest change over indicator.hours, in percent; NaN (meets nothing) while
+      // either end is not stored.
+      case "oiChange": {
+        const series = (inputs && inputs.openInterest) || [];
+        const now = series[series.length - 1];
+        const then = series[series.length - 1 - indicator.hours];
+        return now != null && then != null && then > 0 && series.length > indicator.hours ? (now / then - 1) * 100 : NaN;
+      }
       case "price":
         return price;
       case "sma":
@@ -591,36 +734,55 @@
     }
   }
 
-  function sideValue(side, window) {
+  function sideValue(side, window, inputs) {
     if (side.kind === "value") return side.value;
-    return indicatorValue(side, window) * (1 + (side.offsetPct || 0) / 100);
+    return indicatorValue(side, window, inputs) * (1 + (side.offsetPct || 0) / 100);
   }
 
-  function checkCondition(condition, window) {
-    const left = sideValue(condition.left, window);
-    const right = sideValue(condition.right, window);
+  function checkCondition(condition, window, inputs) {
+    const left = sideValue(condition.left, window, inputs);
+    const right = sideValue(condition.right, window, inputs);
     let met;
     if (condition.op === "above") met = left > right;
     else if (condition.op === "below") met = left < right;
     else {
       const previous = window.slice(0, -1);
-      const leftBefore = sideValue(condition.left, previous);
-      const rightBefore = sideValue(condition.right, previous);
+      const previousInputs = {
+        funding: inputs && inputs.funding ? inputs.funding.slice(0, -1) : undefined,
+        openInterest: inputs && inputs.openInterest ? inputs.openInterest.slice(0, -1) : undefined,
+      };
+      const leftBefore = sideValue(condition.left, previous, previousInputs);
+      const rightBefore = sideValue(condition.right, previous, previousInputs);
       met = condition.op === "crossesAbove" ? leftBefore <= rightBefore && left > right : leftBefore >= rightBefore && left < right;
     }
     return { met, text: describeCondition(condition, left, right) };
   }
 
-  function evaluateRules(rules, window, hasPosition) {
+  /** held: true while long, "short" while short (Lab perps rules), false while flat. */
+  function evaluateRules(rules, window, held, inputs) {
+    if (held === "short") {
+      const cover = rules.shortExit;
+      if (!cover || !cover.conditions.length) return { action: "hold", reasoning: "Holding the short until its stop loss." };
+      const coverChecks = cover.conditions.map((condition) => checkCondition(condition, window, inputs));
+      const coverMet = cover.join === "all" ? coverChecks.every((check) => check.met) : coverChecks.some((check) => check.met);
+      return coverMet ? { action: "cover", reasoning: "Cover rule met. Covering." } : { action: "hold", reasoning: "Holding the short." };
+    }
+    const hasPosition = held === true;
     const group = hasPosition ? rules.exit : rules.entry;
     if (!group.conditions.length) {
       return { action: "hold", reasoning: "Holding until take profit, stop loss or max holding time." };
     }
-    const checks = group.conditions.map((condition) => checkCondition(condition, window));
+    const checks = group.conditions.map((condition) => checkCondition(condition, window, inputs));
     const met = group.join === "all" ? checks.every((check) => check.met) : checks.some((check) => check.met);
     if (met) {
       const reasons = checks.filter((check) => check.met).map((check) => check.text).join("; ");
       return hasPosition ? { action: "sell", reasoning: `Sell rule met: ${reasons}. Selling.` } : { action: "buy", reasoning: `Buy rule met: ${reasons}. Buying.` };
+    }
+    // Flat with Lab short rules: the long entry first, then the short entry.
+    if (!hasPosition && rules.shortEntry && rules.shortEntry.conditions.length) {
+      const shortChecks = rules.shortEntry.conditions.map((condition) => checkCondition(condition, window, inputs));
+      const shortMet = rules.shortEntry.join === "all" ? shortChecks.every((check) => check.met) : shortChecks.some((check) => check.met);
+      if (shortMet) return { action: "short", reasoning: "Short rule met. Shorting." };
     }
     const missing = checks.find((check) => !check.met);
     return {
@@ -632,13 +794,13 @@
   /** "price $735.20 above 48h average $721.00", "24h change +1.2% above +3.0%". */
   function describeCondition(condition, leftValue, rightValue) {
     // A plain number is shown in the unit of the indicator it is compared with.
-    const unit = INDICATORS[condition.left.kind].unit;
+    const unit = indicatorMeta(condition.left.kind).unit;
     return `${describeSide(condition.left, leftValue, unit)} ${OPERATORS[condition.op]} ${describeSide(condition.right, rightValue, unit)}`;
   }
 
   function describeSide(side, value, unit) {
     if (side.kind === "value") return formatUnit(unit, value);
-    const meta = INDICATORS[side.kind];
+    const meta = indicatorMeta(side.kind);
     const name = side.hours ? `${side.hours}h ${meta.label.toLowerCase()}` : meta.label.toLowerCase();
     const offset = side.offsetPct ? ` ${side.offsetPct > 0 ? "+" : "−"}${Math.abs(side.offsetPct)}%` : "";
     return `${name}${offset} ${formatUnit(meta.unit, value)}`;
@@ -675,6 +837,7 @@
     OPERATORS,
     RULE_TEMPLATES,
     rulesLookback,
+    realisedVolatility,
     validateRules,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

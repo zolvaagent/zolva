@@ -10,7 +10,15 @@ import { formatPercent, mean, type Signal } from "./strategies.ts";
 export type IndicatorKind = "price" | "sma" | "high" | "low" | "change" | "zscore" | "rsi";
 export type Operator = "above" | "below" | "crossesAbove" | "crossesBelow";
 
-export type Indicator = { kind: IndicatorKind; hours?: number; offsetPct?: number };
+/**
+ * Lab only (never accepted by parseRules, so users cannot pick them):
+ * - funding7d: the 7 day average perps funding rate, annualised, in percent. Positive: longs pay shorts.
+ * - oiChange: how much a perp's open interest changed over `hours` (168: 7 days), in percent. Lighter
+ *   keeps no history, so it reads the open interest Zolva stores each hour; while either end is
+ *   missing the value is NaN, which meets no condition: it blocks entries and never forces an exit.
+ */
+export type LabIndicatorKind = "funding7d" | "oiChange";
+export type Indicator = { kind: IndicatorKind | LabIndicatorKind; hours?: number; offsetPct?: number };
 export type ValueSide = { kind: "value"; value: number };
 export type Condition = { left: Indicator; op: Operator; right: Indicator | ValueSide };
 export type RuleGroup = { join: "all" | "any"; conditions: Condition[] };
@@ -18,6 +26,12 @@ export type RuleGroup = { join: "all" | "any"; conditions: Condition[] };
 export type Rules = {
   entry: RuleGroup;
   exit: RuleGroup;
+  /**
+   * Lab only, perps only (never accepted by parseRules): open a short when this group is met while
+   * flat (checked after the long entry), and cover it when `shortExit` is met.
+   */
+  shortEntry?: RuleGroup;
+  shortExit?: RuleGroup;
   /** Sell when this far above entry, in percent. */
   takeProfitPct: number | null;
   /** Sell after holding this many hours. */
@@ -35,6 +49,22 @@ export const INDICATORS: Record<IndicatorKind, { label: string; unit: Unit; peri
   zscore: { label: "Z score", unit: "z", periods: [24, 48, 72, 96] },
   rsi: { label: "RSI", unit: "rsi", periods: [14, 24] },
 };
+
+/** Funding over 7 days (168 hours), in % a year. */
+export const FUNDING_HOURS = 168;
+const FUNDING_META = { label: "7d funding", unit: "pct" as Unit, periods: null };
+const OI_META = { label: "Open interest change", unit: "pct" as Unit, periods: [168] };
+
+/** Label, unit and periods of any indicator, the Lab-only ones included. */
+export function indicatorMeta(kind: Indicator["kind"]): { label: string; unit: Unit; periods: number[] | null } {
+  return kind === "funding7d" ? FUNDING_META : kind === "oiChange" ? OI_META : INDICATORS[kind];
+}
+
+/**
+ * Lab-only series a rule may read next to the closes, aligned with the same hours (oldest first):
+ * perps funding (signed fraction per hour, null counts as 0) and open interest (in coins, null = not stored).
+ */
+export type RuleInputs = { funding?: (number | null)[]; openInterest?: (number | null)[] };
 
 export const OPERATORS: Record<Operator, string> = {
   above: "above",
@@ -74,11 +104,33 @@ export const RULE_TEMPLATES: Record<"momentum" | "mean_reversion" | "breakout", 
 
 export const MAX_CONDITIONS = 3;
 export const MAX_LOOKBACK_HOURS = 168;
+/** Largest shift of a price line, in percent either way. */
+export const MAX_OFFSET_PCT = 50;
+export const TAKE_PROFIT_RANGE = { min: 1, max: 500 } as const;
+export const MAX_HOLD_RANGE = { min: 1, max: 24 * 30 } as const;
+
+/**
+ * Every message parseRules can return, in one place so /docs/rules lists them all
+ * (lib/docs-reference/rules.test.ts fails when one is missing there).
+ */
+export const RULE_ERRORS = {
+  tooManyConditions: (side: "buy" | "sell") => `Use at most ${MAX_CONDITIONS} ${side} rules.`,
+  noBuyRule: "Add at least one buy rule.",
+  noWayToSell: "Add a sell rule, a take profit or a max holding time, or the agent only sells on its stop loss.",
+  lookbackTooLong: "Rules may look back at most 7 days.",
+  unknownIndicator: "A rule has an unknown indicator.",
+  unknownComparison: "A rule has an unknown comparison.",
+  priceAgainstNumber: "Compare prices with another price line, not a plain number.",
+  missingNumber: "Every number in a rule needs a value.",
+  onlyPriceLines: "Only price lines can be compared with each other.",
+  outOfRange: (name: "Take profit" | "Max holding time", min: number, max: number) => `${name} must be between ${min} and ${max}.`,
+} as const;
 
 /** Hours of history the rules need (largest period, plus one for "crosses"). */
 export function rulesLookback(rules: Rules): number {
   let hours = 2;
-  for (const condition of [...rules.entry.conditions, ...rules.exit.conditions]) {
+  const groups = [rules.entry, rules.exit, rules.shortEntry, rules.shortExit].filter((group): group is RuleGroup => Boolean(group));
+  for (const condition of groups.flatMap((group) => group.conditions)) {
     const cross = condition.op === "crossesAbove" || condition.op === "crossesBelow" ? 1 : 0;
     for (const side of [condition.left, condition.right]) {
       if ("hours" in side && side.hours) hours = Math.max(hours, side.hours + 1 + cross);
@@ -87,11 +139,25 @@ export function rulesLookback(rules: Rules): number {
   return hours;
 }
 
-/** Value of an indicator at the end of `window` (closes, oldest first). */
-export function indicatorValue(indicator: Indicator, window: number[]): number {
+/**
+ * Value of an indicator at the end of `window` (closes, oldest first). `inputs` holds the same hours'
+ * Lab-only series (see RuleInputs); only funding7d and oiChange read them.
+ */
+export function indicatorValue(indicator: Indicator, window: number[], inputs: RuleInputs = {}): number {
   const price = window[window.length - 1];
   const hours = indicator.hours ?? 0;
   switch (indicator.kind) {
+    case "funding7d": {
+      const rates = (inputs.funding ?? []).slice(-FUNDING_HOURS);
+      return (rates.reduce((sum: number, rate) => sum + (rate ?? 0), 0) * 365 * 100) / 7;
+    }
+    case "oiChange": {
+      const series = inputs.openInterest ?? [];
+      const now = series[series.length - 1];
+      const then = series[series.length - 1 - hours];
+      // Either end not stored (or zero): unknown, so no condition on it can be met.
+      return now != null && then != null && then > 0 && series.length > hours ? (now / then - 1) * 100 : Number.NaN;
+    }
     case "price":
       return price;
     case "sma":
@@ -122,56 +188,104 @@ export function indicatorValue(indicator: Indicator, window: number[]): number {
   }
 }
 
-function sideValue(side: Indicator | ValueSide, window: number[]): number {
+function sideValue(side: Indicator | ValueSide, window: number[], inputs: RuleInputs): number {
   if (side.kind === "value") return side.value;
-  return indicatorValue(side, window) * (1 + (side.offsetPct ?? 0) / 100);
+  return indicatorValue(side, window, inputs) * (1 + (side.offsetPct ?? 0) / 100);
 }
 
-export function checkCondition(condition: Condition, window: number[]): { met: boolean; text: string } {
-  const left = sideValue(condition.left, window);
-  const right = sideValue(condition.right, window);
+export function checkCondition(condition: Condition, window: number[], inputs: RuleInputs = {}): { met: boolean; text: string; left: number; right: number } {
+  const left = sideValue(condition.left, window, inputs);
+  const right = sideValue(condition.right, window, inputs);
   let met: boolean;
   if (condition.op === "above") met = left > right;
   else if (condition.op === "below") met = left < right;
   else {
     const previous = window.slice(0, -1);
-    const leftBefore = sideValue(condition.left, previous);
-    const rightBefore = sideValue(condition.right, previous);
+    const previousInputs = { funding: inputs.funding?.slice(0, -1), openInterest: inputs.openInterest?.slice(0, -1) };
+    const leftBefore = sideValue(condition.left, previous, previousInputs);
+    const rightBefore = sideValue(condition.right, previous, previousInputs);
     met = condition.op === "crossesAbove" ? leftBefore <= rightBefore && left > right : leftBefore >= rightBefore && left < right;
   }
-  return { met, text: describeCondition(condition, left, right) };
+  return { met, text: describeCondition(condition, left, right), left, right };
 }
 
 /** The decision for one token from its rules; take profit and max hold are handled by the engine. */
-export function evaluateRules(rules: Rules, window: number[], hasPosition: boolean): Signal {
+/**
+ * @param held      true while long, "short" while short (Lab perps rules only), false while flat
+ * @param inputs    the same hours' Lab-only series (funding for funding7d, open interest for oiChange)
+ */
+export function evaluateRules(rules: Rules, window: number[], held: boolean | "short", inputs: RuleInputs = {}): Signal {
+  if (held === "short") {
+    const cover = rules.shortExit;
+    if (!cover?.conditions.length) return { action: "hold", reasoning: "Holding the short until its stop loss.", indicators: {} };
+    const result = checkGroup(cover, window, inputs);
+    return result.met
+      ? { action: "cover", reasoning: `Cover rule met: ${result.reasons}. Covering.`, indicators: {}, checks: result.values }
+      : { action: "hold", reasoning: `Holding the short. Not yet: ${result.missing}.`, indicators: {}, checks: result.values };
+  }
+  const hasPosition = held === true;
   const group = hasPosition ? rules.exit : rules.entry;
   if (!group.conditions.length) {
     return { action: "hold", reasoning: "Holding until take profit, stop loss or max holding time.", indicators: {} };
   }
-  const checks = group.conditions.map((condition) => checkCondition(condition, window));
+  const result = checkGroup(group, window, inputs);
+  if (result.met) {
+    return hasPosition
+      ? { action: "sell", reasoning: `Sell rule met: ${result.reasons}. Selling.`, indicators: {}, checks: result.values }
+      : { action: "buy", reasoning: `Buy rule met: ${result.reasons}. Buying.`, indicators: {}, checks: result.values };
+  }
+  // Flat with Lab short rules: the long entry is checked first, then the short entry.
+  if (!hasPosition && rules.shortEntry?.conditions.length) {
+    const short = checkGroup(rules.shortEntry, window, inputs);
+    return short.met
+      ? { action: "short", reasoning: `Short rule met: ${short.reasons}. Shorting.`, indicators: {}, checks: result.values, shortChecks: short.values }
+      : { action: "hold", reasoning: `Waiting. Not yet: ${result.missing}; for a short, not yet: ${short.missing}.`, indicators: {}, checks: result.values, shortChecks: short.values };
+  }
+  return { action: "hold", reasoning: `${hasPosition ? "Holding" : "Waiting"}. Not yet: ${result.missing}.`, indicators: {}, checks: result.values };
+}
+
+/** Checks one group: whether it is met, the met conditions' text, the first unmet one, and every value. */
+function checkGroup(group: RuleGroup, window: number[], inputs: RuleInputs) {
+  const checks = group.conditions.map((condition) => checkCondition(condition, window, inputs));
   const met = group.join === "all" ? checks.every((check) => check.met) : checks.some((check) => check.met);
-  if (met) {
-    const reasons = checks
+  return {
+    met,
+    reasons: checks
       .filter((check) => check.met)
       .map((check) => check.text)
-      .join("; ");
-    return hasPosition
-      ? { action: "sell", reasoning: `Sell rule met: ${reasons}. Selling.`, indicators: {} }
-      : { action: "buy", reasoning: `Buy rule met: ${reasons}. Buying.`, indicators: {} };
-  }
-  const missing = checks.find((check) => !check.met)!;
-  return { action: "hold", reasoning: `${hasPosition ? "Holding" : "Waiting"}. Not yet: ${missing.text}.`, indicators: {} };
+      .join("; "),
+    missing: checks.find((check) => !check.met)?.text ?? "",
+    // The values behind the decision, for the decision log's details (lib/engine/explain.ts).
+    values: checks.map(({ left, right, met: ok }) => ({ left: round6(left), right: round6(right), met: ok })),
+  };
+}
+
+/** Six significant digits: enough for any price or indicator, and keeps stored decisions small. */
+function round6(value: number): number {
+  return Number.isFinite(value) ? Number(value.toPrecision(6)) : value;
 }
 
 /** "price $735.20 above 48h average $721.00", "24h change +1.2% above +3.0%". */
 export function describeCondition(condition: Condition, leftValue?: number, rightValue?: number): string {
-  const unit = INDICATORS[condition.left.kind].unit;
+  // The Lab funding filter compares with zero: say it in words, not "above −0.0%".
+  if (condition.left.kind === "funding7d" && condition.right.kind === "value" && Math.abs(condition.right.value) < 0.01) {
+    const now = leftValue === undefined ? "" : ` (${formatUnit("pct", leftValue)} a year)`;
+    return `7d funding ${condition.op === "above" || condition.op === "crossesAbove" ? "zero or positive" : "negative"}${now}`;
+  }
+  // The Lab open interest gate: say so when the stored hours do not reach back far enough yet.
+  if (condition.left.kind === "oiChange") {
+    const span = condition.left.hours === 168 ? "7d" : `${condition.left.hours}h`;
+    if (leftValue !== undefined && !Number.isFinite(leftValue)) return `${span} open interest change unknown (not enough stored hours yet)`;
+    const now = leftValue === undefined ? "" : ` (${formatUnit("pct", leftValue)})`;
+    if (condition.right.kind === "value" && condition.right.value === 0) return `${span} open interest ${condition.op === "above" || condition.op === "crossesAbove" ? "rising" : "falling"}${now}`;
+  }
+  const unit = indicatorMeta(condition.left.kind).unit;
   return `${describeSide(condition.left, leftValue, unit)} ${OPERATORS[condition.op]} ${describeSide(condition.right, rightValue, unit)}`;
 }
 
 function describeSide(side: Indicator | ValueSide, value: number | undefined, unit: Unit): string {
   if (side.kind === "value") return formatUnit(unit, side.value);
-  const meta = INDICATORS[side.kind];
+  const meta = indicatorMeta(side.kind);
   const name = side.hours ? `${side.hours}h ${meta.label.toLowerCase()}` : meta.label.toLowerCase();
   const offset = side.offsetPct ? ` ${side.offsetPct > 0 ? "+" : "−"}${Math.abs(side.offsetPct)}%` : "";
   return value === undefined ? `${name}${offset}` : `${name}${offset} ${formatUnit(meta.unit, value)}`;
@@ -191,23 +305,23 @@ function formatUnit(unit: Unit, value: number): string {
 export function parseRules(input: unknown): { rules: Rules; errors: [] } | { rules: null; errors: string[] } {
   const errors: string[] = [];
   const raw = (input ?? {}) as Partial<Rules>;
-  const group = (value: unknown, name: string): RuleGroup => {
+  const group = (value: unknown, name: "buy" | "sell"): RuleGroup => {
     const g = (value ?? {}) as Partial<RuleGroup>;
     const conditions = Array.isArray(g.conditions) ? g.conditions : [];
-    if (conditions.length > MAX_CONDITIONS) errors.push(`Use at most ${MAX_CONDITIONS} ${name} rules.`);
+    if (conditions.length > MAX_CONDITIONS) errors.push(RULE_ERRORS.tooManyConditions(name));
     return { join: g.join === "any" ? "any" : "all", conditions: conditions.slice(0, MAX_CONDITIONS).map((c) => parseCondition(c, errors)).filter((c): c is Condition => c !== null) };
   };
   const rules: Rules = {
     entry: group(raw.entry, "buy"),
     exit: group(raw.exit, "sell"),
-    takeProfitPct: positiveOrNull(raw.takeProfitPct, 1, 500, "Take profit", errors),
-    maxHoldHours: positiveOrNull(raw.maxHoldHours, 1, 24 * 30, "Max holding time", errors),
+    takeProfitPct: positiveOrNull(raw.takeProfitPct, TAKE_PROFIT_RANGE.min, TAKE_PROFIT_RANGE.max, "Take profit", errors),
+    maxHoldHours: positiveOrNull(raw.maxHoldHours, MAX_HOLD_RANGE.min, MAX_HOLD_RANGE.max, "Max holding time", errors),
   };
-  if (!rules.entry.conditions.length) errors.push("Add at least one buy rule.");
+  if (!rules.entry.conditions.length) errors.push(RULE_ERRORS.noBuyRule);
   if (!rules.exit.conditions.length && !rules.takeProfitPct && !rules.maxHoldHours) {
-    errors.push("Add a sell rule, a take profit or a max holding time, or the agent only sells on its stop loss.");
+    errors.push(RULE_ERRORS.noWayToSell);
   }
-  if (rulesLookback(rules) > MAX_LOOKBACK_HOURS + 2) errors.push("Rules may look back at most 7 days.");
+  if (rulesLookback(rules) > MAX_LOOKBACK_HOURS + 2) errors.push(RULE_ERRORS.lookbackTooLong);
   return errors.length ? { rules: null, errors } : { rules, errors: [] };
 }
 
@@ -215,30 +329,30 @@ function parseCondition(value: unknown, errors: string[]): Condition | null {
   const c = (value ?? {}) as Partial<Condition>;
   const left = parseIndicator(c.left);
   if (!left) {
-    errors.push("A rule has an unknown indicator.");
+    errors.push(RULE_ERRORS.unknownIndicator);
     return null;
   }
   if (!c.op || !(c.op in OPERATORS)) {
-    errors.push("A rule has an unknown comparison.");
+    errors.push(RULE_ERRORS.unknownComparison);
     return null;
   }
-  const unit = INDICATORS[left.kind].unit;
+  const unit = indicatorMeta(left.kind).unit;
   const rawRight = (c.right ?? {}) as { kind?: string; value?: unknown };
   if (rawRight.kind === "value") {
     if (unit === "price") {
-      errors.push("Compare prices with another price line, not a plain number.");
+      errors.push(RULE_ERRORS.priceAgainstNumber);
       return null;
     }
     const number = Number(rawRight.value);
     if (!Number.isFinite(number)) {
-      errors.push("Every number in a rule needs a value.");
+      errors.push(RULE_ERRORS.missingNumber);
       return null;
     }
     return { left, op: c.op, right: { kind: "value", value: number } };
   }
   const right = parseIndicator(rawRight);
-  if (!right || INDICATORS[right.kind].unit !== "price" || unit !== "price") {
-    errors.push("Only price lines can be compared with each other.");
+  if (!right || indicatorMeta(right.kind).unit !== "price" || unit !== "price") {
+    errors.push(RULE_ERRORS.onlyPriceLines);
     return null;
   }
   return { left, op: c.op, right };
@@ -257,17 +371,17 @@ function parseIndicator(value: unknown): Indicator | null {
   }
   if (raw.offsetPct !== undefined && raw.offsetPct !== null && Number(raw.offsetPct) !== 0) {
     const offset = Number(raw.offsetPct);
-    if (!Number.isFinite(offset) || Math.abs(offset) > 50) return null;
+    if (!Number.isFinite(offset) || Math.abs(offset) > MAX_OFFSET_PCT) return null;
     indicator.offsetPct = offset;
   }
   return indicator;
 }
 
-function positiveOrNull(value: unknown, min: number, max: number, name: string, errors: string[]): number | null {
+function positiveOrNull(value: unknown, min: number, max: number, name: "Take profit" | "Max holding time", errors: string[]): number | null {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   if (!Number.isFinite(number) || number < min || number > max) {
-    errors.push(`${name} must be between ${min} and ${max}.`);
+    errors.push(RULE_ERRORS.outOfRange(name, min, max));
     return null;
   }
   return number;

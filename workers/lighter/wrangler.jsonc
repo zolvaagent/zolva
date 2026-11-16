@@ -1,0 +1,21 @@
+// zolva-lighter: signs and sends Lighter RH perps orders for real money agents. No public route: the main
+// Worker calls it through a service binding. Secrets (wrangler secret put … -c workers/lighter/wrangler.jsonc):
+//   INTERNAL_TOKEN  shared with the main Worker
+//   LIGHTER_KEYS    { "<accountIndex>": { "apiKeyIndex": 4, "privateKey": "<hex>" } }
+// Before deploying, run `npm run lighter:signer` (downloads the pinned signer into vendor/).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "zolva-lighter",
+  "main": "index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    // Testnet until the owner says otherwise. Mainnet RH: https://api.rh.lighter.xyz with chain id 466324.
+    "LIGHTER_API": "https://api.rh-testnet.lighter.xyz",
+    "LIGHTER_CHAIN_ID": "300",
+    // The kill switch: orders only run while this is "true".
+    "LIGHTER_ENABLED": "false"
+  },
+  "observability": { "enabled": true }
+}

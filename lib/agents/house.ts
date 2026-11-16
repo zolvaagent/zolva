@@ -5,7 +5,7 @@
  * backtests, so what visitors see matches what actually runs.
  */
 import { RULE_TEMPLATES, type Rules } from "../engine/rules.ts";
-import type { Venue } from "../engine/engine.ts";
+import type { Venue, VolTargetSizing } from "../engine/engine.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
 /** Owner address of the house agents (not a real wallet; nobody can sign for it). */
@@ -21,6 +21,9 @@ export const LAB_WALLETS = [
   "0x5174000000000000000000000000000000000003",
   "0x5174000000000000000000000000000000000004",
   "0x5174000000000000000000000000000000000005",
+  "0x5174000000000000000000000000000000000006",
+  "0x5174000000000000000000000000000000000007",
+  "0x5174000000000000000000000000000000000008",
 ] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
@@ -39,11 +42,60 @@ export type HouseAgent = {
   venue?: Venue;
   /** Leveraged short size (bounce_short on perps only); missing means 1x. */
   leverage?: number;
+  /** Volatility sizing (custom rules on perps only); missing means the fixed max position share. */
+  sizing?: VolTargetSizing;
   /** An AI co-pilot model id (lib/ai/models.ts); missing: rules only. */
   aiModel?: string;
   /** The co-pilot's spending limit in USD and its end date (ISO), like a user's agent. */
   aiLimitUsd?: number;
   aiUntil?: string;
+};
+
+/**
+ * Long while the price is more than 3% above its 1,200 hour (50 day) average; out once it is
+ * below the average. Used with volatility sizing (20% target, 720 hours) on alt perps.
+ */
+export const VOL_TREND_1200: Rules = {
+  entry: { join: "all", conditions: [{ left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 1200, offsetPct: 3 } }] },
+  exit: { join: "any", conditions: [{ left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 1200 } }] },
+  takeProfitPct: null,
+  maxHoldHours: null,
+};
+
+/**
+ * VOL_TREND_1200 plus a short side with a funding filter (round 3, "variant C"): short once the
+ * price is more than 3% below its 1,200 hour average while the 7 day average funding is zero or
+ * positive (shorts are not paying longs); cover once the price is back above the average or funding
+ * turns negative. The tiny negative threshold makes "above" mean "zero or more".
+ */
+export const VOL_TREND_1200_LS: Rules = {
+  ...VOL_TREND_1200,
+  shortEntry: {
+    join: "all",
+    conditions: [
+      { left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 1200, offsetPct: -3 } },
+      { left: { kind: "funding7d", hours: 168 }, op: "above", right: { kind: "value", value: -0.0001 } },
+    ],
+  },
+  shortExit: {
+    join: "any",
+    conditions: [
+      { left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 1200 } },
+      { left: { kind: "funding7d", hours: 168 }, op: "below", right: { kind: "value", value: 0 } },
+    ],
+  },
+};
+
+/**
+ * Open interest gate (round 4, docs/perps-research.md): only enter, long or short, while the perp's
+ * open interest grew over the last 7 days. Lab only (oiChange); while fewer than 168 stored hours
+ * exist the change is unknown and no entry happens. Exits are the same as VOL_TREND_1200_LS.
+ */
+const OI_RISING = { left: { kind: "oiChange" as const, hours: 168 }, op: "above" as const, right: { kind: "value" as const, value: 0 } };
+export const VOL_TREND_1200_LS_OI: Rules = {
+  ...VOL_TREND_1200_LS,
+  entry: { ...VOL_TREND_1200_LS.entry, join: "all", conditions: [...VOL_TREND_1200_LS.entry.conditions, OI_RISING] },
+  shortEntry: { ...VOL_TREND_1200_LS.shortEntry!, join: "all", conditions: [...VOL_TREND_1200_LS.shortEntry!.conditions, OI_RISING] },
 };
 
 /**
@@ -237,4 +289,47 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     venue: "perps",
     leverage: 3,
   },
+  // Volatility sized trend filter on alt perps (2026-11-14), one market per agent. Passed the
+  // pre-registered rule on 4 of 4 coins on Binance history 2020-2026 (docs/perps-research.md,
+  // "Round 2 on alt perps"; scripts/research-alt-volsize.mts). Frozen: do not tune. Expect mostly
+  // cash (about 15% to 25% of equity when in), small yearly returns and small drops.
+  ...(["SOL", "XRP", "NEAR", "ZEC"] as const).map((coin) => ({
+    owner: LAB_WALLETS[5],
+    name: `Lab · ${coin} Vol Trend`,
+    strategy: "custom" as const,
+    rules: VOL_TREND_1200,
+    symbols: [`${coin}-PERP`],
+    maxPositionPct: 100,
+    stopLossPct: 15,
+    venue: "perps" as const,
+    sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
+  })),
+  // The same coins long and short with the funding filter (round 3, "variant C", 2026-11-14),
+  // next to the long only agents above so both can be compared on the same hours. Frozen.
+  ...(["SOL", "XRP", "NEAR", "ZEC"] as const).map((coin) => ({
+    owner: LAB_WALLETS[6],
+    name: `Lab · ${coin} Vol Trend L+S`,
+    strategy: "custom" as const,
+    rules: VOL_TREND_1200_LS,
+    symbols: [`${coin}-PERP`],
+    maxPositionPct: 100,
+    stopLossPct: 15,
+    venue: "perps" as const,
+    sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
+  })),
+  // Round 4 A/B (owner approved 2026-11-16): the L+S agents above are A; these B clones only enter
+  // while open interest grew over 7 days (VOL_TREND_1200_LS_OI). Paper. Decision rule fixed in
+  // advance: after 90 days keep the gate only if B has the higher median return over the 4 coins
+  // AND a median worst drop no larger than A's; otherwise remove the B agents. Own owner: 5 per owner.
+  ...(["SOL", "XRP", "NEAR", "ZEC"] as const).map((coin) => ({
+    owner: LAB_WALLETS[7],
+    name: `Lab · ${coin} Vol Trend L+S OI`,
+    strategy: "custom" as const,
+    rules: VOL_TREND_1200_LS_OI,
+    symbols: [`${coin}-PERP`],
+    maxPositionPct: 100,
+    stopLossPct: 15,
+    venue: "perps" as const,
+    sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
+  })),
 ];

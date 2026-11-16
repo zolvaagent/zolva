@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { EXPLORER_URL } from "@/lib/chain";
+import { ZOLVA, ZOLVA_COINGECKO_URL } from "@/lib/swap-zolva";
 
 /** The launched token as the docs pages show it (read from env on the server, lib/env.ts). */
 export type TokenCard = { address: string; pool: string | null; tradeUrl: string | null };
@@ -45,6 +46,11 @@ export function TokenAddress({ token }: { token: TokenCard }) {
         {token.pool && (
           <a className="text-link" href={`https://dexscreener.com/robinhood/${token.pool}`} target="_blank" rel="noopener noreferrer">
             DexScreener <i className="ph ph-arrow-up-right" aria-hidden="true" />
+          </a>
+        )}
+        {token.address.toLowerCase() === ZOLVA && (
+          <a className="text-link" href={ZOLVA_COINGECKO_URL} target="_blank" rel="noopener noreferrer">
+            CoinGecko <i className="ph ph-arrow-up-right" aria-hidden="true" />
           </a>
         )}
         {token.tradeUrl && (

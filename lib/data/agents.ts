@@ -6,7 +6,7 @@ export { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES };
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { isHouseOwner } from "@/lib/agents/house";
+import { isHouseOwner, LAB_AGENTS } from "@/lib/agents/house";
 import type { AgentRow } from "@/lib/agents/plan";
 import type { Decision } from "@/lib/engine/engine";
 import { isPerpSymbol } from "@/lib/format";
@@ -74,6 +74,13 @@ type StatsRow = {
   mode: "paper" | "live";
 };
 
+/**
+ * Custom rules that also short exist only for Zolva Lab agents (parseRules never accepts them from
+ * users, and the database allows them on perps only), so the names in house.ts are the full list.
+ * The stats rows carry no params, hence the lookup by owner and name.
+ */
+const LAB_SHORT_NAMES = new Set(LAB_AGENTS.filter((agent) => agent.rules?.shortEntry?.conditions.length).map((agent) => agent.name));
+
 async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentSummary[]> {
   const symbols = await tokenSymbols(db);
   return rows.map((row) => {
@@ -102,7 +109,7 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
       published: row.published_at !== null,
       // An agent trades one venue only (agents_venue_guard), so one perp means a perps agent.
       venue: tokens.some((token) => isPerpSymbol(token.symbol)) ? "perps" : "spot",
-      shorts: row.strategy === "spike_fade" || row.strategy === "dip_fade" || row.strategy === "bounce_short",
+      shorts: row.strategy === "spike_fade" || row.strategy === "dip_fade" || row.strategy === "bounce_short" || (isHouseOwner(row.owner) && LAB_SHORT_NAMES.has(row.name)),
       live: row.mode === "live",
     };
   });
@@ -202,6 +209,8 @@ export type AgentDetail = {
     /** paper = virtual money; live = real swaps from trading_wallet. */
     mode: "paper" | "live";
     trading_wallet: string | null;
+    /** Prompt mode only: the creator's own words the rules were written from (and the co-pilot reads). */
+    strategy_prompt: string | null;
   };
   /** What the AI co-pilot has spent on this agent so far, USD. */
   aiSpentUsd: number;
@@ -223,7 +232,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db
     .from("agents")
-    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, first_published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet")
+    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, first_published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet, strategy_prompt")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);

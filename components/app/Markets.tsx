@@ -6,7 +6,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { LighterBadge } from "@/components/ui/LighterBadge";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import type { MarketRow } from "@/lib/data/markets";
-import { fundingYearly, percent, price, sparkline, tone } from "@/lib/format";
+import { dateAt, fundingYearly, percent, price, sparkline, tone } from "@/lib/format";
 
 const VIEWS = [
   ["all", "All"],
@@ -45,7 +45,30 @@ const inGroup = (row: MarketRow, asset: Asset) => row.assetClass === asset;
 
 type Asset = keyof typeof ASSETS;
 
-export function Markets({ rows }: { rows: MarketRow[] }) {
+/**
+ * The line above the table. US market hours only matter to stocks: while Nasdaq is closed their
+ * prices come from onchain trading only. Coins and perps trade around the clock.
+ */
+function MarketStatus({ asset, asOf, marketOpen }: { asset: Asset; asOf: number; marketOpen: boolean }) {
+  if (asset === "crypto")
+    return (
+      <p className="market-status">
+        <span className="pill pill--running">Trades 24/7</span>
+        <span className="muted">Prices as of {dateAt(asOf)}. Coins and perps trade around the clock. These are token and perp prices, not live exchange quotes.</span>
+      </p>
+    );
+  return (
+    <p className="market-status">
+      <span className={`pill ${marketOpen ? "pill--running" : "pill--paused"}`}>{marketOpen ? "US market open" : "US market closed"}</span>
+      {!marketOpen && <span className="pill">Onchain prices only</span>}
+      <span className="muted">
+        Prices as of {dateAt(asOf)}. {marketOpen ? "" : "While Nasdaq is closed, stock token prices come from onchain trading only and can drift from the real stock. "}These are token prices, not live exchange quotes.
+      </span>
+    </p>
+  );
+}
+
+export function Markets({ rows, asOf, marketOpen }: { rows: MarketRow[]; asOf: number; marketOpen: boolean }) {
   const [asset, setAsset] = useState<Asset>("stock");
   // Sits in the same row as the filters, so the page has one toolbar.
   const assetTabs = (
@@ -58,7 +81,12 @@ export function Markets({ rows }: { rows: MarketRow[] }) {
     </div>
   );
   // key resets the filters and search when switching between stocks and crypto.
-  return <MarketList key={asset} asset={asset} rows={rows.filter((row) => inGroup(row, asset))} leading={assetTabs} />;
+  return (
+    <>
+      <MarketStatus asset={asset} asOf={asOf} marketOpen={marketOpen} />
+      <MarketList key={asset} asset={asset} rows={rows.filter((row) => inGroup(row, asset))} leading={assetTabs} />
+    </>
+  );
 }
 
 function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[]; leading: ReactNode }) {

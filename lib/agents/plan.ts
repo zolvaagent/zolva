@@ -3,7 +3,7 @@
  * database), so the hourly runner and the tests share it. The runner then
  * writes each planned hour atomically with the `apply_agent_hour` function.
  */
-import { costRateFor, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions, type Venue } from "../engine/engine.ts";
+import { costRateFor, runHour, type AgentParams, type AgentState, type Decision, type Fill, type RunHourOptions, type DcaPlan, type Venue, type VolTargetSizing } from "../engine/engine.ts";
 import type { Rules } from "../engine/rules.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
@@ -24,6 +24,10 @@ export type AgentRow = {
     venue?: Venue;
     /** Leveraged short size (bounce_short on perps only); missing means 1x. */
     leverage?: number;
+    /** Volatility sizing (custom rules on perps only); missing means the fixed max position share. */
+    sizing?: VolTargetSizing;
+    /** DCA only: the buying schedule (see engine DcaPlan). */
+    dca?: DcaPlan;
   };
   token_addresses: string[];
   start_capital: number;
@@ -40,6 +44,8 @@ export type PositionRow = {
   side?: "long" | "short";
   /** Only a leveraged short has one (see engine Position.margin). */
   margin?: number | null;
+  /** Only a Lab rules short has one: its stop's reference price (see engine Position.stopPrice). */
+  stop_price?: number | null;
 };
 
 export type MarketSeries = {
@@ -48,6 +54,8 @@ export type MarketSeries = {
   closes: Record<string, (number | null)[]>;
   /** Perps funding per token and hour (signed fraction, positive: longs pay), aligned with closes. */
   funding?: Record<string, (number | null)[]>;
+  /** Perps open interest per token and hour (coins), aligned with closes, for the Lab oiChange gate. */
+  openInterest?: Record<string, (number | null)[]>;
 };
 
 export type HourWrite = {
@@ -56,7 +64,7 @@ export type HourWrite = {
   equity: number;
   holdEquity: number;
   decisions: Decision[];
-  positions: { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side: "long" | "short"; margin: number | null }[];
+  positions: { token_address: string; quantity: number; avg_entry_price: number; opened_at: string | null; side: "long" | "short"; margin: number | null; stop_price: number | null }[];
   trades: { token_address: string; side: Fill["side"]; quantity: number; price: number; cost_usd: number; reason: Fill["reason"] }[];
 };
 
@@ -68,6 +76,12 @@ export function agentParams(agent: AgentRow): AgentParams {
     stopLossPct: Number(agent.params.stop_loss_pct),
     venue: agent.params.venue,
     ...(agent.params.leverage ? { leverage: Number(agent.params.leverage) } : {}),
+    ...(agent.params.sizing
+      ? { sizing: { kind: "volTarget" as const, targetPct: Number(agent.params.sizing.targetPct), hours: Number(agent.params.sizing.hours) } }
+      : {}),
+    ...(agent.params.dca
+      ? { dca: { buys: Number(agent.params.dca.buys), everyHours: Number(agent.params.dca.everyHours), startTs: Number(agent.params.dca.startTs) } }
+      : {}),
   };
 }
 
@@ -89,9 +103,11 @@ export function planAgentHours(
 
   const series: Record<string, (number | null)[]> = {};
   const funding: Record<string, (number | null)[]> = {};
+  const openInterest: Record<string, (number | null)[]> = {};
   for (const address of agent.token_addresses) {
     series[address] = market.closes[address] ?? [];
     funding[address] = market.funding?.[address] ?? [];
+    openInterest[address] = market.openInterest?.[address] ?? [];
   }
 
   let state: AgentState = {
@@ -105,6 +121,7 @@ export function planAgentHours(
           openedAt: position.opened_at ? Date.parse(position.opened_at) / 1000 : undefined,
           ...(position.side === "short" ? { side: "short" as const } : {}),
           ...(position.margin != null ? { margin: Number(position.margin) } : {}),
+          ...(position.stop_price != null ? { stopPrice: Number(position.stop_price) } : {}),
         },
       ]),
     ),
@@ -115,7 +132,7 @@ export function planAgentHours(
   for (let ts = firstTs; ts <= latestTs; ts += HOUR) {
     const index = (ts - market.startTs) / HOUR;
     if (index < 0) continue;
-    const hour = runHour(state, params, series, index, ts, { funding, ...(copilot && copilot.ts === ts ? { veto: copilot.veto } : {}) });
+    const hour = runHour(state, params, series, index, ts, { funding, openInterest, ...(copilot && copilot.ts === ts ? { veto: copilot.veto } : {}) });
     state = hour.state;
     writes.push({
       ts: new Date(ts * 1000).toISOString(),
@@ -130,6 +147,7 @@ export function planAgentHours(
         opened_at: position.openedAt === undefined ? null : new Date(position.openedAt * 1000).toISOString(),
         side: position.side ?? "long",
         margin: position.margin ?? null,
+        stop_price: position.stopPrice ?? null,
       })),
       trades: hour.fills.map((fill) => ({
         token_address: fill.token,

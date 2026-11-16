@@ -12,7 +12,7 @@ export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
 /** Who a valid key acts for: the key's owner account, limited to the key's scopes. */
 export type ApiCaller = { keyId: string; owner: string; scopes: ApiKeyScope[] };
 
-/** Ticked by default on the Dashboard; the others are opt-in. */
+/** Ticked by default in Settings; the others are opt-in. */
 export const DEFAULT_SCOPES: ApiKeyScope[] = ["read:private", "compute"];
 
 /** Scopes that change the account or spend its credits: refused for blocked countries. */
@@ -54,7 +54,7 @@ export async function hashApiKey(secret: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** What the Dashboard shows to tell keys apart: "zk_" and the next 6 characters. */
+/** What Settings shows to tell keys apart: "zk_" and the next 6 characters. */
 export function keyPrefix(secret: string): string {
   return secret.slice(0, 9);
 }

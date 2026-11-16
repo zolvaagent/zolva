@@ -26,15 +26,25 @@
  * unless that market already rose too fast over the last 24 hours (a reversal rally), and covers
  * when the price falls back. Perps only, paper only.
  * Research: scripts/research-short-trend.mts, docs/perps-research.md, "Short the bounce".
+ *
+ * dca has no signal at all: the engine buys on a schedule (runHour's dcaHour), so it never
+ * reaches `decide` and needs no price history.
  */
-export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter" | "spike_fade" | "dip_fade" | "bounce_short";
+export type StrategyKey = "momentum" | "mean_reversion" | "dip_hunter" | "spike_fade" | "dip_fade" | "bounce_short" | "dca";
 
 export type Signal = {
   /** short opens a short position, cover closes it (spike_fade and dip_fade only). */
   action: "buy" | "sell" | "short" | "cover" | "hold";
   reasoning: string;
   indicators: Record<string, number>;
+  /** Custom rules only: every condition of the group checked this hour (entry when flat, exit when holding), in order. */
+  checks?: RuleCheck[];
+  /** Lab short rules only, while flat: the short entry group's conditions, checked after the long entry. */
+  shortChecks?: RuleCheck[];
 };
+
+/** One rule condition as checked in one hour: both sides' values (offset included) and whether it held. */
+export type RuleCheck = { left: number; right: number; met: boolean };
 
 /** Hours of history every strategy needs before its first decision. */
 export const LOOKBACK_HOURS = 48;
@@ -90,10 +100,12 @@ export const STRATEGY_LABELS: Record<StrategyKey, string> = {
   spike_fade: "Spike fade",
   dip_fade: "Dip + fade",
   bounce_short: "Bounce short",
+  dca: "DCA",
 };
 
 /** Hours of history a preset needs before its first decision. */
 export function presetLookback(strategy: StrategyKey): number {
+  if (strategy === "dca") return 0;
   return strategy === "dip_fade" ? DIP_FADE.trendHours : strategy === "bounce_short" ? BOUNCE_SHORT.trendHours : LOOKBACK_HOURS;
 }
 

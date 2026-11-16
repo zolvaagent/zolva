@@ -30,15 +30,28 @@
  *   empty, with the 7 day trend filter in strategies.ts.
  * - Bounce short (perps, paper only) follows spike fade's one position rule but enters the market
  *   with the deepest 7 day fall that is bouncing (see strategies.ts), not the highest z score.
+ * - Volatility sizing (custom rules only, `params.sizing`): a buy uses equity x min(max position %,
+ *   target / realised volatility) instead of the max position %. Once a day (00:00 UTC) an open
+ *   position is resized to that share when it is more than RESIZE_BAND away from it; the resize
+ *   pays the cost on the change only and keeps the first entry price, so the stop does not move.
+ *   Research: docs/perps-research.md, "Round 2 on alt perps".
+ * - DCA (dollar cost averaging, spot paper only, `params.dca`): no signals and no exits. On each
+ *   scheduled hour (startTs, then every everyHours, `buys` times) it buys cash / buys left, split
+ *   equally across its markets; a market without a price that hour keeps its share in cash for
+ *   the next buys. Adding to a holding moves its entry to the average paid. Stop loss and max
+ *   position do not apply. Research: docs/perps-research.md, "DCA template check".
  */
 import { evaluateRules, rulesLookback, type Rules } from "./rules.ts";
-import { decide, presetLookback, type StrategyKey } from "./strategies.ts";
+import { decide, presetLookback, type RuleCheck, type StrategyKey } from "./strategies.ts";
 
 export const COST_RATE = 0.005;
 /** Yearly borrow rate charged hourly on open shorts (Morpho was near 0% on 2026-11-03; cautious). */
 export const SHORT_BORROW_APR = 0.1;
 /** Cost per fill on Lighter perps: 0% fees today, 0.05% kept for slippage and a fee change. */
 export const PERPS_COST_RATE = 0.0005;
+/** Volatility sizing: resize once a day when the held size is more than this share away from the wanted size. */
+export const RESIZE_BAND = 0.25;
+const HOURS_PER_YEAR = 8760;
 
 export type Venue = "dex" | "perps";
 
@@ -62,7 +75,42 @@ export type AgentParams = {
    * refuses it elsewhere): a short then opens a position of leverage x the margin it puts in.
    */
   leverage?: number;
+  /**
+   * Custom rules only: size each buy by volatility instead of a fixed share. Wanted share of
+   * equity = min(maxPositionPct, targetPct / realised volatility), where realised volatility is
+   * the population standard deviation of the last `hours` hourly log returns x sqrt(8760).
+   */
+  sizing?: VolTargetSizing;
+  /** DCA only: the buying schedule. */
+  dca?: DcaPlan;
 };
+
+/** DCA: `buys` equal buys, the first at startTs (unix seconds, start of an hour), then every everyHours. */
+export type DcaPlan = { buys: number; everyHours: number; startTs: number };
+
+export type VolTargetSizing = { kind: "volTarget"; targetPct: number; hours: number };
+
+/** Hours of closes before an hour that runHour needs to decide on it. */
+export function paramsLookback(params: AgentParams): number {
+  const base = params.strategy === "custom" && params.rules ? rulesLookback(params.rules) : presetLookback(params.strategy as StrategyKey);
+  return params.strategy === "custom" && params.sizing ? Math.max(base, params.sizing.hours + 1) : base;
+}
+
+/** Annualised volatility of the last `hours` hourly log returns at the end of `window` (closes, oldest first). */
+export function realisedVolatility(window: number[], hours: number): number {
+  const closes = window.slice(-hours - 1);
+  const returns: number[] = [];
+  for (let i = 1; i < closes.length; i++) returns.push(Math.log(closes[i] / closes[i - 1]));
+  const average = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+  const variance = returns.reduce((sum, value) => sum + value * value, 0) / returns.length - average * average;
+  return Math.sqrt(Math.max(0, variance) * HOURS_PER_YEAR);
+}
+
+/** Share of equity a volatility sized agent wants in one market, capped by the max position share. */
+function wantedShare(sizing: VolTargetSizing, window: number[], maxShare: number): { share: number; volatility: number } {
+  const volatility = realisedVolatility(window, sizing.hours);
+  return { share: volatility > 0 ? Math.min(maxShare, sizing.targetPct / 100 / volatility) : maxShare, volatility };
+}
 
 /** Share of the margin a leveraged short may lose before it is liquidated. */
 export const LIQUIDATION_LOSS = 0.95;
@@ -82,6 +130,12 @@ export type Position = {
    * margin + quantity x (entryPrice - price), never below zero, instead of the 1x formula above.
    */
   margin?: number;
+  /**
+   * Set only when the stop is measured from another price than entryPrice: a volatility sized short
+   * that was resized (its entry, the P&L basis, moved to the resize price; the stop stays at the
+   * first entry).
+   */
+  stopPrice?: number;
 };
 
 export type AgentState = {
@@ -97,6 +151,14 @@ export type Decision = {
   indicators?: Record<string, number>;
   /** Set when the AI co-pilot reviewed this hour's rule signal for the token. */
   ai?: { model: string; verdict: "approved" | "passed"; reasoning: string };
+  /** The token's close this hour. Stored from 2026-11-14 on, for the decision log's details. */
+  price?: number;
+  /** Custom rules: every condition of the group checked this hour (see RuleCheck). */
+  checks?: RuleCheck[];
+  /** Lab short rules while flat: the short entry group's conditions. */
+  shortChecks?: RuleCheck[];
+  /** The position held when the hour started (after funding), if any. */
+  position?: { entryPrice: number; heldHours: number | null; side?: "short"; stopPrice?: number };
 };
 
 export type RunHourOptions = {
@@ -111,6 +173,16 @@ export type RunHourOptions = {
    * shorts), aligned with the closes. A missing hour counts as zero.
    */
   funding?: Record<string, (number | null)[]>;
+  /**
+   * Lab perps only: open interest per token and hour (in coins), aligned with the closes, for the
+   * oiChange rule indicator. A missing hour is null; the indicator then blocks entries.
+   */
+  openInterest?: Record<string, (number | null)[]>;
+  /**
+   * Backtests only: multiplies the cost per fill (2 = double costs, the Studio robustness check).
+   * Live and paper agents never set it.
+   */
+  costScale?: number;
 };
 
 export type Fill = {
@@ -120,7 +192,8 @@ export type Fill = {
   quantity: number;
   price: number;
   costUsd: number;
-  reason: "signal" | "stop_loss" | "take_profit" | "max_hold";
+  /** resize: a volatility sized position moved back toward its wanted size (not a round trip). */
+  reason: "signal" | "stop_loss" | "take_profit" | "max_hold" | "resize";
   /** Entry price of the position a sell or cover closed, for win rate. */
   entryPrice?: number;
 };
@@ -148,15 +221,19 @@ export function runHour(
   hourTime: number = index * 3600,
   options: RunHourOptions = {},
 ): HourResult {
+  if (params.strategy === "dca") return dcaHour(state, params, series, index, hourTime, options);
   const rules = params.strategy === "custom" ? params.rules : undefined;
   if (params.strategy === "custom" && !rules) throw new Error("Custom strategy without rules");
-  const lookback = rules ? rulesLookback(rules) : presetLookback(params.strategy as StrategyKey);
+  const lookback = paramsLookback(params);
+  // Volatility sizing is for custom (long only) rules; presets keep their fixed share.
+  const sizing = rules ? params.sizing : undefined;
+  const resizeHour = sizing !== undefined && hourTime % 86400 === 0;
   const tokens = Object.keys(series);
   const prices: Record<string, number | null> = Object.fromEntries(tokens.map((token) => [token, series[token][index] ?? null]));
   const equityBefore = equityAt(state, prices);
   const maxShare = params.maxPositionPct / 100;
   const stopDistance = params.stopLossPct / 100;
-  const cost = costRateFor(params.venue);
+  const cost = costRateFor(params.venue) * (options.costScale ?? 1);
   const leverage = params.strategy === "bounce_short" && params.venue === "perps" ? Math.max(1, params.leverage ?? 1) : 1;
   // A leveraged short is stopped at the stop, or liquidated earlier when the stop is wider than
   // LIQUIDATION_LOSS of the margin: whichever price comes first.
@@ -166,6 +243,8 @@ export function runHour(
   const positions: Record<string, Position> = { ...state.positions };
   const decisions: Decision[] = [];
   const fills: Fill[] = [];
+  // What each token's decision was based on, added to its decision at the end (decision log details).
+  const context = new Map<string, Pick<Decision, "price" | "position" | "checks" | "shortChecks">>();
   // One position strategies: decided before the loop, from the positions held at the start of
   // the hour, so a sell this hour frees the slot for the next hour, not this one. Dip + fade
   // has one slot per side.
@@ -214,7 +293,21 @@ export function runHour(
       continue;
     }
 
-    if (position?.side === "short" && price >= position.entryPrice * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
+    context.set(token, {
+      price,
+      ...(position
+        ? {
+            position: {
+              entryPrice: position.entryPrice,
+              heldHours: position.openedAt === undefined ? null : Math.round((hourTime - position.openedAt) / 3600),
+              ...(position.side === "short" ? { side: "short" as const } : {}),
+              ...(position.stopPrice !== undefined ? { stopPrice: position.stopPrice } : {}),
+            },
+          }
+        : {}),
+    });
+
+    if (position?.side === "short" && price >= (position.stopPrice ?? position.entryPrice) * (1 + (position.margin !== undefined ? shortStop : stopDistance))) {
       const fill = coverAll(token, position, price, "stop_loss", cost);
       cash += Math.max(0, shortValue(position, price) - fill.costUsd);
       delete positions[token];
@@ -263,8 +356,13 @@ export function runHour(
     }
 
     const signal = rules
-      ? evaluateRules(rules, window as number[], Boolean(position))
+      ? evaluateRules(rules, window as number[], position ? (position.side === "short" ? "short" : true) : false, {
+          funding: options.funding?.[token]?.slice(Math.max(0, index - lookback), index + 1),
+          openInterest: options.openInterest?.[token]?.slice(Math.max(0, index - lookback), index + 1),
+        })
       : decide(preset, window as number[], Boolean(position), position?.side === "short" ? "short" : "long");
+
+    if (signal.checks) context.set(token, { ...context.get(token), checks: signal.checks, ...(signal.shortChecks ? { shortChecks: signal.shortChecks } : {}) });
 
     const wantsTrade = signal.action === "buy" || signal.action === "short" || ((signal.action === "sell" || signal.action === "cover") && position);
     const passed = wantsTrade ? options.veto?.get(token) : undefined;
@@ -283,7 +381,7 @@ export function runHour(
       continue;
     }
 
-    if (signal.action === "short" && token !== strongestSpike) {
+    if (signal.action === "short" && !rules && token !== strongestSpike) {
       const base = signal.reasoning.replace(/ Shorting the (spike|bounce)\./, "");
       const reasoning = dipFade && holdsShort
         ? `${base} Already short another market: one short at a time.`
@@ -297,7 +395,8 @@ export function runHour(
     }
 
     if (signal.action === "short") {
-      const notional = Math.min(cash, equityBefore * maxShare);
+      const share = sizing ? wantedShare(sizing, window as number[], maxShare).share : maxShare;
+      const notional = Math.min(cash, equityBefore * share);
       if (notional < 1) {
         decisions.push({ token, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
         continue;
@@ -311,7 +410,8 @@ export function runHour(
         fills.push({ token, side: "short", quantity, price, costUsd: exposure * cost, reason: "signal" });
       } else {
         const quantity = (notional * (1 - cost)) / price;
-        positions[token] = { quantity, entryPrice: price, openedAt: hourTime, side: "short" };
+        // Lab short rules keep their stop at this price even after funding or a resize moves the entry.
+        positions[token] = { quantity, entryPrice: price, openedAt: hourTime, side: "short", ...(rules ? { stopPrice: price } : {}) };
         fills.push({ token, side: "short", quantity, price, costUsd: notional * cost, reason: "signal" });
       }
     } else if (signal.action === "cover" && position) {
@@ -320,7 +420,8 @@ export function runHour(
       delete positions[token];
       fills.push(fill);
     } else if (signal.action === "buy") {
-      const notional = Math.min(cash, equityBefore * maxShare);
+      const share = sizing ? wantedShare(sizing, window as number[], maxShare).share : maxShare;
+      const notional = Math.min(cash, equityBefore * share);
       if (notional < 1) {
         decisions.push({ token, action: "hold", reasoning: "Signal to buy, but no cash left. Holding." });
         continue;
@@ -336,11 +437,69 @@ export function runHour(
       delete positions[token];
       fills.push(fill);
     }
-    decisions.push({ token, action: signal.action, reasoning: signal.reasoning, indicators: signal.indicators });
+    const decision: Decision = { token, action: signal.action, reasoning: signal.reasoning, indicators: signal.indicators };
+
+    // Daily resize of a volatility sized position that is still open after this hour's signal.
+    const open = positions[token];
+    if (resizeHour && sizing && open && open.side !== "short") {
+      const { share, volatility } = wantedShare(sizing, window as number[], maxShare);
+      const wanted = equityAt({ cash, positions }, prices) * share;
+      const held = open.quantity * price;
+      if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+        const why = `Daily resize: volatility is ${(volatility * 100).toFixed(0)}% a year, so the target is ${(share * 100).toFixed(1)}% of equity`;
+        if (held < wanted) {
+          const spend = Math.min(cash, wanted - held);
+          if (spend >= 1) {
+            const quantity = (spend * (1 - cost)) / price;
+            cash -= spend;
+            // The first entry price stays, so the stop loss does not move.
+            positions[token] = { ...open, quantity: open.quantity + quantity };
+            fills.push({ token, side: "buy", quantity, price, costUsd: spend * cost, reason: "resize" });
+            decisions.push({ ...decision, action: "buy", reasoning: `${signal.reasoning} ${why}: buying ${formatUsd(spend)} more.` });
+            continue;
+          }
+        } else {
+          const quantity = (held - wanted) / price;
+          const gross = quantity * price;
+          cash += gross * (1 - cost);
+          positions[token] = { ...open, quantity: open.quantity - quantity };
+          fills.push({ token, side: "sell", quantity, price, costUsd: gross * cost, reason: "resize", entryPrice: open.entryPrice });
+          decisions.push({ ...decision, action: "sell", reasoning: `${signal.reasoning} ${why}: selling ${formatUsd(gross)}.` });
+          continue;
+        }
+      }
+    }
+    // A short is resized by closing it and reopening at the wanted size at this price (its P&L basis
+    // moves to this price); the stop stays at the first entry. Cost is paid on the change only.
+    if (resizeHour && sizing && open && open.side === "short" && open.margin === undefined) {
+      const { share, volatility } = wantedShare(sizing, window as number[], maxShare);
+      const free = cash + shortValue(open, price);
+      const held = open.quantity * price;
+      // Never more than the cash can carry, cost included, so cash stays at or above zero.
+      const wanted = Math.min(equityAt({ cash, positions }, prices) * share, (free + held * cost) / (1 + cost));
+      if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+        const why = `Daily resize: volatility is ${(volatility * 100).toFixed(0)}% a year, so the target is ${(share * 100).toFixed(1)}% of equity`;
+        const quantity = wanted / price;
+        const change = Math.abs(quantity - open.quantity);
+        const costUsd = change * price * cost;
+        cash = free - wanted - costUsd;
+        positions[token] = { quantity, entryPrice: price, openedAt: open.openedAt, side: "short", stopPrice: open.stopPrice ?? open.entryPrice };
+        if (quantity > open.quantity) {
+          fills.push({ token, side: "short", quantity: change, price, costUsd, reason: "resize" });
+          decisions.push({ ...decision, action: "short", reasoning: `${signal.reasoning} ${why}: shorting ${formatUsd(change * price)} more.` });
+        } else {
+          fills.push({ token, side: "cover", quantity: change, price, costUsd, reason: "resize", entryPrice: open.entryPrice });
+          decisions.push({ ...decision, action: "cover", reasoning: `${signal.reasoning} ${why}: covering ${formatUsd(change * price)}.` });
+        }
+        continue;
+      }
+    }
+    decisions.push(decision);
   }
 
   const next = { cash, positions };
-  return { state: next, decisions, fills, equity: equityAt(next, prices) };
+  const detailed = decisions.map((decision) => ({ ...decision, ...context.get(decision.token) }));
+  return { state: next, decisions: detailed, fills, equity: equityAt(next, prices) };
 }
 
 /**
@@ -382,6 +541,62 @@ function sellAll(token: string, position: Position, price: number, reason: Fill[
   return { token, side: "sell", quantity: position.quantity, price, costUsd: gross * cost, reason, entryPrice: position.entryPrice };
 }
 
+/**
+ * One DCA hour (see the rules at the top): a scheduled buy, or a hold that says when the next one is.
+ * It never sells, so it has no stop loss and no max position.
+ */
+function dcaHour(state: AgentState, params: AgentParams, series: Record<string, (number | null)[]>, index: number, hourTime: number, options: RunHourOptions): HourResult {
+  const plan = params.dca;
+  if (!plan) throw new Error("DCA strategy without a plan");
+  const tokens = Object.keys(series);
+  const prices: Record<string, number | null> = Object.fromEntries(tokens.map((token) => [token, series[token][index] ?? null]));
+  const cost = costRateFor(params.venue) * (options.costScale ?? 1);
+  const every = plan.everyHours * 3600;
+  const done = hourTime < plan.startTs ? 0 : Math.floor((hourTime - plan.startTs) / every);
+  const scheduled = hourTime >= plan.startTs && (hourTime - plan.startTs) % every === 0 && done < plan.buys;
+  const priced = tokens.filter((token) => prices[token] != null);
+
+  let cash = state.cash;
+  const positions: Record<string, Position> = { ...state.positions };
+  const decisions: Decision[] = [];
+  const fills: Fill[] = [];
+  // Cash / buys left, so every buy is about the same size, split equally across all its markets; a
+  // market without a price keeps its share in cash, and later buys spread it out.
+  const share = scheduled && priced.length ? cash / (plan.buys - done) / tokens.length : 0;
+  const number = done + 1;
+
+  for (const token of tokens) {
+    const price = prices[token];
+    if (price == null) {
+      decisions.push({ token, action: "hold", reasoning: scheduled ? "No price this hour. This market's share stays in cash for the next buy." : "No price yet. Waiting." });
+      continue;
+    }
+    const position = positions[token];
+    const context = { price, ...(position ? { position: { entryPrice: position.entryPrice, heldHours: position.openedAt === undefined ? null : Math.round((hourTime - position.openedAt) / 3600) } } : {}) };
+    if (scheduled && share >= 1) {
+      const quantity = (share * (1 - cost)) / price;
+      cash -= share;
+      // Entry is the average paid per token, cost included.
+      positions[token] = position
+        ? { ...position, quantity: position.quantity + quantity, entryPrice: (position.quantity * position.entryPrice + share) / (position.quantity + quantity) }
+        : { quantity, entryPrice: share / quantity, openedAt: hourTime };
+      fills.push({ token, side: "buy", quantity, price, costUsd: share * cost, reason: "signal" });
+      decisions.push({ token, action: "buy", reasoning: `Scheduled buy ${number} of ${plan.buys}: ${formatUsd(share)} at ${formatUsd(price)}.`, ...context });
+      continue;
+    }
+    const left = plan.buys - (hourTime < plan.startTs ? 0 : Math.min(plan.buys, done + 1));
+    const nextTs = hourTime < plan.startTs ? plan.startTs : plan.startTs + (done + 1) * every;
+    const reasoning =
+      scheduled
+        ? "Scheduled buy, but too little cash left for this market. Holding."
+        : left <= 0
+          ? `All ${plan.buys} buys done. Holding with no exit.`
+          : `Next scheduled buy in ${Math.round((nextTs - hourTime) / 3600)} hours (${plan.buys - left} of ${plan.buys} done).`;
+    decisions.push({ token, action: "hold", reasoning, ...context });
+  }
+  return { state: { cash, positions }, decisions, fills, equity: equityAt({ cash, positions }, prices) };
+}
+
 /** Cash plus positions at the given prices (a short: locked cash plus gain); a token without a price is valued at its entry. */
 export function equityAt(state: AgentState, prices: Record<string, number | null>): number {
   let equity = state.cash;
@@ -400,6 +615,10 @@ export function shortValue(position: Position, price: number): number {
   return position.margin === undefined
     ? position.quantity * (2 * position.entryPrice - price)
     : Math.max(0, position.margin + position.quantity * (position.entryPrice - price));
+}
+
+function formatUsd(value: number): string {
+  return `$${value.toFixed(2)}`;
 }
 
 function formatChange(fraction: number): string {
@@ -435,6 +654,10 @@ export function simulate(options: {
   times?: number[];
   /** Perps funding per token and hour (see RunHourOptions.funding). */
   funding?: Record<string, (number | null)[]>;
+  /** Open interest per token and hour (see RunHourOptions.openInterest). */
+  openInterest?: Record<string, (number | null)[]>;
+  /** Multiplies the cost per fill (see RunHourOptions.costScale). */
+  costScale?: number;
 }): SimulationResult {
   const tokens = Object.keys(options.series);
   const lastIndex = options.toIndex ?? options.series[tokens[0]].length - 1;
@@ -443,16 +666,17 @@ export function simulate(options: {
   const fills: (Fill & { index: number })[] = [];
 
   for (let index = options.fromIndex; index <= lastIndex; index++) {
-    const hour = runHour(state, options.params, options.series, index, options.times?.[index] ?? index * 3600, { funding: options.funding });
+    const hour = runHour(state, options.params, options.series, index, options.times?.[index] ?? index * 3600, { funding: options.funding, openInterest: options.openInterest, costScale: options.costScale });
     state = hour.state;
     fills.push(...hour.fills.map((fill) => ({ ...fill, index })));
     runs.push({ index, equity: hour.equity, cash: state.cash, decisions: hour.decisions });
   }
 
   const finalEquity = runs.length ? runs[runs.length - 1].equity : options.capital;
-  const cost = costRateFor(options.params.venue);
+  const cost = costRateFor(options.params.venue) * (options.costScale ?? 1);
+  // A resize is not a round trip: only full exits count toward the win rate.
   const profits = fills
-    .filter((fill) => fill.side === "sell" || fill.side === "cover")
+    .filter((fill) => (fill.side === "sell" || fill.side === "cover") && fill.reason !== "resize")
     .map((fill) =>
       fill.side === "sell" ? fill.price * (1 - cost) - (fill.entryPrice ?? fill.price) : (fill.entryPrice ?? fill.price) - fill.price * (1 + cost),
     );

@@ -17,9 +17,23 @@ export type ActivityTrade = {
   quantity: number;
   price: number;
   costUsd: number;
-  /** manual: sold by the owner of a live agent (Sell position). */
-  reason: "signal" | "stop_loss" | "take_profit" | "max_hold" | "manual";
+  /** manual: sold by the owner of a live agent (Sell position). resize: a volatility sized position moved toward its target. */
+  reason: "signal" | "stop_loss" | "take_profit" | "max_hold" | "manual" | "resize";
   reasoning: string | null;
+  /** Set when the AI co-pilot reviewed this trade's signal (a trade means it approved). */
+  ai?: { verdict: "approved" | "passed"; model: string } | null;
+};
+
+/** A rule signal the AI co-pilot passed on: no trade happened. */
+export type ActivityPass = {
+  ts: number;
+  agentId: string;
+  agentName: string;
+  isHouse: boolean;
+  symbol: string;
+  /** OpenRouter model id. */
+  model: string;
+  reasoning: string;
 };
 
 export type ActivitySummary = {
@@ -48,13 +62,15 @@ export function summarize(hours: ActivityHour[], trades: ActivityTrade[], fromTs
   };
 }
 
-export type HourReport = ActivityHour & { trades: ActivityTrade[] };
+export type HourReport = ActivityHour & { trades: ActivityTrade[]; passes: ActivityPass[] };
 
-/** One report per hour, newest first, each with that hour's trades. */
-export function hourlyReports(hours: ActivityHour[], trades: ActivityTrade[]): HourReport[] {
+/** One report per hour, newest first, each with that hour's trades and AI passes. */
+export function hourlyReports(hours: ActivityHour[], trades: ActivityTrade[], passes: ActivityPass[] = []): HourReport[] {
   const byHour = new Map<number, ActivityTrade[]>();
   for (const trade of trades) byHour.set(trade.ts, [...(byHour.get(trade.ts) ?? []), trade]);
-  return [...hours].sort((a, b) => b.ts - a.ts).map((hour) => ({ ...hour, trades: byHour.get(hour.ts) ?? [] }));
+  const passesByHour = new Map<number, ActivityPass[]>();
+  for (const pass of passes) passesByHour.set(pass.ts, [...(passesByHour.get(pass.ts) ?? []), pass]);
+  return [...hours].sort((a, b) => b.ts - a.ts).map((hour) => ({ ...hour, trades: byHour.get(hour.ts) ?? [], passes: passesByHour.get(hour.ts) ?? [] }));
 }
 
 /** Plain words for why a trade happened. */
@@ -67,4 +83,5 @@ export const REASON_LABELS: Record<ActivityTrade["reason"], string> = {
   take_profit: "Take profit",
   max_hold: "Max holding time",
   manual: "Sold by the owner",
+  resize: "Daily resize",
 };
