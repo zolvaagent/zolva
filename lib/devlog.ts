@@ -408,7 +408,7 @@ export const DEVLOG: DevlogEntry[] = [
     date: "2026-11-04",
     area: "API & MCP",
     title: "MCP server",
-    body: "The same data as five read-only tools at zolvaagent.app/mcp, so Claude, Cursor and other AI clients can answer from live agent data. No key needed.",
+    body: "The same data as read-only tools at zolvaagent.app/mcp (five at launch, six since verify_agent on 2026-11-15), so Claude, Cursor and other AI clients can answer from live agent data. No key needed.",
     sources: [
       commit("ff14d24"),
       { label: "/docs/mcp", href: "https://zolvaagent.app/docs/mcp" },

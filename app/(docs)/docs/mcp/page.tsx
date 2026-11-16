@@ -224,7 +224,7 @@ export default function Mcp() {
       <H2 id="verify">Check that it works</H2>
       <ol className="docs-steps">
         <li>
-          <strong>Look at the tool list.</strong> Your client lists the server&apos;s tools (in Claude Code: <code>/mcp</code>). Without a key you see 5: {READ_TOOL_REFERENCE.map((tool) => tool.name).join(", ")}. With a key you also see the tools its scopes allow.
+          <strong>Look at the tool list.</strong> Your client lists the server&apos;s tools (in Claude Code: <code>/mcp</code>). Without a key you see {READ_TOOL_REFERENCE.length}: {READ_TOOL_REFERENCE.map((tool) => tool.name).join(", ")}. With a key you also see the tools its scopes allow.
         </li>
         <li>
           <strong>Ask a read question:</strong> &ldquo;List Zolva&apos;s crypto markets with their 24 hour change.&rdquo; The assistant should call <code>list_markets</code>.
@@ -318,7 +318,7 @@ export default function Mcp() {
               </td>
             </tr>
             <tr>
-              <td className="docs-table__wrap">Only 5 tools, or one tool is missing</td>
+              <td className="docs-table__wrap">Only the {READ_TOOL_REFERENCE.length} keyless tools, or one tool is missing</td>
               <td>
                 The client sends no key, or the key lacks a scope. Each tool needs the scopes in its row above: make a key with the scopes you need. Some clients
                 cache the tool list: restart or reload the server.

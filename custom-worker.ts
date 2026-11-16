@@ -12,8 +12,18 @@
 // @ts-ignore
 import { default as handler } from "./.open-next/worker.js";
 
+/** Public hosts: plain http there is sent to https (301). workers.dev and local runs are left alone. */
+const HTTPS_HOSTS = new Set(["zolvaagent.app", "www.zolvaagent.app"]);
+
 const worker: ExportedHandler<CloudflareEnv> = {
-  fetch: handler.fetch,
+  fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    if (url.protocol === "http:" && HTTPS_HOSTS.has(url.hostname)) {
+      url.protocol = "https:";
+      return Response.redirect(url.toString(), 301);
+    }
+    return handler.fetch(request, env, ctx);
+  },
 
   async scheduled(controller, env, ctx) {
     const request = new Request("https://zolva.internal/api/cron/tick", {

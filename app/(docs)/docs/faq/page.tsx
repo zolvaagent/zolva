@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { DocsArticle, H2 } from "@/components/site/Docs";
 import { docPage } from "@/lib/docs";
+import { PREMIUM_ENDPOINTS } from "@/lib/x402/catalog";
 
 const page = docPage("faq");
 export const metadata: Metadata = { title: `${page.title} · Docs`, description: page.description };
@@ -17,6 +18,10 @@ const FAQ: [string, string][] = [
   ["Why compare with holding?", "Because it is the easiest alternative. If an agent cannot beat simply buying the same tokens and waiting, you should know before you trust it."],
   ["How many agents can I run?", "Up to five at once, each with its own virtual capital. Pause one to launch another."],
   ["Who can see my agents?", "Only you, until you publish one. Published agents appear on the leaderboard with their settings, decisions and trades."],
+  [
+    "What does Zolva cost?",
+    `Paper trading, the public API and the MCP server are free. The AI co-pilot and prompt mode run on AI credits (new accounts get $0.50 free). The premium API costs ${PREMIUM_ENDPOINTS.scan.price} USDG per market scan and ${PREMIUM_ENDPOINTS.backtest.price} USDG per backtest, paid per call over x402. Swaps between USDG, ETH, BTC, ZOLVA and Pons tokens carry a 0.25% Zolva fee; stock token swaps carry none.`,
+  ],
   ["What does the AI co-pilot cost?", "New accounts get $0.50 of free credits for Lite models. A typical Lite model costs cents a month, and every agent has its own spending limit and end date."],
   ["Who can use Zolva?", "Anyone outside the United States and sanctioned countries. Stock tokens are not offered to US persons."],
 ];

@@ -6,7 +6,11 @@ export const metadata: Metadata = { title: "Terms" };
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms" updated="November 11, 2026">
+    <LegalPage title="Terms" updated="November 16, 2026">
+      <h2>Who runs Zolva</h2>
+      <p>
+        Zolva (zolvaagent.app) is operated by Zolva. Contact: <a href="mailto:zolvaagent@gmail.com">zolvaagent@gmail.com</a>, <a href="https://x.com/zolva_agent">x.com/zolva_agent</a>.
+      </p>
       <h2>Paper trading</h2>
       <p>Paper agents trade virtual money at real Robinhood Chain prices. No funds move and nothing you see is a real order. Nothing on Zolva is investment advice, and backtests do not predict future results.</p>
       <h2>Real money trading</h2>
