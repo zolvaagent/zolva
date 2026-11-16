@@ -1,6 +1,7 @@
 /**
- * Research only (read-only, never writes to the database): weekly tracker for the 8 "Lab · <coin> Vol Trend"
- * paper agents (long only and L+S, SOL XRP NEAR ZEC, seeded 2026-11-14). Two questions per agent:
+ * Research only (read-only, never writes to the database): weekly tracker for the "Lab · <coin> Vol Trend" paper
+ * agents (long only and L+S, SOL XRP NEAR ZEC, seeded 2026-11-14; plus the "L+S OI" A/B agents seeded 2026-11-16,
+ * which have no backtest expectations: their yardstick is the L+S agent next to them). Two questions per agent:
  *
  *   1. Is the live engine doing what the engine says? Replays the agent with the real engine (`simulate`)
  *      on the same cleaned closes and funding the runner loads (candle_closes + buildCloseSeries), from the
@@ -112,6 +113,12 @@ async function main() {
     const closes = buildCloseSeries(candles, startTs, latest).closes;
     const fundingByTime = new Map(token.candles.map(([time, , rate]) => [Number(time), rate == null ? null : Number(rate)]));
     const funding = hours.map((ts) => fundingByTime.get(ts) ?? null);
+    // Open interest (stored hourly from 2026-11-16 for the OI A/B agents); missing hours stay null like the runner.
+    const oiRows = await all<{ ts: string; open_interest: number | null }>((from, to) =>
+      db.from("candles").select("ts, open_interest").eq("token_address", address).gte("ts", new Date(startTs * 1000).toISOString()).not("open_interest", "is", null).order("ts").range(from, to),
+    );
+    const oiByTime = new Map(oiRows.map((r) => [Date.parse(r.ts) / 1000, Number(r.open_interest)]));
+    const openInterest = hours.map((ts) => oiByTime.get(ts) ?? null);
 
     const runs = await all<{ ts: string; equity: number; hold_equity: number | null }>((from, to) =>
       db.from("agent_runs").select("ts, equity, hold_equity").eq("agent_id", agent.id).order("ts").range(from, to),
@@ -136,6 +143,7 @@ async function main() {
       toIndex: lastIndex,
       times: hours,
       funding: { [address]: funding },
+      openInterest: { [address]: openInterest },
     });
     const replayTrades = replay.fills.map((f: any) => `${hours[f.index]}:${f.side}`);
     const liveTrades = trades.map((t) => `${Date.parse(t.ts) / 1000}:${t.side}`);
