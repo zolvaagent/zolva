@@ -821,3 +821,29 @@ Same script (env COINS=BTC,ETH COST=0.005 FUNDING=0 SHOW=...), BTC and ETH:
 - The 72 hour breakout variant fails at spot cost (BTC -26% test, drop 37%): about 60 trades a year eat it.
 Open questions before real money: the live executor must handle the daily resize fills (partial buys and sells),
 and trades of a few dollars pay gas and slippage the backtest does not model.
+
+## DCA template check (2026-11-16)
+
+Owner picked a DCA template from the OpenTrade review. `scripts/research-dca.mts` (read only, fixed before running):
+52 equal weekly buys over 12 months, 0.5% a buy, never sells, versus buying everything on day one; every 12 month
+window starting each month, Binance daily for BTC ETH SOL (2020-08 on), Yahoo daily for SPY QQQ NVDA AAPL TSLA (10 years).
+
+| Market | DCA median | Lump sum median | DCA beats lump sum | Worst drop, DCA / lump sum |
+|---|---|---|---|---|
+| BTC | +18% | +28% | 37% of windows | 60% / 73% |
+| ETH | +5% | +13% | 41% | 70% / 79% |
+| SOL | +5% | +9% | 44% | 82% / 95% |
+| SPY | +9% | +16% | 16% | 32% / 34% |
+| QQQ | +12% | +24% | 15% | 27% / 35% |
+| NVDA | +31% | +64% | 20% | 50% / 66% |
+| AAPL | +14% | +25% | 19% | 34% / 39% |
+| TSLA | +11% | +21% | 40% | 60% / 73% |
+
+- DCA earns about half of buying at once and wins in only 15% to 44% of windows: on average half the money waits
+  in cash while markets mostly rose. Its median drop inside a year is about a third smaller for the same reason.
+- It does not protect in a bear year: 2022 DCA was BTC -34%, ETH -31%, SOL -72%, NVDA -17%, TSLA -51%.
+  The 50 day Vol Trend rule, by contrast, lost 0% to 14% in 2022 (rounds 2 and 3).
+Reading: DCA is fine as a simple, honest template if it is described as "spread your entry over time; usually less
+than buying at once, smaller swings, no exit", not as a strategy that beats the market. Engine note: it needs a
+recurring-buy preset (cadence, number of buys, no sell rule), which custom rules cannot express today
+(parseRules requires a sell rule, take profit or max hold).
