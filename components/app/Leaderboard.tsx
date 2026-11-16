@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AgentKindPills, matchesVenue, VENUE_FILTERS, type VenueFilter } from "@/components/app/AgentKind";
+import { MIN_RANKED_DAYS, MIN_RANKED_RUNS } from "@/lib/agents/tested";
 import type { AgentPeriod, AgentSummary, PeriodStats } from "@/lib/data/agents";
 import { marketList, percent, points, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
@@ -30,9 +31,28 @@ function statsFor(agent: AgentSummary, timeframe: Timeframe): PeriodStats | null
 
 const TOO_YOUNG: Record<AgentPeriod, string> = { "24h": "Running for less than 24 hours", "7d": "Running for less than 7 days", "30d": "Running for less than 30 days" };
 
-function age(createdAt: number): string {
-  const days = Math.floor((Date.now() / 1000 - createdAt) / 86400);
-  return days <= 0 ? "today" : days === 1 ? "1 day ago" : `${days} days ago`;
+/** Days of live paper record: hourly runs / 24. */
+const recordDays = (agent: AgentSummary) => Math.floor(agent.runs / 24);
+const daysText = (days: number) => (days === 1 ? "1 day" : `${days} days`);
+
+/**
+ * Research's minimum track record: an agent is ranked, and shows risk numbers, only after 30 days and
+ * 720 hourly runs (lib/agents/tested.ts). Measured from its own record, so it never depends on the clock.
+ */
+const isRanked = (agent: AgentSummary) => agent.runs >= MIN_RANKED_RUNS && ((agent.lastTs ?? agent.createdAt) - agent.createdAt) / 86400 >= MIN_RANKED_DAYS;
+
+/** "Tested" (matches a rule that passed Research's 6 year test) or "Experiment" (everything else). */
+function TestedPill({ agent }: { agent: AgentSummary }) {
+  if (agent.tested === undefined) return null;
+  return agent.tested ? (
+    <span className="pill pill--running" title="Matches a rule that passed Research's 6 year backtest at this venue's cost">
+      Tested
+    </span>
+  ) : (
+    <span className="pill" title="Not a rule that passed Research's 6 year backtest">
+      Experiment
+    </span>
+  );
 }
 
 /** `viewer` is the signed-in address, so their own agents get a "Your agent" label. */
@@ -41,8 +61,12 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
   const [filter, setFilter] = useState<VenueFilter>("all");
   const [timeframe, setTimeframe] = useState<Timeframe>("all");
 
+  const newcomers = useMemo(
+    () => agents.filter((agent) => matchesVenue(agent, filter) && !isRanked(agent)).sort((a, b) => b.createdAt - a.createdAt),
+    [agents, filter],
+  );
   const rows = useMemo(() => {
-    const list = agents.filter((agent) => matchesVenue(agent, filter)).map((agent) => ({ agent, stats: statsFor(agent, timeframe) }));
+    const list = agents.filter((agent) => matchesVenue(agent, filter) && isRanked(agent)).map((agent) => ({ agent, stats: statsFor(agent, timeframe) }));
     const key = (stats: PeriodStats) => (sort === "return" ? -stats.returnPct : sort === "edge" ? -stats.edge : stats.maxDrawdownPct);
     // Agents younger than the timeframe go last, newest first.
     return list.sort((a, b) => (a.stats && b.stats ? key(a.stats) - key(b.stats) : a.stats ? -1 : b.stats ? 1 : b.agent.createdAt - a.agent.createdAt));
@@ -80,7 +104,7 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
         </div>
       </div>
 
-      {!rows.length ? (
+      {!rows.length && !newcomers.length ? (
         <div className="card">
           <div className="empty">
             <img src="/img/icons/leaderboard.png" alt="" width={72} height={72} />
@@ -93,83 +117,120 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
         </div>
       ) : (
         <>
-          <div className="card only-desktop">
-            <div className="table-wrap">
-              <table className="table table--clickable">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Agent</th>
-                    <th>Strategy</th>
-                    <th>Markets</th>
-                    <th className="num">Return</th>
-                    <th className="num">vs holding</th>
-                    <th className="num">Worst drop</th>
-                    <th className="num">Trades</th>
-                    <th>Started</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(({ agent, stats }, i) => (
-                    <tr key={agent.id} className={agent.owner === viewer ? "leaderboard__mine" : undefined}>
-                      <td className="rank">{i + 1}</td>
-                      <td>
-                        <Link className="row-link" href={`/agents/${agent.id}`}>{agent.name}</Link>
-                        {agent.isHouse && (
-                          <span className="pill" style={{ marginLeft: 6 }}>
-                            by Zolva
-                          </span>
-                        )}
-                        {agent.owner === viewer && (
-                          <span className="pill pill--accent" style={{ marginLeft: 6 }}>
-                            Your agent
-                          </span>
-                        )}
-                        {/* Perps and Short sit on the second line, so a long name never pushes them into the next column. */}
-                        <div className="leaderboard__sub">
-                          <span className="muted mono">{agent.isHouse ? "House agent" : shortAddress(agent.owner)}</span>
-                          <AgentKindPills agent={agent} />
-                        </div>
-                      </td>
-                      <td>{STRATEGY_NAMES[agent.strategy]}</td>
-                      <td className="muted" title={agent.tokens.map((token) => token.symbol).join(", ")}>
-                        {marketList(agent.tokens.map((token) => token.symbol))}
-                      </td>
-                      <td className={`num ${stats ? tone(stats.returnPct) : ""}`}>{stats ? percent(stats.returnPct) : dash}</td>
-                      <td className={`num ${stats ? tone(stats.edge) : ""}`}>{stats ? points(stats.edge) : dash}</td>
-                      <td className="num">{stats ? percent(-stats.maxDrawdownPct) : dash}</td>
-                      <td className="num">{agent.trades}</td>
-                      <td className="muted">{age(agent.createdAt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div className="leader-cards only-mobile">
-            {rows.map(({ agent, stats }, i) => (
-              <Link key={agent.id} className="leader-card" href={`/agents/${agent.id}`}>
-                <span className="rank">{i + 1}</span>
-                <span>
-                  <strong>{agent.name}</strong>
-                  <span className="pill-row">
-                    <AgentKindPills agent={agent} />
-                  </span>
-                  <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-                    {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
-                  </div>
-                </span>
-                <span style={{ textAlign: "right" }}>
-                  <span className={stats ? tone(stats.returnPct) : "muted"} style={{ fontWeight: 600 }} title={stats ? undefined : tooYoung}>
-                    {stats ? percent(stats.returnPct) : "New"}
-                  </span>
-                  <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
-                    {stats ? points(stats.edge) : tooYoung}
-                  </div>
-                </span>
-              </Link>
-            ))}
-          </div>
+          {!rows.length && <p className="muted">No agent here has a {MIN_RANKED_DAYS} day record yet.</p>}
+          {rows.length > 0 && (
+            <>
+              <div className="card only-desktop">
+                <div className="table-wrap">
+                  <table className="table table--clickable">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Agent</th>
+                        <th>Strategy</th>
+                        <th>Markets</th>
+                        <th className="num">Return</th>
+                        <th className="num">vs holding</th>
+                        <th className="num">Worst drop</th>
+                        <th className="num">Trades</th>
+                        <th className="num">Record</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ agent, stats }, i) => (
+                        <tr key={agent.id} className={agent.owner === viewer ? "leaderboard__mine" : undefined}>
+                          <td className="rank">{i + 1}</td>
+                          <td>
+                            <Link className="row-link" href={`/agents/${agent.id}`}>{agent.name}</Link>
+                            {agent.isHouse && (
+                              <span className="pill" style={{ marginLeft: 6 }}>
+                                by Zolva
+                              </span>
+                            )}
+                            {agent.owner === viewer && (
+                              <span className="pill pill--accent" style={{ marginLeft: 6 }}>
+                                Your agent
+                              </span>
+                            )}
+                            {/* Perps and Short sit on the second line, so a long name never pushes them into the next column. */}
+                            <div className="leaderboard__sub">
+                              <span className="muted mono">{agent.isHouse ? "House agent" : shortAddress(agent.owner)}</span>
+                              <TestedPill agent={agent} />
+                              <AgentKindPills agent={agent} />
+                            </div>
+                          </td>
+                          <td>{STRATEGY_NAMES[agent.strategy]}</td>
+                          <td className="muted" title={agent.tokens.map((token) => token.symbol).join(", ")}>
+                            {marketList(agent.tokens.map((token) => token.symbol))}
+                          </td>
+                          <td className={`num ${stats ? tone(stats.returnPct) : ""}`}>{stats ? percent(stats.returnPct) : dash}</td>
+                          <td className={`num ${stats ? tone(stats.edge) : ""}`}>{stats ? points(stats.edge) : dash}</td>
+                          <td className="num">{stats ? percent(-stats.maxDrawdownPct) : dash}</td>
+                          <td className="num">{agent.trades}</td>
+                          <td className="num muted">{daysText(recordDays(agent))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="leader-cards only-mobile">
+                {rows.map(({ agent, stats }, i) => (
+                  <Link key={agent.id} className="leader-card" href={`/agents/${agent.id}`}>
+                    <span className="rank">{i + 1}</span>
+                    <span>
+                      <strong>{agent.name}</strong>
+                      <span className="pill-row">
+                        <TestedPill agent={agent} />
+                        <AgentKindPills agent={agent} />
+                      </span>
+                      <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
+                        {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
+                      </div>
+                    </span>
+                    <span style={{ textAlign: "right" }}>
+                      <span className={stats ? tone(stats.returnPct) : "muted"} style={{ fontWeight: 600 }} title={stats ? undefined : tooYoung}>
+                        {stats ? percent(stats.returnPct) : "New"}
+                      </span>
+                      <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
+                        {stats ? points(stats.edge) : tooYoung}
+                      </div>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+
+          {newcomers.length > 0 && (
+            <section className="leaderboard-new" aria-labelledby="leaderboard-new-title">
+              <h2 id="leaderboard-new-title" className="card__title">
+                New agents
+              </h2>
+              <p className="muted">
+                Not ranked yet. An agent joins the ranking after {MIN_RANKED_DAYS} days and {MIN_RANKED_RUNS} hourly runs; until then a short record says little.
+              </p>
+              <div className="leader-cards">
+                {newcomers.map((agent) => (
+                  <Link key={agent.id} className="leader-card leader-card--new" href={`/agents/${agent.id}`}>
+                    <span>
+                      <strong>{agent.name}</strong>
+                      <span className="pill-row">
+                        <TestedPill agent={agent} />
+                        <AgentKindPills agent={agent} />
+                      </span>
+                      <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
+                        {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
+                      </div>
+                    </span>
+                    <span className="muted" style={{ textAlign: "right", fontSize: 12 }}>
+                      New, {daysText(recordDays(agent))}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </>

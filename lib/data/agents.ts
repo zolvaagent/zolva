@@ -1,6 +1,6 @@
 import "server-only";
 
-import { copyBlock, maxMarketsFor, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
+import { copyBlock, copyParamsBlock, dcaPlanError, maxMarketsFor, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 
 export { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES };
 
@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isHouseOwner, LAB_AGENTS } from "@/lib/agents/house";
 import { periodsOf, type AgentPeriod, type PeriodRow, type PeriodStats } from "@/lib/agents/periods";
+import { isTested, type TestedInput } from "@/lib/agents/tested";
 import type { AgentRow } from "@/lib/agents/plan";
 import type { Decision } from "@/lib/engine/engine";
 import { isPerpSymbol } from "@/lib/format";
@@ -47,6 +48,8 @@ export type AgentSummary = {
    * agent's last 24 hours, 7 days and 30 days. null when the agent is younger than the period.
    */
   periods?: Record<AgentPeriod, PeriodStats | null>;
+  /** Leaderboard only: the agent exactly matches a rule that passed Research's 6 year test (lib/agents/tested.ts). */
+  tested?: boolean;
 };
 
 export { AGENT_PERIODS, type AgentPeriod, type PeriodStats } from "@/lib/agents/periods";
@@ -134,9 +137,19 @@ export async function listAgents(db: SupabaseClient, options: { periods?: boolea
     .not("published_at", "is", null)
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Loading agents failed: ${error.message}`);
-  const [summaries, periods] = await Promise.all([toSummaries(db, data as StatsRow[]), options.periods ? periodStats(db) : null]);
+  const rows = data as StatsRow[];
+  const [summaries, periods, params] = await Promise.all([
+    toSummaries(db, rows),
+    options.periods ? periodStats(db) : null,
+    options.periods ? db.from("agents").select("id, params").in("id", rows.map((row) => row.id)) : null,
+  ]);
   if (!periods) return summaries;
-  return summaries.map((summary) => ({ ...summary, periods: periodsOf(summary, periods.get(summary.id)) }));
+  const paramsOf = new Map(((params?.data ?? []) as { id: string; params: TestedInput["params"] }[]).map((row) => [row.id, row.params]));
+  return summaries.map((summary) => ({
+    ...summary,
+    periods: periodsOf(summary, periods.get(summary.id)),
+    tested: isTested({ strategy: summary.strategy, venue: summary.venue, symbols: summary.tokens.map((token) => token.symbol), params: paramsOf.get(summary.id) ?? {} }),
+  }));
 }
 
 
@@ -337,14 +350,17 @@ export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
   const lastHours = [...new Set(agents.flatMap((agent) => (agent.lastTs === null ? [] : [new Date(agent.lastTs * 1000).toISOString()])))];
   const tradesSince = new Date(Date.now() - 30 * 86400 * 1000).toISOString();
 
-  const [runs, positions, trades, tokens, curves] = await Promise.all([
+  const [runs, positions, trades, tokens, curves, params] = await Promise.all([
     lastHours.length ? db.from("agent_runs").select("agent_id, ts, decisions").in("agent_id", ids).in("ts", lastHours) : Promise.resolve({ data: [], error: null }),
     db.from("positions").select("agent_id, token_address, side").in("agent_id", ids),
     db.from("trades").select("agent_id, ts, token_address, side").in("agent_id", ids).gte("ts", tradesSince).order("ts", { ascending: false }).limit(1000),
     db.from("tokens").select("address, symbol"),
     equityCurves(db, ids),
+    // For "Copy to Studio": settings the Studio can't set (volatility sizing, Lab data) block the copy.
+    db.from("agents").select("id, params").in("id", ids),
   ]);
-  for (const result of [runs, positions, trades, tokens]) if (result.error) throw new Error(`Loading agent cards failed: ${result.error.message}`);
+  for (const result of [runs, positions, trades, tokens, params]) if (result.error) throw new Error(`Loading agent cards failed: ${result.error.message}`);
+  const paramsOf = new Map((params.data ?? []).map((row) => [row.id as string, (row.params ?? {}) as { sizing?: unknown; rules?: unknown }]));
 
   const symbolOf = new Map((tokens.data ?? []).map((token) => [token.address as string, token.symbol as string]));
 
@@ -378,7 +394,7 @@ export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
       latest: run && decision ? { ts: run.ts, symbol: symbolOf.get(decision.token) ?? "?", action: decision.action, reasoning: decision.reasoning } : null,
       lastTrade: lastTradeOf.get(summary.id) ?? null,
       curve: curves.get(summary.id) ?? [],
-      copyable: copyBlock(summary) === null,
+      copyable: copyBlock(summary, paramsOf.get(summary.id) ?? {}) === null,
     };
   });
 }
@@ -387,7 +403,16 @@ export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
 export async function getAgentTemplate(
   db: SupabaseClient,
   id: string,
-): Promise<{ name: string; strategy: (typeof STUDIO_STRATEGIES)[number]; venue: AgentVenue; rules: unknown; symbols: string[]; maxPositionPct: number; stopLossPct: number } | null> {
+): Promise<{
+  name: string;
+  strategy: (typeof STUDIO_STRATEGIES)[number];
+  venue: AgentVenue;
+  rules: unknown;
+  symbols: string[];
+  maxPositionPct: number;
+  stopLossPct: number;
+  dca: { buys: number; everyHours: number } | null;
+} | null> {
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db.from("agents").select("name, strategy, params, token_addresses, published_at, mode").eq("id", id).maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);
@@ -396,6 +421,12 @@ export async function getAgentTemplate(
   const venue: AgentVenue = agent.params?.venue === "perps" ? "perps" : "spot";
   if (!(STUDIO_STRATEGIES as readonly string[]).includes(agent.strategy) || agent.token_addresses.length > maxMarketsFor(agent.strategy)) return null;
   if (strategyNeedsPerps(agent.strategy) && venue !== "perps") return null;
+  // Volatility sizing and Lab data have no Studio control: a copy would trade differently.
+  if (copyParamsBlock(agent.params ?? {})) return null;
+  // DCA: the same plan (buys and gap); the new agent's first buy is its own first hour.
+  const plan = agent.params?.dca as { buys?: unknown; everyHours?: unknown } | undefined;
+  const dca = plan && dcaPlanError(Number(plan.buys), Number(plan.everyHours)) === null ? { buys: Number(plan.buys), everyHours: Number(plan.everyHours) } : null;
+  if (agent.strategy === "dca" && !dca) return null;
   const symbols = await tokenSymbols(db);
   return {
     name: agent.name,
@@ -405,5 +436,6 @@ export async function getAgentTemplate(
     symbols: (agent.token_addresses as string[]).map((address) => symbols.get(address)).filter((symbol): symbol is string => Boolean(symbol)),
     maxPositionPct: Number(agent.params.max_position_pct),
     stopLossPct: Number(agent.params.stop_loss_pct),
+    dca,
   };
 }

@@ -3637,6 +3637,18 @@ main:focus {
   transition: background-color var(--duration-micro) var(--ease-out-expo), transform var(--duration-micro) var(--ease-out-expo);
 }
 
+/* Unranked newcomers (under 30 days): no rank column. */
+.leader-card--new {
+  grid-template-columns: 1fr auto;
+}
+
+.leaderboard-new {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+  margin-top: var(--space-300);
+}
+
 .leader-card:active {
   transform: scale(0.985);
 }
@@ -10472,4 +10484,41 @@ li.stats-ranks__row {
 
 .token-report__grid .table .num {
   white-space: nowrap;
+}
+
+/* Studio: Research's years under each starting point and strategy (lib/studio/preset-years.ts). */
+.preset-years {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50) var(--space-75);
+  margin-top: var(--space-75);
+  padding-top: var(--space-75);
+  border-top: 1px solid var(--color-border);
+  font-size: 11px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.preset-years__cell {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+}
+
+.preset-years__year,
+.preset-years__hold,
+.preset-years__foot {
+  color: var(--color-text-faint);
+}
+
+.preset-years__foot {
+  flex-basis: 100%;
+}
+
+.choice__years {
+  display: block;
+  margin-top: var(--space-50);
+  color: var(--color-text-faint);
+  font-size: 12px;
+  line-height: 16px;
 }

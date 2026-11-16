@@ -5,13 +5,13 @@
 -- 2. Partial live sells: a confirmed sell that leaves part of the position (a daily resize) lowers the
 --    position instead of deleting it. A full exit still deletes it, as before. Executions accept the
 --    resize reason.
+-- 3. House live exception: Zolva's own live wallets may run more than one real money agent at a
+--    time, up to the number listed in live_agent_allowances. Users stay at one (no row = 1).
+
 -- 2b. Live orders may be a resize (trades already allow it since 20261114000100_vol_sizing.sql).
 alter table executions drop constraint executions_reason_check;
 alter table executions add constraint executions_reason_check
   check (reason in ('signal', 'stop_loss', 'take_profit', 'max_hold', 'manual', 'resize'));
-
--- 3. House live exception: Zolva's own live wallets may run more than one real money agent at a
---    time, up to the number listed in live_agent_allowances. Users stay at one (no row = 1).
 
 -- 1. Same as 20261114000200_lab_shorts.sql, with the sizing scope widened to spot.
 create or replace function agent_venue_guard() returns trigger

@@ -156,7 +156,7 @@ export function AgentView({
   const wasPublished = agent.first_published_at !== null;
   const isLive = agent.mode === "live";
   // "Copy to Studio" when the Studio can rebuild this agent, otherwise the reason it can't.
-  const copyReason = copyBlock({ ...summary, live: isLive, published: agent.published_at !== null });
+  const copyReason = copyBlock({ ...summary, live: isLive, published: agent.published_at !== null }, agent.params);
   const isActive = agent.status === "active";
   const minutesToNextRun = useMinutesToNextRun();
   const symbolOf = (token: string) => symbols[token] ?? token;

@@ -37,6 +37,7 @@ export default async function StudioPage({ searchParams }: PageProps<"/studio">)
           // Same ranges as the Studio sliders.
           maxPositionPct: clamp(source.maxPositionPct, 10, 100, 33),
           stopLossPct: clamp(source.stopLossPct, 2, 25, 8),
+          dca: source.dca,
         }
       : null;
   return (

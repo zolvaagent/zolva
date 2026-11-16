@@ -38,6 +38,21 @@ export function dcaPlanError(buys: number, everyHours: number): string | null {
   return null;
 }
 
+/** "every week", "every 6 hours": a DCA plan's gap between buys in plain words. */
+export function dcaEveryText(everyHours: number): string {
+  if (everyHours === 1) return "every hour";
+  if (everyHours === 24) return "every day";
+  if (everyHours === 168) return "every week";
+  return `every ${dcaSpanText(everyHours)}`;
+}
+
+/** "52 weeks", "12 days", "36 hours": a length of time in the largest whole unit. */
+export function dcaSpanText(hours: number): string {
+  if (hours % 168 === 0) return `${hours / 168} week${hours === 168 ? "" : "s"}`;
+  if (hours % 24 === 0) return `${hours / 24} day${hours === 24 ? "" : "s"}`;
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
 /** Spike Fade opens shorts, and shorts trade perps only (spot is long only). */
 export function strategyNeedsPerps(strategy: string): boolean {
   return strategy === "spike_fade";
@@ -47,12 +62,25 @@ export function strategyNeedsPerps(strategy: string): boolean {
  * Why the Studio cannot rebuild an agent, or null when it can. The Studio builds published paper
  * agents (spot or perps) with its strategies and their market limits.
  */
-export function copyBlock(summary: Pick<AgentSummary, "venue" | "strategy" | "tokens" | "published" | "live">): string | null {
+export function copyBlock(
+  summary: Pick<AgentSummary, "venue" | "strategy" | "tokens" | "published" | "live">,
+  params?: { sizing?: unknown; rules?: unknown },
+): string | null {
   if (summary.live) return "Real money agents can't be copied.";
   if (!summary.published) return "Only agents on the leaderboard can be copied.";
   if (!(STUDIO_STRATEGIES as readonly string[]).includes(summary.strategy)) return "This strategy isn't in the Studio yet.";
   if (strategyNeedsPerps(summary.strategy) && summary.venue !== "perps") return "Spot Spike Fade is retired: Spike Fade now trades perps.";
   const max = maxMarketsFor(summary.strategy);
   if (summary.tokens.length > max) return `Studio agents with this strategy watch up to ${max} markets; this one watches ${summary.tokens.length}.`;
+  return params ? copyParamsBlock(params) : null;
+}
+
+/**
+ * Settings the Studio has no control for, so a copy could not trade like the original: volatility
+ * sizing and Lab-only data (funding, open interest). Only when the caller has the agent's params.
+ */
+export function copyParamsBlock(params: { sizing?: unknown; rules?: unknown }): string | null {
+  if (params.sizing) return "This agent sizes its trades by volatility, which the Studio can't set yet.";
+  if (/"kind":"(funding7d|oiChange)"/.test(JSON.stringify(params.rules ?? null))) return "This agent reads Lab data (funding or open interest) that the Studio can't use yet.";
   return null;
 }

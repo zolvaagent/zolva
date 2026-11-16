@@ -21,9 +21,10 @@ import { RulesSummary } from "@/components/app/RulesSummary";
 import { RobustnessCheck } from "@/components/app/RobustnessCheck";
 import { dayAt, percent, usd } from "@/lib/format";
 import { track } from "@/lib/funnel";
-import { openingPreset, PRESET_MAX_POSITION_PCT, PRESET_STOP_LOSS_PCT, scorePresets, suggestedName, type ScoredPreset } from "@/lib/studio/presets";
+import { openingPreset, PRESET_DCA, PRESET_MAX_POSITION_PCT, PRESET_STOP_LOSS_PCT, scorePresets, suggestedName, type ScoredPreset } from "@/lib/studio/presets";
+import { PRESET_YEARS, STRATEGY_YEARS_LINE, YEARS_DISCLAIMER, type YearTable } from "@/lib/studio/preset-years";
 import type { Market } from "@/lib/data/market";
-import { DCA_BUYS, DCA_CADENCES, maxMarketsFor, strategyNeedsPerps, type StudioStrategy } from "@/lib/agents/copy";
+import { DCA_BUYS, DCA_CADENCES, dcaEveryText, dcaSpanText, maxMarketsFor, strategyNeedsPerps, type StudioStrategy } from "@/lib/agents/copy";
 
 const BACKTEST_HOURS = 30 * 24;
 const MAX_ACTIVE = 5;
@@ -46,7 +47,18 @@ const BLANK_RULES: Rules = {
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 /** A published agent to start from ("Copy to Studio" on /agents and agent pages). */
-export type StudioTemplate = { id: string; name: string; strategy: Strategy; venue?: Venue; rules: Rules | null; symbols: string[]; maxPositionPct: number; stopLossPct: number };
+export type StudioTemplate = {
+  id: string;
+  name: string;
+  strategy: Strategy;
+  venue?: Venue;
+  rules: Rules | null;
+  symbols: string[];
+  maxPositionPct: number;
+  stopLossPct: number;
+  /** A DCA agent's plan, copied as is (it may be one the Studio's quick choices don't list). */
+  dca?: { buys: number; everyHours: number } | null;
+};
 
 /**
  * The agent being built, kept in sessionStorage while a logged-out visitor logs in from Launch.
@@ -153,8 +165,16 @@ export function Studio({
   const [strategy, setStrategy] = useState<Strategy>(template?.strategy ?? opening?.strategy ?? startStrategy);
   const [rules, setRules] = useState<Rules>(clone(template?.rules ?? RULE_TEMPLATES.momentum));
   // DCA: how many equal buys and how often (lib/engine/engine.ts dcaHour).
-  const [dcaBuys, setDcaBuys] = useState<number>(DCA_BUYS[0]);
-  const [dcaEveryHours, setDcaEveryHours] = useState<number>(DCA_CADENCES[1].everyHours);
+  // A DCA starting point opens on the plan its backtest used (PRESET_DCA), so the numbers match.
+  const startDca = template?.dca ?? (opening?.strategy === "dca" ? PRESET_DCA : null);
+  const [dcaBuys, setDcaBuys] = useState<number>(startDca?.buys ?? DCA_BUYS[0]);
+  const [dcaEveryHours, setDcaEveryHours] = useState<number>(startDca?.everyHours ?? DCA_CADENCES[1].everyHours);
+  // A copied plan outside the quick choices gets its own tab, so it stays selectable.
+  const buyChoices = template?.dca && !(DCA_BUYS as readonly number[]).includes(template.dca.buys) ? [...DCA_BUYS, template.dca.buys].sort((a, b) => a - b) : DCA_BUYS;
+  const cadenceChoices =
+    template?.dca && !DCA_CADENCES.some((cadence) => cadence.everyHours === template.dca?.everyHours)
+      ? [...DCA_CADENCES, { everyHours: template.dca.everyHours, label: dcaEveryText(template.dca.everyHours).replace(/^every /, "Every ") }]
+      : DCA_CADENCES;
   const dca = strategy === "dca";
   const [symbols, setSymbols] = useState<string[]>(templateSymbols.length ? templateSymbols : opening ? [...opening.symbols] : [startStock]);
   // Spot: stock and crypto tokens on the DEX. Perps: Lighter perps, paper only, the venue for shorts.
@@ -182,6 +202,10 @@ export function Studio({
     setSymbols([...preset.symbols]);
     setMaxPositionPct(PRESET_MAX_POSITION_PCT);
     setStopLossPct(PRESET_STOP_LOSS_PCT);
+    if (preset.strategy === "dca") {
+      setDcaBuys(PRESET_DCA.buys);
+      setDcaEveryHours(PRESET_DCA.everyHours);
+    }
   };
   const [showErrors, setShowErrors] = useState(false);
   const [aiModelId, setAiModelId] = useState<string | null>(null);
@@ -401,10 +425,15 @@ export function Studio({
                         <strong className={preset.returnPct > 0.05 ? "gain" : preset.returnPct < -0.05 ? "loss" : ""}>{percent(preset.returnPct)}</strong>
                         <span className="muted">holding {percent(preset.holdPct)}</span>
                       </span>
+                      {PRESET_YEARS[preset.id] && <PresetYears table={PRESET_YEARS[preset.id]} />}
                     </label>
                   );
                 })}
               </div>
+              <p className="note">
+                <i className="ph ph-info" />
+                {YEARS_DISCLAIMER}
+              </p>
             </div>
           )}
 
@@ -526,14 +555,14 @@ export function Studio({
               </div>
               <div className="dca-schedule">
                 <div className="tabs" role="radiogroup" aria-label="Number of buys">
-                  {DCA_BUYS.map((buys) => (
+                  {buyChoices.map((buys) => (
                     <button key={buys} className="tab" type="button" role="radio" aria-checked={dcaBuys === buys} onClick={() => setDcaBuys(buys)}>
                       {buys} buys
                     </button>
                   ))}
                 </div>
                 <div className="tabs" role="radiogroup" aria-label="How often">
-                  {DCA_CADENCES.map((cadence) => (
+                  {cadenceChoices.map((cadence) => (
                     <button
                       key={cadence.everyHours}
                       className="tab"
@@ -549,7 +578,7 @@ export function Studio({
               </div>
               <p className="note">
                 <i className="ph ph-info" />
-                About {usd(agentCapital / dcaBuys)} per buy, {dcaEveryHours === 24 ? "every day" : "every week"} for {dcaEveryHours === 24 ? `${dcaBuys} days` : `${dcaBuys} weeks`}, split across your markets. It never sells: no exit and no stop loss.
+                About {usd(agentCapital / dcaBuys)} per buy, {dcaEveryText(dcaEveryHours)} for {dcaSpanText(dcaBuys * dcaEveryHours)}, split across your markets. It never sells: no exit and no stop loss.
                 Usually earns less than buying everything at once, with smaller swings.
               </p>
               {agentCapital / dcaBuys / Math.max(1, symbols.length) < 1 && <span className="field-error">Each buy would be under $1. Use fewer buys or markets, or more capital.</span>}
@@ -834,7 +863,24 @@ function StrategyChoice(props: { value: Strategy; current: Strategy; onChange: (
       )}
       <span className="choice__title">{props.title}</span>
       <span className="choice__text">{props.text}</span>
+      {STRATEGY_YEARS_LINE[props.value] && <span className="choice__years">{STRATEGY_YEARS_LINE[props.value]}</span>}
     </label>
+  );
+}
+
+/** A starting point's years from Research (lib/studio/preset-years.ts), losing years included. */
+function PresetYears({ table }: { table: YearTable }) {
+  return (
+    <span className="preset-years" title={table.note}>
+      {table.years.map((row, i) => (
+        <span key={row.year} className="preset-years__cell">
+          <span className="preset-years__year">{row.year.slice(2)}</span>
+          <span className={row.pct > 0 ? "gain" : row.pct < 0 ? "loss" : ""}>{row.pct > 0 ? `+${row.pct}` : row.pct}%</span>
+          <span className="preset-years__hold">{table.hold[i].pct > 0 ? `+${table.hold[i].pct}` : table.hold[i].pct}%</span>
+        </span>
+      ))}
+      <span className="preset-years__foot">Top: this agent. Below: holding. Worst drop {table.worstDropPct}%.</span>
+    </span>
   );
 }
 
