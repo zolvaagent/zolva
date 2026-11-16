@@ -109,11 +109,10 @@ export async function checkAgentInput(db: SupabaseClient, owner: string, input: 
   if (strategyNeedsPerps(strategy) && !perps) throw new AgentInputError("Spike fade opens shorts, which trade perps. Switch to Perps to launch it.");
   // Real money stays on the strategies it has run with; Dip hunter is paper only for now.
   if (mode === "live" && (strategy === "dip_hunter" || strategy === "spike_fade")) throw new AgentInputError("Dip hunter and Spike fade trade paper money only for now.");
-  // DCA: paper, spot and rules only for now (each small live buy would pay gas; the database checks it too).
+  // DCA: spot only and without the AI co-pilot; paper or real money (the database checks it too).
   let dcaChoice: { buys: number; everyHours: number } | null = null;
   if (strategy === "dca") {
     if (perps) throw new AgentInputError("DCA buys spot tokens. Switch to Spot.");
-    if (mode === "live") throw new AgentInputError("DCA trades paper money only for now.");
     const raw = (input.dca ?? {}) as { buys?: unknown; everyHours?: unknown };
     const buys = Number(raw.buys);
     const everyHours = Number(raw.everyHours);
@@ -158,6 +157,10 @@ export async function checkAgentInput(db: SupabaseClient, owner: string, input: 
     if (capital > live!.usdg) throw new AgentInputError(`Your wallet holds ${live!.usdg.toFixed(2)} USDG. Add more, or lower the capital.`);
   }
   if (!Number.isInteger(maxPositionPct) || maxPositionPct < 10 || maxPositionPct > 100) throw new AgentInputError("Max per stock must be between 10% and 100%.");
+  // Every scheduled DCA buy is at least $1 per market, so a real money buy is worth its gas.
+  if (dcaChoice && Array.isArray(input.tokens) && capital / dcaChoice.buys / Math.max(1, input.tokens.length) < 1) {
+    throw new AgentInputError(`Each buy would be under $1. Use fewer buys or markets, or more capital.`);
+  }
   if (!Number.isInteger(stopLossPct) || stopLossPct < 2 || stopLossPct > 25) throw new AgentInputError("Stop loss must be between 2% and 25%.");
 
   const tokens = Array.isArray(input.tokens) ? [...new Set(input.tokens.map((token) => String(token).toLowerCase()))] : [];

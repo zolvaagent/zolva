@@ -54,7 +54,7 @@ export default function Strategies() {
       />
       <p>
         Usually earns less than buying everything at once, with smaller swings along the way, and it does not protect you in a falling market. In Zolva&apos;s research over rolling 12 month windows (52 weekly buys, 0.5% per buy), the median
-        return was +18% against +28% for buying at once on BTC, and +12% against +24% on QQQ. Spot and paper only for now, without the AI co-pilot.
+        return was +18% against +28% for buying at once on BTC, and +12% against +24% on QQQ. Spot only, without the AI co-pilot. With real money it runs from your own wallet as a <Link href="/swap">Recurring buy</Link>, within the usual real money limits, and every buy is at least $1.
       </p>
 
       <H2 id="custom">Custom rules</H2>

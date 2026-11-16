@@ -8361,7 +8361,22 @@ button.text-link {
 .swap-workspace__main {
   grid-area: main;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+/* The swap card and the recurring buy card under the Swap / Recurring buy switch. */
+.swap-workspace__main > div:not(.swap-mode),
+.swap-workspace__main > .recurring-buy {
+  display: flex;
   justify-content: center;
+  width: 100%;
+  max-width: 480px;
+}
+
+.swap-workspace__main > div[hidden] {
+  display: none;
 }
 
 .swap-workspace__side {
@@ -10284,5 +10299,47 @@ li.stats-ranks__row {
 .dca-schedule {
   display: flex;
   flex-wrap: wrap;
+  gap: var(--space-100);
+}
+
+/* Swap page: Swap / Recurring buy switch, and the recurring buy card (components/app/RecurringBuy.tsx). */
+.swap-mode {
+  margin-bottom: var(--space-100);
+}
+
+.swap-workspace__main > .recurring-buy {
+  display: grid;
+  gap: var(--space-200);
+}
+
+.recurring-buy .card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-75);
+  margin: 0;
+}
+
+.recurring-buy__lead,
+.recurring-buy__plan {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.recurring-buy__plan {
+  margin-top: var(--space-100);
+}
+
+.recurring-buy__costs {
+  display: grid;
+  gap: var(--space-50);
+  margin: 0;
+  padding-left: var(--space-200);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.recurring-buy__checks {
+  display: grid;
   gap: var(--space-100);
 }

@@ -11,7 +11,12 @@ export const dynamic = "force-dynamic";
 
 /** Swap any two of Zolva's tokens from your own wallet. Quotes work logged out; swapping needs a login. */
 export default async function SwapPage() {
-  const [address, cookieStore] = await Promise.all([getSessionAddress(), cookies()]);
+  // Recurring buy: the markets a real money agent can buy (allowlisted spot tokens on Uniswap v3 pools).
+  const [address, cookieStore, { data: liveTokens }] = await Promise.all([
+    getSessionAddress(),
+    cookies(),
+    db().from("tokens").select("address, symbol, name").eq("enabled", true).eq("venue", "uniswap").eq("pool_kind", "v3").order("symbol"),
+  ]);
   // Display only: how to sign (Privy window or browser wallet).
   const method = cookieStore.get(LOGIN_METHOD_COOKIE)?.value;
   const loginMethod = method === "privy" || method === "wallet" ? method : null;
@@ -35,7 +40,7 @@ export default async function SwapPage() {
           </TrackedLink>
         </div>
       )}
-      <SwapWorkspace address={address} loginMethod={loginMethod} />
+      <SwapWorkspace address={address} loginMethod={loginMethod} recurringTokens={(liveTokens ?? []).map((token) => ({ address: token.address, symbol: token.symbol, name: token.name ?? token.symbol }))} />
     </div>
   );
 }

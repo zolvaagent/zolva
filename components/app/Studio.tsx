@@ -117,8 +117,8 @@ function readDraft(market: Market): StudioDraft | null {
   return symbols.length ? { ...draft, symbols } : null;
 }
 
-/** Dip hunter and Spike fade enter one market at a time, so they cannot trade real money yet; DCA's small buys would each pay gas. */
-const PAPER_ONLY_STRATEGIES: readonly Strategy[] = ["dip_hunter", "spike_fade", "dca"];
+/** Dip hunter and Spike fade enter one market at a time, so they cannot trade real money yet. */
+const PAPER_ONLY_STRATEGIES: readonly Strategy[] = ["dip_hunter", "spike_fade"];
 
 export function Studio({
   market,
@@ -513,7 +513,7 @@ export function Studio({
                 onChange={chooseStrategy}
                 glyph="ph-calendar-check"
                 title="DCA"
-                text={perps ? "Buys spot tokens on a schedule. Switch Markets to trade to Spot." : "Spreads your entry over time: the same amount on a schedule. Never sells. Paper only."}
+                text={perps ? "Buys spot tokens on a schedule. Switch Markets to trade to Spot." : "Spreads your entry over time: the same amount on a schedule. Never sells."}
                 disabled={perps}
               />
             </div>
@@ -552,6 +552,7 @@ export function Studio({
                 About {usd(agentCapital / dcaBuys)} per buy, {dcaEveryHours === 24 ? "every day" : "every week"} for {dcaEveryHours === 24 ? `${dcaBuys} days` : `${dcaBuys} weeks`}, split across your markets. It never sells: no exit and no stop loss.
                 Usually earns less than buying everything at once, with smaller swings.
               </p>
+              {agentCapital / dcaBuys / Math.max(1, symbols.length) < 1 && <span className="field-error">Each buy would be under $1. Use fewer buys or markets, or more capital.</span>}
             </div>
           )}
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { RecurringBuy, type RecurringToken } from "@/components/app/RecurringBuy";
 import { SwapDialog } from "@/components/app/SwapDialog";
 import { LineChart } from "@/components/ui/LineChart";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
@@ -34,7 +35,9 @@ function amount(value: number): string {
  * The swap page: the swap card, and beside it the chart of the token being bought and the
  * wallet's latest transactions with Zolva's tokens (refreshed after each swap).
  */
-export function SwapWorkspace({ address, loginMethod }: { address: string | null; loginMethod: "privy" | "wallet" | null }) {
+export function SwapWorkspace({ address, loginMethod, recurringTokens }: { address: string | null; loginMethod: "privy" | "wallet" | null; recurringTokens: RecurringToken[] }) {
+  // Swap once, or set up a recurring buy (DCA with real money, components/app/RecurringBuy.tsx).
+  const [mode, setMode] = useState<"swap" | "recurring">("swap");
   const [buy, setBuy] = useState<SwapToken | null>(null);
   const [chart, setChart] = useState<{ address: string; data: Chart | null } | null>(null);
   const [history, setHistory] = useState<Transaction[] | null>(null);
@@ -66,7 +69,19 @@ export function SwapWorkspace({ address, loginMethod }: { address: string | null
   return (
     <div className="swap-workspace">
       <div className="swap-workspace__main">
-        <SwapDialog address={address} loginMethod={loginMethod} inline onPair={setBuy} onSwapped={() => setHistoryVersion((version) => version + 1)} />
+        <div className="tabs swap-mode" role="tablist" aria-label="Swap mode">
+          <button className="tab" type="button" role="tab" aria-selected={mode === "swap"} onClick={() => setMode("swap")}>
+            Swap
+          </button>
+          <button className="tab" type="button" role="tab" aria-selected={mode === "recurring"} onClick={() => setMode("recurring")}>
+            Recurring buy
+          </button>
+        </div>
+        {/* Kept mounted so the swap card keeps its pair and amounts while the other tab is open. */}
+        <div hidden={mode !== "swap"}>
+          <SwapDialog address={address} loginMethod={loginMethod} inline onPair={setBuy} onSwapped={() => setHistoryVersion((version) => version + 1)} />
+        </div>
+        {mode === "recurring" && <RecurringBuy tokens={recurringTokens} />}
       </div>
 
       <div className="swap-workspace__side">
