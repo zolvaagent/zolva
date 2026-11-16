@@ -41,6 +41,9 @@ const EXPECTED: Record<string, { drop: number; entriesPerYear: number }> = {
   "XRP Vol Trend L+S": { drop: 29.8, entriesPerYear: 177 / 5.1 },
   "NEAR Vol Trend L+S": { drop: 22, entriesPerYear: 194 / 5.1 },
   "ZEC Vol Trend L+S": { drop: 25, entriesPerYear: 211 / 5.1 },
+  // Spot paper twins of the planned real-money agents (research-preset-years.mts, spot cost 0.5%, one market).
+  "BTC Vol Trend": { drop: 19, entriesPerYear: 46 / 5.1 },
+  "ETH Vol Trend": { drop: 17, entriesPerYear: 59 / 5.1 },
 };
 const DROP_LIMIT = 30;
 
@@ -86,12 +89,11 @@ async function main() {
   const vars = readDevVars();
   const db = createClient(vars.SUPABASE_URL, vars.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
-  const { data: agents, error } = await db
-    .from("agents")
-    .select("id, name, strategy, params, token_addresses, start_capital, created_at")
-    .like("name", "Lab · % Vol Trend%")
-    .order("name");
-  if (error) throw new Error(error.message);
+  const select = "id, name, strategy, params, token_addresses, start_capital, created_at";
+  const lab = await db.from("agents").select(select).like("name", "Lab · % Vol Trend%").order("name");
+  const twins = await db.from("agents").select(select).like("name", "Paper % Vol Trend%").order("name");
+  if (lab.error || twins.error) throw new Error((lab.error ?? twins.error)!.message);
+  const agents = [...(lab.data ?? []), ...(twins.data ?? [])];
   const { data: latestRow } = await db.from("candles").select("ts").order("ts", { ascending: false }).limit(1).single();
   const latest = Date.parse(latestRow!.ts) / 1000;
   console.log(`Vol Trend tracker, latest hour ${new Date(latest * 1000).toISOString().slice(0, 13)}:00Z, engine from ${ENGINE_ROOT}\n`);
@@ -106,7 +108,7 @@ async function main() {
 
   const rows: string[][] = [];
   for (const agent of agents as Agent[]) {
-    const label = agent.name.replace("Lab · ", "");
+    const label = agent.name.replace("Lab · ", "").replace("Paper ", "");
     const address = agent.token_addresses[0];
     const token = byAddress.get(address)!;
     const candles = token.candles.map(([time, close]) => ({ time: Number(time), close: Number(close) }));
