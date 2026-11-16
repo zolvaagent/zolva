@@ -887,3 +887,12 @@ fee: median 6% (2% to 10%). Buy 3 hours after graduation and hold: median -47%. 
 breakout -8.5%, momentum + Rushr safety -79% after real costs; all worse at double costs and without the best token.
 Over half the tokens had an hour that fell more than 50% inside the hour. Verdict and details: Rushr session notes
 folder, memecoin-research.md. Weak test by size (one week), but the cost wall alone sinks hourly trading here.
+
+## Studio presets by year, for honest preset summaries and labels (2026-11-16)
+
+Grok plan items 2 and 4 (owner approved). `scripts/research-preset-years.mts` runs the deployed engine at spot cost
+with Studio defaults. Crypto: 6 years hourly; stocks: only 2024-2026 hourly (free data limit). Mean reversion and
+Dip hunter are negative in every crypto year (BTC + ETH: -29 / -49 / -21 / -38 / -37 / -40%); Momentum and the
+Breakout template lose most years; DCA tracks the market with smaller drops; Vol Trend long passes only as one
+market per agent on BTC (drop 19%) or ETH (17%), not as one agent for both (33%) and not on stocks. Full tables,
+the proposed Tested/Experiment rule and the first monthly post-mortem data: notes folder grok-research-items.md.
