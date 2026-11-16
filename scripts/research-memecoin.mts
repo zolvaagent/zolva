@@ -72,6 +72,58 @@ async function cached<T>(name: string, url: string): Promise<T> {
   return body as T;
 }
 
+/**
+ * Data fix after the pre-registration (rules unchanged): Rushr's /candles returns only the last ~24 hours, so the
+ * history comes from GeckoTerminal (network robinhood, free, ~1 call per 7 s). Pool: the token's pool with the most
+ * 24h volume that is not the bonding curve (dex "pons-v2"; the graduated Pons pool is "pons-v2-dex"), else its top
+ * pool. Hourly OHLCV in USD, up to 1,000 hours; hours without trades are filled with the last close and zero volume.
+ */
+async function geckoCandles(address: string): Promise<Candle[]> {
+  const GT = "https://api.geckoterminal.com/api/v2/networks/robinhood";
+  const pools = await gecko<{ data: { id: string; attributes: { address: string; volume_usd: { h24: string } }; relationships: { dex: { data: { id: string } } } }[] }>(
+    `${address}-pools.json`,
+    `${GT}/tokens/${address}/pools`,
+  );
+  const ranked = [...pools.data].sort((a, b) => Number(b.attributes.volume_usd.h24) - Number(a.attributes.volume_usd.h24));
+  const pool = ranked.find((p) => p.relationships.dex.data.id !== "pons-v2") ?? ranked[0];
+  if (!pool) return [];
+  const body = await gecko<{ data: { attributes: { ohlcv_list: number[][] } } }>(
+    `${address}-ohlcv.json`,
+    `${GT}/pools/${pool.attributes.address}/ohlcv/hour?aggregate=1&limit=1000&currency=usd&token=${address}`,
+  );
+  const raw = body.data.attributes.ohlcv_list.map(([time, open, high, low, close, volume]) => ({ time, open, high, low, close, volume })).sort((a, b) => a.time - b.time);
+  if (!raw.length) return [];
+  const byTime = new Map(raw.map((c) => [c.time, c]));
+  const filled: Candle[] = [];
+  const end = Math.floor(Date.now() / 1000 / HOUR) * HOUR - HOUR;
+  let last = raw[0].close;
+  for (let t = raw[0].time; t <= end; t += HOUR) {
+    const c = byTime.get(t);
+    if (c) {
+      filled.push(c);
+      last = c.close;
+    } else filled.push({ time: t, open: last, high: last, low: last, close: last, volume: 0 });
+  }
+  return filled;
+}
+
+async function gecko<T>(name: string, url: string): Promise<T> {
+  const file = join(CACHE, "gt", name);
+  if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
+  for (let attempt = 0; ; attempt++) {
+    await sleep(7000);
+    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(30_000) });
+    if (response.ok) {
+      const body = await response.json();
+      mkdirSync(join(CACHE, "gt"), { recursive: true });
+      writeFileSync(file, JSON.stringify(body));
+      return body as T;
+    }
+    if (attempt >= 3) throw new Error(`${response.status} ${url}`);
+    await sleep(20_000);
+  }
+}
+
 type Rule = "A momentum" | "B volume" | "C momentum+safety";
 
 function simulate(rule: Rule, tokens: { token: Token; candles: Candle[]; migrated: number }[], costScale: number, exclude?: string) {
@@ -158,9 +210,8 @@ async function main() {
   const tokens: { token: Token; candles: Candle[]; migrated: number }[] = [];
   for (const token of list.tokens) {
     if (!token.migrated_at) continue;
-    const body = await cached<{ candles: Candle[] }>(`${token.address}-1h.json`, `${API}/tokens/${token.address}/candles?interval=1h`);
     const migrated = Math.floor(Date.parse(token.migrated_at) / 1000 / HOUR) * HOUR;
-    const candles = body.candles.filter((c) => c.time >= migrated).sort((a, b) => a.time - b.time);
+    const candles = (await geckoCandles(token.address)).filter((c) => c.time >= migrated).sort((a, b) => a.time - b.time);
     if (candles.length) tokens.push({ token, candles, migrated });
   }
   const first = Math.min(...tokens.map((t) => t.migrated));

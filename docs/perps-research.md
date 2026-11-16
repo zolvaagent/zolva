@@ -877,3 +877,13 @@ Reading: no flow filter is worth an engine change now. Live use would also need 
 Lighter, which we do not ingest. If wanted, the cheap next step is a paper A/B (Vol Trend L+S with and without the OI
 gate) rather than engine work. Note for the 2022-now window: the round 3 rule itself passes on 2 of 4 alts here
 (4 of 6 years over 2021-now); 2021 is outside this window because OI data starts at its end.
+
+## Rushr memecoin step 0 (2026-11-16): no-go
+
+Owner approved a research gate for a Zolva house agent trading graduated Robinhood Chain memecoins picked from
+Rushr data. `scripts/research-memecoin.mts`, pre-registered in `a309b01` (history from GeckoTerminal because Rushr
+candles cover only ~24 hours). 34 graduated tokens, 9 to 16 Nov, dead ones included. Round-trip contract tax + pool
+fee: median 6% (2% to 10%). Buy 3 hours after graduation and hold: median -47%. Hourly momentum -79%, volume
+breakout -8.5%, momentum + Rushr safety -79% after real costs; all worse at double costs and without the best token.
+Over half the tokens had an hour that fell more than 50% inside the hour. Verdict and details: Rushr session notes
+folder, memecoin-research.md. Weak test by size (one week), but the cost wall alone sinks hourly trading here.
