@@ -5,14 +5,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { ApiCaller } from "@/lib/api-keys/keys";
 
 import type { ActionDeps } from "./actions";
-import { activityBody, agentBody, agentsBody, marketBody, marketsBody, TTL, verifyBody } from "./data";
+import { activityBody, agentBody, agentsBody, consensusAnswer, consensusBody, marketBody, marketsBody, TTL, verifyBody } from "./data";
 import { DISCLAIMER } from "./format";
 import { cachedBody } from "./http";
 import { KEYED_INSTRUCTIONS, registerActionTools } from "./mcp-actions";
 import { filterAgents, filterByAssetClass, filterTrades, READ_TOOLS } from "./tools";
 
 /**
- * Zolva's MCP server (docs: /docs/mcp): the public API as six read-only tools, so AI
+ * Zolva's MCP server (docs: /docs/mcp): the public API as seven read-only tools, so AI
  * assistants can read published agents, their decisions, markets and trades. Same data,
  * same cache and same rules as /api/public/v1: paper agents only, no wallets, no login.
  *
@@ -35,7 +35,7 @@ const json = (body: unknown) => ({ content: [{ type: "text" as const, text: JSON
 const notFound = (message: string) => ({ content: [{ type: "text" as const, text: message }], isError: true });
 
 /** The version listed in the MCP Registry (server.json); bump both together. */
-export const MCP_VERSION = "1.1.0";
+export const MCP_VERSION = "1.2.0";
 
 export function createMcpServer(keyed?: { caller: ApiCaller; deps: ActionDeps }): McpServer {
   const instructions = keyed ? `${INSTRUCTIONS} ${KEYED_INSTRUCTIONS}` : INSTRUCTIONS;
@@ -96,6 +96,12 @@ export function createMcpServer(keyed?: { caller: ApiCaller; deps: ActionDeps })
       const trades = filterTrades(body?.trades ?? [], input);
       return json({ trades, hours: body?.hours ?? 48, disclaimer: DISCLAIMER });
     },
+  );
+
+  server.registerTool(
+    "get_consensus",
+    { ...READ_TOOLS.get_consensus, annotations: READ_ONLY },
+    async (input) => json(consensusAnswer(await cachedBody("consensus", TTL.consensus, consensusBody), input)),
   );
 
   return server;

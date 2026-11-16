@@ -9,7 +9,7 @@ import { DECISION_HOURS, type PublicAgent } from "./format";
 export const AGENT_SORTS = ["return", "vs_holding", "drawdown"] as const;
 
 /**
- * The six keyless MCP tools: name, title, description and inputs. lib/public-api/mcp.ts
+ * The seven keyless MCP tools: name, title, description and inputs. lib/public-api/mcp.ts
  * registers them with their handlers, and /docs/mcp renders its tool table from here.
  */
 export const READ_TOOLS = {
@@ -55,6 +55,15 @@ export const READ_TOOLS = {
       market: z.string().max(17).optional().describe("Only trades in this market, such as NVDA or BTC-PERP"),
       agentId: z.string().uuid().optional().describe("Only trades by this agent"),
       limit: z.number().int().min(1).max(200).optional().describe("How many trades to return, default 50"),
+    },
+  },
+  get_consensus: {
+    title: "Agent positions by market",
+    description:
+      "Statistics, per market: how many Tested published paper agents (rules that passed Zolva's 6 year backtest) are long, short or in cash, and what they did in the newest hour. Returns the agent count each market is based on and says when it is too few. Paper trading, not investment advice.",
+    inputSchema: {
+      market: z.string().max(17).optional().describe("Only this market, such as BTC or SOL-PERP"),
+      venue: z.enum(["spot", "perps"]).optional().describe("Only spot or only perps markets"),
     },
   },
 };

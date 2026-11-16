@@ -145,7 +145,7 @@ export default function Mcp() {
           <strong>URL:</strong> <code>{URL}</code> (Streamable HTTP, no session state)
         </li>
         <li>
-          <strong>No key:</strong> six read-only tools over the same data as the <Link href="/docs/public-api">Public API</Link>.
+          <strong>No key:</strong> {READ_TOOL_REFERENCE.length} read-only tools over the same data as the <Link href="/docs/public-api">Public API</Link>.
         </li>
         <li>
           <strong>With an API key:</strong> up to {KEY_TOOL_REFERENCE.length} more tools, only those your key&apos;s scopes allow.

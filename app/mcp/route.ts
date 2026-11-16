@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 /**
  * Zolva's MCP server over Streamable HTTP: https://zolvaagent.app/mcp (docs: /docs/mcp).
  * Stateless: every request gets a fresh server and transport and a plain JSON answer, so
- * it runs on any Worker isolate with no sessions to keep. Without a key: six read-only
+ * it runs on any Worker isolate with no sessions to keep. Without a key: seven read-only
  * tools with the public API's per-IP limit. With "Authorization: Bearer zk_..." the key's
  * own limit replaces the per-IP one and its action tools are added (lib/public-api/mcp-actions.ts).
  */

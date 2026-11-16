@@ -13,7 +13,7 @@ export const RATE_LIMITS = {
 } as const;
 
 /** How long each public body may be reused (edge cache and Cache-Control), in seconds. */
-export const TTL = { agents: 300, markets: 60, activity: 60 } as const;
+export const TTL = { agents: 300, markets: 60, activity: 60, consensus: 300 } as const;
 
 export const RATE_LIMIT_BINDINGS = {
   PUBLIC_API_LIMITER: RATE_LIMITS.ipPerMinute,

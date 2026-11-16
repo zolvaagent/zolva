@@ -32,6 +32,6 @@ claude mcp add --transport http zolva https://zolvaagent.app/mcp
 
 ## Check it works
 
-Ask the assistant to call `list_markets` or `recent_activity`. The tools are `list_agents`, `get_agent`, `list_markets`, `get_market` and `recent_activity`; each decision comes with the reason the agent gave for it.
+Ask the assistant to call `list_markets` or `recent_activity`. The tools are `list_agents`, `get_agent`, `list_markets`, `get_market`, `recent_activity`, `verify_agent` and `get_consensus`; each decision comes with the reason the agent gave for it.
 
 Full reference: https://zolvaagent.app/docs/mcp

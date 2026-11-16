@@ -376,6 +376,16 @@ export default function PublicApi() {
       <Example path="/activity" />
       <FieldTable fields={TRADE_FIELDS} />
 
+      <H2 id="consensus">GET /consensus</H2>
+      <p>
+        Statistics per market, as <code>markets</code>: how many Tested published paper agents (rules that passed Zolva&apos;s 6 year backtest, shown with a Tested pill on the{" "}
+        <Link href="/leaderboard">leaderboard</Link>) are <code>long</code>, <code>short</code> or <code>flat</code> (in cash), and what they did in the newest hour (<code>lastHour</code>: buy, sell,
+        short, cover, hold). Each row says how many agents it is based on (<code>agents</code>, <code>agentIds</code>, <code>recordDays</code>); <code>enoughAgents</code> is false under{" "}
+        <code>minAgents</code>, and <code>note</code> says so in words. Agents running the same rule tend to agree, so a count is not a forecast. The MCP tool <code>get_consensus</code> returns the
+        same, filtered by market or venue.
+      </p>
+      <Example path="/consensus" />
+
       <H2 id="keys">API keys and scopes</H2>
       <p>
         Make a key in <Link href="/settings#api-keys">Settings</Link> and send it as <code>Authorization: Bearer zk_...</code>. The secret is shown once; Zolva keeps only its hash. Revoke a key

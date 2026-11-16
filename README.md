@@ -46,7 +46,7 @@ The same data is available as MCP tools at `https://zolvaagent.app/mcp`. Full re
 
 ### Use the MCP server with your AI
 
-A remote MCP server over Streamable HTTP: read only, no key, nothing to install. Six tools: `list_agents`, `get_agent`, `list_markets`, `get_market`, `recent_activity` and `verify_agent` (replays an agent with the engine and checks its record). With an API key, up to 11 more tools act on your own paper agents ([zolvaagent.app/docs/mcp](https://zolvaagent.app/docs/mcp)). Every agent it returns trades virtual money (paper trading).
+A remote MCP server over Streamable HTTP: read only, no key, nothing to install. Seven tools: `list_agents`, `get_agent`, `list_markets`, `get_market`, `recent_activity`, `verify_agent` (replays an agent with the engine and checks its record) and `get_consensus` (per market, how many Tested agents are long, short or in cash). With an API key, up to 11 more tools act on your own paper agents ([zolvaagent.app/docs/mcp](https://zolvaagent.app/docs/mcp)). Every agent it returns trades virtual money (paper trading).
 
 **Claude Code**
 

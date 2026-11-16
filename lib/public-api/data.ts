@@ -7,6 +7,7 @@ import { loadAndVerifyAgent } from "@/lib/data/verify";
 import { getLongbowListings } from "@/lib/longbow";
 import { db } from "@/lib/supabase";
 
+import { buildConsensus, consensusNote, MIN_CONSENSUS_AGENTS, type ConsensusAgent } from "./consensus";
 import { DISCLAIMER, isPublicAgent, publicAgent, publicAgentDetail, publicMarket, publicMarketDetail, publicTrade } from "./format";
 
 /**
@@ -54,6 +55,67 @@ export async function verifyBody(id: string) {
       result.method === "hour_by_hour"
         ? "Each hour the agent ran is replayed with Zolva's engine (runHour, open source: lib/engine/engine.ts) from the state Zolva recorded at the start of that hour, on the same cleaned hourly closes, with its AI co-pilot's recorded vetoes; each trade (hour, market, side) and the hourly value are compared with the record. A price corrected in one hour does not carry into the next."
         : "The agent is replayed with Zolva's engine (runHour, open source: lib/engine/engine.ts) from its first hour over every hour it ran, on the same cleaned hourly closes and funding; each trade (hour, market, side) and the hourly value are compared with the record. After a first difference, later hours can differ too.",
+    disclaimer: DISCLAIMER,
+  };
+}
+
+/**
+ * get_consensus: per market, how many Tested published paper agents are long, short or flat, and what
+ * they did in the newest hour. Every published market row; the MCP tool and REST route filter it.
+ */
+export async function consensusBody() {
+  const client = db();
+  const agents = (await listAgents(client, { periods: true })).filter((agent) => agent.tested && agent.status === "active");
+  const ids = agents.map((agent) => agent.id);
+  const newest = Math.max(0, ...agents.map((agent) => agent.lastTs ?? 0));
+  const [positions, runs] = ids.length
+    ? await Promise.all([
+        client.from("positions").select("agent_id, token_address, side").in("agent_id", ids),
+        newest ? client.from("agent_runs").select("agent_id, decisions").in("agent_id", ids).eq("ts", new Date(newest * 1000).toISOString()) : Promise.resolve({ data: [], error: null }),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+  for (const result of [positions, runs]) if (result.error) throw new Error(`Loading consensus failed: ${result.error.message}`);
+
+  const symbolOf = new Map(agents.flatMap((agent) => agent.tokens.map((token) => [token.address, token.symbol] as const)));
+  const positionsOf = new Map<string, Record<string, "long" | "short">>();
+  for (const row of positions.data ?? []) {
+    const symbol = symbolOf.get(row.token_address as string);
+    if (!symbol) continue;
+    const held = positionsOf.get(row.agent_id as string) ?? {};
+    held[symbol] = row.side === "short" ? "short" : "long";
+    positionsOf.set(row.agent_id as string, held);
+  }
+  const lastHourOf = new Map<string, ConsensusAgent["lastHour"]>();
+  for (const run of runs.data ?? []) {
+    const actions: NonNullable<ConsensusAgent["lastHour"]> = {};
+    for (const decision of (run.decisions ?? []) as { token: string; action: NonNullable<ConsensusAgent["lastHour"]>[string] }[]) {
+      const symbol = symbolOf.get(decision.token);
+      if (symbol) actions[symbol] = decision.action;
+    }
+    lastHourOf.set(run.agent_id as string, actions);
+  }
+
+  const rows: ConsensusAgent[] = agents.map((agent) => ({
+    id: agent.id,
+    venue: agent.venue,
+    markets: agent.tokens.map((token) => token.symbol),
+    recordDays: Math.floor(agent.runs / 24),
+    positions: positionsOf.get(agent.id) ?? {},
+    lastHour: lastHourOf.get(agent.id) ?? null,
+  }));
+  return { agents: rows, asOf: newest ? new Date(newest * 1000).toISOString() : null };
+}
+
+/** The consensus answer for one filter, from the cached body. */
+export function consensusAnswer(body: Awaited<ReturnType<typeof consensusBody>> | null, filter: { market?: string; venue?: "spot" | "perps" }) {
+  const agents = body?.agents ?? [];
+  const markets = buildConsensus(agents, filter);
+  return {
+    markets,
+    asOf: body?.asOf ?? null,
+    agentsCounted: agents.length,
+    minAgents: MIN_CONSENSUS_AGENTS,
+    note: consensusNote(markets, agents.length),
     disclaimer: DISCLAIMER,
   };
 }
