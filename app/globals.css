@@ -10436,3 +10436,40 @@ li.stats-ranks__row {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* ZOLVA report (app/(app)/token/report/page.tsx). */
+.token-report__stats {
+  margin-bottom: var(--space-100);
+}
+
+.token-report__source,
+.token-report__note {
+  margin: 0 0 var(--space-200);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.token-report__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-200);
+  margin-bottom: var(--space-200);
+}
+
+/* The three cards are narrow: labels wrap, numbers stay on one line. */
+.token-report__grid .table td {
+  padding: var(--space-100) var(--space-75);
+  white-space: normal;
+}
+
+.token-report__grid .table td:first-child {
+  padding-left: 0;
+}
+
+.token-report__grid .table td:last-child {
+  padding-right: 0;
+}
+
+.token-report__grid .table .num {
+  white-space: nowrap;
+}

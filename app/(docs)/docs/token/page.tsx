@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Callout, DocsArticle, H2 } from "@/components/site/Docs";
@@ -113,7 +114,7 @@ export default function Token() {
         </li>
         <li>
           <strong>Other fee swaps:</strong> the fee goes to Zolva&apos;s fee wallet (on buys of other Pons tokens it is taken in ETH before the swap). Its balance is used to buy ZOLVA and burn it, and every buyback is
-          listed with its transactions in the public burn log on GitHub (docs/zolva-burns.md).
+          listed with its transactions in the public burn log on GitHub (docs/zolva-burns.md). Running totals of every burn, the fee wallet and AI credits are on the <Link href="/token/report">ZOLVA report</Link>.
         </li>
         <li>Swaps on Pons pools (ZOLVA and other Pons tokens) also pay Pons&apos; own trading fee (about 3%), taken by the pool. Zolva does not receive it.</li>
       </ul>
