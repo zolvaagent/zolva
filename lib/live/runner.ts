@@ -5,11 +5,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { erc20Abi, formatUnits, parseUnits, type Hex } from "viem";
 
 import { liveEquity, planAgentHours, type AgentRow, type PositionRow } from "@/lib/agents/plan";
-import { getMarket } from "@/lib/data/market";
+import { getMarket, RUNNER_MARKET_HOURS } from "@/lib/data/market";
 import { blocksTrading, fetchSession } from "@/lib/harmonic";
 import { env } from "@/lib/env";
 import { USDG } from "@/lib/live/contracts";
 import { confirmSwap, executeSwap, oracleProblem, type LiveContext, type SwapOrder, type SwapResult } from "@/lib/live/executor";
+import { liveSellQuantity, tooSmallReason } from "@/lib/live/order-size";
 import { createChainClient, MAX_FEED_AGE_SECONDS } from "@/lib/prices/onchain";
 
 const HOUR = 3600;
@@ -103,7 +104,9 @@ export async function runLiveAgents(db: SupabaseClient): Promise<LiveResult> {
   if (!agents.length) return result;
 
   // 2. Decide on the newest hour and execute.
-  const market = await getMarket(db);
+  // The same long window as the paper runner, so rules with a long look-back (the 1,200 hour Vol
+  // Trend average) see their whole history.
+  const market = await getMarket(db, { hours: RUNNER_MARKET_HOURS });
   if (!market.hours) return result;
   const latestTs = market.startTs + (market.hours - 1) * HOUR;
   const closes = Object.fromEntries(market.tokens.map((token) => [token.address, token.closes]));
@@ -206,7 +209,9 @@ async function executeFill(
   } else {
     const held = positions.find((position) => position.token_address === fill.token_address);
     const balance = await ctx.chain.readContract({ address: token.address as Hex, abi: erc20Abi, functionName: "balanceOf", args: [wallet.address as Hex] });
-    const wanted = parseUnits(Number(held?.quantity ?? fill.quantity).toFixed(token.token_decimals), token.token_decimals);
+    // A resize sells only its part; a full exit sells the whole holding (lib/live/order-size.ts).
+    const quantity = liveSellQuantity(fill, held ? Number(held.quantity) : null);
+    const wanted = parseUnits(quantity.toFixed(token.token_decimals), token.token_decimals);
     raw = wanted < balance ? wanted : balance;
     amountIn = Number(formatUnits(raw, token.token_decimals));
   }
@@ -217,6 +222,9 @@ async function executeFill(
   const { data: today } = await db.from("executions").select("side, amount_in, amount_out, agents!inner(trading_wallet)").eq("status", "confirmed").eq("agents.trading_wallet", wallet.address).gte("confirmed_at", dayStart);
   const volume = ((today ?? []) as { side: string; amount_in: number; amount_out: number }[]).reduce((sum, row) => sum + usdOf(row.side, Number(row.amount_in), Number(row.amount_out)), 0);
   const orderUsd = fill.side === "buy" ? amountIn : amountIn * fill.price;
+  // Too small to be worth its gas and slippage (a full exit always goes out).
+  const small = tooSmallReason({ side: fill.side, reason: fill.reason, usd: orderUsd });
+  if (small) return { status: "skipped", detail: small };
 
   const { data: inserted, error: insertError } = await db
     .from("executions")

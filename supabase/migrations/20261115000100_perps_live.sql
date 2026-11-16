@@ -52,8 +52,9 @@ begin
     end if;
   end if;
   if new.params ? 'sizing' then
-    if new.strategy <> 'custom' or agent_venue <> 'perps' then
-      raise exception 'agents_sizing_scope: only custom rules on perps can use volatility sizing';
+    -- Spot sizing is allowed since 20261116000800_live_voltrend_prep.sql; this file is applied after it.
+    if new.strategy <> 'custom' then
+      raise exception 'agents_sizing_scope: only custom rules can use volatility sizing';
     end if;
     if new.params -> 'sizing' ->> 'kind' is distinct from 'volTarget'
       or (new.params -> 'sizing' ->> 'targetPct')::numeric not between 1 and 100

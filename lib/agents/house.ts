@@ -24,6 +24,7 @@ export const LAB_WALLETS = [
   "0x5174000000000000000000000000000000000006",
   "0x5174000000000000000000000000000000000007",
   "0x5174000000000000000000000000000000000008",
+  "0x5174000000000000000000000000000000000009",
 ] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
@@ -330,6 +331,20 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     maxPositionPct: 100,
     stopLossPct: 15,
     venue: "perps" as const,
+    sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
+  })),
+  // Paper twins of the planned live BTC and ETH Vol Trend agents (live-voltrend prep step 3, owner
+  // approved 2026-11-16): the long only Vol Trend rule on the spot DEX tokens (0.5% per trade), so
+  // Research can replay them for about a week (scripts/research-voltrend-tracker.mts) before any real
+  // money. The seed resolves BTC and ETH on the allowlist (tokens table), never by name elsewhere.
+  ...(["BTC", "ETH"] as const).map((coin) => ({
+    owner: LAB_WALLETS[8],
+    name: `Paper ${coin} Vol Trend`,
+    strategy: "custom" as const,
+    rules: VOL_TREND_1200,
+    symbols: [coin],
+    maxPositionPct: 100,
+    stopLossPct: 15,
     sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
   })),
 ];
