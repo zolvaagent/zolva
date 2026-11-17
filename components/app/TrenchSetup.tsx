@@ -17,7 +17,6 @@ type AgentForSetup = {
   onRushr: boolean;
   setupDone: boolean;
   rushrHandle: string | null;
-  budgetUsd: number;
 };
 
 const noSubscription = () => () => {};
@@ -36,7 +35,7 @@ async function post(agentId: string, body: Record<string, unknown>): Promise<Rec
  * Privy popups); here the user finishes a setup that stopped half way, funds the wallet, then
  * starts, pauses, sells everything or withdraws.
  */
-export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
+export function TrenchSetup({ agent, minCapitalUsd, maxCapitalUsd }: { agent: AgentForSetup; minCapitalUsd: number; maxCapitalUsd: number }) {
   const router = useRouter();
   const { privy, address } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
@@ -67,9 +66,8 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
     return () => clearInterval(timer);
   }, [funded, agent.status, agent.walletAddress, refreshWallet]);
 
-  // Suggest the whole budget in ETH plus a little for gas and Rushr's fees.
-  const suggestedEth = wallet ? Math.ceil((agent.budgetUsd / wallet.ethUsd + 0.0005) * 10_000) / 10_000 : null;
-  const fundEth = typedEth ?? (suggestedEth !== null ? String(suggestedEth) : "");
+  const fundEth = typedEth ?? "";
+  const ethFor = (usdAmount: number) => (wallet ? (usdAmount / wallet.ethUsd).toFixed(4) : "…");
 
   const run = async (label: string, work: () => Promise<void>) => {
     setBusy(label);
@@ -178,7 +176,7 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
             <strong>2. Fund it</strong>
             <span className="muted">
               The agent trades from its own wallet, so the ETH has to be there; Zolva never holds it, and you can withdraw what is left whenever it holds no tokens.{" "}
-              {wallet ? `Now ${wallet.eth.toFixed(5)} ETH (about $${(wallet.eth * wallet.ethUsd).toFixed(2)}); it can start from ${wallet.startNeedsEth.toFixed(4)} ETH.` : "Loading the balance…"}
+              {wallet ? `Now ${wallet.eth.toFixed(5)} ETH (about $${(wallet.eth * wallet.ethUsd).toFixed(2)}).` : "Loading the balance…"} Send any amount from ${minCapitalUsd} (about {ethFor(minCapitalUsd)} ETH): what is in the wallet when you press Start is what it trades with, up to ${maxCapitalUsd}.
             </span>
             <div className="trench-address">
               <code>{agent.walletAddress}</code>
@@ -190,7 +188,7 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
             <span className="muted trenches-small">Send ETH on Robinhood Chain (chain 4663) from any wallet that is not a Rushr member. The balance updates by itself.</span>
             <div className="trench-inline">
               <label className="trench-amount">
-                <input className="input" type="number" min="0" step="0.0001" value={fundEth} onChange={(event) => setTypedEth(event.target.value)} aria-label="ETH to send" />
+                <input className="input" type="number" min="0" step="0.0001" placeholder={ethFor(minCapitalUsd)} value={fundEth} onChange={(event) => setTypedEth(event.target.value)} aria-label="ETH to send" />
                 <span>ETH</span>
               </label>
               {browserWallet ? (

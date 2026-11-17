@@ -7,7 +7,7 @@ import { createAgent, TrenchError } from "@/lib/trench/onboard";
 
 export const dynamic = "force-dynamic";
 
-/** POST { name, preset, budgetUsd, callouts, riskAccepted }: a new trench agent in setup. */
+/** POST { name, preset, callouts, riskAccepted }: a new trench agent in setup. */
 export async function POST(request: NextRequest) {
   const owner = await getSessionAddress();
   if (!owner) return NextResponse.json({ error: "Please log in first." }, { status: 401 });
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   if (isLiveBlockedCountry(country)) return NextResponse.json({ error: LIVE_BLOCKED_MESSAGE }, { status: 451 });
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   try {
-    const id = await createAgent(db(), owner, { name: body?.name, preset: body?.preset, budgetUsd: body?.budgetUsd, callouts: body?.callouts, riskAccepted: body?.riskAccepted });
+    const id = await createAgent(db(), owner, { name: body?.name, preset: body?.preset, callouts: body?.callouts, riskAccepted: body?.riskAccepted });
     return NextResponse.json({ id });
   } catch (cause) {
     if (cause instanceof TrenchError) return NextResponse.json({ error: cause.message }, { status: 400 });

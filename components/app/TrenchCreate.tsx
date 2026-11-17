@@ -4,8 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { useAuth } from "@/components/ui/Providers";
-import { usd } from "@/lib/format";
-import { limitsFor, PRESET_IDS, PRESET_INFO, PRESETS, type PresetId } from "@/lib/trench/rules";
+import { PRESET_IDS, PRESET_INFO, PRESETS, type PresetId } from "@/lib/trench/rules";
 
 /** What the user must read and accept, one box each (stored as risk_accepted_at). */
 const RISKS = [
@@ -20,15 +19,16 @@ export const DEFAULT_BIO = "Rule-based memecoin agent. Runs on Zolva (zolvaagent
 const HANDLE = /^[a-z0-9_]{3,20}$/;
 
 /**
- * Create a trench agent in one go: preset, name, budget, Rushr profile and the risk screen. The
+ * Create a trench agent in one go: preset, name, Rushr profile and the risk screen (no budget: it
+ * trades with what its wallet holds when it starts). The
  * server then makes the agent wallet, signs it up on Rushr and hands the wallet to the user.
  */
 export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: number; minBudgetUsd: number }) {
+  const pct = (share: number) => `${Math.round(share * 100)}%`;
   const router = useRouter();
   const { address, openLogin } = useAuth();
   const [preset, setPreset] = useState<PresetId>(PRESET_IDS[0]);
   const [name, setName] = useState("My trench agent");
-  const [budget, setBudget] = useState(Math.min(50, maxBudgetUsd));
   const [callouts, setCallouts] = useState(true);
   const [handle, setHandle] = useState("");
   const [bio, setBio] = useState(DEFAULT_BIO);
@@ -36,9 +36,8 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const limits = limitsFor(PRESETS[preset], budget);
+  const sizing = PRESETS[preset].sizing;
   const allAccepted = accepted.every(Boolean);
-  const budgetOk = budget >= minBudgetUsd && budget <= maxBudgetUsd;
   const handleOk = HANDLE.test(handle) && !handle.startsWith("zolva");
 
   const submit = async () => {
@@ -49,7 +48,7 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
       const response = await fetch("/api/trench/agents", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, preset, budgetUsd: budget, callouts, riskAccepted: allAccepted }),
+        body: JSON.stringify({ name, preset, callouts, riskAccepted: allAccepted }),
       });
       const body = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!response.ok || !body.id) throw new Error(body.error ?? "Creating the agent failed.");
@@ -85,18 +84,14 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
       </fieldset>
 
       <fieldset className="card trench-form__section">
-        <legend className="card__title">Name and budget</legend>
+        <legend className="card__title">Name</legend>
         <label className="trench-field">
           <span>Name</span>
           <input className="input" value={name} maxLength={40} onChange={(event) => setName(event.target.value)} required />
         </label>
-        <label className="trench-field">
-          <span>Budget (USD of ETH you will send to the agent wallet)</span>
-          <input className="input" type="number" min={minBudgetUsd} max={maxBudgetUsd} step={5} value={budget} onChange={(event) => setBudget(Number(event.target.value))} />
-        </label>
         <p className="muted trenches-small">
-          With {usd(budget)}: first buy {usd(limits.firstBuyUsd)}, one add of {usd(limits.addUsd)}, at most {usd(limits.maxPerTokenUsd)} per token and {limits.maxOpenTokens} tokens at once. It stops buying for
-          the day after {usd(limits.dailyLossUsd)} of losses and sells everything for good after {usd(limits.totalLossUsd)}.
+          No budget to set: it trades with what you send to its wallet, from ${minBudgetUsd} up to ${maxBudgetUsd}. It buys {pct(sizing.firstBuyShare)} of its money per token, holds {sizing.maxOpenTokens} tokens at most, stops for the day after
+          losing {pct(sizing.dailyLossShare)} and sells everything for good after {pct(sizing.totalLossShare)}.
         </p>
         <label className="trench-check">
           <input type="checkbox" checked={callouts} onChange={(event) => setCallouts(event.target.checked)} />
@@ -131,7 +126,7 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
           {error}
         </p>
       ) : null}
-      <button className="button button--primary button--large" type="submit" disabled={busy || !allAccepted || !budgetOk || !handleOk || !name.trim()}>
+      <button className="button button--primary button--large" type="submit" disabled={busy || !allAccepted || !handleOk || !name.trim()}>
         {address ? (busy ? "Creating the agent, its wallet and its Rushr profile…" : "Create agent") : "Log in to create"}
       </button>
     </form>

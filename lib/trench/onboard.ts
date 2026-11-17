@@ -4,7 +4,8 @@ import "server-only";
  * Creating and running a trench agent (Studio, /trenches/[id]). No Privy popups: the user fills one
  * form and the server does the rest.
  *
- * 1. create: name, preset, budget and the risk screen accepted -> a "setup" row.
+ * 1. create: name, preset, Rushr profile and the risk screen accepted -> a "setup" row. There is no
+ *    budget field: the agent's capital is what its wallet holds when it starts (capped).
  * 2. setup (server, resumable step by step if anything fails):
  *    a. a new Privy wallet, owned for the moment by Zolva's key quorum (it is empty);
  *    b. Rushr sign-up: Rushr's own sign-in message for that wallet, signed by Zolva as its owner
@@ -30,7 +31,7 @@ import { handleAvailable, register, registerNonce, RushrError, SIWE_PREFIX } fro
 
 export class TrenchError extends Error {}
 
-/** Least budget an agent can have: Rushr fees, gas and taxes make tiny trades pointless. */
+/** Least capital an agent can start with: Rushr fees, gas and taxes make tiny trades pointless. */
 export const MIN_BUDGET_USD = 20;
 /** ETH the wallet must hold beyond the first buy before it can start (gas and Rushr's fee). */
 export const START_RESERVE_ETH = 0.0005;
@@ -69,29 +70,21 @@ async function ethUsd(chain: PublicClient): Promise<number> {
 
 // ---------------------------------------------------------------- 1. create
 
-export async function createAgent(db: SupabaseClient, owner: string, input: { name: unknown; preset: unknown; budgetUsd: unknown; callouts: unknown; riskAccepted: unknown }): Promise<string> {
+export async function createAgent(db: SupabaseClient, owner: string, input: { name: unknown; preset: unknown; callouts: unknown; riskAccepted: unknown }): Promise<string> {
   const settings = await loadSettings(db);
   if (!mayCreateTrenchAgent(settings, owner)) throw new TrenchError("Trench agents are not open yet.");
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (name.length < 1 || name.length > 40) throw new TrenchError("Give the agent a name of up to 40 characters.");
   if (!isPresetId(input.preset)) throw new TrenchError("Pick a preset.");
-  const budget = Number(input.budgetUsd);
-  if (!Number.isFinite(budget) || budget < MIN_BUDGET_USD || budget > Number(settings.max_agent_budget_usd)) {
-    throw new TrenchError(`Budget must be between $${MIN_BUDGET_USD} and $${settings.max_agent_budget_usd}.`);
-  }
   if (input.riskAccepted !== true) throw new TrenchError("Please read and accept the risks first.");
 
-  const [{ count: mine }, { data: budgets }] = await Promise.all([
-    db.from("trench_agents").select("id", { count: "exact", head: true }).eq("owner", owner).neq("status", "closed"),
-    db.from("trench_agents").select("budget_usd").neq("status", "closed"),
-  ]);
+  const { count: mine } = await db.from("trench_agents").select("id", { count: "exact", head: true }).eq("owner", owner).neq("status", "closed");
   if ((mine ?? 0) >= Number(settings.max_agents_per_owner)) throw new TrenchError(`You can run up to ${settings.max_agents_per_owner} trench agents.`);
-  const total = (budgets ?? []).reduce((sum, row) => sum + Number(row.budget_usd), 0);
-  if (total + budget > Number(settings.max_total_budget_usd)) throw new TrenchError("Trench agents are full right now. Try a smaller budget or come back later.");
 
   const { data, error } = await db
     .from("trench_agents")
-    .insert({ owner, name, preset: input.preset, rules: PRESETS[input.preset as PresetId], budget_usd: budget, callouts: input.callouts !== false, risk_accepted_at: new Date().toISOString() })
+    // budget_usd starts at the cap (it sizes the wallet policy) and becomes the real capital on Start.
+    .insert({ owner, name, preset: input.preset, rules: PRESETS[input.preset as PresetId], budget_usd: settings.max_agent_budget_usd, callouts: input.callouts !== false, risk_accepted_at: new Date().toISOString() })
     .select("id")
     .single();
   if (error) throw new Error(`Creating the agent failed: ${error.message}`);
@@ -177,7 +170,9 @@ export async function setupAgent(db: SupabaseClient, chain: PublicClient, owner:
   }
 
   // c. Policy, then the wallet moves to the user with Zolva as a signer under that policy only.
-  const limits = limitsFor(PRESETS[agent.preset], Number(agent.budget_usd));
+  // Sized for the largest capital an agent may have, since the deposit comes later.
+  const settings = await loadSettings(db);
+  const limits = limitsFor(PRESETS[agent.preset], Number(settings.max_agent_budget_usd));
   const maxTxWei = maxTxWeiFor(limits.maxPerTokenUsd, await ethUsd(chain));
   const policy = await privy.policies().create({
     version: "1.0",
@@ -202,11 +197,23 @@ export async function setupAgent(db: SupabaseClient, chain: PublicClient, owner:
 
 export type AgentWalletStatus = { eth: number; ethUsd: number; startNeedsEth: number };
 
-export async function walletStatus(chain: PublicClient, agent: Pick<TrenchAgentRow, "wallet_address" | "preset" | "budget_usd">): Promise<AgentWalletStatus | null> {
+export async function walletStatus(chain: PublicClient, agent: Pick<TrenchAgentRow, "wallet_address">): Promise<AgentWalletStatus | null> {
   if (!agent.wallet_address) return null;
   const [balance, price] = await Promise.all([chain.getBalance({ address: agent.wallet_address as Address }), ethUsd(chain)]);
-  const limits = limitsFor(PRESETS[agent.preset], Number(agent.budget_usd));
-  return { eth: Number(formatEther(balance)), ethUsd: price, startNeedsEth: limits.firstBuyUsd / price + START_RESERVE_ETH };
+  return { eth: Number(formatEther(balance)), ethUsd: price, startNeedsEth: MIN_BUDGET_USD / price + START_RESERVE_ETH };
+}
+
+/**
+ * The capital an agent trades with, set on Start and on Resume while it holds nothing: what its
+ * wallet holds now (less a gas reserve), plus losses already taken (minus gains), so its cash equals
+ * the wallet. Capped at max_agent_budget_usd; anything above stays in the wallet untouched.
+ */
+async function capitalFromWallet(db: SupabaseClient, agentId: string, status: AgentWalletStatus, maxUsd: number): Promise<number> {
+  const { data, error } = await db.from("trench_trades").select("pnl_usd").eq("agent_id", agentId).eq("side", "sell");
+  if (error) throw new Error(`Loading P&L failed: ${error.message}`);
+  const realised = (data ?? []).reduce((sum, row) => sum + Number(row.pnl_usd ?? 0), 0);
+  const walletUsd = (status.eth - START_RESERVE_ETH) * status.ethUsd;
+  return Math.round(Math.min(maxUsd, walletUsd - realised) * 100) / 100;
 }
 
 export async function setRunState(db: SupabaseClient, chain: PublicClient, owner: string, agentId: unknown, action: unknown): Promise<void> {
@@ -218,8 +225,17 @@ export async function setRunState(db: SupabaseClient, chain: PublicClient, owner
     if (agent.status !== "setup" && agent.status !== "paused") throw new TrenchError("This agent can't start from here.");
     if (!agent.wallet_address || !agent.rushr_key_enc || !agent.policy_id) throw new TrenchError("Finish the setup first.");
     const status = await walletStatus(chain, agent);
-    if (!status || status.eth < status.startNeedsEth) throw new TrenchError(`Fund the agent wallet with at least ${status?.startNeedsEth.toFixed(4) ?? "?"} ETH first.`);
-    return update({ status: "active", halted_reason: null });
+    if (!status || status.eth < status.startNeedsEth) throw new TrenchError(`Fund the agent wallet with at least ${status?.startNeedsEth.toFixed(4) ?? "?"} ETH (about $${MIN_BUDGET_USD} plus gas) first.`);
+    const { count: open } = await db.from("trench_positions").select("token", { count: "exact", head: true }).eq("agent_id", agent.id).is("closed_at", null);
+    // While it holds tokens, the capital stays as it was (their value is not in the ETH balance).
+    if ((open ?? 0) > 0) return update({ status: "active", halted_reason: null });
+    const settings = await loadSettings(db);
+    const capital = await capitalFromWallet(db, agent.id, status, Number(settings.max_agent_budget_usd));
+    if (capital < MIN_BUDGET_USD) throw new TrenchError(`The agent needs at least $${MIN_BUDGET_USD} to trade. Add ETH, then try again.`);
+    const { data: others } = await db.from("trench_agents").select("budget_usd").eq("status", "active").neq("id", agent.id);
+    const total = (others ?? []).reduce((sum, row) => sum + Number(row.budget_usd), 0);
+    if (total + capital > Number(settings.max_total_budget_usd)) throw new TrenchError("Trench agents are full right now. Try again later.");
+    return update({ status: "active", halted_reason: null, budget_usd: capital });
   }
   if (action === "pause") {
     if (agent.status !== "active") throw new TrenchError("Only a running agent can be paused.");
