@@ -274,6 +274,21 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
     await logDecision(db, agent.id, "halt", `total stop at -$${limits.totalLossUsd}`);
   }
 
+  // One line per minute saying what it looked at, so the owner can follow every check.
+  const passedList = shared.candidates.filter(({ token }) => !everHeld.has(token.address) && listStage(token, rules, nowMs).pass).length;
+  const count = (kind: MinuteAction["kind"]) => result.actions.filter((action) => action.kind === kind).length;
+  const scan = [
+    `${shared.list.length} almost-bonded tokens`,
+    `${passedList} passed the list filters`,
+    `${count("skip")} rejected on deeper checks`,
+    `${held.length} held`,
+    `${count("buy") + count("add")} buys, ${count("sell")} sells`,
+    shared.settings.enabled && agent.status === "active" ? null : "buys off",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  await logDecision(db, agent.id, "scan", scan);
+
   // Snapshots of holds and skips every 15 minutes keep the log readable; every trade and error is logged.
   const snapshot = Math.floor(nowMs / 60_000) % 15 === 0;
   for (const action of result.actions) {

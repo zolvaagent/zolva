@@ -77,7 +77,7 @@ export async function getTrenchSettings(db: SupabaseClient): Promise<TrenchSetti
 }
 
 export async function listMyTrenchAgents(db: SupabaseClient, owner: string): Promise<TrenchAgentView[]> {
-  const { data, error } = await db.from("trench_agents").select(AGENT_COLUMNS).eq("owner", owner).order("created_at", { ascending: false });
+  const { data, error } = await db.from("trench_agents").select(AGENT_COLUMNS).eq("owner", owner).is("archived_at", null).order("created_at", { ascending: false });
   if (error) return [];
   return (data as AgentRow[]).map(toView);
 }
@@ -89,7 +89,7 @@ export async function getMyTrenchAgent(db: SupabaseClient, owner: string, id: st
   const [positions, trades, decisions] = await Promise.all([
     db.from("trench_positions").select("token, symbol, cost_usd, opened_at, closed_at, ladders_done").eq("agent_id", id).order("opened_at", { ascending: false }).limit(50),
     db.from("trench_trades").select("ts, token, symbol, side, usd, pnl_usd, reason, tx_hash").eq("agent_id", id).order("ts", { ascending: false }).limit(50),
-    db.from("trench_decisions").select("ts, symbol, action, reason").eq("agent_id", id).order("ts", { ascending: false }).limit(40),
+    db.from("trench_decisions").select("ts, symbol, action, reason").eq("agent_id", id).order("ts", { ascending: false }).limit(150),
   ]);
   return {
     agent: toView(data as AgentRow),

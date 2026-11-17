@@ -205,14 +205,16 @@ export async function walletStatus(chain: PublicClient, agent: Pick<TrenchAgentR
 
 /**
  * The capital an agent trades with, set on Start and on Resume while it holds nothing: what its
- * wallet holds now (less a gas reserve), plus losses already taken (minus gains), so its cash equals
+ * wallet holds now, plus losses already taken (minus gains), so its cash equals
  * the wallet. Capped at max_agent_budget_usd; anything above stays in the wallet untouched.
  */
 async function capitalFromWallet(db: SupabaseClient, agentId: string, status: AgentWalletStatus, maxUsd: number): Promise<number> {
   const { data, error } = await db.from("trench_trades").select("pnl_usd").eq("agent_id", agentId).eq("side", "sell");
   if (error) throw new Error(`Loading P&L failed: ${error.message}`);
   const realised = (data ?? []).reduce((sum, row) => sum + Number(row.pnl_usd ?? 0), 0);
-  const walletUsd = (status.eth - START_RESERVE_ETH) * status.ethUsd;
+  // The whole wallet, gas money included, so "Started with" and "Worth now" compare like for like;
+  // the runner keeps its own gas reserve out of every buy.
+  const walletUsd = status.eth * status.ethUsd;
   return Math.round(Math.min(maxUsd, walletUsd - realised) * 100) / 100;
 }
 
@@ -250,6 +252,24 @@ export async function setRunState(db: SupabaseClient, chain: PublicClient, owner
 }
 
 /** Sends the agent wallet's ETH back to the owner's main wallet and closes the agent for good. */
+/** ETH under this is treated as an empty wallet (dust after a withdrawal). */
+const DUST_ETH = 0.00002;
+
+/**
+ * Archives an agent: closed for good and hidden from the owner's list. Allowed once it is closed,
+ * or while it is still in setup with an empty wallet. Its rows (and any trades) stay on record.
+ */
+export async function archiveAgent(db: SupabaseClient, chain: PublicClient, owner: string, agentId: unknown): Promise<void> {
+  const agent = await ownAgent(db, owner, agentId);
+  if (agent.status !== "closed" && agent.status !== "setup") throw new TrenchError("Withdraw and close the agent first.");
+  if (agent.status === "setup" && agent.wallet_address) {
+    const balance = await chain.getBalance({ address: agent.wallet_address as Address });
+    if (Number(formatEther(balance)) > DUST_ETH) throw new TrenchError("The agent wallet still holds ETH. Withdraw and close it first.");
+  }
+  const { error } = await db.from("trench_agents").update({ status: "closed", archived_at: new Date().toISOString() }).eq("id", agent.id);
+  if (error) throw new Error(`Archiving the agent failed: ${error.message}`);
+}
+
 export async function withdrawAndClose(db: SupabaseClient, chain: PublicClient, owner: string, agentId: unknown): Promise<{ txHash: string | null }> {
   const agent = await ownAgent(db, owner, agentId);
   if (agent.status === "active") throw new TrenchError("Pause the agent (or sell everything) first.");

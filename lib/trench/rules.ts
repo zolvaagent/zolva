@@ -108,7 +108,7 @@ export const PRESET_IDS = Object.keys(PRESETS) as PresetId[];
 
 export const PRESET_INFO: Record<PresetId, { name: string; summary: string }> = {
   almost_bonded: {
-    name: "Almost Bonded",
+    name: "Curve Rider",
     summary: "PONS tokens 35 to 70% along their curve after a pullback, with tight holder, buyer and X checks. Stop -25%, profit ladder, sells before graduation.",
   },
 };

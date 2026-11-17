@@ -361,8 +361,8 @@ describe("policy", () => {
 describe("texts", () => {
   it("callouts and comments carry no links and stay within Rushr's limits", () => {
     expect(stripLinks("see https://x.com/a and token.fun now")).toBe("see and now");
-    const call = buyCallout({ symbol: "ORRY", usd: 10, ruleFacts: "bonding 44%, dev 0%", narrative: "AI payments infra", presetName: "Almost Bonded", stopPct: 25 });
-    expect(call).toMatch(/^Bullish \$ORRY: bought \$10 by rule \(Almost Bonded\)/);
+    const call = buyCallout({ symbol: "ORRY", usd: 10, ruleFacts: "bonding 44%, dev 0%", narrative: "AI payments infra", presetName: "Curve Rider", stopPct: 25 });
+    expect(call).toMatch(/^Bullish \$ORRY: bought \$10 by rule \(Curve Rider\)/);
     expect(call).toMatch(/not advice/);
     expect(sellComment({ sharePct: 100, eth: 0.002, pnlUsd: -3.1, reason: "stop: -30.9% from entry" })).toBe("Sold 100% for 0.00200 ETH (-$3.10). Why: stop: -30.9% from entry.");
   });

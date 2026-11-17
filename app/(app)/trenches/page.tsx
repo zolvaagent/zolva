@@ -2,12 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { TrenchesNotify } from "@/components/app/TrenchesNotify";
+import { TrenchAgentPills } from "@/components/app/TrenchAgentPills";
 import { getSessionAddress } from "@/lib/auth/session";
+import { env } from "@/lib/env";
+import { createChainClient } from "@/lib/prices/onchain";
 import { usd } from "@/lib/format";
 import { getRanks, LAB_HANDLE, type RushrRank } from "@/lib/rushr";
 import { db } from "@/lib/supabase";
 import { getTrenchSettings, listListedTrenchAgents, listMyTrenchAgents, mayCreateTrenchAgent, type ListedTrenchAgent, type TrenchAgentView } from "@/lib/trench/data";
 import { limitsFor, PRESET_INFO, PRESETS } from "@/lib/trench/rules";
+import { agentValuesUsd } from "@/lib/trench/value";
 
 export const metadata: Metadata = {
   title: "Trenches (beta)",
@@ -41,7 +45,10 @@ export default async function TrenchesPage() {
   const owner = await getSessionAddress();
   const client = db();
   const [settings, mine, listed] = await Promise.all([getTrenchSettings(client), owner ? listMyTrenchAgents(client, owner) : Promise.resolve([]), listListedTrenchAgents(client)]);
-  const ranks = await getRanks([...listed.map((agent) => agent.handle), LAB_HANDLE]);
+  const [ranks, values] = await Promise.all([
+    getRanks([...listed.map((agent) => agent.handle), LAB_HANDLE]),
+    mine.length > 0 ? agentValuesUsd(client, createChainClient(env.robinhoodRpcUrl), mine).catch(() => new Map<string, number>()) : Promise.resolve(new Map<string, number>()),
+  ]);
   const open = mayCreateTrenchAgent(settings, owner);
   const example = limitsFor(PRESETS.almost_bonded, 100);
   const cta = open ? (
@@ -71,7 +78,7 @@ export default async function TrenchesPage() {
           </p>
           <h1 id="trench-hero-title" className="trench-hero__title">Memecoin agents, live on Rushr.</h1>
           <p className="trench-hero__lead">
-            Pick a preset and a budget. Your agent gets its own wallet, an Agent profile on Rushr, and trades almost-bonded tokens on Robinhood Chain every minute, through Rushr&apos;s trade builder and safety checks.
+            Pick a preset and fund it. Your agent gets its own wallet, an Agent profile on Rushr, and trades almost-bonded tokens on Robinhood Chain every minute, through Rushr&apos;s trade builder and safety checks.
           </p>
           <div className="trench-hero__actions">
             {cta}
@@ -95,7 +102,7 @@ export default async function TrenchesPage() {
         <span>Real money in memecoins: most go to zero, and fees plus token taxes cost about 6% per round trip. Not advice, not for US persons, and still in beta.</span>
       </p>
 
-      {mine.length > 0 ? <MyAgents agents={mine} /> : null}
+      {mine.length > 0 ? <MyAgents agents={mine} values={values} /> : null}
 
       <section id="how" className="trench-section" aria-labelledby="trench-how">
         <p className="trench-section__eyebrow">How it works</p>
@@ -229,7 +236,7 @@ function ListedAgents({ listed, ranks }: { listed: ListedTrenchAgent[]; ranks: M
   );
 }
 
-function MyAgents({ agents }: { agents: TrenchAgentView[] }) {
+function MyAgents({ agents, values }: { agents: TrenchAgentView[]; values: Map<string, number> }) {
   return (
     <section className="trench-section" aria-labelledby="trench-mine">
       <p className="trench-section__eyebrow">Yours</p>
@@ -243,12 +250,8 @@ function MyAgents({ agents }: { agents: TrenchAgentView[] }) {
               </span>
               <span className="trench-listed__name">
                 <strong>{agent.name}</strong>
-                <span className="muted">
-                  {PRESET_INFO[agent.preset].name} · {usd(agent.budgetUsd)}
-                  {agent.rushrHandle ? ` · @${agent.rushrHandle}` : ""}
-                </span>
+                <TrenchAgentPills agent={agent} valueUsd={values.get(agent.id) ?? null} />
               </span>
-              <span className="trench-listed__rank">{STATUS_LABEL[agent.status]}</span>
               <i className="ph ph-arrow-right muted" aria-hidden="true" />
             </Link>
           </li>

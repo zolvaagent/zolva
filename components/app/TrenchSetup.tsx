@@ -84,7 +84,6 @@ export function TrenchSetup({ agent, minCapitalUsd, maxCapitalUsd }: { agent: Ag
   };
 
   const finishSetup = () => run("setup", async () => void (await post(agent.id, { step: "setup", handle, bio })));
-  const step = (name: string) => run(name, async () => void (await post(agent.id, { step: name })));
 
   const weiToSend = () => {
     const amount = Number(fundEth);
@@ -123,6 +122,13 @@ export function TrenchSetup({ agent, minCapitalUsd, maxCapitalUsd }: { agent: Ag
     }
   };
 
+  const archive = () =>
+    run("archive", async () => {
+      if (!window.confirm("Archive this agent? It is hidden from your list and can never trade again. Its Rushr profile stays on Rushr.")) return;
+      await post(agent.id, { step: "archive" });
+      router.push("/trenches");
+    });
+
   const withdraw = () =>
     run("withdraw", async () => {
       if (!window.confirm("Send all ETH in the agent wallet back to your Zolva wallet and close this agent for good?")) return;
@@ -134,10 +140,7 @@ export function TrenchSetup({ agent, minCapitalUsd, maxCapitalUsd }: { agent: Ag
       {shortAddress(agent.walletAddress)}
     </a>
   ) : null;
-  return (
-    <section className="card trench-setup" aria-label="Setup and controls">
-      <h2 className="card__title">{agent.status === "setup" ? "Set it up" : "Controls"}</h2>
-
+  const steps = (
       <ol className="trench-steps">
         <li className={agent.setupDone ? "trench-steps__done" : ""}>
           <strong>1. Wallet and Rushr profile</strong>
@@ -205,26 +208,42 @@ export function TrenchSetup({ agent, minCapitalUsd, maxCapitalUsd }: { agent: Ag
           </li>
         ) : null}
       </ol>
+  );
+
+  // Once it runs, the setup steps fold away behind "Wallet and funding".
+  const running = agent.status !== "setup";
+  return (
+    <section className="card trench-setup" aria-label={running ? "Wallet" : "Set it up"}>
+      {running ? (
+        <>
+          <h2 className="card__title">Wallet</h2>
+          <p className="muted">
+            {walletLink ?? "No wallet"}
+            {wallet ? ` · ${wallet.eth.toFixed(5)} ETH (about $${(wallet.eth * wallet.ethUsd).toFixed(2)}) not in tokens` : ""}
+          </p>
+          <details className="trench-details">
+            <summary>Wallet and funding</summary>
+            {steps}
+          </details>
+        </>
+      ) : (
+        <>
+          <h2 className="card__title">Set it up</h2>
+          {steps}
+          <p className="muted trenches-small">When it is funded, press Start trading at the top.</p>
+        </>
+      )}
 
       <div className="trench-inline">
-        {agent.status === "setup" || agent.status === "paused" ? (
-          <button className="button button--primary" type="button" disabled={Boolean(busy) || !agent.setupDone} onClick={() => void step(agent.status === "setup" ? "start" : "resume")}>
-            {busy === "start" || busy === "resume" ? "…" : agent.status === "setup" ? "Start trading" : "Resume"}
-          </button>
-        ) : null}
-        {agent.status === "active" ? (
-          <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => void step("pause")}>
-            Pause buying
-          </button>
-        ) : null}
-        {agent.status === "active" || agent.status === "paused" ? (
-          <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => window.confirm("Sell every token this agent holds on the next minute and stop it for good?") && void step("sell_all")}>
-            Sell everything and stop
-          </button>
-        ) : null}
         {agent.status !== "active" && agent.status !== "closed" && agent.walletAddress ? (
           <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => void withdraw()}>
             {busy === "withdraw" ? "Withdrawing…" : "Withdraw and close"}
+          </button>
+        ) : null}
+        {agent.status === "closed" || (agent.status === "setup" && !funded) ? (
+          <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => void archive()}>
+            <i className="ph ph-archive" aria-hidden="true" />
+            {busy === "archive" ? "Archiving…" : "Archive"}
           </button>
         ) : null}
       </div>

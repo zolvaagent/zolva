@@ -11235,3 +11235,313 @@ li.stats-ranks__row {
   color: var(--color-on-dark-muted);
   font-weight: 400;
 }
+
+/* Trench agent pills (status, strategy, started with, now, Rushr handle). */
+.trench-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-50);
+  margin-top: var(--space-75);
+}
+
+.trench-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-50);
+  height: 26px;
+  padding: 0 var(--space-100);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-card);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.trench-pill .ph {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.trench-pill img {
+  border-radius: 3px;
+}
+
+.trench-pill__label {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.trench-pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-ghost);
+}
+
+.trench-pill--live {
+  border-color: transparent;
+  background: var(--color-gain-soft);
+  color: var(--color-gain);
+}
+
+.trench-pill--live .trench-pill__dot {
+  background: var(--color-gain-dot);
+  box-shadow: 0 0 0 3px rgba(1, 208, 98, 0.2);
+}
+
+.trench-pill--down {
+  border-color: transparent;
+  background: var(--color-loss-soft);
+  color: var(--color-loss);
+}
+
+.trench-pill--down .trench-pill__dot {
+  background: var(--color-loss);
+}
+
+.trench-listed__name .trench-pills span {
+  overflow: visible;
+}
+
+/* Trench agent page: header with run controls, strategy strip, terminal decision log. */
+.trench-agent__back {
+  margin: 0 0 var(--space-100);
+}
+
+.trench-agent__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-300);
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-300);
+}
+
+.trench-agent__head .page__title {
+  margin: 0;
+}
+
+.trench-controls {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-75);
+}
+
+.trench-controls__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-100);
+  justify-content: flex-end;
+}
+
+.trench-controls__buttons .button {
+  gap: var(--space-75);
+}
+
+.trench-controls__pause {
+  background: #fff4d6;
+  border: 1px solid #f2c44d;
+  color: #8a5a00;
+}
+
+.trench-controls__pause:hover:not(:disabled) {
+  background: #ffe9ad;
+}
+
+.trench-controls__stop {
+  background: var(--color-loss);
+  border: 1px solid var(--color-loss);
+  color: #ffffff;
+}
+
+.trench-controls__stop:hover:not(:disabled) {
+  background: #c23b00;
+}
+
+:root[data-theme="dark"] .trench-controls__pause {
+  background: rgba(242, 196, 77, 0.14);
+  border-color: rgba(242, 196, 77, 0.55);
+  color: #f6cf6a;
+}
+
+.trench-controls__hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.trench-strategy {
+  margin-bottom: var(--space-300);
+  padding: 0;
+}
+
+.trench-strategy summary {
+  display: flex;
+  gap: var(--space-200);
+  align-items: center;
+  padding: var(--space-200) var(--space-300);
+  cursor: pointer;
+  list-style: none;
+}
+
+.trench-strategy summary::-webkit-details-marker {
+  display: none;
+}
+
+.trench-strategy__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-xl);
+  background: var(--color-purple-8);
+  color: var(--color-purple-rich);
+  font-size: 20px;
+}
+
+.trench-strategy__text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.trench-strategy__text strong {
+  font-size: 16px;
+}
+
+.trench-strategy__more {
+  display: inline-flex;
+  gap: var(--space-50);
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.trench-strategy[open] .trench-strategy__more .ph {
+  transform: rotate(180deg);
+}
+
+.trench-strategy__body {
+  padding: 0 var(--space-300) var(--space-300);
+}
+
+.trench-strategy__body > p {
+  margin: 0 0 var(--space-100);
+  font-size: 14px;
+}
+
+.trench-details summary {
+  margin-top: var(--space-100);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.trench-terminal {
+  margin-top: var(--space-300);
+  border-radius: var(--radius-2xl);
+  overflow: hidden;
+  background: #0e0d12;
+  color: #d9d6e3;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+.trench-terminal__bar {
+  display: flex;
+  gap: var(--space-200);
+  align-items: center;
+  padding: var(--space-100) var(--space-200);
+  background: #1a1820;
+  color: #8f8a9e;
+  font-size: 12px;
+}
+
+.trench-terminal__dots {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.trench-terminal__dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: #3a3645;
+}
+
+.trench-terminal__body {
+  display: flex;
+  flex-direction: column-reverse;
+  max-height: 360px;
+  overflow-y: auto;
+  padding: var(--space-200);
+}
+
+.trench-terminal__line {
+  display: flex;
+  gap: var(--space-100);
+  margin: 0;
+  padding: 1px 0;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.trench-terminal__time {
+  flex: none;
+  color: #6f6a7e;
+}
+
+.trench-terminal__action {
+  flex: none;
+  min-width: 5ch;
+  color: #a39dff;
+}
+
+.trench-terminal__symbol {
+  flex: none;
+  color: #f2c44d;
+}
+
+.trench-terminal__line--dim {
+  color: #9c97ab;
+}
+
+.trench-terminal__line--gain .trench-terminal__action,
+.trench-terminal__line--gain {
+  color: #3ee08a;
+}
+
+.trench-terminal__line--warn .trench-terminal__action {
+  color: #f2c44d;
+}
+
+.trench-terminal__line--loss,
+.trench-terminal__line--loss .trench-terminal__action {
+  color: #ff7a45;
+}
+
+.trench-trades {
+  margin-top: var(--space-300);
+}
+
+@media (max-width: 720px) {
+  .trench-controls {
+    justify-items: start;
+  }
+
+  .trench-controls__buttons {
+    justify-content: flex-start;
+  }
+
+  .trench-strategy__more {
+    display: none;
+  }
+}

@@ -5,7 +5,7 @@ import { getSessionAddress } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { createChainClient } from "@/lib/prices/onchain";
 import { db } from "@/lib/supabase";
-import { ownAgent, setRunState, setupAgent, TrenchError, walletStatus, withdrawAndClose } from "@/lib/trench/onboard";
+import { archiveAgent, ownAgent, setRunState, setupAgent, TrenchError, walletStatus, withdrawAndClose } from "@/lib/trench/onboard";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 /**
  * POST { step, ... } for one of the owner's trench agents (lib/trench/onboard.ts):
  * setup { handle, bio } (wallet, Rushr sign-up and hand-over, all on the server),
- * start, resume, pause, sell_all, withdraw.
+ * start, resume, pause, sell_all, withdraw, archive.
  */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const owner = await getSessionAddress();
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const step = body?.step;
   // Leaving is always allowed; starting anything new is not from blocked countries.
-  if (step !== "pause" && step !== "sell_all" && step !== "withdraw") {
+  if (step !== "pause" && step !== "sell_all" && step !== "withdraw" && step !== "archive") {
     if (isBlockedCountry(country)) return NextResponse.json({ error: BLOCKED_MESSAGE }, { status: 451 });
     if (isLiveBlockedCountry(country)) return NextResponse.json({ error: LIVE_BLOCKED_MESSAGE }, { status: 451 });
   }
@@ -56,6 +56,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         return NextResponse.json({ ok: true });
       case "withdraw":
         return NextResponse.json(await withdrawAndClose(client, chain(), owner, id));
+      case "archive":
+        await archiveAgent(client, chain(), owner, id);
+        return NextResponse.json({ ok: true });
       default:
         return NextResponse.json({ error: "Unknown request." }, { status: 400 });
     }
