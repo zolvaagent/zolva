@@ -18,7 +18,7 @@ import { db } from "@/lib/supabase";
  *
  * 1. Records the hour that just ended from on-chain pool prices (and fills
  *    any hour missed in the last day), then repairs two tokens' candles from
- *    GeckoTerminal when it lets us.
+ *    GeckoTerminal when it lets us (never a close an agent already acted on).
  * 2. Runs every active agent on the new hour (atomic, at most once per hour).
  */
 export async function POST(request: NextRequest) {

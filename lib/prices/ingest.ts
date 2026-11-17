@@ -50,7 +50,9 @@ export type IngestResult = {
  *    (crypto) only get the close when the pool agrees with the feed at that
  *    same block; otherwise the hour stays missing and agents skip it.
  * 2. GeckoTerminal repair (best effort): two tokens, in rotation, get real
- *    open/high/low/close candles for the last day. GeckoTerminal often
+ *    open/high/low/close candles for the last day. A close an agent already
+ *    acted on is never rewritten, so for a watched token this only fills
+ *    hours that are still missing. GeckoTerminal often
  *    answers 429 to Cloudflare's shared IPs; then this is skipped, not retried.
  * 3. Lighter perps (paper only, venue 'lighter'): the last day of candles and
  *    hourly funding from Lighter's public API (lib/prices/lighter.ts).
@@ -134,9 +136,14 @@ export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Da
         nowMs,
       );
       if (!candles.length) continue;
+      // Never rewrite a close an agent already acted on (owner decision 2026-11-17): a later correction made
+      // Verify replays differ from the record. Agents run right after each ingest and read every recent close
+      // in their look-back, so once any agent watching this token ran since the oldest repaired hour, the
+      // repair only fills hours that are still missing.
+      const acted = await agentRanOn(db, token.address, Math.min(...candles.map((candle) => candle.time)));
       const { error: repairError } = await db
         .from("candles")
-        .upsert(candles.map((candle) => toCandleRow(token.address, candle)), { onConflict: "token_address,ts" });
+        .upsert(candles.map((candle) => toCandleRow(token.address, candle)), { onConflict: "token_address,ts", ignoreDuplicates: acted });
       if (repairError) throw new Error(repairError.message);
       result.repaired.push(token.symbol);
       result.repairedCandles += candles.length;
@@ -189,6 +196,21 @@ export async function ingestLatestCandles(db: SupabaseClient, nowMs: number = Da
  * first, each with the tokens it lacks. A token is expected from its
  * history_start on; a token without history yet only gets the newest hour.
  */
+/**
+ * True when an agent (paper or live, any status) watching this token ran at or after `sinceSeconds`, so it
+ * has already read the closes from then on. A failed read throws: the repair is then skipped, not forced.
+ */
+async function agentRanOn(db: SupabaseClient, tokenAddress: string, sinceSeconds: number): Promise<boolean> {
+  const { data, error } = await db
+    .from("agents")
+    .select("id")
+    .contains("token_addresses", [tokenAddress])
+    .gte("last_run_ts", new Date(sinceSeconds * 1000).toISOString())
+    .limit(1);
+  if (error) throw new Error(`Checking agents for ${tokenAddress} failed: ${error.message}`);
+  return data.length > 0;
+}
+
 async function missingHours(db: SupabaseClient, tokens: { address: string; historyStart: number | null }[], currentHourStart: number): Promise<Map<number, Set<string>>> {
   const from = currentHourStart - CATCH_UP_HOURS * HOUR_MS;
   // 22 tokens x 24 hours stays below the 1,000 row default limit.
