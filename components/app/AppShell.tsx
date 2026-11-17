@@ -22,6 +22,8 @@ const NAV = [
   { href: "/activity", label: "Activity", icon: "pulse" },
   // Sidebar only, like Swap.
   { href: "/stats", label: "Stats", icon: "chart-bar", tabbar: false },
+  // Sidebar only: memecoin agents on Rushr (docs/rushr-integration-plan.md).
+  { href: "/trenches", label: "Trenches", icon: "flame", tabbar: false },
 ];
 
 function isCurrent(pathname: string, href: string) {

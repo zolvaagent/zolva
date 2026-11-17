@@ -10531,3 +10531,77 @@ li.stats-ranks__row {
   font-size: 12px;
   line-height: 16px;
 }
+
+/* Trenches (/trenches): memecoin agents on Rushr, release 0 (docs/rushr-integration-plan.md) */
+.trenches-warning {
+  display: flex;
+  gap: var(--space-75);
+  align-items: flex-start;
+  margin: 0 0 var(--space-300);
+  padding: var(--space-100) var(--space-200);
+  border-radius: var(--radius-xl);
+  background: var(--color-loss-soft);
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.trenches-warning .ph {
+  color: var(--color-loss);
+  font-size: 18px;
+  line-height: 20px;
+}
+
+.trenches-sub {
+  margin: var(--space-200) 0 var(--space-75);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.trenches-list {
+  display: grid;
+  gap: var(--space-75);
+  margin: 0;
+  padding-left: var(--space-300);
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.trenches-small {
+  margin-top: var(--space-200);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.trenches-calls {
+  display: grid;
+  gap: var(--space-200);
+  margin: var(--space-200) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trenches-calls p {
+  margin: var(--space-50) 0 0;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.trenches-calls__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-75);
+  align-items: baseline;
+  font-size: 14px;
+}
+
+.trenches-next {
+  margin-top: var(--space-300);
+}
+
+.trenches-next .trenches-list {
+  margin-bottom: var(--space-200);
+}
