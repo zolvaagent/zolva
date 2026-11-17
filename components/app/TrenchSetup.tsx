@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { DEFAULT_BIO } from "@/components/app/TrenchCreate";
 import { useAuth } from "@/components/ui/Providers";
 import { EXPLORER_URL } from "@/lib/chain";
 import { shortAddress } from "@/lib/format";
+import { hasInjectedWallet, sendFromBrowserWallet, WalletError } from "@/lib/wallet-client";
 
 type AgentForSetup = {
   id: string;
@@ -16,7 +17,10 @@ type AgentForSetup = {
   onRushr: boolean;
   setupDone: boolean;
   rushrHandle: string | null;
+  budgetUsd: number;
 };
+
+const noSubscription = () => () => {};
 
 type WalletStatus = { eth: number; ethUsd: number; startNeedsEth: number } | null;
 
@@ -40,7 +44,11 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
   const [wallet, setWallet] = useState<WalletStatus>(null);
   const [handle, setHandle] = useState("");
   const [bio, setBio] = useState(DEFAULT_BIO);
-  const [fundEth, setFundEth] = useState("");
+  // null until the user types: the field then shows the suggested amount.
+  const [typedEth, setTypedEth] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  // Rabby, MetaMask...: only known in the browser, never on the server render.
+  const browserWallet = useSyncExternalStore(noSubscription, hasInjectedWallet, () => false);
 
   const refreshWallet = useCallback(() => {
     if (!agent.walletAddress) return;
@@ -50,6 +58,18 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
       .catch(() => {});
   }, [agent.id, agent.walletAddress]);
   useEffect(refreshWallet, [refreshWallet]);
+
+  const funded = Boolean(wallet && wallet.eth >= wallet.startNeedsEth);
+  // While it waits for a deposit, check the balance every 15 seconds.
+  useEffect(() => {
+    if (funded || agent.status === "closed" || !agent.walletAddress) return;
+    const timer = setInterval(refreshWallet, 15_000);
+    return () => clearInterval(timer);
+  }, [funded, agent.status, agent.walletAddress, refreshWallet]);
+
+  // Suggest the whole budget in ETH plus a little for gas and Rushr's fees.
+  const suggestedEth = wallet ? Math.ceil((agent.budgetUsd / wallet.ethUsd + 0.0005) * 10_000) / 10_000 : null;
+  const fundEth = typedEth ?? (suggestedEth !== null ? String(suggestedEth) : "");
 
   const run = async (label: string, work: () => Promise<void>) => {
     setBusy(label);
@@ -68,15 +88,42 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
   const finishSetup = () => run("setup", async () => void (await post(agent.id, { step: "setup", handle, bio })));
   const step = (name: string) => run(name, async () => void (await post(agent.id, { step: name })));
 
-  const fund = () =>
+  const weiToSend = () => {
+    const amount = Number(fundEth);
+    if (!(amount > 0)) throw new Error("Enter an amount of ETH.");
+    return BigInt(Math.round(amount * 1e9)) * 10n ** 9n;
+  };
+
+  const fundFromZolva = () =>
     run("fund", async () => {
       const bridge = privy();
-      const amount = Number(fundEth);
-      if (!bridge || !address || !agent.walletAddress) throw new Error("Log in with email or Google to send from your Zolva wallet, or send ETH from any wallet.");
-      if (!(amount > 0)) throw new Error("Enter an amount of ETH.");
-      await bridge.sendTransaction(address, agent.walletAddress, "0x", BigInt(Math.round(amount * 1e9)) * 10n ** 9n);
-      setFundEth("");
+      if (!bridge || !address || !agent.walletAddress) throw new Error("Log in with email or Google to send from your Zolva wallet.");
+      await bridge.sendTransaction(address, agent.walletAddress, "0x", weiToSend());
     });
+
+  // Rabby, MetaMask or any browser wallet: switches it to Robinhood Chain, then a plain ETH transfer.
+  const fundFromBrowser = () =>
+    run("browser", async () => {
+      if (!agent.walletAddress) return;
+      try {
+        await sendFromBrowserWallet(agent.walletAddress, "0x", "Sending the ETH failed. Check the wallet has ETH on Robinhood Chain, then try again.", weiToSend());
+      } catch (cause) {
+        // An empty message means the prompt was closed: nothing to show.
+        if (cause instanceof WalletError && !cause.message) return;
+        throw cause;
+      }
+    });
+
+  const copyAddress = async () => {
+    if (!agent.walletAddress) return;
+    try {
+      await navigator.clipboard.writeText(agent.walletAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Copy failed. Select the address and copy it by hand.");
+    }
+  };
 
   const withdraw = () =>
     run("withdraw", async () => {
@@ -89,8 +136,6 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
       {shortAddress(agent.walletAddress)}
     </a>
   ) : null;
-  const funded = Boolean(wallet && wallet.eth >= wallet.startNeedsEth);
-
   return (
     <section className="card trench-setup" aria-label="Setup and controls">
       <h2 className="card__title">{agent.status === "setup" ? "Set it up" : "Controls"}</h2>
@@ -132,14 +177,32 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
           <li className={funded ? "trench-steps__done" : ""}>
             <strong>2. Fund it</strong>
             <span className="muted">
-              {wallet ? `${wallet.eth.toFixed(5)} ETH (about $${(wallet.eth * wallet.ethUsd).toFixed(2)}). Starting needs at least ${wallet.startNeedsEth.toFixed(4)} ETH.` : "Loading the balance…"} Send ETH on Robinhood Chain to{" "}
-              <code>{agent.walletAddress}</code>, from any wallet that is not a Rushr member, or from your Zolva wallet here.
+              The agent trades from its own wallet, so the ETH has to be there; Zolva never holds it, and you can withdraw what is left whenever it holds no tokens.{" "}
+              {wallet ? `Now ${wallet.eth.toFixed(5)} ETH (about $${(wallet.eth * wallet.ethUsd).toFixed(2)}); it can start from ${wallet.startNeedsEth.toFixed(4)} ETH.` : "Loading the balance…"}
             </span>
-            <div className="trench-inline">
-              <input className="input" type="number" min="0" step="0.001" placeholder="ETH" value={fundEth} onChange={(event) => setFundEth(event.target.value)} />
-              <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => void fund()}>
-                {busy === "fund" ? "Sending…" : "Send from my Zolva wallet"}
+            <div className="trench-address">
+              <code>{agent.walletAddress}</code>
+              <button className="button button--ghost button--small" type="button" onClick={() => void copyAddress()}>
+                <i className={`ph ${copied ? "ph-check" : "ph-copy"}`} aria-hidden="true" />
+                {copied ? "Copied" : "Copy"}
               </button>
+            </div>
+            <span className="muted trenches-small">Send ETH on Robinhood Chain (chain 4663) from any wallet that is not a Rushr member. The balance updates by itself.</span>
+            <div className="trench-inline">
+              <label className="trench-amount">
+                <input className="input" type="number" min="0" step="0.0001" value={fundEth} onChange={(event) => setTypedEth(event.target.value)} aria-label="ETH to send" />
+                <span>ETH</span>
+              </label>
+              {browserWallet ? (
+                <button className="button button--primary" type="button" disabled={Boolean(busy)} onClick={() => void fundFromBrowser()}>
+                  {busy === "browser" ? "Confirm in your wallet…" : "Send with Rabby / MetaMask"}
+                </button>
+              ) : null}
+              {privy() ? (
+                <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => void fundFromZolva()}>
+                  {busy === "fund" ? "Sending…" : "Send from my Zolva wallet"}
+                </button>
+              ) : null}
             </div>
           </li>
         ) : null}

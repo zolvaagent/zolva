@@ -121,3 +121,10 @@ export async function getLabRecord(): Promise<LabRecord> {
   ]);
   return { rank: parseRank(rank), pnl: parsePnl(pnl), callouts: parseCallouts(callouts), fetchedAt: Date.now() };
 }
+
+/** Rushr ranks for a few handles (each memoised a minute); unknown or failed ones are null. */
+export async function getRanks(handles: string[]): Promise<Map<string, RushrRank | null>> {
+  const unique = [...new Set(handles)].slice(0, 20);
+  const answers = await Promise.all(unique.map(async (handle) => [handle, parseRank(await getJson(`/v1/members/${encodeURIComponent(handle)}/rank`))] as const));
+  return new Map(answers);
+}

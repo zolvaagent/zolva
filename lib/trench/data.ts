@@ -98,3 +98,18 @@ export async function getMyTrenchAgent(db: SupabaseClient, owner: string, id: st
     decisions: (decisions.data ?? []) as TrenchDecisionView[],
   };
 }
+
+export type ListedTrenchAgent = { handle: string; name: string; preset: PresetId; status: TrenchAgentView["status"] };
+
+/** Zolva trench agents listed on Rushr (their handles are public there anyway). */
+export async function listListedTrenchAgents(db: SupabaseClient): Promise<ListedTrenchAgent[]> {
+  const { data, error } = await db
+    .from("trench_agents")
+    .select("rushr_handle, name, preset, status, created_at")
+    .not("rushr_handle", "is", null)
+    .in("status", ["active", "paused", "halted"])
+    .order("created_at", { ascending: true })
+    .limit(19);
+  if (error) return [];
+  return (data ?? []).map((row) => ({ handle: row.rushr_handle as string, name: row.name as string, preset: row.preset as PresetId, status: row.status as TrenchAgentView["status"] }));
+}
