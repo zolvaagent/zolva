@@ -460,3 +460,15 @@ describe("custom rules", () => {
     expect(describeRules(parseTrenchRules({}, "graduated_safe")).sells).toMatch(/everything after 4 h/);
   });
 });
+
+describe("Require X checks off", () => {
+  it("lets a custom Curve Rider buy while X can't be read, and the summary says so", () => {
+    const noX = parseTrenchRules({ ...PRESETS.almost_bonded, entry: { ...PRESETS.almost_bonded.entry, requireSocial: false } }, "almost_bonded");
+    expect(noX.entry.requireSocial).toBe(false);
+    expect(isCustom(noX, "almost_bonded")).toBe(true);
+    // With X checks on, a candidate whose X check never finished is not bought.
+    expect(runMinute(minute({ candidates: [candidate({ social: null })] })).actions).toEqual([]);
+    expect(runMinute(minute({ rules: noX, candidates: [candidate({ social: null })] })).actions).toEqual([expect.objectContaining({ kind: "buy" })]);
+    expect(describeRules(noX).buys).not.toMatch(/own X/);
+  });
+});

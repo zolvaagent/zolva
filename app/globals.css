@@ -11614,3 +11614,10 @@ li.stats-ranks__row {
   gap: var(--space-75);
   align-items: center;
 }
+
+.trench-custom__toggle {
+  margin-top: var(--space-200);
+  padding: var(--space-150, 12px) var(--space-200);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-panel);
+}

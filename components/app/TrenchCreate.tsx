@@ -25,8 +25,9 @@ function shown(rules: TrenchRules, field: EditableField): number {
 }
 
 /** The preset with the edited fields applied, in stored units, then parsed and clamped like the server does. */
-function editedRules(preset: PresetId, edits: Record<string, number>): TrenchRules {
+function editedRules(preset: PresetId, edits: Record<string, number>, requireX: boolean | null): TrenchRules {
   const base = JSON.parse(JSON.stringify(PRESETS[preset])) as TrenchRules;
+  if (requireX !== null) base.entry.requireSocial = requireX;
   for (const field of EDITABLE_FIELDS) {
     const value = edits[`${field.group}.${field.key}`];
     if (value === undefined || !Number.isFinite(value)) continue;
@@ -46,6 +47,8 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
   const { address, openLogin } = useAuth();
   const [preset, setPreset] = useState<PresetId>(PRESET_IDS[0]);
   const [edits, setEdits] = useState<Record<string, number>>({});
+  // null: as the preset has it. Off lets a curve agent buy without the X and narrative checks.
+  const [requireX, setRequireX] = useState<boolean | null>(null);
   const [name, setName] = useState("My trench agent");
   const [callouts, setCallouts] = useState(true);
   const [handle, setHandle] = useState("");
@@ -54,8 +57,8 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const rules = editedRules(preset, edits);
-  const custom = Object.keys(edits).length > 0;
+  const rules = editedRules(preset, edits, requireX);
+  const custom = Object.keys(edits).length > 0 || (requireX !== null && requireX !== PRESETS[preset].entry.requireSocial);
   const sizing = rules.sizing;
   const fields = EDITABLE_FIELDS.filter((field) => field.markets.includes(rules.market));
   const allAccepted = accepted.every(Boolean);
@@ -64,6 +67,7 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
   const pickPreset = (id: PresetId) => {
     setPreset(id);
     setEdits({});
+    setRequireX(null);
   };
 
   const submit = async () => {
@@ -117,6 +121,19 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
           <p className="muted trenches-small">
             Change {PRESET_INFO[preset].name}&apos;s numbers. The stop loss, Rushr&apos;s safety check, the slippage cap and the money caps stay on whatever you set. A custom agent says &quot;Custom rules&quot; on Rushr.
           </p>
+          {PRESETS[preset].entry.requireSocial ? (
+            <label className="trench-check trench-custom__toggle">
+              <input type="checkbox" checked={rules.entry.requireSocial} onChange={(event) => setRequireX(event.target.checked)} />
+              <span>
+                <strong>Require X checks</strong>
+                <span className="muted">
+                  {" "}
+                  The project&apos;s X account must have a blue check and a website, post its own contract address, and pass an AI check that it is more than a joke. Off: it can buy even when X can&apos;t be read, with
+                  looser filtering.
+                </span>
+              </span>
+            </label>
+          ) : null}
           {(["entry", "exit", "sizing"] as const).map((group) => (
             <div key={group} className="trench-custom__group">
               <h3>{group === "entry" ? "Buys when" : group === "exit" ? "Sells" : "Sizing"}</h3>
@@ -148,7 +165,14 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
             </div>
           ))}
           {custom ? (
-            <button className="button button--ghost button--small" type="button" onClick={() => setEdits({})}>
+            <button
+              className="button button--ghost button--small"
+              type="button"
+              onClick={() => {
+                setEdits({});
+                setRequireX(null);
+              }}
+            >
               Back to {PRESET_INFO[preset].name}
             </button>
           ) : null}
