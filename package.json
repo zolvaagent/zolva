@@ -16,6 +16,7 @@
     "backfill": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/backfill-candles.mts",
     "backtest": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/backtest.mts",
     "seed:house": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/seed-house-agents.mts",
+    "check:token": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-stock-token.mts",
     "deploy:prod": "node scripts/deploy-production.mjs",
     "credits:grant": "node scripts/grant-credits.mts",
     "live:setup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/live-signer-setup.mts",

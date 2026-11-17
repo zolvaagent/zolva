@@ -138,7 +138,7 @@ const row: MarketRow = {
   symbol: "NVDA",
   name: "NVIDIA",
   assetClass: "stock",
-  stats: { price: 201.123456789, change1h: 0.1234, change24h: -1.556, change7d: null, change30d: 4, high7d: 210, low7d: 190, hourlyMovePct: 0.4, week: [200, 201.1234567] },
+  stats: { price: 201.123456789, change1h: 0.1234, change24h: -1.556, change7d: null, change30d: 4, high7d: 210, low7d: 190, hourlyMovePct: 0.4, week: [200, 201.1234567], newHours: null },
   agents: 3,
   pool: "0xpool",
   poolKind: "v3",

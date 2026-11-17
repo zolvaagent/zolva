@@ -23,7 +23,7 @@ const vars = Object.fromEntries(
 const db = createClient(vars.SUPABASE_URL, vars.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
 async function main() {
-  const { data: tokens, error } = await db.from("tokens").select("address, symbol");
+  const { data: tokens, error } = await db.from("tokens").select("address, symbol, verified_official, enabled");
   if (error) throw new Error(error.message);
   const addressOf = new Map(tokens.map((token) => [token.symbol, token.address]));
 
@@ -45,7 +45,26 @@ async function main() {
       console.log(`exists   ${config.name}`);
       continue;
     }
+    // A new listing (an IPO): wait until it is on the allowlist with enough hourly closes.
+    const missing = config.symbols.filter((symbol) => !addressOf.has(symbol));
+    if (missing.length) {
+      console.log(`waiting  ${config.name}: ${missing.join(", ")} not on the allowlist yet`);
+      continue;
+    }
     const addresses = config.symbols.map((symbol) => addressOf.get(symbol)!);
+    if (config.waitForHours) {
+      // New listings only ever by the verified official address (same-name clones exist at launch).
+      const unverified = tokens.filter((token) => addresses.includes(token.address) && (!token.verified_official || !token.enabled));
+      if (unverified.length) {
+        console.log(`waiting  ${config.name}: ${unverified.map((token) => token.symbol).join(", ")} is not verified and enabled`);
+        continue;
+      }
+      const { count } = await db.from("candles").select("ts", { count: "exact", head: true }).in("token_address", addresses).lte("ts", latestTs);
+      if ((count ?? 0) < config.waitForHours * addresses.length) {
+        console.log(`waiting  ${config.name}: ${count ?? 0} of ${config.waitForHours} hourly closes`);
+        continue;
+      }
+    }
     const startPrices: Record<string, number> = {};
     for (const address of addresses) {
       const { data: candle } = await db.from("candles").select("close").eq("token_address", address).lte("ts", latestTs).order("ts", { ascending: false }).limit(1).single();
@@ -64,6 +83,8 @@ async function main() {
         ...(config.venue ? { venue: config.venue } : {}),
         ...("leverage" in config && config.leverage ? { leverage: config.leverage } : {}),
         ...("sizing" in config && config.sizing ? { sizing: config.sizing } : {}),
+        // DCA: the first buy is the agent's first run, the hour after the newest close.
+        ...("dca" in config && config.dca ? { dca: { ...config.dca, startTs: Date.parse(latestTs) / 1000 + 3600 } } : {}),
       },
       token_addresses: addresses,
       start_capital: 10_000,

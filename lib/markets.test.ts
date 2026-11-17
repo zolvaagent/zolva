@@ -43,4 +43,9 @@ describe("marketStats", () => {
   it("skips the hourly move with less than a day of history", () => {
     expect(marketStats([null, null, 10, 11, 12])!.hourlyMovePct).toBeNull();
   });
+
+  it("counts a new listing's hours of prices, and nothing for an older market", () => {
+    expect(marketStats([null, null, 10, 11, 12])!.newHours).toBe(3);
+    expect(marketStats([9, 10, 11])!.newHours).toBeNull();
+  });
 });

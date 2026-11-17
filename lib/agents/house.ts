@@ -50,7 +50,20 @@ export type HouseAgent = {
   /** The co-pilot's spending limit in USD and its end date (ISO), like a user's agent. */
   aiLimitUsd?: number;
   aiUntil?: string;
+  /** DCA only: equal buys, the first in the agent's first hour. */
+  dca?: { buys: number; everyHours: number };
+  /**
+   * A new listing: the seed waits (and says so) until the market is on the allowlist with at least
+   * this many hourly closes. 1 for DCA (its first priced hour), 49 for Momentum (48 hours of history).
+   */
+  waitForHours?: number;
 };
+
+/**
+ * $ANT (Anthropic IPO on Robinhood Chain, expected the week of 2026-11-17). Its allowlist symbol, once the
+ * official address is confirmed and added (npm run check:token, then a migration). Never matched by name.
+ */
+export const IPO_SYMBOL = "ANT";
 
 /**
  * Long while the price is more than 3% above its 1,200 hour (50 day) average; out once it is
@@ -347,4 +360,8 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
     stopLossPct: 15,
     sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
   })),
+  // IPO Day (2026-11-17, Research: in 12 big IPOs, 20 daily buys beat buying on day 1 in 8 of 12; docs/perps-research.md).
+  // Paper only. DCA from the first priced hour; a Momentum twin once there are 48 hours of prices.
+  { owner: LAB_WALLETS[8], name: "Lab · ANT IPO Day DCA", strategy: "dca", dca: { buys: 20, everyHours: 24 }, symbols: [IPO_SYMBOL], maxPositionPct: 100, stopLossPct: 8, waitForHours: 1 },
+  { owner: LAB_WALLETS[8], name: "Lab · ANT IPO Momentum", strategy: "momentum", symbols: [IPO_SYMBOL], maxPositionPct: 100, stopLossPct: 15, waitForHours: 49 },
 ];

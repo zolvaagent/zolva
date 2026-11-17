@@ -6052,6 +6052,15 @@ button.text-link {
   padding-left: 34px;
 }
 
+/* A new listing on /markets: "New · 6 hours of prices". */
+.market-new {
+  height: 18px;
+  margin-left: var(--space-50);
+  padding: 0 var(--space-75);
+  font-size: 11px;
+  vertical-align: middle;
+}
+
 .market-name {
   display: block;
   color: var(--color-text-faint);

@@ -17,6 +17,8 @@ export type MarketStats = {
   hourlyMovePct: number | null;
   /** The last 7 days of closes, oldest first, for sparklines. */
   week: number[];
+  /** A new listing (an IPO): hours since its first price, when that is inside the window; null otherwise. */
+  newHours: number | null;
 };
 
 const WEEK = 168;
@@ -51,5 +53,6 @@ export function marketStats(closes: (number | null)[]): MarketStats | null {
     low7d: Math.min(...week),
     hourlyMovePct: moves.length >= 24 ? Math.sqrt(variance) : null,
     week,
+    newHours: closes[0] == null ? closes.length - closes.findIndex((close) => close != null) : null,
   };
 }

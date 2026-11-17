@@ -15,18 +15,18 @@ import { DEFAULT_EXPIRY_DAYS, parseAiLimit, suggestedLimitUsd } from "@/lib/ai/l
 import { aiModel } from "@/lib/ai/models";
 import { buyAndHold, simulate } from "@/lib/engine/engine";
 import { indicatorMeta, INDICATORS, MAX_CONDITIONS, OPERATORS, parseRules, RULE_TEMPLATES, rulesLookback, type Condition, type IndicatorKind, type Operator, type RuleGroup, type Rules } from "@/lib/engine/rules";
-import { LOOKBACK_HOURS } from "@/lib/engine/strategies";
+import { presetLookback, type StrategyKey } from "@/lib/engine/strategies";
+import { BACKTEST_HOURS, hoursNeeded, hoursText, tooNewReason } from "@/lib/studio/history";
 import { describeAgent } from "@/lib/engine/summary";
 import { RulesSummary } from "@/components/app/RulesSummary";
 import { RobustnessCheck } from "@/components/app/RobustnessCheck";
-import { dayAt, percent, usd } from "@/lib/format";
+import { dayAt, percent, STRATEGY_NAMES, usd } from "@/lib/format";
 import { track } from "@/lib/funnel";
 import { openingPreset, PRESET_DCA, PRESET_MAX_POSITION_PCT, PRESET_STOP_LOSS_PCT, scorePresets, suggestedName, type ScoredPreset } from "@/lib/studio/presets";
 import { PRESET_YEARS, STRATEGY_YEARS_LINE, YEARS_DISCLAIMER, type YearTable } from "@/lib/studio/preset-years";
 import type { Market } from "@/lib/data/market";
 import { DCA_BUYS, DCA_CADENCES, dcaEveryText, dcaSpanText, maxMarketsFor, strategyNeedsPerps, type StudioStrategy } from "@/lib/agents/copy";
 
-const BACKTEST_HOURS = 30 * 24;
 const MAX_ACTIVE = 5;
 /** The picker shows stocks first, then crypto; one agent may hold both. */
 const TOKEN_GROUPS = [
@@ -222,12 +222,24 @@ export function Studio({
   const [customMode, setCustomMode] = useState<CustomMode>("rules");
   const [generated, setGenerated] = useState<Generated | null>(null);
 
-  const lookback = strategy === "custom" ? rulesLookback(rules) : LOOKBACK_HOURS;
-  const fromIndex = market.hours - BACKTEST_HOURS;
+  const lookback = strategy === "custom" ? rulesLookback(rules) : presetLookback(strategy as StrategyKey);
+  // A new listing (an IPO) has only hours of prices: DCA may use it from its first priced hour, rules
+  // need a full backtest window plus their lookback (lib/studio/history.ts).
+  const needHours = hoursNeeded(dca, lookback);
+  const historyOf = (symbol: string) => {
+    const token = market.tokens.find((item) => item.symbol === symbol);
+    return token?.firstIndex == null ? 0 : market.hours - token.firstIndex;
+  };
+  const tooNewPicked = symbols.filter((symbol) => historyOf(symbol) < needHours);
+  const anyTooNew = tooNewPicked.length > 0;
+  const tooNewError = anyTooNew ? tooNewReason(tooNewPicked[0], historyOf(tooNewPicked[0]), needHours, STRATEGY_NAMES[strategy] ?? "This strategy") : null;
+  // DCA on a market younger than 30 days replays from its first priced hour.
+  const youngest = symbols.length ? Math.min(...symbols.map(historyOf)) : BACKTEST_HOURS;
+  const fromIndex = market.hours - Math.min(BACKTEST_HOURS, Math.max(1, youngest));
   const ruleErrors = strategy === "custom" ? parseRules(rules).errors : [];
 
   const backtest = useMemo(() => {
-    if (!symbols.length || ruleErrors.length) return null;
+    if (!symbols.length || ruleErrors.length || anyTooNew) return null;
     const series = Object.fromEntries(symbols.map((symbol) => [symbol, market.tokens.find((token) => token.symbol === symbol)!.closes]));
     const result = simulate({
       series,
@@ -248,7 +260,7 @@ export function Studio({
     });
     const hold = buyAndHold(series, agentCapital, fromIndex);
     return { result, hold, edge: result.returnPct - hold.returnPct };
-  }, [symbols, strategy, rules, maxPositionPct, stopLossPct, agentCapital, market, fromIndex, ruleErrors.length, perps, dca, dcaBuys, dcaEveryHours]);
+  }, [symbols, strategy, rules, maxPositionPct, stopLossPct, agentCapital, market, fromIndex, ruleErrors.length, perps, dca, dcaBuys, dcaEveryHours, anyTooNew]);
 
   const toggleSymbol = (symbol: string) => setSymbols((list) => (list.includes(symbol) ? list.filter((item) => item !== symbol) : list.length >= maxMarkets ? list : [...list, symbol]));
 
@@ -311,8 +323,8 @@ export function Studio({
 
   const openLaunch = () => {
     setShowErrors(true);
-    if (!agentName.trim() || !symbols.length || ruleErrors.length || (!live && aiLimitError)) {
-      const target = !agentName.trim() ? "agent-name" : !symbols.length ? "token-grid" : ruleErrors.length ? "rule-builder" : "ai-label";
+    if (!agentName.trim() || !symbols.length || tooNewPicked.length || ruleErrors.length || (!live && aiLimitError)) {
+      const target = !agentName.trim() ? "agent-name" : !symbols.length || tooNewPicked.length ? "token-grid" : ruleErrors.length ? "rule-builder" : "ai-label";
       document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
@@ -629,8 +641,9 @@ export function Studio({
                 </span>,
                 ...venueTokens.filter((token) => perps || token.assetClass === group).map((token) => {
                   const history = token.firstIndex === null ? 0 : market.hours - token.firstIndex;
-                  const tooNew = history < BACKTEST_HOURS + lookback;
                   const selected = symbols.includes(token.symbol);
+                  // A picked market stays clickable so it can be removed after switching strategy.
+                  const tooNew = history < needHours && !selected;
                   const full = symbols.length >= maxMarkets && !selected;
                   const now = token.closes[last];
                   const dayAgo = token.closes[Math.max(token.firstIndex ?? 0, last - 24)];
@@ -642,7 +655,7 @@ export function Studio({
                       type="button"
                       aria-pressed={selected}
                       disabled={tooNew || full}
-                      title={tooNew ? `Listed ${Math.max(1, Math.round(history / 24))} days ago. Needs ${Math.ceil((BACKTEST_HOURS + lookback) / 24)} days of history.` : full ? `You can pick up to ${maxMarkets}` : token.name}
+                      title={tooNew ? tooNewReason(token.symbol, history, needHours, STRATEGY_NAMES[strategy] ?? "This strategy") : full ? `You can pick up to ${maxMarkets}` : token.name}
                       onClick={() => toggleSymbol(token.symbol)}
                     >
                       <span className="token__row">
@@ -652,13 +665,14 @@ export function Studio({
                         </span>
                         <span className={tooNew ? "" : change > 0.05 ? "gain" : change < -0.05 ? "loss" : ""}>{tooNew ? "New" : percent(change)}</span>
                       </span>
-                      <span className="token__name">{tooNew ? "Too new to backtest" : token.name}</span>
+                      <span className="token__name">{tooNew ? `New: ${hoursText(history)} of prices` : token.name}</span>
                     </button>
                   );
                 }),
               ])}
             </div>
             {showErrors && !symbols.length && <span className="field-error">Pick at least one stock or coin.</span>}
+            {tooNewError && <span className="field-error">{tooNewError}</span>}
           </div>
 
           {live ? (
@@ -737,8 +751,8 @@ export function Studio({
             <div className="card">
               <div className="empty">
                 <img src="/img/icons/backtest.png" alt="" width={72} height={72} />
-                <h2 className="card__title">{ruleErrors.length ? "Finish your rules to see the backtest" : "Pick a market to see the backtest"}</h2>
-                <p>{ruleErrors.length ? ruleErrors[0] : `Choose up to ${maxMarkets} markets and the last 30 days replay here instantly.`}</p>
+                <h2 className="card__title">{tooNewError ? "Too new for this strategy" : ruleErrors.length ? "Finish your rules to see the backtest" : "Pick a market to see the backtest"}</h2>
+                <p>{tooNewError ?? (ruleErrors.length ? ruleErrors[0] : `Choose up to ${maxMarkets} markets and the last 30 days replay here instantly.`)}</p>
               </div>
             </div>
           ) : (

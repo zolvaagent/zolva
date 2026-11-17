@@ -7,6 +7,7 @@ import { LighterBadge } from "@/components/ui/LighterBadge";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import type { MarketRow } from "@/lib/data/markets";
 import { dateAt, fundingYearly, percent, price, sparkline, tone } from "@/lib/format";
+import { hoursText } from "@/lib/studio/history";
 
 const VIEWS = [
   ["all", "All"],
@@ -15,6 +16,16 @@ const VIEWS = [
 ] as const;
 
 type View = (typeof VIEWS)[number][0];
+
+/** A new listing: "New · 6 hours of prices", until it has 30 days. */
+function NewPill({ hours }: { hours: number | null }) {
+  if (hours === null) return null;
+  return (
+    <span className="pill pill--accent market-new" title="Listed recently. Rule strategies need more history; DCA can use it now.">
+      New · {hoursText(hours)} of prices
+    </span>
+  );
+}
 
 /** Signed percent, or a dash while a stock is too new to compare. */
 function Change({ value }: { value: number | null }) {
@@ -171,7 +182,7 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
                         <Link className="agent-cell row-link" href={`/markets/${row.symbol}`}>
                           <TickerAvatar symbol={row.symbol} />
                           <span>
-                            <strong>{row.symbol}</strong>
+                            <strong>{row.symbol}</strong> <NewPill hours={row.stats.newHours} />
                             <span className="market-name">{row.name}</span>
                           </span>
                         </Link>
@@ -222,7 +233,7 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
               <Link key={row.address} className="leader-card market-card" href={`/markets/${row.symbol}`}>
                 <TickerAvatar symbol={row.symbol} />
                 <span className="market-card__name">
-                  <strong>{row.symbol}</strong>
+                  <strong>{row.symbol}</strong> <NewPill hours={row.stats.newHours} />
                   <span className="market-name">{row.name}</span>
                 </span>
                 <Spark values={row.stats.week} height={28} />
