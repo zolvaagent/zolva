@@ -53,7 +53,7 @@ export default async function TrenchAgentPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="stats-page__grid">
-        <TrenchSetup agent={{ id: agent.id, name: agent.name, status: agent.status, walletAddress: agent.walletAddress, onRushr: agent.onRushr, rushrHandle: agent.rushrHandle }} />
+        <TrenchSetup agent={{ id: agent.id, name: agent.name, status: agent.status, walletAddress: agent.walletAddress, onRushr: agent.onRushr, setupDone: agent.setupDone, rushrHandle: agent.rushrHandle }} />
 
         <section className="card" aria-label="Numbers">
           <h2 className="card__title">So far</h2>

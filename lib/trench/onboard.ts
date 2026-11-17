@@ -1,15 +1,17 @@
 import "server-only";
 
 /**
- * Creating and running a trench agent, step by step (Studio, /trenches/[id]):
+ * Creating and running a trench agent (Studio, /trenches/[id]). No Privy popups: the user fills one
+ * form and the server does the rest.
  *
  * 1. create: name, preset, budget and the risk screen accepted -> a "setup" row.
- * 2. wallet: the browser makes an extra Privy embedded wallet for the user; we check it belongs to
- *    the same Privy user as their login wallet, create a policy for it (lib/trench/policy.ts), the
- *    browser adds Zolva's signer with that policy, and confirm checks the signer is really on it.
- * 3. Rushr: we fetch Rushr's sign-in message, the user signs it in the browser with the agent
- *    wallet (Zolva never signs it), we register the agent and store its API key encrypted.
- * 4. fund (from the browser), then start. Pause, resume, sell everything, withdraw and close.
+ * 2. setup (server, resumable step by step if anything fails):
+ *    a. a new Privy wallet, owned for the moment by Zolva's key quorum (it is empty);
+ *    b. Rushr sign-up: Rushr's own sign-in message for that wallet, signed by Zolva as its owner
+ *       (the user picked the handle and accepted it on the form), API key stored encrypted;
+ *    c. the agent policy (lib/trench/policy.ts), then ownership moves to the user's Privy account
+ *       with Zolva kept only as a signer under that policy. From here the wallet is the user's.
+ * 3. fund (any wallet), then start. Pause, resume, sell everything, withdraw and close.
  *
  * Every step checks that the agent belongs to the logged-in owner.
  */
@@ -96,57 +98,7 @@ export async function createAgent(db: SupabaseClient, owner: string, input: { na
   return data.id as string;
 }
 
-// ---------------------------------------------------------------- 2. wallet
-
-/** The new wallet must be another embedded wallet of the same Privy user as the login wallet. */
-async function sameUserWallet(privy: PrivyClient, owner: string, walletAddress: string) {
-  const [main, agentWallet] = await Promise.all([
-    privy.wallets().list({ address: owner, chain_type: "ethereum" }),
-    privy.wallets().list({ address: walletAddress, chain_type: "ethereum" }),
-  ]);
-  const home = main.data?.[0];
-  const found = agentWallet.data?.[0];
-  if (!home) throw new TrenchError("Trench agents need a wallet made by Zolva. Log in with email or Google.");
-  if (!found || !home.owner_id || found.owner_id !== home.owner_id) throw new TrenchError("That wallet does not belong to your Zolva login.");
-  if (found.address.toLowerCase() === owner.toLowerCase()) throw new TrenchError("The agent needs its own wallet, not your main one.");
-  return found;
-}
-
-export async function prepareWallet(db: SupabaseClient, chain: PublicClient, owner: string, agentId: unknown, walletAddress: unknown): Promise<{ signerId: string; policyId: string }> {
-  const agent = await ownAgent(db, owner, agentId);
-  if (agent.status !== "setup" || agent.wallet_address) throw new TrenchError("This agent already has its wallet.");
-  if (typeof walletAddress !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(walletAddress)) throw new TrenchError("Unknown wallet.");
-  const address = walletAddress.toLowerCase();
-  const { count } = await db.from("trench_agents").select("id", { count: "exact", head: true }).eq("wallet_address", address);
-  if ((count ?? 0) > 0) throw new TrenchError("That wallet already belongs to another agent.");
-  const { privy, signerId } = privyClient();
-  await sameUserWallet(privy, owner, address);
-  const limits = limitsFor(PRESETS[agent.preset], Number(agent.budget_usd));
-  const maxTxWei = maxTxWeiFor(limits.maxPerTokenUsd, await ethUsd(chain));
-  const policy = await privy.policies().create({
-    version: "1.0",
-    chain_type: "ethereum",
-    name: `Zolva trench ${agent.id.slice(0, 8)}`,
-    // The SDK types each condition as a union; the rule objects follow it field for field.
-    rules: trenchPolicyRules(address, owner, maxTxWei) as never,
-  });
-  return { signerId, policyId: policy.id };
-}
-
-export async function confirmWallet(db: SupabaseClient, owner: string, agentId: unknown, walletAddress: unknown, policyId: unknown): Promise<void> {
-  const agent = await ownAgent(db, owner, agentId);
-  if (agent.status !== "setup" || agent.wallet_address) throw new TrenchError("This agent already has its wallet.");
-  if (typeof walletAddress !== "string" || typeof policyId !== "string" || !policyId) throw new TrenchError("Unknown request.");
-  const { privy, signerId } = privyClient();
-  const wallet = await sameUserWallet(privy, owner, walletAddress.toLowerCase());
-  const signers = (wallet.additional_signers ?? []) as { signer_id: string; override_policy_ids?: string[] }[];
-  const granted = signers.some((item) => item.signer_id === signerId && (item.override_policy_ids ?? []).includes(policyId));
-  if (!granted) throw new TrenchError("Zolva's signer is not on the agent wallet yet. Approve it in the Privy window, then try again.");
-  const { error } = await db.from("trench_agents").update({ wallet_address: wallet.address.toLowerCase(), privy_wallet_id: wallet.id, policy_id: policyId }).eq("id", agent.id);
-  if (error) throw new Error(`Saving the wallet failed: ${error.message}`);
-}
-
-// ---------------------------------------------------------------- 3. Rushr
+// ---------------------------------------------------------------- 2. setup
 
 /** Handles starting with "zolva" are kept for Zolva's own agents. */
 export function checkHandle(handle: unknown): string {
@@ -156,49 +108,94 @@ export function checkHandle(handle: unknown): string {
   return value;
 }
 
-export async function rushrNonce(db: SupabaseClient, owner: string, agentId: unknown, handle: unknown): Promise<{ message: string }> {
-  const agent = await ownAgent(db, owner, agentId);
-  if (!agent.wallet_address) throw new TrenchError("Set up the agent wallet first.");
-  if (agent.rushr_key_enc) throw new TrenchError("This agent is already on Rushr.");
-  const value = checkHandle(handle);
-  const availability = await handleAvailable(value);
-  if (!availability.available) throw new TrenchError(`@${value} is not available on Rushr${availability.reason ? ` (${availability.reason})` : ""}.`);
-  return { message: await registerNonce(agent.wallet_address) };
+export function checkBio(bio: unknown): string {
+  const value = typeof bio === "string" ? bio.trim().replace(/\s+/g, " ") : "";
+  if (value.length > 160) throw new TrenchError("Bio: at most 160 characters.");
+  return value;
 }
 
-export async function rushrRegister(db: SupabaseClient, owner: string, input: { agentId: unknown; message: unknown; signature: unknown; handle: unknown; displayName: unknown; bio: unknown }): Promise<{ handle: string }> {
-  const agent = await ownAgent(db, owner, input.agentId);
-  if (!agent.wallet_address) throw new TrenchError("Set up the agent wallet first.");
-  if (agent.rushr_key_enc) throw new TrenchError("This agent is already on Rushr.");
+const RUSHR_ERRORS: Record<string, string> = {
+  handle_taken: "That handle was just taken. Pick another.",
+  handle_reserved: "Rushr keeps that handle. Pick another.",
+  handle_invalid: "Rushr refused that handle. Pick another.",
+  wallet_taken: "This wallet is already registered on Rushr.",
+  nonce_expired: "Rushr's sign-in timed out. Try again.",
+  rate_limited: "Rushr is busy. Try again in a minute.",
+};
+
+/**
+ * Wallet, Rushr sign-up and hand-over to the user, in that order. Each part is saved as it finishes,
+ * so a retry continues where it stopped (a wallet is never made twice for one agent).
+ */
+export async function setupAgent(db: SupabaseClient, chain: PublicClient, owner: string, agentId: unknown, input: { handle: unknown; bio: unknown }): Promise<void> {
+  let agent = await ownAgent(db, owner, agentId);
+  if (agent.status !== "setup") throw new TrenchError("This agent is already set up.");
+  if (agent.policy_id) return;
   const keySecret = env.trenchKeySecret;
-  if (!keySecret) throw new TrenchError("Rushr sign-up is not available right now.");
-  const handle = checkHandle(input.handle);
-  const message = typeof input.message === "string" ? input.message : "";
-  // Only Rushr's own sign-in message for this very wallet.
-  if (!message.startsWith(SIWE_PREFIX) || !message.toLowerCase().includes(agent.wallet_address) || !message.includes("Chain ID: 4663")) throw new TrenchError("Unexpected sign-in message.");
-  if (typeof input.signature !== "string" || !/^0x[0-9a-fA-F]{130}$/.test(input.signature)) throw new TrenchError("Unexpected signature.");
-  const displayName = (typeof input.displayName === "string" ? input.displayName.trim() : "").slice(0, 40) || agent.name;
-  const bio = typeof input.bio === "string" ? input.bio.trim().replace(/\s+/g, " ") : "";
-  if (bio.length > 160) throw new TrenchError("Bio: at most 160 characters.");
-  try {
-    const result = await register({ message, signature: input.signature, handle, displayName, bio });
-    const sealed = await encryptSecret(result.key, keySecret);
-    const { error } = await db.from("trench_agents").update({ rushr_handle: result.handle, rushr_member_id: result.memberId, rushr_key_enc: sealed }).eq("id", agent.id);
-    if (error) throw new Error(`Saving the Rushr account failed: ${error.message}`);
-    return { handle: result.handle };
-  } catch (cause) {
-    if (cause instanceof RushrError) {
-      const known: Record<string, string> = {
-        handle_taken: "That handle was just taken. Pick another.",
-        handle_reserved: "Rushr keeps that handle. Pick another.",
-        wallet_taken: "This wallet is already registered on Rushr.",
-        nonce_expired: "The sign-in message expired. Try again.",
-        rate_limited: "Rushr is busy. Try again in a minute.",
-      };
-      throw new TrenchError(known[cause.code ?? ""] ?? "Rushr refused the sign-up. Try again.");
-    }
-    throw cause;
+  const authorizationKey = env.privyAuthorizationKey;
+  if (!keySecret || !authorizationKey) throw new TrenchError("Trench agents are not available right now.");
+  const { privy, signerId } = privyClient();
+  const auth = { authorization_private_keys: [authorizationKey] };
+  const save = async (values: Record<string, unknown>) => {
+    const { error } = await db.from("trench_agents").update(values).eq("id", agent.id);
+    if (error) throw new Error(`Saving the agent failed: ${error.message}`);
+    agent = { ...agent, ...values };
+  };
+
+  // The user's Privy account, which will own the wallet. Wallet logins (no Privy account) can't.
+  const user = await privy
+    .users()
+    .getByWalletAddress({ address: owner })
+    .catch(() => null);
+  if (!user?.id) throw new TrenchError("Trench agents need the wallet Zolva makes for you. Log in with email or Google.");
+
+  // a. The wallet, owned by Zolva's key quorum until the hand-over.
+  if (!agent.privy_wallet_id) {
+    const wallet = await privy.wallets().create({ chain_type: "ethereum", owner_id: signerId, idempotency_key: `trench-wallet-${agent.id}` });
+    await save({ privy_wallet_id: wallet.id, wallet_address: wallet.address.toLowerCase() });
   }
+  const walletId = agent.privy_wallet_id!;
+  const address = agent.wallet_address!;
+
+  // b. Rushr sign-up.
+  if (!agent.rushr_key_enc) {
+    const handle = checkHandle(input.handle);
+    const bio = checkBio(input.bio);
+    try {
+      const availability = await handleAvailable(handle);
+      if (!availability.available) throw new TrenchError(`@${handle} is not available on Rushr${availability.reason ? ` (${availability.reason})` : ""}.`);
+      const message = await registerNonce(address);
+      // Only Rushr's own sign-in message for this very wallet on Robinhood Chain.
+      if (!message.startsWith(SIWE_PREFIX) || !message.toLowerCase().includes(address) || !message.includes("Chain ID: 4663")) throw new TrenchError("Rushr sent an unexpected sign-in message.");
+      const signed = await privy.wallets().ethereum().signMessage(walletId, { message, authorization_context: auth });
+      const result = await register({ message, signature: signed.signature, handle, displayName: agent.name, bio });
+      await save({ rushr_handle: result.handle, rushr_member_id: result.memberId, rushr_key_enc: await encryptSecret(result.key, keySecret) });
+    } catch (cause) {
+      if (cause instanceof RushrError) throw new TrenchError(RUSHR_ERRORS[cause.code ?? ""] ?? "Rushr refused the sign-up. Try again.");
+      throw cause;
+    }
+  }
+
+  // c. Policy, then the wallet moves to the user with Zolva as a signer under that policy only.
+  const limits = limitsFor(PRESETS[agent.preset], Number(agent.budget_usd));
+  const maxTxWei = maxTxWeiFor(limits.maxPerTokenUsd, await ethUsd(chain));
+  const policy = await privy.policies().create({
+    version: "1.0",
+    chain_type: "ethereum",
+    name: `Zolva trench ${agent.id.slice(0, 8)}`,
+    // The SDK types each condition as a union; the rule objects follow it field for field.
+    rules: trenchPolicyRules(address, owner, maxTxWei) as never,
+  });
+  const moved = await privy.wallets().update(walletId, {
+    owner: { user_id: user.id },
+    additional_signers: [{ signer_id: signerId, override_policy_ids: [policy.id] }],
+    authorization_context: auth,
+  });
+  const signers = (moved.additional_signers ?? []) as { signer_id: string; override_policy_ids?: string[] }[];
+  if (moved.owner_id === signerId || !signers.some((item) => item.signer_id === signerId && (item.override_policy_ids ?? []).includes(policy.id))) {
+    throw new Error("Privy did not hand the wallet over as asked");
+  }
+  await save({ policy_id: policy.id });
 }
 
 // ---------------------------------------------------------------- 4. run
@@ -219,7 +216,7 @@ export async function setRunState(db: SupabaseClient, chain: PublicClient, owner
   });
   if (action === "start" || action === "resume") {
     if (agent.status !== "setup" && agent.status !== "paused") throw new TrenchError("This agent can't start from here.");
-    if (!agent.wallet_address || !agent.rushr_key_enc) throw new TrenchError("Finish the wallet and Rushr steps first.");
+    if (!agent.wallet_address || !agent.rushr_key_enc || !agent.policy_id) throw new TrenchError("Finish the setup first.");
     const status = await walletStatus(chain, agent);
     if (!status || status.eth < status.startNeedsEth) throw new TrenchError(`Fund the agent wallet with at least ${status?.startNeedsEth.toFixed(4) ?? "?"} ETH first.`);
     return update({ status: "active", halted_reason: null });

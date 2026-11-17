@@ -11,12 +11,18 @@ import { limitsFor, PRESET_IDS, PRESET_INFO, PRESETS, type PresetId } from "@/li
 const RISKS = [
   "This is real money in memecoins. I can lose all of it, and most such tokens go to zero.",
   "Fees and token taxes cost about 6% of every round trip, before any loss.",
-  "The agent gets a public profile on Rushr with its wallet and every trade. It can't be deleted.",
+  "The agent gets a public profile on Rushr with its wallet and every trade. It can't be deleted. Zolva signs the Rushr sign-up for it with the handle above.",
   "I am not a US person and not in a country Zolva or Rushr excludes.",
   "Zolva gives no advice and never holds my money: I fund the agent wallet and withdraw myself.",
 ];
 
-/** Create a trench agent: preset, name, budget, callouts and the risk screen. */
+export const DEFAULT_BIO = "Rule-based memecoin agent. Runs on Zolva (zolvaagent.app). Not advice.";
+const HANDLE = /^[a-z0-9_]{3,20}$/;
+
+/**
+ * Create a trench agent in one go: preset, name, budget, Rushr profile and the risk screen. The
+ * server then makes the agent wallet, signs it up on Rushr and hands the wallet to the user.
+ */
 export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: number; minBudgetUsd: number }) {
   const router = useRouter();
   const { address, openLogin } = useAuth();
@@ -24,6 +30,8 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
   const [name, setName] = useState("My trench agent");
   const [budget, setBudget] = useState(Math.min(50, maxBudgetUsd));
   const [callouts, setCallouts] = useState(true);
+  const [handle, setHandle] = useState("");
+  const [bio, setBio] = useState(DEFAULT_BIO);
   const [accepted, setAccepted] = useState<boolean[]>(RISKS.map(() => false));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +39,7 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
   const limits = limitsFor(PRESETS[preset], budget);
   const allAccepted = accepted.every(Boolean);
   const budgetOk = budget >= minBudgetUsd && budget <= maxBudgetUsd;
+  const handleOk = HANDLE.test(handle) && !handle.startsWith("zolva");
 
   const submit = async () => {
     if (!address) return openLogin(() => router.refresh());
@@ -44,6 +53,8 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
       });
       const body = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!response.ok || !body.id) throw new Error(body.error ?? "Creating the agent failed.");
+      // Wallet, Rushr sign-up and hand-over. If it fails, the agent page offers to finish it.
+      await fetch(`/api/trench/agents/${body.id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ step: "setup", handle, bio }) }).catch(() => undefined);
       router.push(`/trenches/${body.id}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -94,6 +105,18 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
       </fieldset>
 
       <fieldset className="card trench-form__section">
+        <legend className="card__title">Profile on Rushr</legend>
+        <label className="trench-field">
+          <span>Handle (3 to 20: a-z, 0-9, _; not starting with zolva)</span>
+          <input className="input" value={handle} maxLength={20} onChange={(event) => setHandle(event.target.value.toLowerCase())} placeholder="my_trench_bot" required />
+        </label>
+        <label className="trench-field">
+          <span>Bio ({bio.length}/160)</span>
+          <input className="input" value={bio} maxLength={160} onChange={(event) => setBio(event.target.value)} />
+        </label>
+      </fieldset>
+
+      <fieldset className="card trench-form__section">
         <legend className="card__title">Read before you go on</legend>
         {RISKS.map((risk, i) => (
           <label key={risk} className="trench-check">
@@ -108,8 +131,8 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
           {error}
         </p>
       ) : null}
-      <button className="button button--primary button--large" type="submit" disabled={busy || !allAccepted || !budgetOk || !name.trim()}>
-        {address ? (busy ? "Creating…" : "Create agent") : "Log in to create"}
+      <button className="button button--primary button--large" type="submit" disabled={busy || !allAccepted || !budgetOk || !handleOk || !name.trim()}>
+        {address ? (busy ? "Creating the agent, its wallet and its Rushr profile…" : "Create agent") : "Log in to create"}
       </button>
     </form>
   );

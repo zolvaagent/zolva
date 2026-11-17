@@ -17,6 +17,8 @@ export type TrenchAgentView = {
   walletAddress: string | null;
   rushrHandle: string | null;
   onRushr: boolean;
+  /** Wallet made, on Rushr, and handed over to the user with Zolva as a limited signer. */
+  setupDone: boolean;
   callouts: boolean;
   haltedReason: string | null;
   lastRunAt: string | null;
@@ -27,7 +29,7 @@ export type TrenchPositionView = { token: string; symbol: string; costUsd: numbe
 export type TrenchTradeView = { ts: string; token: string; symbol: string; side: "buy" | "sell"; usd: number; pnlUsd: number | null; reason: string; txHash: string };
 export type TrenchDecisionView = { ts: string; symbol: string | null; action: string; reason: string };
 
-const AGENT_COLUMNS = "id, name, preset, budget_usd, status, wallet_address, rushr_handle, rushr_key_enc, callouts, halted_reason, last_run_at, created_at";
+const AGENT_COLUMNS = "id, name, preset, budget_usd, status, wallet_address, policy_id, rushr_handle, rushr_key_enc, callouts, halted_reason, last_run_at, created_at";
 
 type AgentRow = {
   id: string;
@@ -36,6 +38,7 @@ type AgentRow = {
   budget_usd: number;
   status: TrenchAgentView["status"];
   wallet_address: string | null;
+  policy_id: string | null;
   rushr_handle: string | null;
   rushr_key_enc: string | null;
   callouts: boolean;
@@ -54,6 +57,7 @@ const toView = (row: AgentRow): TrenchAgentView => ({
   rushrHandle: row.rushr_handle,
   // Only whether a key exists leaves the server, never the key.
   onRushr: Boolean(row.rushr_key_enc),
+  setupDone: Boolean(row.policy_id && row.rushr_key_enc && row.wallet_address),
   callouts: row.callouts,
   haltedReason: row.halted_reason,
   lastRunAt: row.last_run_at,

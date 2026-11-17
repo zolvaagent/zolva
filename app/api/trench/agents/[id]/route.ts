@@ -5,7 +5,7 @@ import { getSessionAddress } from "@/lib/auth/session";
 import { env } from "@/lib/env";
 import { createChainClient } from "@/lib/prices/onchain";
 import { db } from "@/lib/supabase";
-import { confirmWallet, ownAgent, prepareWallet, rushrNonce, rushrRegister, setRunState, TrenchError, walletStatus, withdrawAndClose } from "@/lib/trench/onboard";
+import { ownAgent, setRunState, setupAgent, TrenchError, walletStatus, withdrawAndClose } from "@/lib/trench/onboard";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +26,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
 
 /**
  * POST { step, ... } for one of the owner's trench agents (lib/trench/onboard.ts):
- * wallet_prepare { walletAddress }, wallet_confirm { walletAddress, policyId },
- * rushr_nonce { handle }, rushr_register { message, signature, handle, displayName, bio },
+ * setup { handle, bio } (wallet, Rushr sign-up and hand-over, all on the server),
  * start, resume, pause, sell_all, withdraw.
  */
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -46,15 +45,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const chain = () => createChainClient(env.robinhoodRpcUrl);
     switch (step) {
-      case "wallet_prepare":
-        return NextResponse.json(await prepareWallet(client, chain(), owner, id, body?.walletAddress));
-      case "wallet_confirm":
-        await confirmWallet(client, owner, id, body?.walletAddress, body?.policyId);
+      case "setup":
+        await setupAgent(client, chain(), owner, id, { handle: body?.handle, bio: body?.bio });
         return NextResponse.json({ ok: true });
-      case "rushr_nonce":
-        return NextResponse.json(await rushrNonce(client, owner, id, body?.handle));
-      case "rushr_register":
-        return NextResponse.json(await rushrRegister(client, owner, { agentId: id, message: body?.message, signature: body?.signature, handle: body?.handle, displayName: body?.displayName, bio: body?.bio }));
       case "start":
       case "resume":
       case "pause":

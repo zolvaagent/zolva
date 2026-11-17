@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { DEFAULT_BIO } from "@/components/app/TrenchCreate";
 import { useAuth } from "@/components/ui/Providers";
 import { EXPLORER_URL } from "@/lib/chain";
 import { shortAddress } from "@/lib/format";
@@ -13,6 +14,7 @@ type AgentForSetup = {
   status: "setup" | "active" | "paused" | "halted" | "closed";
   walletAddress: string | null;
   onRushr: boolean;
+  setupDone: boolean;
   rushrHandle: string | null;
 };
 
@@ -26,8 +28,9 @@ async function post(agentId: string, body: Record<string, unknown>): Promise<Rec
 }
 
 /**
- * Setup and controls for one trench agent: own wallet (Zolva's signer under the agent's policy),
- * Rushr sign-up signed by the user, funding, then start, pause, sell everything and withdraw.
+ * One trench agent's setup and controls. The server makes the wallet and the Rushr profile (no
+ * Privy popups); here the user finishes a setup that stopped half way, funds the wallet, then
+ * starts, pauses, sells everything or withdraws.
  */
 export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
   const router = useRouter();
@@ -36,7 +39,7 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
   const [error, setError] = useState<string | null>(null);
   const [wallet, setWallet] = useState<WalletStatus>(null);
   const [handle, setHandle] = useState("");
-  const [bio, setBio] = useState("Rule-based memecoin agent. Runs on Zolva (zolvaagent.app). Not advice.");
+  const [bio, setBio] = useState(DEFAULT_BIO);
   const [fundEth, setFundEth] = useState("");
 
   const refreshWallet = useCallback(() => {
@@ -62,39 +65,18 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
     }
   };
 
-  // Email and Google logins have a Privy bridge; plain wallet logins can't make agent wallets.
-  const needsPrivy = !privy();
-
-  const makeWallet = () =>
-    run("wallet", async () => {
-      const bridge = privy();
-      if (!bridge) throw new Error("Trench agents need the wallet Zolva makes for you. Log in with email or Google.");
-      const walletAddress = await bridge.createAgentWallet();
-      const plan = (await post(agent.id, { step: "wallet_prepare", walletAddress })) as { signerId: string; policyId: string };
-      await bridge.addSigner(walletAddress, plan.signerId, [plan.policyId]);
-      await post(agent.id, { step: "wallet_confirm", walletAddress, policyId: plan.policyId });
-    });
-
-  const joinRushr = () =>
-    run("rushr", async () => {
-      const bridge = privy();
-      if (!bridge || !agent.walletAddress) throw new Error("Set up the agent wallet first.");
-      const { message } = (await post(agent.id, { step: "rushr_nonce", handle })) as { message: string };
-      const signature = await bridge.signMessage(agent.walletAddress, message);
-      await post(agent.id, { step: "rushr_register", message, signature, handle, displayName: agent.name, bio });
-    });
+  const finishSetup = () => run("setup", async () => void (await post(agent.id, { step: "setup", handle, bio })));
+  const step = (name: string) => run(name, async () => void (await post(agent.id, { step: name })));
 
   const fund = () =>
     run("fund", async () => {
       const bridge = privy();
       const amount = Number(fundEth);
-      if (!bridge || !address || !agent.walletAddress) throw new Error("Log in with email or Google to send from your Zolva wallet.");
+      if (!bridge || !address || !agent.walletAddress) throw new Error("Log in with email or Google to send from your Zolva wallet, or send ETH from any wallet.");
       if (!(amount > 0)) throw new Error("Enter an amount of ETH.");
       await bridge.sendTransaction(address, agent.walletAddress, "0x", BigInt(Math.round(amount * 1e9)) * 10n ** 9n);
       setFundEth("");
     });
-
-  const step = (name: string) => () => run(name, async () => void (await post(agent.id, { step: name })));
 
   const withdraw = () =>
     run("withdraw", async () => {
@@ -107,32 +89,18 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
       {shortAddress(agent.walletAddress)}
     </a>
   ) : null;
+  const funded = Boolean(wallet && wallet.eth >= wallet.startNeedsEth);
 
   return (
     <section className="card trench-setup" aria-label="Setup and controls">
       <h2 className="card__title">{agent.status === "setup" ? "Set it up" : "Controls"}</h2>
-      {needsPrivy && agent.status === "setup" ? <p className="loss">Trench agents need the wallet Zolva makes for you. Log out, then log in with email or Google.</p> : null}
 
       <ol className="trench-steps">
-        <li className={agent.walletAddress ? "trench-steps__done" : ""}>
-          <strong>1. Its own wallet</strong>
-          {agent.walletAddress ? (
-            <span className="muted">Wallet {walletLink}. Zolva can only trade from it and send funds back to your Zolva wallet.</span>
-          ) : (
-            <>
-              <span className="muted">Privy makes a second wallet for you and asks you to let Zolva trade from it under strict rules.</span>
-              <button className="button button--primary" type="button" disabled={Boolean(busy) || needsPrivy} onClick={() => void makeWallet()}>
-                {busy === "wallet" ? "Setting up…" : "Create the agent wallet"}
-              </button>
-            </>
-          )}
-        </li>
-
-        <li className={agent.onRushr ? "trench-steps__done" : ""}>
-          <strong>2. On Rushr</strong>
-          {agent.onRushr ? (
+        <li className={agent.setupDone ? "trench-steps__done" : ""}>
+          <strong>1. Wallet and Rushr profile</strong>
+          {agent.setupDone ? (
             <span className="muted">
-              Listed as{" "}
+              Its own wallet {walletLink}, yours, where Zolva may only trade and send funds back to your Zolva wallet. On Rushr as{" "}
               <a className="text-link" href={`https://app.rushr.trade/u/${agent.rushrHandle}`} target="_blank" rel="noopener noreferrer">
                 @{agent.rushrHandle}
               </a>
@@ -140,31 +108,36 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
             </span>
           ) : (
             <>
-              <span className="muted">You sign Rushr&apos;s sign-in message with the agent wallet. The profile is public and permanent.</span>
-              <label className="trench-field">
-                <span>Handle (3 to 20: a-z, 0-9, _)</span>
-                <input className="input" value={handle} maxLength={20} onChange={(event) => setHandle(event.target.value.toLowerCase())} disabled={!agent.walletAddress} />
-              </label>
-              <label className="trench-field">
-                <span>Bio ({bio.length}/160)</span>
-                <input className="input" value={bio} maxLength={160} onChange={(event) => setBio(event.target.value)} disabled={!agent.walletAddress} />
-              </label>
-              <button className="button button--primary" type="button" disabled={Boolean(busy) || !agent.walletAddress || handle.length < 3} onClick={() => void joinRushr()}>
-                {busy === "rushr" ? "Signing up…" : "Sign and register on Rushr"}
+              <span className="muted">The setup stopped half way. Finish it here{agent.onRushr ? "" : " (pick the Rushr handle again)"}.</span>
+              {agent.onRushr ? null : (
+                <>
+                  <label className="trench-field">
+                    <span>Handle (3 to 20: a-z, 0-9, _)</span>
+                    <input className="input" value={handle} maxLength={20} onChange={(event) => setHandle(event.target.value.toLowerCase())} />
+                  </label>
+                  <label className="trench-field">
+                    <span>Bio ({bio.length}/160)</span>
+                    <input className="input" value={bio} maxLength={160} onChange={(event) => setBio(event.target.value)} />
+                  </label>
+                </>
+              )}
+              <button className="button button--primary" type="button" disabled={Boolean(busy) || (!agent.onRushr && handle.length < 3)} onClick={() => void finishSetup()}>
+                {busy === "setup" ? "Setting up…" : "Finish setup"}
               </button>
             </>
           )}
         </li>
 
         {agent.walletAddress && agent.status !== "closed" ? (
-          <li className={wallet && wallet.eth >= wallet.startNeedsEth ? "trench-steps__done" : ""}>
-            <strong>3. Fund it</strong>
+          <li className={funded ? "trench-steps__done" : ""}>
+            <strong>2. Fund it</strong>
             <span className="muted">
-              {wallet ? `${wallet.eth.toFixed(5)} ETH (about $${(wallet.eth * wallet.ethUsd).toFixed(2)}). Starting needs at least ${wallet.startNeedsEth.toFixed(4)} ETH.` : "Loading the balance…"} Send ETH on Robinhood Chain to {walletLink}, or from your Zolva wallet here.
+              {wallet ? `${wallet.eth.toFixed(5)} ETH (about $${(wallet.eth * wallet.ethUsd).toFixed(2)}). Starting needs at least ${wallet.startNeedsEth.toFixed(4)} ETH.` : "Loading the balance…"} Send ETH on Robinhood Chain to{" "}
+              <code>{agent.walletAddress}</code>, from any wallet that is not a Rushr member, or from your Zolva wallet here.
             </span>
             <div className="trench-inline">
               <input className="input" type="number" min="0" step="0.001" placeholder="ETH" value={fundEth} onChange={(event) => setFundEth(event.target.value)} />
-              <button className="button button--ghost" type="button" disabled={Boolean(busy) || needsPrivy} onClick={() => void fund()}>
+              <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => void fund()}>
                 {busy === "fund" ? "Sending…" : "Send from my Zolva wallet"}
               </button>
             </div>
@@ -174,17 +147,17 @@ export function TrenchSetup({ agent }: { agent: AgentForSetup }) {
 
       <div className="trench-inline">
         {agent.status === "setup" || agent.status === "paused" ? (
-          <button className="button button--primary" type="button" disabled={Boolean(busy) || !agent.walletAddress || !agent.onRushr} onClick={() => void step(agent.status === "setup" ? "start" : "resume")()}>
-            {busy ? "…" : agent.status === "setup" ? "Start trading" : "Resume"}
+          <button className="button button--primary" type="button" disabled={Boolean(busy) || !agent.setupDone} onClick={() => void step(agent.status === "setup" ? "start" : "resume")}>
+            {busy === "start" || busy === "resume" ? "…" : agent.status === "setup" ? "Start trading" : "Resume"}
           </button>
         ) : null}
         {agent.status === "active" ? (
-          <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => void step("pause")()}>
+          <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => void step("pause")}>
             Pause buying
           </button>
         ) : null}
         {agent.status === "active" || agent.status === "paused" ? (
-          <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => window.confirm("Sell every token this agent holds on the next minute and stop it for good?") && void step("sell_all")()}>
+          <button className="button button--ghost" type="button" disabled={Boolean(busy)} onClick={() => window.confirm("Sell every token this agent holds on the next minute and stop it for good?") && void step("sell_all")}>
             Sell everything and stop
           </button>
         ) : null}
