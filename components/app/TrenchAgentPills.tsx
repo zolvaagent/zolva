@@ -25,10 +25,16 @@ export function TrenchAgentPills({ agent, valueUsd }: { agent: TrenchAgentView; 
         {status.label}
       </span>
       <span className="trench-pill" title={PRESET_INFO[agent.preset].summary}>
-        <i className="ph ph-path" aria-hidden="true" />
+        <i className={`ph ph-${PRESET_INFO[agent.preset].icon}`} aria-hidden="true" />
         <span className="trench-pill__label">Strategy</span>
         {PRESET_INFO[agent.preset].name}
       </span>
+      {agent.custom ? (
+        <span className="trench-pill trench-pill--custom" title="Its own rules, edited from the preset">
+          <i className="ph ph-sliders-horizontal" aria-hidden="true" />
+          Custom
+        </span>
+      ) : null}
       <span className="trench-pill" title="What the wallet held when the agent started">
         <i className="ph ph-arrow-circle-down" aria-hidden="true" />
         <span className="trench-pill__label">Started with</span>

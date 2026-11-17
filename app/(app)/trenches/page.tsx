@@ -99,7 +99,7 @@ export default async function TrenchesPage() {
 
       <p className="trenches-warning" role="note">
         <i className="ph ph-warning" aria-hidden="true" />
-        <span>Real money in memecoins: most go to zero, and fees plus token taxes cost about 6% per round trip. Not advice, not for US persons, and still in beta.</span>
+        <span>Real money in memecoins: most go to zero, and fees plus token taxes cost about 3% on each buy and each sell. Not advice, not for US persons, and still in beta.</span>
       </p>
 
       {mine.length > 0 ? <MyAgents agents={mine} values={values} /> : null}
@@ -147,14 +147,15 @@ export default async function TrenchesPage() {
             </dl>
           </article>
           <article className="trench-preset-card">
-            <span className="trench-preset-card__tag trench-preset-card__tag--soon">Next</span>
-            <h3>Graduated Safe</h3>
-            <p className="muted">Graduated tokens only, with real holders and volume, low or medium risk on Rushr, small sizes and short holds.</p>
+            <span className="trench-preset-card__tag">Available</span>
+            <h3>{PRESET_INFO.graduated_safe.name}</h3>
+            <p className="muted">{PRESET_INFO.graduated_safe.summary}</p>
+            <p className="trenches-small muted">Graduated tokens have mostly fallen after graduation (Research, Nov 2026): this one waits, filters hard and exits within hours.</p>
           </article>
           <article className="trench-preset-card">
-            <span className="trench-preset-card__tag trench-preset-card__tag--soon">Later</span>
+            <span className="trench-preset-card__tag">Available</span>
             <h3>Your own rules</h3>
-            <p className="muted">Edit a preset&apos;s thresholds and exits, or describe a strategy in words. The stop loss and safety checks stay locked.</p>
+            <p className="muted">Start from a preset and change its numbers: entry filters, stop, trailing stop, time stop and sizing. The stop loss, safety checks and caps stay locked.</p>
           </article>
         </div>
       </section>
@@ -181,8 +182,8 @@ export default async function TrenchesPage() {
             <span className="muted">Rushr&apos;s fee per trade during its beta (0.5% after)</span>
           </div>
           <div>
-            <strong>~6%</strong>
-            <span className="muted">PONS curve fee and token tax per round trip</span>
+            <strong>~3%</strong>
+            <span className="muted">Curve or pool fee and token tax, on each buy and each sell</span>
           </div>
           <div>
             <strong>$0</strong>

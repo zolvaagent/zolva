@@ -25,7 +25,7 @@ import { encryptSecret } from "./crypto.ts";
 import { mayCreateTrenchAgent } from "./data.ts";
 import { withdrawEth } from "./executor.ts";
 import { maxTxWeiFor, trenchPolicyRules } from "./policy.ts";
-import { isPresetId, limitsFor, PRESETS, type PresetId } from "./rules.ts";
+import { isCustom, isPresetId, limitsFor, parseTrenchRules, PRESETS, type PresetId } from "./rules.ts";
 import type { TrenchAgentRow, TrenchSettings } from "./runner.ts";
 import { handleAvailable, register, registerNonce, RushrError, SIWE_PREFIX } from "./rushr-api.ts";
 
@@ -70,12 +70,15 @@ async function ethUsd(chain: PublicClient): Promise<number> {
 
 // ---------------------------------------------------------------- 1. create
 
-export async function createAgent(db: SupabaseClient, owner: string, input: { name: unknown; preset: unknown; callouts: unknown; riskAccepted: unknown }): Promise<string> {
+export async function createAgent(db: SupabaseClient, owner: string, input: { name: unknown; preset: unknown; rules?: unknown; callouts: unknown; riskAccepted: unknown }): Promise<string> {
   const settings = await loadSettings(db);
   if (!mayCreateTrenchAgent(settings, owner)) throw new TrenchError("Trench agents are not open yet.");
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (name.length < 1 || name.length > 40) throw new TrenchError("Give the agent a name of up to 40 characters.");
   if (!isPresetId(input.preset)) throw new TrenchError("Pick a preset.");
+  const preset: PresetId = input.preset;
+  // "Your own rules": the preset edited, then parsed and clamped (the locked guards stay).
+  const rules = parseTrenchRules(input.rules ?? PRESETS[preset], preset);
   if (input.riskAccepted !== true) throw new TrenchError("Please read and accept the risks first.");
 
   const { count: mine } = await db.from("trench_agents").select("id", { count: "exact", head: true }).eq("owner", owner).neq("status", "closed");
@@ -84,7 +87,7 @@ export async function createAgent(db: SupabaseClient, owner: string, input: { na
   const { data, error } = await db
     .from("trench_agents")
     // budget_usd starts at the cap (it sizes the wallet policy) and becomes the real capital on Start.
-    .insert({ owner, name, preset: input.preset, rules: PRESETS[input.preset as PresetId], budget_usd: settings.max_agent_budget_usd, callouts: input.callouts !== false, risk_accepted_at: new Date().toISOString() })
+    .insert({ owner, name, preset, rules, custom: isCustom(rules, preset), budget_usd: settings.max_agent_budget_usd, callouts: input.callouts !== false, risk_accepted_at: new Date().toISOString() })
     .select("id")
     .single();
   if (error) throw new Error(`Creating the agent failed: ${error.message}`);
@@ -161,7 +164,10 @@ export async function setupAgent(db: SupabaseClient, chain: PublicClient, owner:
       // Only Rushr's own sign-in message for this very wallet on Robinhood Chain.
       if (!message.startsWith(SIWE_PREFIX) || !message.toLowerCase().includes(address) || !message.includes("Chain ID: 4663")) throw new TrenchError("Rushr sent an unexpected sign-in message.");
       const signed = await privy.wallets().ethereum().signMessage(walletId, { message, authorization_context: auth });
-      const result = await register({ message, signature: signed.signature, handle, displayName: agent.name, bio });
+      // A custom agent says so on Rushr, so its record is not read as a Zolva preset.
+      const custom = (agent as { custom?: boolean }).custom === true;
+      const shownBio = custom && !/custom rules/i.test(bio) ? `${bio} Custom rules.`.trim().slice(0, 160) : bio;
+      const result = await register({ message, signature: signed.signature, handle, displayName: agent.name, bio: shownBio });
       await save({ rushr_handle: result.handle, rushr_member_id: result.memberId, rushr_key_enc: await encryptSecret(result.key, keySecret) });
     } catch (cause) {
       if (cause instanceof RushrError) throw new TrenchError(RUSHR_ERRORS[cause.code ?? ""] ?? "Rushr refused the sign-up. Try again.");
@@ -172,7 +178,7 @@ export async function setupAgent(db: SupabaseClient, chain: PublicClient, owner:
   // c. Policy, then the wallet moves to the user with Zolva as a signer under that policy only.
   // Sized for the largest capital an agent may have, since the deposit comes later.
   const settings = await loadSettings(db);
-  const limits = limitsFor(PRESETS[agent.preset], Number(settings.max_agent_budget_usd));
+  const limits = limitsFor(parseTrenchRules(agent.rules, agent.preset), Number(settings.max_agent_budget_usd));
   const maxTxWei = maxTxWeiFor(limits.maxPerTokenUsd, await ethUsd(chain));
   const policy = await privy.policies().create({
     version: "1.0",

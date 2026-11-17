@@ -5,13 +5,16 @@ import "server-only";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { PresetId } from "./rules.ts";
+import { parseTrenchRules, type PresetId, type TrenchRules } from "./rules.ts";
 import type { TrenchSettings } from "./runner.ts";
 
 export type TrenchAgentView = {
   id: string;
   name: string;
   preset: PresetId;
+  /** Its rules, parsed (a preset's, or the owner's edited copy). */
+  rules: TrenchRules;
+  custom: boolean;
   budgetUsd: number;
   status: "setup" | "active" | "paused" | "halted" | "closed";
   walletAddress: string | null;
@@ -29,12 +32,14 @@ export type TrenchPositionView = { token: string; symbol: string; costUsd: numbe
 export type TrenchTradeView = { ts: string; token: string; symbol: string; side: "buy" | "sell"; usd: number; pnlUsd: number | null; reason: string; txHash: string };
 export type TrenchDecisionView = { ts: string; symbol: string | null; action: string; reason: string };
 
-const AGENT_COLUMNS = "id, name, preset, budget_usd, status, wallet_address, policy_id, rushr_handle, rushr_key_enc, callouts, halted_reason, last_run_at, created_at";
+const AGENT_COLUMNS = "id, name, preset, rules, custom, budget_usd, status, wallet_address, policy_id, rushr_handle, rushr_key_enc, callouts, halted_reason, last_run_at, created_at";
 
 type AgentRow = {
   id: string;
   name: string;
   preset: PresetId;
+  rules: unknown;
+  custom: boolean | null;
   budget_usd: number;
   status: TrenchAgentView["status"];
   wallet_address: string | null;
@@ -51,6 +56,8 @@ const toView = (row: AgentRow): TrenchAgentView => ({
   id: row.id,
   name: row.name,
   preset: row.preset,
+  rules: parseTrenchRules(row.rules, row.preset),
+  custom: row.custom === true,
   budgetUsd: Number(row.budget_usd),
   status: row.status,
   walletAddress: row.wallet_address,

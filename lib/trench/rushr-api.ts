@@ -38,9 +38,17 @@ async function call<T>(path: string, init: RequestInit & { key?: string } = {}, 
 
 // ---------------------------------------------------------------- public reads
 
-export async function almostBonded(): Promise<RushrToken[]> {
-  const body = await call<{ tokens?: RushrToken[] }>("/tokens?column=almost");
+/** One column of Rushr's trenches: "almost" (on the curve, near graduation) or "migrated" (graduated). */
+export async function tokenColumn(column: "almost" | "migrated"): Promise<RushrToken[]> {
+  const body = await call<{ tokens?: RushrToken[] }>(`/tokens?column=${column}`);
   return body.tokens ?? [];
+}
+
+/** Wei out for selling `amountIn` token units now (Rushr's quote: route, pool tax and fee included). */
+export async function sellQuoteWei(key: string, token: string, amountIn: bigint, from: string): Promise<bigint> {
+  const body = await call<{ quote?: { amountOut?: string } }>("/v1/trade/quote", { method: "POST", key, body: JSON.stringify({ token, side: "sell", amountIn: amountIn.toString(), quoteAsset: "ETH", from }) });
+  if (!body.quote?.amountOut) throw new RushrError("Rushr gave no sell quote", 502, null);
+  return BigInt(body.quote.amountOut);
 }
 
 /** One token's list row (for open positions that left the almost column). */

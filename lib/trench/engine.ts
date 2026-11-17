@@ -7,7 +7,7 @@
  * Order each minute: open positions first (exits never wait), then new candidates. Every action and
  * every rejection carries a plain reason.
  */
-import type { ExitRules, Limits, TrenchRules } from "./rules.ts";
+import type { ExitRules, Limits, RiskLevel, TrenchRules } from "./rules.ts";
 
 /** One token from GET api.rushr.trade/tokens?column=almost (the fields used). */
 export type RushrToken = {
@@ -33,6 +33,12 @@ export type RushrToken = {
   no_sells: boolean;
   farm: boolean;
   spam: boolean;
+  /** Graduated tokens (column=migrated) also carry these. */
+  holders?: number | null;
+  volume_24h_usd?: number | null;
+  risk?: string | null;
+  snipers_pct?: number | null;
+  bundled_pct?: number | null;
 };
 
 type Window = { buyUsd: number; sellUsd: number; makers: number; buys: number; sells: number; volumeUsd: number };
@@ -52,8 +58,34 @@ export function pullbackPct(token: Pick<RushrToken, "market_cap_usd" | "ath_mark
   return (1 - token.market_cap_usd / token.ath_market_cap_usd) * 100;
 }
 
+const RISK_ORDER: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
+
+/** Stage 1 for graduated tokens (Uniswap, after the curve): list fields only. */
+function graduatedListStage(token: RushrToken, rules: TrenchRules, nowMs: number): Verdict {
+  const r = rules.entry;
+  if (!token.migrated_at) return no("not graduated yet");
+  if (token.quote !== NATIVE_ETH) return no("not quoted in ETH");
+  if (token.no_sells || token.spam) return no("flagged: no sells or spam");
+  const sinceGraduation = (nowMs - Date.parse(token.migrated_at)) / 3_600_000;
+  if (sinceGraduation < r.minHoursSinceGraduation) return no(`graduated ${sinceGraduation.toFixed(1)}h ago, waits ${r.minHoursSinceGraduation}h`);
+  const ageHours = (nowMs - Date.parse(token.created_at)) / 3_600_000;
+  if (!(ageHours < r.maxAgeHours)) return no(`age ${ageHours.toFixed(1)}h is not under ${r.maxAgeHours}h`);
+  if ((token.buy_tax_bps ?? 9999) > r.maxTaxBps || (token.sell_tax_bps ?? 9999) > r.maxTaxBps) return no(`tax ${token.buy_tax_bps}/${token.sell_tax_bps} bps above ${r.maxTaxBps}`);
+  if ((token.dev_pct ?? 100) > r.maxDevPct) return no(`dev holds ${token.dev_pct}%`);
+  if ((token.fresh_pct ?? 100) >= r.maxFreshPct) return no(`fresh wallets ${token.fresh_pct}%`);
+  if ((token.top10_pct ?? 100) > r.maxTop10Pct) return no(`top 10 hold ${token.top10_pct}%`);
+  if ((token.snipers_pct ?? 100) > r.maxSnipersPct) return no(`snipers bought ${token.snipers_pct}%`);
+  if ((token.bundled_pct ?? 100) > r.maxBundledPct) return no(`launch bundle ${token.bundled_pct}%`);
+  if ((token.holders ?? 0) < r.minHolders) return no(`${token.holders ?? 0} holders`);
+  if ((token.volume_24h_usd ?? 0) < r.minVolume24hUsd) return no(`24h volume $${Math.round(token.volume_24h_usd ?? 0)}`);
+  const risk = (token.risk ?? "high") as RiskLevel;
+  if (!(risk in RISK_ORDER) || RISK_ORDER[risk] > RISK_ORDER[r.maxRisk]) return no(`Rushr risk ${token.risk ?? "unknown"}`);
+  return PASS;
+}
+
 /** Stage 1: list fields only (free, every minute). */
 export function listStage(token: RushrToken, rules: TrenchRules, nowMs: number): Verdict {
+  if (rules.market === "graduated") return graduatedListStage(token, rules, nowMs);
   const r = rules.entry;
   if (token.launchpad !== "pons") return no("not a PONS token");
   if (token.migrated_at) return no("already graduated");
@@ -92,6 +124,7 @@ export function statsStage(input: { stats: RushrStats; tradesRank: number; safet
   }
   const ratio = buySellRatio(input.stats["6h"]);
   if (ratio === null || ratio < r.minBuySell6h) return no(`6h buy/sell ${ratio?.toFixed(2) ?? "none"} under ${r.minBuySell6h}`);
+  if (!r.requireDexPaid) return PASS;
   if (input.dexPaidMinutesAfterLaunch === null) return no("DEX not paid");
   if (input.dexPaidMinutesAfterLaunch > r.maxDexPaidMinutes) return no(`DEX paid ${input.dexPaidMinutesAfterLaunch.toFixed(0)} min after launch`);
   return PASS;
@@ -155,7 +188,7 @@ export function gainPct(position: Pick<Position, "costEth">, valueEth: number): 
 }
 
 /** First match wins: stop, invalidation, graduation, time stop, ladder, trailing stop; else maybe add. */
-export function decideExit(position: Position, market: Market, x: ExitRules): ExitAction {
+export function decideExit(position: Position, market: Market, x: ExitRules, onCurve = true): ExitAction {
   const gain = gainPct(position, market.valueEth);
   const perToken = position.tokens > 0n ? market.valueEth / Number(position.tokens) : 0;
   const all = (reason: string): ExitAction => ({ kind: "sell", share: 1, reason });
@@ -169,13 +202,13 @@ export function decideExit(position: Position, market: Market, x: ExitRules): Ex
     return all(`invalidated: 1h buy/sell ${market.buySell1h.toFixed(2)}`);
   }
 
-  if (market.graduated || market.bonding >= x.graduateBonding) return all(`graduation: bonding ${(market.bonding * 100).toFixed(0)}%`);
+  if (onCurve && (market.graduated || market.bonding >= x.graduateBonding)) return all(`graduation: bonding ${(market.bonding * 100).toFixed(0)}%`);
 
   const heldHours = (market.nowMs - position.openedAtMs) / 3_600_000;
   const best = Math.max(position.maxGainPct, gain);
   if (heldHours >= x.timeStopHours && best < x.timeStopNeedGainPct) return all(`time stop: no +${x.timeStopNeedGainPct}% in ${x.timeStopHours}h (best ${best.toFixed(1)}%)`);
   const flatHours = (market.nowMs - position.lastBondingMove.atMs) / 3_600_000;
-  if (Math.abs(market.bonding - position.lastBondingMove.bonding) < x.flatBondingPts && flatHours >= x.flatBondingHours) {
+  if (onCurve && Math.abs(market.bonding - position.lastBondingMove.bonding) < x.flatBondingPts && flatHours >= x.flatBondingHours) {
     return all(`time stop: bonding flat for ${flatHours.toFixed(1)}h`);
   }
 
@@ -191,6 +224,7 @@ export function decideExit(position: Position, market: Market, x: ExitRules): Ex
   }
 
   if (
+    onCurve &&
     !position.added &&
     position.laddersDone === 0 &&
     gain > 0 &&
@@ -325,7 +359,7 @@ export function runMinute(input: MinuteInput): MinuteResult {
 
   for (const item of input.held) {
     const position = track(item.position, item.market, rules.exit);
-    const action: ExitAction = halt ? { kind: "sell", share: 1, reason: book.halted ? "agent halted" : `total stop: P&L passed -$${limits.totalLossUsd}` } : decideExit(position, item.market, rules.exit);
+    const action: ExitAction = halt ? { kind: "sell", share: 1, reason: book.halted ? "agent halted" : `total stop: P&L passed -$${limits.totalLossUsd}` } : decideExit(position, item.market, rules.exit, rules.market === "curve");
     if (action.kind === "sell") {
       actions.push({ kind: "sell", token: position.token, symbol: item.symbol, share: action.share, reason: action.reason, ladderStep: action.ladderStep, position });
       continue;
@@ -375,7 +409,10 @@ export function runMinute(input: MinuteInput): MinuteResult {
       actions.push({ kind: "skip", token: token.address, symbol: token.symbol, reason: `passes the rule; ${crowded}` });
       continue;
     }
-    const reason = `bonding ${((token.bonding_progress ?? 0) * 100).toFixed(0)}%, dev ${token.dev_pct}%, fresh ${token.fresh_pct}%, pullback ${pullbackPct(token)?.toFixed(0)}%`;
+    const reason =
+      rules.market === "curve"
+        ? `bonding ${((token.bonding_progress ?? 0) * 100).toFixed(0)}%, dev ${token.dev_pct}%, fresh ${token.fresh_pct}%, pullback ${pullbackPct(token)?.toFixed(0)}%`
+        : `graduated, ${token.holders} holders, $${Math.round((token.volume_24h_usd ?? 0) / 1000)}k 24h volume, Rushr risk ${token.risk}, top 10 ${token.top10_pct}%`;
     actions.push({ kind: "buy", token: token.address, symbol: token.symbol, usd: check.usd, reason, candidate: token });
     planned.set(token.address, (planned.get(token.address) ?? 0) + 1);
     plannedUsd.set(token.address, (plannedUsd.get(token.address) ?? 0) + check.usd);

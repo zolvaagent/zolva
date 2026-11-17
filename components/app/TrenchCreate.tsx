@@ -4,12 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { useAuth } from "@/components/ui/Providers";
-import { PRESET_IDS, PRESET_INFO, PRESETS, type PresetId } from "@/lib/trench/rules";
+import { EDITABLE_FIELDS, parseTrenchRules, PRESET_IDS, PRESET_INFO, PRESETS, type EditableField, type PresetId, type TrenchRules } from "@/lib/trench/rules";
 
 /** What the user must read and accept, one box each (stored as risk_accepted_at). */
 const RISKS = [
   "This is real money in memecoins. I can lose all of it, and most such tokens go to zero.",
-  "Fees and token taxes cost about 6% of every round trip, before any loss.",
+  "Fees and token taxes cost about 3% on each buy and each sell, before any loss.",
   "The agent gets a public profile on Rushr with its wallet and every trade. It can't be deleted. Zolva signs the Rushr sign-up for it with the handle above.",
   "I am not a US person and not in a country Zolva or Rushr excludes.",
   "Zolva gives no advice and never holds my money: I fund the agent wallet and withdraw myself.",
@@ -18,9 +18,26 @@ const RISKS = [
 export const DEFAULT_BIO = "Rule-based memecoin agent. Runs on Zolva (zolvaagent.app). Not advice.";
 const HANDLE = /^[a-z0-9_]{3,20}$/;
 
+/** A field's value as shown in the form (0.35 -> 35). */
+function shown(rules: TrenchRules, field: EditableField): number {
+  const value = (rules[field.group] as Record<string, unknown>)[field.key];
+  return Math.round(Number(value) * field.scale * 100) / 100;
+}
+
+/** The preset with the edited fields applied, in stored units, then parsed and clamped like the server does. */
+function editedRules(preset: PresetId, edits: Record<string, number>): TrenchRules {
+  const base = JSON.parse(JSON.stringify(PRESETS[preset])) as TrenchRules;
+  for (const field of EDITABLE_FIELDS) {
+    const value = edits[`${field.group}.${field.key}`];
+    if (value === undefined || !Number.isFinite(value)) continue;
+    (base[field.group] as Record<string, unknown>)[field.key] = value / field.scale;
+  }
+  return parseTrenchRules(base, preset);
+}
+
 /**
- * Create a trench agent in one go: preset, name, Rushr profile and the risk screen (no budget: it
- * trades with what its wallet holds when it starts). The
+ * Create a trench agent in one go: preset (optionally edited as your own rules), name, Rushr
+ * profile and the risk screen. No budget: it trades with what its wallet holds when it starts. The
  * server then makes the agent wallet, signs it up on Rushr and hands the wallet to the user.
  */
 export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: number; minBudgetUsd: number }) {
@@ -28,6 +45,7 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
   const router = useRouter();
   const { address, openLogin } = useAuth();
   const [preset, setPreset] = useState<PresetId>(PRESET_IDS[0]);
+  const [edits, setEdits] = useState<Record<string, number>>({});
   const [name, setName] = useState("My trench agent");
   const [callouts, setCallouts] = useState(true);
   const [handle, setHandle] = useState("");
@@ -36,9 +54,17 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sizing = PRESETS[preset].sizing;
+  const rules = editedRules(preset, edits);
+  const custom = Object.keys(edits).length > 0;
+  const sizing = rules.sizing;
+  const fields = EDITABLE_FIELDS.filter((field) => field.markets.includes(rules.market));
   const allAccepted = accepted.every(Boolean);
   const handleOk = HANDLE.test(handle) && !handle.startsWith("zolva");
+
+  const pickPreset = (id: PresetId) => {
+    setPreset(id);
+    setEdits({});
+  };
 
   const submit = async () => {
     if (!address) return openLogin(() => router.refresh());
@@ -48,7 +74,7 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
       const response = await fetch("/api/trench/agents", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name, preset, callouts, riskAccepted: allAccepted }),
+        body: JSON.stringify({ name, preset, rules: custom ? rules : undefined, callouts, riskAccepted: allAccepted }),
       });
       const body = (await response.json().catch(() => ({}))) as { id?: string; error?: string };
       if (!response.ok || !body.id) throw new Error(body.error ?? "Creating the agent failed.");
@@ -70,17 +96,63 @@ export function TrenchCreate({ maxBudgetUsd, minBudgetUsd }: { maxBudgetUsd: num
       }}
     >
       <fieldset className="card trench-form__section">
-        <legend className="card__title">Preset</legend>
+        <legend className="card__title">Strategy</legend>
         {PRESET_IDS.map((id) => (
           <label key={id} className={`trench-preset${preset === id ? " trench-preset--on" : ""}`}>
-            <input type="radio" name="preset" value={id} checked={preset === id} onChange={() => setPreset(id)} />
+            <input type="radio" name="preset" value={id} checked={preset === id} onChange={() => pickPreset(id)} />
+            <span className="trench-preset__icon" aria-hidden="true">
+              <i className={`ph ph-${PRESET_INFO[id].icon}`} />
+            </span>
             <span>
               <strong>{PRESET_INFO[id].name}</strong>
               <span className="muted">{PRESET_INFO[id].summary}</span>
             </span>
           </label>
         ))}
-        <p className="muted trenches-small">More presets and your own rules come later.</p>
+
+        <details className="trench-custom">
+          <summary>
+            <i className="ph ph-sliders-horizontal" aria-hidden="true" /> Your own rules{custom ? <span className="trench-pill trench-pill--custom">Custom</span> : null}
+          </summary>
+          <p className="muted trenches-small">
+            Change {PRESET_INFO[preset].name}&apos;s numbers. The stop loss, Rushr&apos;s safety check, the slippage cap and the money caps stay on whatever you set. A custom agent says &quot;Custom rules&quot; on Rushr.
+          </p>
+          {(["entry", "exit", "sizing"] as const).map((group) => (
+            <div key={group} className="trench-custom__group">
+              <h3>{group === "entry" ? "Buys when" : group === "exit" ? "Sells" : "Sizing"}</h3>
+              <div className="trench-custom__grid">
+                {fields
+                  .filter((field) => field.group === group)
+                  .map((field) => {
+                    const id = `${field.group}.${field.key}`;
+                    return (
+                      <label key={id} className="trench-field">
+                        <span>{field.label}</span>
+                        <span className="trench-custom__input">
+                          {field.unit === "$" ? <span className="muted">$</span> : null}
+                          <input
+                            className="input"
+                            type="number"
+                            min={field.min}
+                            max={field.max}
+                            step={field.step}
+                            value={edits[id] ?? shown(rules, field)}
+                            onChange={(event) => setEdits((current) => ({ ...current, [id]: Number(event.target.value) }))}
+                          />
+                          {field.unit && field.unit !== "$" ? <span className="muted">{field.unit}</span> : null}
+                        </span>
+                      </label>
+                    );
+                  })}
+              </div>
+            </div>
+          ))}
+          {custom ? (
+            <button className="button button--ghost button--small" type="button" onClick={() => setEdits({})}>
+              Back to {PRESET_INFO[preset].name}
+            </button>
+          ) : null}
+        </details>
       </fieldset>
 
       <fieldset className="card trench-form__section">

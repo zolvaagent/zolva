@@ -13,7 +13,7 @@ import { createChainClient } from "@/lib/prices/onchain";
 import { db } from "@/lib/supabase";
 import { getMyTrenchAgent, getTrenchSettings } from "@/lib/trench/data";
 import { MIN_BUDGET_USD } from "@/lib/trench/onboard";
-import { PRESET_INFO, PRESETS } from "@/lib/trench/rules";
+import { describeRules, PRESET_INFO } from "@/lib/trench/rules";
 import { agentValuesUsd } from "@/lib/trench/value";
 
 export const metadata: Metadata = { title: "Trench agent", robots: { index: false } };
@@ -38,8 +38,8 @@ export default async function TrenchAgentPage({ params }: { params: Promise<{ id
   const { agent, positions, trades, decisions } = data;
   const values = await agentValuesUsd(client, createChainClient(env.robinhoodRpcUrl), [agent]).catch(() => new Map<string, number>());
   const valueUsd = values.get(agent.id) ?? null;
-  const rules = PRESETS[agent.preset];
-  const pct = (share: number) => `${Math.round(share * 100)}%`;
+  const rules = agent.rules;
+  const described = describeRules(rules);
   const maxCapitalUsd = Number(settings?.max_agent_budget_usd ?? 100);
   const realised = trades.reduce((sum, trade) => sum + (trade.pnlUsd ?? 0), 0);
   const open = positions.filter((position) => position.closedAt === null);
@@ -67,13 +67,14 @@ export default async function TrenchAgentPage({ params }: { params: Promise<{ id
       <details className="card trench-strategy">
         <summary>
           <span className="trench-strategy__icon" aria-hidden="true">
-            <i className="ph ph-path" />
+            <i className={`ph ph-${PRESET_INFO[agent.preset].icon}`} />
           </span>
           <span className="trench-strategy__text">
-            <strong>{PRESET_INFO[agent.preset].name}</strong>
-            <span className="muted">
-              {pct(rules.sizing.firstBuyShare)} per token · stop -{rules.exit.stopPct}% · up to {rules.sizing.maxOpenTokens} tokens · stops for good at -{pct(rules.sizing.totalLossShare)}
-            </span>
+            <strong>
+              {PRESET_INFO[agent.preset].name}
+              {agent.custom ? <span className="trench-pill trench-pill--custom">Custom</span> : null}
+            </strong>
+            <span className="muted">{described.line}</span>
           </span>
           <span className="trench-strategy__more">
             Details <i className="ph ph-caret-down" aria-hidden="true" />
@@ -84,17 +85,15 @@ export default async function TrenchAgentPage({ params }: { params: Promise<{ id
           <dl className="trench-preset-card__facts">
             <div>
               <dt>Buys</dt>
-              <dd>PONS tokens under 24 h old, 35 to 70% bonded, after a 15 to 45% pullback; dev 1% or less, 90+ traders, buyers ahead, DEX paid, contract posted by its own X, Rushr safety passed</dd>
+              <dd>{described.buys}</dd>
             </div>
             <div>
               <dt>Sells</dt>
-              <dd>Stop -{rules.exit.stopPct}%; half at +50%, a quarter at +100%, the rest on a 30% trailing stop; everything near graduation or after 6 h without +20%; at once if the dev or a top holder sells</dd>
+              <dd>{described.sells}</dd>
             </div>
             <div>
               <dt>Sizing</dt>
-              <dd>
-                {pct(rules.sizing.firstBuyShare)} of its money per new token, one add of {pct(rules.sizing.addShare)}, at most {pct(rules.sizing.maxPerTokenShare)} in one token. Day stop after -{pct(rules.sizing.dailyLossShare)}.
-              </dd>
+              <dd>{described.sizing}</dd>
             </div>
             <div>
               <dt>Money</dt>

@@ -21,8 +21,8 @@ import { decryptSecret } from "./crypto.ts";
 import { curveOf, readCurve, sellOut } from "./curve.ts";
 import { buySellRatio, caPosted, listStage, runMinute, socialStage, statsStage, type CandidateInput, type HeldInput, type MinuteAction, type Position, type RushrToken, type Verdict } from "./engine.ts";
 import { trade, type AgentWallet, type Signer } from "./executor.ts";
-import { limitsFor, parseTrenchRules, PRESET_INFO, type PresetId } from "./rules.ts";
-import { almostBonded, commentOn, postCallout, safetyBlocked, tokenRow, tokenStats } from "./rushr-api.ts";
+import { limitsFor, parseTrenchRules, PRESET_INFO, type Market, type PresetId } from "./rules.ts";
+import { commentOn, postCallout, safetyBlocked, sellQuoteWei, tokenColumn, tokenRow, tokenStats } from "./rushr-api.ts";
 import { dexPaidMinutes, narrative, xProfile, xTweets } from "./social.ts";
 
 const ETH_USD_FEED: Address = "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9";
@@ -179,7 +179,9 @@ type Shared = {
   ethPrice: number;
   nowMs: number;
   minute: string;
+  /** Both markets' lists together, and each token's market. */
   list: RushrToken[];
+  marketOf: Map<string, Market>;
   candidates: CandidateInput[];
   narratives: Map<string, string | null>;
   exposure: Map<string, number>;
@@ -188,16 +190,19 @@ type Shared = {
 };
 
 /** Market facts for one open position: curve quote, Rushr's row, stats and safety. */
-async function marketFor(shared: Shared, row: PositionRow, position: Position) {
+async function marketFor(shared: Shared, row: PositionRow, position: Position, wallet: AgentWallet) {
   const listed = shared.list.find((token) => token.address === row.token) ?? (await tokenRow(row.token));
-  const [curve, stats, blocked] = await Promise.all([readCurve(shared.chain, row.curve as Address), tokenStats(row.token), safetyBlocked(row.token)]);
+  const [curve, stats, blocked] = await Promise.all([row.curve ? readCurve(shared.chain, row.curve as Address) : Promise.resolve(null), tokenStats(row.token), safetyBlocked(row.token)]);
+  // On the curve: its own sell quote. Graduated (or never a PONS curve): Rushr's Uniswap sell quote.
+  const onCurve = curve !== null && !curve.graduated;
+  const valueWei = onCurve ? sellOut(position.tokens, curve) : await sellQuoteWei(wallet.rushrKey, row.token, position.tokens, wallet.address);
   return {
     curve,
     market: {
       nowMs: shared.nowMs,
-      valueEth: Number(formatEther(sellOut(position.tokens, curve))),
+      valueEth: Number(formatEther(valueWei)),
       bonding: listed?.bonding_progress ?? 1,
-      graduated: curve.graduated || Boolean(listed?.migrated_at),
+      graduated: !onCurve || Boolean(listed?.migrated_at),
       devPct: listed?.dev_pct ?? position.entryDevPct,
       top10Pct: listed?.top10_pct ?? position.entryTop10Pct,
       buySell1h: buySellRatio(stats["1h"]),
@@ -243,7 +248,7 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
   for (const row of open) {
     try {
       const position = toPosition(row);
-      const { market } = await marketFor(shared, row, position);
+      const { market } = await marketFor(shared, row, position, wallet);
       held.push({ row, position, symbol: row.symbol, costUsd: row.cost_usd, market });
     } catch (cause) {
       // Without a price the position can't be judged this minute; it is tried again next minute.
@@ -278,7 +283,7 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
   const passedList = shared.candidates.filter(({ token }) => !everHeld.has(token.address) && listStage(token, rules, nowMs).pass).length;
   const count = (kind: MinuteAction["kind"]) => result.actions.filter((action) => action.kind === kind).length;
   const scan = [
-    `${shared.list.length} almost-bonded tokens`,
+    `${shared.list.filter((token) => shared.marketOf.get(token.address) === rules.market).length} ${rules.market === "curve" ? "almost-bonded" : "graduated"} tokens`,
     `${passedList} passed the list filters`,
     `${count("skip")} rejected on deeper checks`,
     `${held.length} held`,
@@ -421,12 +426,17 @@ async function postCallouts(shared: Shared, agent: TrenchAgentRow, wallet: Agent
 
 /** Facts for every candidate that passes stage 1 for at least one agent, fetched once. */
 async function gatherCandidates(shared: Shared, agents: TrenchAgentRow[]): Promise<void> {
-  const ranked = [...shared.list].sort((a, b) => (b.trades_24h ?? 0) - (a.trades_24h ?? 0));
+  // Trades rank within the token's own market (the curve preset's traders check counts on it).
+  const ranked = (market: Market | undefined) => shared.list.filter((token) => shared.marketOf.get(token.address) === market).sort((a, b) => (b.trades_24h ?? 0) - (a.trades_24h ?? 0));
+  const rankLists = new Map<Market, RushrToken[]>([
+    ["curve", ranked("curve")],
+    ["graduated", ranked("graduated")],
+  ]);
   const agentRules = agents.map((agent) => parseTrenchRules(agent.rules, agent.preset));
   const socialBudget = { left: MAX_SOCIAL_PER_MINUTE };
   let checked = 0;
   for (const token of shared.list) {
-    const tradesRank = ranked.indexOf(token) + 1;
+    const tradesRank = (rankLists.get(shared.marketOf.get(token.address) ?? "curve") ?? []).indexOf(token) + 1;
     const passesList = agentRules.some((rules) => listStage(token, rules, shared.nowMs).pass);
     if (!passesList || checked >= MAX_CHECKS_PER_MINUTE) {
       shared.candidates.push({ token, tradesRank, checks: null, social: null });
@@ -490,7 +500,15 @@ export async function runTrenchMinute(db: SupabaseClient, nowMs: number = Date.n
 
   try {
     const chain = createChainClient(env.robinhoodRpcUrl);
-    const [ethPrice, list] = await Promise.all([ethUsd(chain, nowMs), almostBonded()]);
+    // Each market's list only when an agent trades it.
+    const markets = new Set(agents.map((agent) => parseTrenchRules(agent.rules, agent.preset).market));
+    const [ethPrice, curveList, graduatedList] = await Promise.all([
+      ethUsd(chain, nowMs),
+      markets.has("curve") ? tokenColumn("almost") : Promise.resolve([]),
+      markets.has("graduated") ? tokenColumn("migrated") : Promise.resolve([]),
+    ]);
+    const marketOf = new Map<string, Market>([...curveList.map((token) => [token.address, "curve"] as const), ...graduatedList.map((token) => [token.address, "graduated"] as const)]);
+    const list = [...curveList, ...graduatedList.filter((token) => !curveList.some((other) => other.address === token.address))];
     const shared: Shared = {
       db,
       chain,
@@ -501,6 +519,7 @@ export async function runTrenchMinute(db: SupabaseClient, nowMs: number = Date.n
       nowMs,
       minute,
       list,
+      marketOf,
       candidates: [],
       narratives: new Map(),
       exposure,

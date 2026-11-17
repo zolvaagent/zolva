@@ -28,7 +28,7 @@ import {
   type RushrToken,
 } from "./engine.ts";
 import { maxTxWeiFor, trenchPolicyRules } from "./policy.ts";
-import { limitsFor, parseTrenchRules, PRESETS } from "./rules.ts";
+import { describeRules, EDITABLE_FIELDS, isCustom, limitsFor, parseTrenchRules, PRESETS } from "./rules.ts";
 import { parseNarrative } from "./social.ts";
 
 const RULES = parseTrenchRules({}, "almost_bonded");
@@ -371,5 +371,92 @@ describe("texts", () => {
     expect(parseNarrative('{"ok": true, "reason": "agent payments infra"}')).toEqual({ ok: true, reason: "agent payments infra" });
     expect(parseNarrative('Sure! {"ok": false, "reason": "penguin game"}')).toEqual({ ok: false, reason: "penguin game" });
     expect(parseNarrative("yes")).toEqual({ ok: false, reason: "unreadable answer" });
+  });
+});
+
+// ---------------------------------------------------------------- Graduated Safe and custom rules
+
+describe("Graduated Safe", () => {
+  const GRAD = parseTrenchRules({}, "graduated_safe");
+  const graduated: RushrToken = {
+    ...token,
+    symbol: "NOUNY",
+    launchpad: "pons",
+    created_at: "2026-11-16T18:00:00Z",
+    migrated_at: "2026-11-17T00:00:00Z",
+    bonding_progress: 1,
+    dev_pct: 0,
+    fresh_pct: 2,
+    top10_pct: 24,
+    buy_tax_bps: 200,
+    sell_tax_bps: 200,
+    holders: 466,
+    volume_24h_usd: 465_703,
+    risk: "medium",
+    snipers_pct: 10,
+    bundled_pct: 5,
+  };
+
+  it("is its own market with tighter exits", () => {
+    expect(GRAD.market).toBe("graduated");
+    expect(GRAD.exit.stopPct).toBe(15);
+    expect(limitsFor(GRAD, 100)).toMatchObject({ firstBuyUsd: 8, maxOpenTokens: 5, totalLossUsd: 50 });
+  });
+
+  it("passes a graduated token with holders, volume and medium risk, and says why it rejects", () => {
+    expect(listStage(graduated, GRAD, NOW)).toEqual({ pass: true });
+    expect(reason(listStage({ ...graduated, migrated_at: "2026-11-17T09:00:00Z" }, GRAD, NOW))).toMatch(/waits 6h/);
+    expect(reason(listStage({ ...graduated, migrated_at: null }, GRAD, NOW))).toMatch(/not graduated/);
+    expect(reason(listStage({ ...graduated, holders: 120 }, GRAD, NOW))).toMatch(/holders/);
+    expect(reason(listStage({ ...graduated, volume_24h_usd: 9_000 }, GRAD, NOW))).toMatch(/volume/);
+    expect(reason(listStage({ ...graduated, risk: "high" }, GRAD, NOW))).toMatch(/risk high/);
+    expect(reason(listStage({ ...graduated, top10_pct: 39 }, GRAD, NOW))).toMatch(/top 10/);
+    expect(reason(listStage({ ...graduated, snipers_pct: 38.4 }, GRAD, NOW))).toMatch(/snipers/);
+    // A curve preset never takes a graduated token, and the reverse.
+    expect(listStage(graduated, RULES, NOW).pass).toBe(false);
+    expect(listStage(token, GRAD, NOW).pass).toBe(false);
+  });
+
+  it("needs no paid DEX profile and no X checks", () => {
+    expect(statsStage({ stats: { ...stats, "6h": w(1200, 1000) }, tradesRank: 0, safetyBlocked: false, dexPaidMinutesAfterLaunch: null }, GRAD)).toEqual({ pass: true });
+    const { actions } = runMinute(minute({ rules: GRAD, limits: limitsFor(GRAD, 100), candidates: [{ token: graduated, tradesRank: 1, checks: { stats: { ...stats, "6h": w(1200, 1000) }, safetyBlocked: false, dexPaidMinutesAfterLaunch: null }, social: null }] }));
+    expect(actions).toEqual([expect.objectContaining({ kind: "buy", usd: 8, reason: expect.stringMatching(/graduated, 466 holders/) })]);
+  });
+
+  it("skips the curve-only exits and leaves after 4 hours", () => {
+    const held = { ...position, entryBonding: 1, lastBondingMove: { bonding: 1, atMs: 0 } };
+    expect(decideExit(held, { ...market, graduated: true, bonding: 1 }, GRAD.exit, false).kind).toBe("hold");
+    expect(decideExit(held, { ...market, nowMs: 4 * H, valueEth: 1.1, graduated: true, bonding: 1 }, GRAD.exit, false).reason).toMatch(/time stop/);
+    expect(decideExit(held, { ...market, valueEth: 0.85, graduated: true }, GRAD.exit, false).reason).toMatch(/^stop/);
+    expect(decideExit(held, { ...market, valueEth: 1.25, graduated: true, bonding: 1 }, GRAD.exit, false)).toMatchObject({ kind: "sell", share: 0.5, ladderStep: 1 });
+  });
+});
+
+describe("custom rules", () => {
+  it("keep the preset's market and the locked stop, and are flagged as custom", () => {
+    const edited = parseTrenchRules({ ...PRESETS.almost_bonded, market: "graduated", exit: { ...PRESETS.almost_bonded.exit, stopPct: 0 }, sizing: { ...PRESETS.almost_bonded.sizing, firstBuyShare: 0.05 } }, "almost_bonded");
+    expect(edited.market).toBe("curve");
+    expect(edited.exit.stopPct).toBe(5);
+    expect(edited.sizing.firstBuyShare).toBe(0.05);
+    expect(isCustom(edited, "almost_bonded")).toBe(true);
+    expect(isCustom(parseTrenchRules({}, "graduated_safe"), "graduated_safe")).toBe(false);
+  });
+
+  it("every editable field round-trips through the parser inside its range", () => {
+    for (const field of EDITABLE_FIELDS) {
+      for (const shown of [field.min, field.max]) {
+        const base = JSON.parse(JSON.stringify(PRESETS[field.markets.includes("curve") ? "almost_bonded" : "graduated_safe"]));
+        base[field.group][field.key] = shown / field.scale;
+        const parsed = parseTrenchRules(base, field.markets.includes("curve") ? "almost_bonded" : "graduated_safe");
+        const back = Number((parsed[field.group] as Record<string, unknown>)[field.key]) * field.scale;
+        expect(back).toBeGreaterThanOrEqual(field.min - 1e-6);
+        expect(back).toBeLessThanOrEqual(field.max + 1e-6);
+      }
+    }
+  });
+
+  it("describes any rules in plain words", () => {
+    expect(describeRules(RULES).line).toBe("10% per token · stop -25% · up to 4 tokens · stops for good at -70%");
+    expect(describeRules(parseTrenchRules({}, "graduated_safe")).sells).toMatch(/everything after 4 h/);
   });
 });
