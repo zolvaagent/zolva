@@ -11,7 +11,8 @@ import "server-only";
 
 const API = "https://api.rushr.trade";
 const CACHE_MS = 60_000;
-const TIMEOUT_MS = 5_000;
+// Rushr's rank answer can take ~5.5 s when its own 30 s cache is cold.
+const TIMEOUT_MS = 9_000;
 
 /** The Zolva Lab agent on Rushr (registered 2026-11-17, owner approved). */
 export const LAB_HANDLE = "zolva_lab";
