@@ -472,3 +472,9 @@ describe("Require X checks off", () => {
     expect(describeRules(noX).buys).not.toMatch(/own X/);
   });
 });
+
+describe("callout amounts", () => {
+  it("shows cents under $10 so a $3.65 buy is not called $4", () => {
+    expect(buyCallout({ symbol: "HYLIT", usd: 3.65, ruleFacts: "bonding 58%", narrative: null, presetName: "Curve Rider", stopPct: 25 })).toMatch(/^Bullish \$HYLIT: bought \$3\.65 by rule/);
+  });
+});

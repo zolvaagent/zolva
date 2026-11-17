@@ -20,8 +20,10 @@ export function stripLinks(text: string): string {
 
 export function buyCallout(input: { symbol: string; usd: number; ruleFacts: string; narrative: string | null; presetName: string; stopPct: number }): string {
   const story = input.narrative ? ` Narrative: ${stripLinks(input.narrative).replace(/\.$/, "")}.` : "";
+  // Cents under $10, so a $3.65 buy is not posted as $4.
+  const amount = input.usd < 10 ? input.usd.toFixed(2) : input.usd.toFixed(0);
   const text =
-    `Bullish $${input.symbol}: bought $${input.usd.toFixed(0)} by rule (${input.presetName}). ${stripLinks(input.ruleFacts).replace(/\.$/, "")}.${story} ` +
+    `Bullish $${input.symbol}: bought $${amount} by rule (${input.presetName}). ${stripLinks(input.ruleFacts).replace(/\.$/, "")}.${story} ` +
     `Stop -${input.stopPct}%. Runs on Zolva, not advice.`;
   return text.length <= CALLOUT_MAX ? text : `${text.slice(0, CALLOUT_MAX - 1)}…`;
 }
