@@ -47,7 +47,16 @@ const EXPECTED: Record<string, { drop: number; entriesPerYear: number }> = {
 };
 const DROP_LIMIT = 30;
 
-type Agent = { id: string; name: string; strategy: string; params: Record<string, any>; token_addresses: string[]; start_capital: number; created_at: string };
+/** The agents.params columns this script reads (numbers may come back as strings). */
+type StoredParams = {
+  rules?: unknown;
+  max_position_pct?: number | string;
+  stop_loss_pct?: number | string;
+  venue?: string;
+  leverage?: number | string;
+  sizing?: { targetPct: number | string; hours: number | string };
+};
+type Agent = { id: string; name: string; strategy: string; params: StoredParams; token_addresses: string[]; start_capital: number; created_at: string };
 
 function readDevVars(): Record<string, string> {
   const text = readFileSync(new URL("../.dev.vars", import.meta.url), "utf8");
@@ -102,7 +111,7 @@ async function main() {
   const startTs = Math.floor(firstCreated / HOUR_SECONDS) * HOUR_SECONDS - WARMUP_HOURS * HOUR_SECONDS;
   const { data: raw, error: rawError } = await db.rpc("candle_closes", { p_from: new Date((startTs - OUTLIER_WINDOW * HOUR_SECONDS) * 1000).toISOString() });
   if (rawError) throw new Error(rawError.message);
-  const byAddress = new Map<string, { symbol: string; candles: [number, number, number | null][] }>((raw as any[]).map((t) => [t.address, t]));
+  const byAddress = new Map<string, { symbol: string; candles: [number, number, number | null][] }>((raw as { address: string; symbol: string; candles: [number, number, number | null][] }[]).map((t) => [t.address, t]));
   const hours: number[] = [];
   for (let ts = startTs; ts <= latest; ts += HOUR_SECONDS) hours.push(ts);
 
@@ -147,7 +156,7 @@ async function main() {
       funding: { [address]: funding },
       openInterest: { [address]: openInterest },
     });
-    const replayTrades = replay.fills.map((f: any) => `${hours[f.index]}:${f.side}`);
+    const replayTrades = replay.fills.map((f: { index: number; side: string }) => `${hours[f.index]}:${f.side}`);
     const liveTrades = trades.map((t) => `${Date.parse(t.ts) / 1000}:${t.side}`);
     const missing = replayTrades.filter((key: string) => !liveTrades.includes(key));
     const extra = liveTrades.filter((key) => !replayTrades.includes(key));

@@ -162,7 +162,7 @@ function run(rule: Rule, closes: number[], firstReal: number, cache: Map<string,
 
 function stats(equity: Float64Array, hours: number[], from: number, to: number) {
   const i0 = hours.findIndex((hour) => hour >= from);
-  let i1 = hours.findLastIndex((hour) => hour < to);
+  const i1 = hours.findLastIndex((hour) => hour < to);
   if (i0 < 0 || i1 < i0) return null;
   const start = i0 > 0 ? equity[i0 - 1] : equity[i0];
   let peak = start;
