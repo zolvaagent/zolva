@@ -176,14 +176,49 @@ The full B (users create live trench agents) touches user money in seven new pla
 1. Owner asks the Rushr dev: sign-up allowance per IP for a platform, CORS for `/v1/agents/register`, owner linking / "runs on Zolva", partner terms (operator responsibility, many agents from one platform), referral terms, read limits.
 2. Development checks Privy: several embedded wallets per user with separate signer policies, and pricing at scale.
 
+### 4.4 Release 1 build (2026-11-17): ready for the owner's review, not deployed
+
+Owner: "keep continue until done and i will review". Built locally, **nothing committed, pushed, deployed or migrated**, no wallet made, nothing registered.
+
+What is in the code:
+
+| Part | Files |
+|---|---|
+| Migration (not applied) | `supabase/migrations/20261118000100_trench_agents.sql`: `trench_settings` (both switches **off**: `enabled`, `new_agents_open`; caps: $100 per agent, $5,000 total, $200 per token across all Zolva agents, 3 buys per token per minute, 3 agents per owner), `trench_agents`, `trench_positions`, `trench_trades`, `trench_decisions`, `trench_executions` (one order per agent/minute/token/side), `trench_token_checks`, `trench_minutes` (one run per minute). RLS on, server only |
+| Engine | `lib/trench/rules.ts` (one rule format, "almost_bonded" preset = Lab rule v3, locked guards, `parseTrenchRules`), `lib/trench/engine.ts` (`runMinute`, stages, exits, limits, crowding) |
+| Execution | `lib/trench/check-build.ts`, `executor.ts` (Rushr build → checkBuild → Privy sign → fee follow-up), `policy.ts` (per-agent Privy policy, no message signing), `curve.ts`, `rushr-api.ts`, `social.ts` (DEX paid, X, narrative veto), `callouts.ts`, `crypto.ts` (AES-GCM for Rushr keys) |
+| Runner | `lib/trench/runner.ts`, `app/api/cron/trench/route.ts`, `custom-worker.ts` + `wrangler.jsonc` (second cron `* * * * *` on the same Worker; does nothing while no agent is active) |
+| Onboarding | `lib/trench/onboard.ts`, `app/api/trench/agents/*`: create (risk screen), agent wallet (extra Privy embedded wallet, same Privy user check, signer + policy), Rushr sign-up (user signs in the browser), start, pause, sell everything, withdraw and close |
+| UI | `/trenches` (create button and "Your trench agents" when open), `/trenches/new`, `/trenches/[id]` (owner only), `TrenchCreate`, `TrenchSetup`, Privy bridge `createAgentWallet` + `signMessage` |
+| Rules and deploy | CLAUDE.md engine rule; `deploy:prod` passes `TRENCH_KEY_SECRET`, `X_API_KEY`, `TRENCH_NARRATIVE_MODEL` |
+| Tests | `lib/trench/engine.test.ts`: 29 cases (Lab exits, stages, limits, curve and checkBuild cases on the preset; runMinute, crowding, total stop, policy, texts). Full suite 157 files / 1,546 tests pass; tsc and eslint clean |
+
+Not verified (needs the release test with house money):
+- Privy: `createWallet({ createAdditional: true })`, adding Zolva's signer to that second wallet, `owner_id` being equal for both wallets of one user, and `signMessage` from the second wallet.
+- The full minute against the live chain and Rushr (the runner has no unit test with a fake database).
+- Rushr sign-up from the Worker: Rushr allows 5 successful sign-ups per day per IP; Cloudflare IPs are shared. Ask the dev for an allowance (4.2) before opening.
+
+Known gaps, in order of importance:
+1. If Rushr is down, sells fail until it is back (no direct curve/router sell fallback yet). The stop loss can overshoot meanwhile.
+2. Terms page: memecoin risk and who the operator is are not on `/terms` yet (legal wording: owner).
+3. The Lab agent's exposure is not in the crowding cap (it runs on the VPS).
+4. Many agents in one minute run one after another in one Worker call; past ~20 active agents, fan out with Queues.
+5. The policy's ETH cap is set at wallet setup from that day's ETH price (1.5x the largest buy). If ETH falls a third, buys are refused by Privy (fails safe).
+
+Release steps, each with the owner's yes:
+1. Review the code; commit and push.
+2. Apply the migration; set `TRENCH_KEY_SECRET` (32 random bytes, base64) and `X_API_KEY` in `.dev.vars`; deploy.
+3. Release test: owner sets `new_agents_open` for the owner only (or temporarily), creates one agent with email login and ~$30, sets `enabled = true`, watches 48 h (decisions, fees paid, callouts, Rushr record vs ledger, withdraw).
+4. Then `new_agents_open = true` for everyone.
+
 ### 4.3 Later
 Custom trench agents (edit a preset's rules or write them in words via the strategy writer; guards locked), more presets, AI veto, owner linking on Rushr, A as an add-on for existing live agents.
 
 ## 5. Owner decisions
 
 1. ~~Scope~~ **DECIDED 2026-11-17**: B straight away, open, real money, at each user's own risk (section 2).
-2. **House rule change (needed before code):** allow a second decision engine (`lib/trench/` `runMinute`) next to `runHour`, and agents outside the address allowlist (Rushr's safety checks instead)?
-3. **Public or private strategy code (needed before code):** trench presets in the public repo, or a private package?
+2. ~~House rule change~~ **DECIDED 2026-11-17** (owner: "keep continue until done and i will review", after the recommendation): `lib/trench/` `runMinute` is the one decision function for trench agents next to `runHour`; trench tokens skip the address allowlist but must come by address from Rushr's list, have a curve from the PONS factory on chain, pass Rushr's safety check and `checkBuild`. CLAUDE.md updated.
+3. ~~Public or private~~ **DECIDED 2026-11-17** (same answer): trench engine and presets in the public repo. Crowding mitigations are part of release 1: a cap on all Zolva agents' exposure per token, a cap on buys per token per minute, agents processed in random order.
 4. ~~Runner~~ **DECIDED 2026-11-17** (owner: "ok setuju, pakai Cloudflare Worker"): user agents run in a separate Cloudflare Worker with a one-minute cron; the shared VPS keeps only the Lab agent.
 5. **Wallets:** a dedicated user-owned Privy wallet per agent (recommended), and Zolva never funds agent wallets.
 6. **Caps and legal:** per-agent cap ($100 proposed), global cap, and lawyer review before release 1 (recommended; `mvp-plan.md` says one is needed before real money for other people).

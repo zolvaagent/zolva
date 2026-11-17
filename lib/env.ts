@@ -85,6 +85,21 @@ export const env = {
   get liveSignCheck(): boolean {
     return optional("LIVE_SIGN_CHECK") === "1";
   },
+  /**
+   * Trench agents (docs/rushr-integration-plan.md): 32-byte base64 key that encrypts each agent's
+   * Rushr API key at rest. Null keeps Rushr sign-up (and so trench agents) off.
+   */
+  get trenchKeySecret(): string | null {
+    return optional("TRENCH_KEY_SECRET");
+  },
+  /** getxapi.com key for the per-token X checks of trench agents. Null: tokens needing X checks are never bought. */
+  get xApiKey(): string | null {
+    return optional("X_API_KEY");
+  },
+  /** OpenRouter model for the per-token narrative veto. Default: the cheapest lite model. */
+  get trenchNarrativeModel(): string {
+    return optional("TRENCH_NARRATIVE_MODEL") ?? "anthropic/claude-haiku-5.5";
+  },
   /** Zolva's Privy signer (key quorum) that self-serve live wallets add, with their own policy. */
   get privySignerId(): string | null {
     return optional("PRIVY_SIGNER_ID");

@@ -10605,3 +10605,101 @@ li.stats-ranks__row {
 .trenches-next .trenches-list {
   margin-bottom: var(--space-200);
 }
+
+/* Trench agents: create form and setup steps (release 1) */
+.trenches-mine {
+  margin-bottom: var(--space-300);
+}
+
+.trench-form {
+  display: grid;
+  gap: var(--space-300);
+  max-width: 720px;
+}
+
+.trench-form__section {
+  display: grid;
+  gap: var(--space-200);
+  border: 0;
+  margin: 0;
+}
+
+.trench-form__section legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-100);
+}
+
+.trench-preset {
+  display: flex;
+  gap: var(--space-100);
+  align-items: flex-start;
+  padding: var(--space-200);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+}
+
+.trench-preset--on {
+  border-color: var(--color-purple-rich);
+}
+
+.trench-preset > span {
+  display: grid;
+  gap: var(--space-50);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.trench-field {
+  display: grid;
+  gap: var(--space-50);
+  font-size: 14px;
+}
+
+.trench-check {
+  display: flex;
+  gap: var(--space-100);
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.trench-check input,
+.trench-preset input {
+  margin-top: 3px;
+}
+
+.trench-steps {
+  display: grid;
+  gap: var(--space-200);
+  margin: var(--space-200) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trench-steps > li {
+  display: grid;
+  gap: var(--space-75);
+  padding: var(--space-200);
+  border-radius: var(--radius-xl);
+  background: var(--color-tint);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.trench-steps__done strong::after {
+  content: " ✓";
+  color: var(--color-gain);
+}
+
+.trench-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-100);
+  align-items: center;
+}
+
+.trench-inline .input {
+  width: 120px;
+}

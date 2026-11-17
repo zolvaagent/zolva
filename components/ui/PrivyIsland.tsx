@@ -1,6 +1,6 @@
 "use client";
 
-import { PrivyProvider, useExportWallet, useLogin, usePrivy, useSendTransaction, useSigners } from "@privy-io/react-auth";
+import { PrivyProvider, useCreateWallet, useExportWallet, useLogin, usePrivy, useSendTransaction, useSignMessage, useSigners } from "@privy-io/react-auth";
 import { useEffect, useRef } from "react";
 
 import { useResolvedTheme } from "@/components/ui/ThemeToggle";
@@ -29,6 +29,10 @@ export type PrivyHandle = {
   /** Sends a transaction from the embedded wallet on Robinhood Chain; Privy shows its own confirm window. */
   /** `value`: ETH sent along, in wei (native ETH swaps); none for plain contract calls. */
   sendTransaction: (address: string, to: string, data: `0x${string}`, value?: bigint) => Promise<`0x${string}`>;
+  /** Trench agents: one more embedded wallet for the same user (each agent trades from its own). */
+  createAgentWallet: () => Promise<string>;
+  /** Signs a message with one of the user's embedded wallets; Privy shows the text first. */
+  signMessage: (address: string, message: string) => Promise<string>;
 };
 
 type PrivyIslandProps = {
@@ -64,6 +68,8 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
   const { addSigners, removeSigners } = useSigners();
   const { exportWallet } = useExportWallet();
   const { sendTransaction } = useSendTransaction();
+  const { createWallet } = useCreateWallet();
+  const { signMessage } = useSignMessage();
   // Only react to logins started from our modal. The flag is also kept in sessionStorage, so a
   // login that leaves the page (an OAuth redirect) is still finished when the visitor comes back.
   const pending = useRef(false);
@@ -119,8 +125,16 @@ function PrivyBridge({ onReady, onAccessToken, onFailure }: Omit<PrivyIslandProp
         const { hash } = await sendTransaction({ to, data, chainId: ROBINHOOD_CHAIN_ID, ...(value ? { value } : {}) }, { address });
         return hash;
       },
+      createAgentWallet: async () => {
+        const wallet = await createWallet({ createAdditional: true });
+        return wallet.address;
+      },
+      signMessage: async (address, message) => {
+        const { signature } = await signMessage({ message }, { address });
+        return signature;
+      },
     });
-  }, [onReady, onFailure, ready, authenticated, login, logout, addSigners, removeSigners, exportWallet, sendTransaction]);
+  }, [onReady, onFailure, ready, authenticated, login, logout, addSigners, removeSigners, exportWallet, sendTransaction, createWallet, signMessage]);
 
   return null;
 }

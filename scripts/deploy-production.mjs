@@ -93,6 +93,11 @@ async function main() {
       // Optional: where USDG credit top-ups go. Without it they go to X402_PAY_TO.
       ...(dev.CREDITS_PAY_TO ? { CREDITS_PAY_TO: dev.CREDITS_PAY_TO } : {}),
       ...(dev.AI_DAILY_BUDGET_USD ? { AI_DAILY_BUDGET_USD: dev.AI_DAILY_BUDGET_USD } : {}),
+      // Optional: trench agents (lib/trench). The key encrypts each agent's Rushr API key; without it
+      // Rushr sign-up is off. X_API_KEY (getxapi.com) runs the per-token X checks.
+      ...(dev.TRENCH_KEY_SECRET ? { TRENCH_KEY_SECRET: dev.TRENCH_KEY_SECRET } : {}),
+      ...(dev.X_API_KEY ? { X_API_KEY: dev.X_API_KEY } : {}),
+      ...(dev.TRENCH_NARRATIVE_MODEL ? { TRENCH_NARRATIVE_MODEL: dev.TRENCH_NARRATIVE_MODEL } : {}),
       // Optional: the premium API over x402 (npm run x402:setup). Closed (503) unless X402_ENABLED is 1.
       ...(dev.X402_PAY_TO && dev.X402_RELAYER_WALLET_ID && dev.X402_RELAYER_ADDRESS
         ? { X402_PAY_TO: dev.X402_PAY_TO, X402_RELAYER_WALLET_ID: dev.X402_RELAYER_WALLET_ID, X402_RELAYER_ADDRESS: dev.X402_RELAYER_ADDRESS, X402_ENABLED: dev.X402_ENABLED ?? "0" }

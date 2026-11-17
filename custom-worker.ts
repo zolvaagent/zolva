@@ -14,6 +14,8 @@ import { default as handler } from "./.open-next/worker.js";
 
 /** Public hosts: plain http there is sent to https (301). workers.dev and local runs are left alone. */
 const HTTPS_HOSTS = new Set(["zolvaagent.app", "www.zolvaagent.app"]);
+/** The every-minute trigger in wrangler.jsonc; it does nothing until trench_settings.enabled agents exist. */
+const TRENCH_CRON = "* * * * *";
 
 const worker: ExportedHandler<CloudflareEnv> = {
   fetch(request, env, ctx) {
@@ -26,7 +28,9 @@ const worker: ExportedHandler<CloudflareEnv> = {
   },
 
   async scheduled(controller, env, ctx) {
-    const request = new Request("https://zolva.internal/api/cron/tick", {
+    // "* * * * *" is the trench minute (memecoin agents on Rushr); the rest is the hourly tick.
+    const path = controller.cron === TRENCH_CRON ? "/api/cron/trench" : "/api/cron/tick";
+    const request = new Request(`https://zolva.internal${path}`, {
       method: "POST",
       headers: { "x-cron-secret": env.CRON_SECRET },
     });

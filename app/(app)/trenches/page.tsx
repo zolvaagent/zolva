@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { TrenchesNotify } from "@/components/app/TrenchesNotify";
+import { getSessionAddress } from "@/lib/auth/session";
 import { EXPLORER_URL } from "@/lib/chain";
 import { shortAddress, usd } from "@/lib/format";
 import { getLabRecord, LAB_HANDLE, LAB_WALLET, RUSHR_PROFILE_URL, type LabRecord } from "@/lib/rushr";
+import { db } from "@/lib/supabase";
+import { getTrenchSettings, listMyTrenchAgents, type TrenchAgentView } from "@/lib/trench/data";
+import { PRESET_INFO } from "@/lib/trench/rules";
 
 export const metadata: Metadata = {
   title: "Trenches",
@@ -28,7 +33,14 @@ function ago(iso: string | null, now: number): string {
 }
 
 export default async function TrenchesPage() {
-  const record = await getLabRecord();
+  const owner = await getSessionAddress();
+  const [record, settings, mine] = await Promise.all([getLabRecord(), getTrenchSettings(db()), owner ? listMyTrenchAgents(db(), owner) : Promise.resolve([])]);
+  const open = Boolean(settings?.new_agents_open);
+  const create = (
+    <Link className="button button--primary" href="/trenches/new">
+      Create a trench agent
+    </Link>
+  );
   return (
     <div className="container page trenches-page">
       <div className="page__head">
@@ -38,8 +50,10 @@ export default async function TrenchesPage() {
             Agents that trade Robinhood Chain memecoins with real money, through Rushr&apos;s trading tools and safety checks. Our own goes first: Zolva Lab, $100, rules public, every trade on chain.
           </p>
         </div>
-        <TrenchesNotify />
+        {open ? create : <TrenchesNotify />}
       </div>
+
+      {mine.length > 0 ? <MyAgents agents={mine} /> : null}
 
       <p className="trenches-warning" role="note">
         <i className="ph ph-warning" aria-hidden="true" />
@@ -56,16 +70,43 @@ export default async function TrenchesPage() {
       </div>
 
       <section className="card trenches-next" aria-label="Your own trench agent">
-        <h2 className="card__title">Your own trench agent, opening soon</h2>
+        <h2 className="card__title">{open ? "Your own trench agent" : "Your own trench agent, opening soon"}</h2>
         <ul className="trenches-list">
           <li>Pick a preset, set your budget and limits. No code.</li>
           <li>It gets its own wallet that only you fund, and trades every minute.</li>
           <li>It is registered on Rushr as an agent: listed on their Agents page and leaderboard, with every trade and call public. That listing is permanent.</li>
           <li>Stop loss, Rushr&apos;s safety checks and a cap per agent are always on. You trade at your own risk.</li>
         </ul>
-        <TrenchesNotify />
+        {open ? create : <TrenchesNotify />}
       </section>
     </div>
+  );
+}
+
+const STATUS_LABEL: Record<TrenchAgentView["status"], string> = { setup: "Setting up", active: "Trading", paused: "Paused", halted: "Stopped", closed: "Closed" };
+
+function MyAgents({ agents }: { agents: TrenchAgentView[] }) {
+  return (
+    <section className="card trenches-mine" aria-label="Your trench agents">
+      <h2 className="card__title">Your trench agents</h2>
+      <ul className="stats-live__list">
+        {agents.map((agent) => (
+          <li key={agent.id}>
+            <Link className="stats-live__row" href={`/trenches/${agent.id}`}>
+              <span className="stats-live__text">
+                <strong>{agent.name}</strong>
+                <span className="muted">
+                  {PRESET_INFO[agent.preset].name} · {usd(agent.budgetUsd)}
+                  {agent.rushrHandle ? ` · @${agent.rushrHandle}` : ""}
+                </span>
+              </span>
+              <span className="stats-live__usd">{STATUS_LABEL[agent.status]}</span>
+              <i className="ph ph-arrow-right muted" aria-hidden="true" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
