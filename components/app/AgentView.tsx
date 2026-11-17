@@ -26,6 +26,7 @@ import { agentParams } from "@/lib/agents/plan";
 import type { Rules } from "@/lib/engine/rules";
 import { RulesSummary } from "@/components/app/RulesSummary";
 import { VerifyAgent } from "@/components/app/VerifyAgent";
+import { UpochBadge } from "@/components/app/UpochBadge";
 import { OrderLedger } from "@/components/app/OrderLedger";
 import type { Ledger } from "@/lib/agents/ledger";
 import {
@@ -354,6 +355,7 @@ export function AgentView({
                 : `Next decision in ${minutesToNextRun} min`
               : "Not trading while paused"}
           </span>
+          <UpochBadge agentId={agent.id} />
         </div>
       </div>
       <div className="hero__actions">
