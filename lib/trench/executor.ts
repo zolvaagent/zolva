@@ -3,8 +3,13 @@ import "server-only";
 /**
  * Carries out one trench trade for one agent: Rushr builds it, checkBuild refuses anything
  * unexpected, Zolva's Privy signer signs from the agent's own wallet (under the agent's policy), and
- * Rushr's curve fee follows as a plain ETH transfer to its treasury. Fills are measured from wallet
- * balances, so taxes, refunds and gas are all included.
+ * Rushr's curve fee follows as a plain ETH transfer to its treasury.
+ *
+ * Fills are measured from wallet balances read AT FIXED BLOCKS: the block before the first
+ * transaction (an approval, or the trade) and the trade's own block. Reading "latest" right after a
+ * receipt could hit an RPC node that had not seen the trade yet; on 2026-11-17 that recorded a
+ * ROTHERA sell as 0 ETH although it returned 0.0014 ETH. Taxes, refunds and gas are all included,
+ * and so is Rushr's follow-up fee (its value plus gas), so P&L is after every cost.
  */
 import { PrivyClient } from "@privy-io/node";
 import type { Address, Hex, PublicClient } from "viem";
@@ -18,8 +23,15 @@ export type Signer = { privy: PrivyClient; authorizationKey: string };
 export type AgentWallet = { walletId: string; address: Address; rushrKey: string };
 export type Fill = { tokens: bigint; eth: bigint; txHash: Hex; feeTxHash: Hex | null };
 
+type Sent = { hash: Hex; blockNumber: bigint; costWei: bigint };
+
 /** Sign and send one transaction from the agent wallet; waits for success. */
 export async function sendFromAgent(chain: PublicClient, signer: Signer, wallet: Pick<AgentWallet, "walletId" | "address">, tx: Pick<BuiltTx, "to" | "data" | "value" | "gas">): Promise<Hex> {
+  return (await send(chain, signer, wallet, tx)).hash;
+}
+
+/** As sendFromAgent, with the block it landed in and what it cost the wallet (value plus gas). */
+async function send(chain: PublicClient, signer: Signer, wallet: Pick<AgentWallet, "walletId" | "address">, tx: Pick<BuiltTx, "to" | "data" | "value" | "gas">): Promise<Sent> {
   const [nonce, fees, gas] = await Promise.all([
     chain.getTransactionCount({ address: wallet.address, blockTag: "pending" }),
     chain.estimateFeesPerGas(),
@@ -47,7 +59,7 @@ export async function sendFromAgent(chain: PublicClient, signer: Signer, wallet:
   const hash = await chain.sendRawTransaction({ serializedTransaction: signed.signed_transaction as Hex });
   const receipt = await chain.waitForTransactionReceipt({ hash, timeout: 90_000 });
   if (receipt.status !== "success") throw new Error(`transaction ${hash} reverted`);
-  return hash;
+  return { hash, blockNumber: receipt.blockNumber, costWei: BigInt(tx.value) + receipt.gasUsed * receipt.effectiveGasPrice };
 }
 
 /** One buy (amountIn in wei) or sell (amountIn in token units) through Rushr. */
@@ -55,21 +67,37 @@ export async function trade(chain: PublicClient, signer: Signer, wallet: AgentWa
   const curve = await curveOf(chain, token);
   const built = await buildTrade(wallet.rushrKey, { token, side, amountIn: amountIn.toString(), slippageBps: LOCKED.slippageBps, from: wallet.address });
   checkBuild(built, { side, token, curve, amountIn });
-  const balance = () => chain.readContract({ address: token, abi: tokenAbi, functionName: "balanceOf", args: [wallet.address] });
-  const [tokensBefore, ethBefore] = await Promise.all([balance(), chain.getBalance({ address: wallet.address })]);
-  for (const approval of built.approvals) await sendFromAgent(chain, signer, wallet, approval.tx);
-  const txHash = await sendFromAgent(chain, signer, wallet, built.tx);
-  const [tokensAfter, ethAfter] = await Promise.all([balance(), chain.getBalance({ address: wallet.address })]);
+  let firstBlock: bigint | null = null;
+  for (const approval of built.approvals) {
+    const sent = await send(chain, signer, wallet, approval.tx);
+    firstBlock ??= sent.blockNumber;
+  }
+  const main = await send(chain, signer, wallet, built.tx);
+  firstBlock ??= main.blockNumber;
   let feeTxHash: Hex | null = null;
+  let feeWei = 0n;
   if (built.followUp) {
     // Paid right after the trade, as Rushr requires (unpaid after 10 min blocks every build). A failure
     // here is reported by the caller; Rushr's /fees answer gives the exact transfer to retry with.
-    feeTxHash = await sendFromAgent(chain, signer, wallet, built.followUp.tx);
+    const fee = await send(chain, signer, wallet, built.followUp.tx);
+    feeTxHash = fee.hash;
+    feeWei = fee.costWei;
     await reportFee(wallet.rushrKey, feeTxHash).catch(() => undefined);
   }
+  // Balances one block before the first transaction and at the trade's block, never "latest".
+  const before = firstBlock - 1n;
+  const at = main.blockNumber;
+  const balance = (blockNumber: bigint) => chain.readContract({ address: token, abi: tokenAbi, functionName: "balanceOf", args: [wallet.address], blockNumber });
+  const [tokensBefore, tokensAfter, ethBefore, ethAfter] = await Promise.all([
+    balance(before),
+    balance(at),
+    chain.getBalance({ address: wallet.address, blockNumber: before }),
+    chain.getBalance({ address: wallet.address, blockNumber: at }),
+  ]);
   const tokens = side === "buy" ? tokensAfter - tokensBefore : tokensBefore - tokensAfter;
-  const eth = side === "buy" ? ethBefore - ethAfter : ethAfter - ethBefore;
-  return { tokens, eth: eth < 0n ? 0n : eth, txHash, feeTxHash };
+  // Rushr's fee is a cost either way: added to what a buy spent, taken off what a sell returned.
+  const eth = side === "buy" ? ethBefore - ethAfter + feeWei : ethAfter - ethBefore - feeWei;
+  return { tokens, eth: eth < 0n ? 0n : eth, txHash: main.hash, feeTxHash };
 }
 
 /** Sends the wallet's ETH (minus gas) back to the owner; the policy allows no other address. */
