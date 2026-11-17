@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { runHour, type AgentParams, type AgentState, type Decision } from "../engine/engine";
+import { paramsLookback, runHour, type AgentParams, type AgentState, type Decision } from "../engine/engine";
 import { anchorsFromRecord, priceRevisions, verifyAgent, type VerifyInput } from "./verify";
 
 function walk(seed: number, length: number): number[] {
@@ -128,5 +128,91 @@ describe("hour by hour from the recorded state", () => {
     expect(result.lastDifference!.at).toBeLessThan(START + (quiet + 50) * 3600);
     // Every recorded trade still matches.
     expect(result.trades.matched).toBe(trades.length);
+  });
+});
+
+describe("closes the agent saw (stored since 2026-11-14)", () => {
+  /** The runner's record where decisions from `pricedFrom` on store the close, as the runner does. */
+  function pricedRecord(hours: number[], pricedFrom: number) {
+    let state: AgentState = { cash: 1000, positions: {} };
+    const runs: { ts: number; equity: number; cash: number; decisions: Decision[] }[] = [];
+    const trades: { ts: number; token: string; side: string; quantity: number; price: number; costUsd: number }[] = [];
+    for (const index of hours) {
+      const ts = START + index * 3600;
+      const hour = runHour(state, momentum, series, index, ts);
+      state = hour.state;
+      const decisions = hour.decisions.map(({ price, ...decision }) => (index >= pricedFrom ? { ...decision, price } : decision));
+      runs.push({ ts, equity: hour.equity, cash: hour.state.cash, decisions });
+      trades.push(...hour.fills.map((fill) => ({ ts, token: fill.token, side: fill.side, quantity: fill.quantity, price: fill.price, costUsd: fill.costUsd })));
+    }
+    return { runs, trades };
+  }
+  const shift = (from: number, to: number, factor: number) => ({ ...series, "0xaaa": series["0xaaa"].map((close, i) => (i >= from && i <= to ? close * factor : close)) });
+
+  it("replays on the stored closes: a candle corrected later is a price correction, not a difference", () => {
+    const { runs, trades } = pricedRecord(range(60, 599), 300);
+    expect(runs[300].decisions[0].price).toBeTypeOf("number");
+    // A repair moves 40 hours of 0xaaa by 3% after the agent acted, enough to change trades and value.
+    const repaired = shift(400, 440, 1.03);
+    const plain = verifyAgent({ ...input({ runs, trades }), series: repaired, anchors: anchorsFromRecord(1000, runs, trades) });
+    // Verifiable from the first hour whose whole look-back was stored.
+    const lookback = paramsLookback(momentum);
+    expect(plain).toMatchObject({ status: "match", verifiedSince: START + (300 + lookback) * 3600, hoursDiffering: 0, unverifiable: { hours: 240 + lookback, hoursDiffering: 0 } });
+    expect(plain.priceCorrections.hours).toBe(41);
+    expect(plain.priceCorrections.recent).toHaveLength(5);
+    expect(plain.priceCorrections.recent.at(-1)).toMatchObject({ token: "0xaaa", at: START + 440 * 3600 });
+    expect(plain.trades.matched).toBe(trades.length);
+    // Without the stored closes the same repair makes hours differ.
+    const unpriced = runs.map((run) => ({ ...run, decisions: run.decisions.map((decision) => ({ ...decision, price: undefined })) }));
+    expect(verifyAgent({ ...input({ runs: unpriced, trades }), series: repaired, anchors: anchorsFromRecord(1000, unpriced, trades) }).status).toBe("differs");
+  });
+
+  it("reports a difference before stored prices apart, without changing the status", () => {
+    const { runs, trades } = pricedRecord(range(60, 599), 300);
+    const result = verifyAgent({ ...input({ runs, trades }), series: shift(150, 190, 1.03), anchors: anchorsFromRecord(1000, runs, trades) });
+    expect(result.status).toBe("match");
+    expect(result.unverifiable!.hoursDiffering).toBeGreaterThan(0);
+    expect(result.unverifiable!.lastDifference!.at).toBeLessThan(START + 300 * 3600);
+    expect(result.firstDifference).toBeNull();
+  });
+
+  it("counts an hour whose look-back reads an unstored, corrected close as unverifiable", () => {
+    const { runs, trades } = pricedRecord(range(60, 599), 300);
+    // Corrected closes just before stored prices began: hours from 300 read them in their look-back.
+    const result = verifyAgent({ ...input({ runs, trades }), series: shift(260, 299, 1.05), anchors: anchorsFromRecord(1000, runs, trades) });
+    expect(result.status).toBe("match");
+    expect(result.unverifiable!.lastDifference!.at).toBeGreaterThanOrEqual(START + 300 * 3600);
+  });
+
+  it("matches hours that ran after a repair, on today's closes", () => {
+    // Hours before 450 run on the original closes; at 450 a repair moves hours 400 to 440, so from then
+    // on the agent's look-back reads the corrected closes while hours 400 to 440 keep the stored originals.
+    const repaired = shift(400, 440, 1.03);
+    let state: AgentState = { cash: 1000, positions: {} };
+    const runs: { ts: number; equity: number; cash: number; decisions: Decision[] }[] = [];
+    const trades: { ts: number; token: string; side: string; quantity: number; price: number; costUsd: number }[] = [];
+    for (const index of range(300, 599)) {
+      const ts = START + index * 3600;
+      const hour = runHour(state, momentum, index < 450 ? series : repaired, index, ts);
+      state = hour.state;
+      runs.push({ ts, equity: hour.equity, cash: hour.state.cash, decisions: hour.decisions });
+      trades.push(...hour.fills.map((fill) => ({ ts, token: fill.token, side: fill.side, quantity: fill.quantity, price: fill.price, costUsd: fill.costUsd })));
+    }
+    const result = verifyAgent({ ...input({ runs, trades }), series: repaired, anchors: anchorsFromRecord(1000, runs, trades) });
+    expect(result).toMatchObject({ status: "match", hoursDiffering: 0 });
+    expect(result.trades.matched).toBe(trades.length);
+  });
+
+  it("still catches a changed record after stored prices", () => {
+    const { runs, trades } = pricedRecord(range(60, 599), 300);
+    const tampered = runs.map((run, i) => (i === 400 ? { ...run, equity: run.equity * 1.01 } : run));
+    const result = verifyAgent({ ...input({ runs: tampered, trades }), anchors: anchorsFromRecord(1000, tampered, trades) });
+    expect(result).toMatchObject({ status: "differs", hoursDiffering: 1, firstDifference: { at: runs[400].ts } });
+  });
+
+  it("lets older hours decide when no hour stored prices", () => {
+    const { runs, trades } = pricedRecord(range(60, 599), 10_000);
+    const result = verifyAgent({ ...input({ runs, trades }), series: shift(150, 190, 1.03), anchors: anchorsFromRecord(1000, runs, trades) });
+    expect(result).toMatchObject({ status: "differs", verifiedSince: null, unverifiable: null });
   });
 });

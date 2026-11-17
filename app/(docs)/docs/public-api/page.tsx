@@ -347,8 +347,11 @@ export default function PublicApi() {
       <H2 id="verify">GET /agents/{"{id}"}/verify</H2>
       <p>
         Checks one published paper agent against Zolva&apos;s open source engine. Every hour the agent ran is replayed with <code>runHour</code> on the same cleaned hourly closes and funding, with its AI
-        co-pilot&apos;s recorded vetoes, and each trade (hour, market, side) and the hourly value are compared with the record. <code>status</code> is <code>match</code>, <code>differs</code> (with{" "}
-        <code>firstDifference</code>: the first hour and what differs) or <code>no_history</code>. Also returned: <code>hoursReplayed</code>, <code>trades</code> (replay, recorded, matched) and{" "}
+        co-pilot&apos;s recorded vetoes, and each trade (hour, market, side) and the hourly value are compared with the record. Since 2026-11-14 each decision stores the close the agent saw. A{" "}
+        verifiable hour (its close and every close its rules look back on were stored) is replayed on exactly those closes, and a candle corrected later is listed under <code>priceCorrections</code> instead of counting as a difference.{" "}
+        <code>status</code> is <code>match</code> (every verifiable hour matches; <code>verifiedSince</code> is the first), <code>differs</code> (with <code>firstDifference</code>: the first hour and what differs) or{" "}
+        <code>no_history</code>. Other hours are replayed on today&apos;s closes and reported in full under <code>unverifiable</code> (hours, hoursDiffering, first and last difference); they
+        decide the status only for an agent with no verifiable hour. Also returned: <code>hoursReplayed</code>, <code>hoursVerified</code>, <code>trades</code> (replay, recorded, matched) and{" "}
         <code>value</code> (replay and recorded USD, <code>gapPct</code>). The MCP tool <code>verify_agent</code> returns the same. Real money agents are not replayed: each of their trades links to its
         transaction on Robinhood Chain.
       </p>

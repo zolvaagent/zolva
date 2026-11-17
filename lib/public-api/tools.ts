@@ -27,7 +27,7 @@ export const READ_TOOLS = {
   verify_agent: {
     title: "Verify agent",
     description:
-      "Replays one published agent with Zolva's open source engine over every hour it ran, on the same prices and funding, and compares every trade and its value with the record. Returns match or the first hour that differs.",
+      "Replays one published agent with Zolva's open source engine over every hour it ran, on the closes it saw and the same funding, and compares every trade and its value with the record. Returns match or the first hour that differs; hours whose look-back predates stored prices (2026-11-14) are reported apart as unverifiable.",
     inputSchema: { id: z.string().uuid().describe("The agent id from list_agents") },
   },
   get_agent: {

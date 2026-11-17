@@ -37,24 +37,41 @@ export async function verifyBody(id: string) {
   const result = await loadAndVerifyAgent(db(), id.toLowerCase());
   if (!result) return null;
   const iso = (ts: number) => new Date(ts * 1000).toISOString();
+  const difference = (value: { at: number; detail: string } | null) => (value ? { at: iso(value.at), detail: value.detail } : null);
+  const before = result.unverifiable;
+  const prices =
+    "Since 2026-11-14 each decision stores the close the agent saw. A verifiable hour (its close and every close of its rules' look-back were stored) is replayed on exactly those closes, so a candle corrected later shows under priceCorrections, not as a difference; other hours are reported under unverifiable.";
   return {
     agentId: result.agentId,
     status: result.status,
     method: result.method,
+    verifiedSince: result.verifiedSince === null ? null : iso(result.verifiedSince),
     hoursReplayed: result.hours,
+    // Verifiable hours (all hours when none is).
+    hoursVerified: result.verifiedSince === null ? result.hours : result.hours - (before?.hours ?? 0),
     hoursDiffering: result.hoursDiffering,
     firstHour: result.firstHour,
     lastHour: result.lastHour,
     trades: result.trades,
     value: { replay: Math.round(result.value.replay * 100) / 100, recorded: Math.round(result.value.recorded * 100) / 100, gapPct: Math.round(result.value.gapPct * 10000) / 10000 },
-    firstDifference: result.firstDifference ? { at: iso(result.firstDifference.at), detail: result.firstDifference.detail } : null,
-    lastDifference: result.lastDifference ? { at: iso(result.lastDifference.at), detail: result.lastDifference.detail } : null,
-    // Why, when the stored decisions can tell: the hour's closes were corrected after the agent acted.
-    cause: result.cause,
+    firstDifference: difference(result.firstDifference),
+    lastDifference: difference(result.lastDifference),
+    // Hours whose look-back reads a close that was not stored: replayed on today's closes and shown in full, but a
+    // difference there cannot be told apart from a close corrected after the agent acted, so they do not decide the status.
+    unverifiable: before
+      ? {
+          hours: before.hours,
+          hoursDiffering: before.hoursDiffering,
+          firstDifference: difference(before.firstDifference),
+          lastDifference: difference(before.lastDifference),
+          note: "These hours read closes that were not stored with a decision (before 2026-11-14, when decisions began storing the close the agent saw, or an hour the agent did not run): they are replayed on today's closes, and a difference cannot be told apart from a close corrected after the agent acted.",
+        }
+      : null,
+    priceCorrections: { hours: result.priceCorrections.hours, recent: result.priceCorrections.recent.map((row) => ({ ...row, at: iso(row.at) })) },
     howItWorks:
       result.method === "hour_by_hour"
-        ? "Each hour the agent ran is replayed with Zolva's engine (runHour, open source: lib/engine/engine.ts) from the state Zolva recorded at the start of that hour, on the same cleaned hourly closes, with its AI co-pilot's recorded vetoes; each trade (hour, market, side) and the hourly value are compared with the record. A price corrected in one hour does not carry into the next."
-        : "The agent is replayed with Zolva's engine (runHour, open source: lib/engine/engine.ts) from its first hour over every hour it ran, on the same cleaned hourly closes and funding; each trade (hour, market, side) and the hourly value are compared with the record. After a first difference, later hours can differ too.",
+        ? `Each hour the agent ran is replayed with Zolva's engine (runHour, open source: lib/engine/engine.ts) from the state Zolva recorded at the start of that hour, with its AI co-pilot's recorded vetoes; each trade (hour, market, side) and the hourly value are compared with the record. ${prices}`
+        : `The agent is replayed with Zolva's engine (runHour, open source: lib/engine/engine.ts) from its first hour over every hour it ran, with funding; each trade (hour, market, side) and the hourly value are compared with the record. After a first difference, later hours can differ too. ${prices}`,
     disclaimer: DISCLAIMER,
   };
 }

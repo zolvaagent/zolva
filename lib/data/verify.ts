@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { agentParams, type AgentRow } from "@/lib/agents/plan";
-import { anchorsFromRecord, priceRevisions, verifyAgent, type VerifyResult } from "@/lib/agents/verify";
+import { anchorsFromRecord, verifyAgent, type HourWindow, type VerifyResult } from "@/lib/agents/verify";
 import { paramsLookback, type Decision } from "@/lib/engine/engine";
 import { buildCloseSeries, HOUR_SECONDS, OUTLIER_WINDOW } from "@/lib/engine/series";
 
@@ -14,12 +14,12 @@ import { allRows } from "./paged";
  * cleaned closes and funding of its markets from before its first hour (the rules' look-back). The engine
  * then replays it (lib/agents/verify.ts). null when the agent is unknown, private or live.
  */
-export type VerifyReport = VerifyResult & {
+export type VerifyReport = Omit<VerifyResult, "priceCorrections"> & {
   agentId: string;
   firstHour: string | null;
   lastHour: string | null;
-  /** Why the first difference happened, when the stored decisions can tell: closes corrected after the agent acted. */
-  cause: { kind: "price_revised"; revisions: { market: string; then: number; now: number }[] } | { kind: "unknown"; note: string } | null;
+  /** As in VerifyResult, with market symbols instead of token addresses. */
+  priceCorrections: { hours: number; recent: { at: number; market: string; then: number; now: number }[] };
 };
 
 export async function loadAndVerifyAgent(db: SupabaseClient, id: string): Promise<VerifyReport | null> {
@@ -31,16 +31,19 @@ export async function loadAndVerifyAgent(db: SupabaseClient, id: string): Promis
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);
   if (!agent || agent.mode !== "paper" || agent.published_at === null) return null;
 
-  const withDecisions = agent.ai_model !== null;
-  const runs = await allRows<{ ts: string; equity: number; cash: number; decisions?: Decision[] }>((from, to) =>
-    db.from("agent_runs").select(withDecisions ? "ts, equity, cash, decisions" : "ts, equity, cash").eq("agent_id", id).order("ts").range(from, to),
+  // Decisions carry the co-pilot's vetoes and, from 2026-11-14, the close the agent saw each hour.
+  const runs = await allRows<{ ts: string; equity: number; cash: number; decisions: Decision[] | null }>((from, to) =>
+    db.from("agent_runs").select("ts, equity, cash, decisions").eq("agent_id", id).order("ts").range(from, to),
   );
   const trades = await allRows<{ ts: string; token_address: string; side: string; quantity: number; price: number; cost_usd: number }>((from, to) =>
     db.from("trades").select("ts, token_address, side, quantity, price, cost_usd").eq("agent_id", id).order("ts").range(from, to),
   );
   const params = agentParams(agent as unknown as AgentRow);
   const base = { agentId: id, firstHour: runs[0]?.ts ?? null, lastHour: runs[runs.length - 1]?.ts ?? null };
-  if (!runs.length) return { ...base, ...verifyAgent({ params, startCapital: Number(agent.start_capital), series: {}, funding: {}, startTs: 0, runs: [], trades: [] }), cause: null };
+  if (!runs.length) {
+    const empty = verifyAgent({ params, startCapital: Number(agent.start_capital), series: {}, funding: {}, startTs: 0, runs: [], trades: [] });
+    return { ...base, ...empty, priceCorrections: { hours: 0, recent: [] } };
+  }
 
   // History from before the first hour, so the rules' look-back is full on the first replayed hour.
   const first = Date.parse(runs[0].ts) / 1000;
@@ -66,9 +69,11 @@ export async function loadAndVerifyAgent(db: SupabaseClient, id: string): Promis
     openInterest[address] = series[address].map((_, i) => interest.get(startTs + i * HOUR_SECONDS) ?? null);
   }
 
-  // Spot long-only agents are checked hour by hour from the recorded state (see anchorsFromRecord).
-  const longOnlySpot = params.venue !== "perps" && !params.sizing && !params.rules?.shortEntry;
+  // Spot long-only agents are checked hour by hour from the recorded state (see anchorsFromRecord). A preset
+  // can short too (spike_fade, bounce_short, dip_fade), so any trade other than a buy or sell rules it out.
   const recordedTrades = trades.map((trade) => ({ ts: Date.parse(trade.ts) / 1000, token: trade.token_address, side: trade.side, quantity: Number(trade.quantity), price: Number(trade.price), costUsd: Number(trade.cost_usd) }));
+  const longOnlySpot =
+    params.venue !== "perps" && !params.sizing && !params.rules?.shortEntry && recordedTrades.every((trade) => trade.side === "buy" || trade.side === "sell");
   const anchors = longOnlySpot
     ? anchorsFromRecord(Number(agent.start_capital), runs.map((run) => ({ ts: Date.parse(run.ts) / 1000, cash: Number(run.cash) })), recordedTrades)
     : undefined;
@@ -80,32 +85,26 @@ export async function loadAndVerifyAgent(db: SupabaseClient, id: string): Promis
     funding,
     openInterest,
     startTs,
-    runs: runs.map((run) => ({ ts: Date.parse(run.ts) / 1000, equity: Number(run.equity), ...(run.decisions ? { decisions: run.decisions } : {}) })),
+    runs: runs.map((run) => ({ ts: Date.parse(run.ts) / 1000, equity: Number(run.equity), decisions: run.decisions ?? [] })),
     trades: recordedTrades,
     ...(anchors ? { anchors } : {}),
   });
   // Market symbols instead of token addresses in the plain-words details.
   const { data: symbols } = await db.from("tokens").select("address, symbol").in("address", agent.token_addresses as string[]);
-  const named = (detail: string) => ((symbols ?? []) as { address: string; symbol: string }[]).reduce((text, token) => text.split(token.address).join(token.symbol), detail);
+  const tokenSymbols = (symbols ?? []) as { address: string; symbol: string }[];
+  const symbolOf = new Map(tokenSymbols.map((token) => [token.address, token.symbol]));
+  const named = (detail: string) => tokenSymbols.reduce((text, token) => text.split(token.address).join(token.symbol), detail);
   const rename = (difference: VerifyResult["firstDifference"]) => (difference ? { ...difference, detail: named(difference.detail) } : null);
+  const renameWindow = (window: HourWindow | null) => (window ? { ...window, firstDifference: rename(window.firstDifference), lastDifference: rename(window.lastDifference) } : null);
   return {
     ...base,
     ...result,
     firstDifference: rename(result.firstDifference),
     lastDifference: rename(result.lastDifference),
-    cause: result.firstDifference ? await causeOf(db, id, result.firstDifference.at, series, Math.round((result.firstDifference.at - startTs) / HOUR_SECONDS)) : null,
+    unverifiable: renameWindow(result.unverifiable),
+    priceCorrections: {
+      hours: result.priceCorrections.hours,
+      recent: result.priceCorrections.recent.map(({ at, token, then, now }) => ({ at, market: symbolOf.get(token) ?? token, then, now })),
+    },
   };
-}
-
-/** Looks at the decisions of the first differing hour: did its closes change after the agent acted? */
-async function causeOf(db: SupabaseClient, agentId: string, at: number, series: Record<string, (number | null)[]>, index: number): Promise<VerifyReport["cause"]> {
-  const { data } = await db.from("agent_runs").select("decisions").eq("agent_id", agentId).eq("ts", new Date(at * 1000).toISOString()).maybeSingle();
-  const revisions = priceRevisions(((data?.decisions ?? []) as Decision[]), series, index);
-  if (revisions === null) {
-    return { kind: "unknown", note: "This hour's decisions predate stored prices (2026-11-14), so a later price correction cannot be shown or ruled out." };
-  }
-  if (!revisions.length) return { kind: "unknown", note: "The closes the agent saw match today's closes for this hour." };
-  const { data: tokens } = await db.from("tokens").select("address, symbol").in("address", revisions.map((r) => r.token));
-  const symbolOf = new Map(((tokens ?? []) as { address: string; symbol: string }[]).map((t) => [t.address, t.symbol]));
-  return { kind: "price_revised", revisions: revisions.map((r) => ({ market: symbolOf.get(r.token) ?? r.token, then: r.then, now: r.now })) };
 }

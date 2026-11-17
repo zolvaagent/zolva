@@ -4,10 +4,14 @@
  * every trade (hour, market, side) and the hourly value with what the database recorded.
  *
  * AI co-pilot vetoes are replayed from the agent's own stored decisions, so an agent with a co-pilot
- * verifies too. Pure: the loader (lib/data/verify.ts) brings the data. Live agents are not replayed:
+ * verifies too. From 2026-11-14 every decision stores the close the agent saw. Each hour is replayed on
+ * those stored closes and, when that does not match, on today's closes (a candle repaired before the hour
+ * ran was already corrected in its look-back). An hour that matches neither is a difference when every close
+ * it reads was stored (verifiable), and unverifiable otherwise: then a close corrected after the agent
+ * acted (GeckoTerminal repair) cannot be ruled out, so it is reported apart and does not decide the status. Pure: the loader (lib/data/verify.ts) brings the data. Live agents are not replayed:
  * their fills are real transactions, each linked on chain.
  */
-import { runHour, type AgentParams, type AgentState, type Decision } from "../engine/engine.ts";
+import { paramsLookback, runHour, type AgentParams, type AgentState, type Decision } from "../engine/engine.ts";
 
 export type VerifyInput = {
   params: AgentParams;
@@ -19,7 +23,7 @@ export type VerifyInput = {
   /** Perps open interest per token and hour (Lab oiChange gate), aligned with series. */
   openInterest?: Record<string, (number | null)[]>;
   startTs: number;
-  /** Every hour the agent ran, oldest first, with what was recorded. Decisions only matter for co-pilot vetoes. */
+  /** Every hour the agent ran, oldest first, with what was recorded. Decisions carry co-pilot vetoes and the closes seen. */
   runs: { ts: number; equity: number; decisions?: Decision[] }[];
   trades: { ts: number; token: string; side: string }[];
   /**
@@ -30,26 +34,49 @@ export type VerifyInput = {
   anchors?: ReadonlyMap<number, AgentState>;
 };
 
+type Difference = { at: number; detail: string };
+
+/** One stretch of hours and how many of them part ways with the record. */
+export type HourWindow = { hours: number; hoursDiffering: number; firstDifference: Difference | null; lastDifference: Difference | null };
+
 export type VerifyResult = {
+  /**
+   * match: every verifiable hour matches. Unverifiable hours are reported apart (unverifiable) and decide
+   * the status only when the agent has no verifiable hour.
+   */
   status: "match" | "differs" | "no_history";
   /** hour_by_hour: each hour from the recorded state; cumulative: one replay from the first hour. */
   method: "hour_by_hour" | "cumulative";
+  /** All hours replayed. */
   hours: number;
-  /** Hours whose trades or value differ from the record. */
+  /**
+   * The first verifiable hour: every close its rules read (the hour and its look-back) was stored by the
+   * agent's own decisions, which they do from 2026-11-14 on. Such hours are replayed on exactly the closes
+   * the agent saw, so a candle corrected later cannot make them differ. null when no hour is verifiable.
+   */
+  verifiedSince: number | null;
+  /** Verifiable hours (all hours when none is) whose trades or value differ from the record. */
   hoursDiffering: number;
+  /** The first and last of those hours, in plain words. */
+  firstDifference: Difference | null;
+  lastDifference: Difference | null;
+  /**
+   * Hours whose look-back reads a close that was not stored (before 2026-11-14, or an hour the agent did not
+   * run), replayed on today's closes. A difference there cannot be told apart from a close corrected after
+   * the agent acted, so it is shown here, not counted above. null when there are none or no hour is verifiable.
+   */
+  unverifiable: HourWindow | null;
+  /** Hours whose stored close differs from today's; the replay used the stored one. */
+  priceCorrections: { hours: number; recent: (PriceRevision & { at: number })[] };
   trades: { replay: number; recorded: number; matched: number };
   value: { replay: number; recorded: number; gapPct: number };
-  /** The first and last hour where the replay and the record part ways, in plain words. */
-  firstDifference: { at: number; detail: string } | null;
-  lastDifference: { at: number; detail: string } | null;
 };
 
 export type PriceRevision = { token: string; then: number; now: number };
 
 /**
  * Hourly closes that changed after the agent acted: the close each decision stored (from 2026-11-14 on)
- * against today's close for the same hour. A repaired candle explains a replay that differs.
- * null when the hour's decisions stored no prices (older hours), so the cause cannot be shown.
+ * against today's close for the same hour. null when the hour's decisions stored no prices (older hours), so the cause cannot be shown.
  */
 export function priceRevisions(decisions: Decision[], series: Record<string, (number | null)[]>, index: number): PriceRevision[] | null {
   const priced = decisions.filter((decision) => typeof decision.price === "number");
@@ -61,13 +88,63 @@ export function priceRevisions(decisions: Decision[], series: Record<string, (nu
 
 /** Value gap allowed per hour: rounding only. Anything bigger is a real difference. */
 export const VALUE_TOLERANCE = 0.0005;
+/** Price corrections listed in the result (the most recent ones). */
+const RECENT_CORRECTIONS = 5;
+
+const emptyWindow = (): HourWindow => ({ hours: 0, hoursDiffering: 0, firstDifference: null, lastDifference: null });
 
 export function verifyAgent(input: VerifyInput): VerifyResult {
   const runs = [...input.runs].sort((a, b) => a.ts - b.ts);
   const method = input.anchors ? "hour_by_hour" : "cumulative";
   if (!runs.length) {
-    return { status: "no_history", method, hours: 0, hoursDiffering: 0, trades: { replay: 0, recorded: input.trades.length, matched: 0 }, value: { replay: input.startCapital, recorded: input.startCapital, gapPct: 0 }, firstDifference: null, lastDifference: null };
+    return {
+      status: "no_history",
+      method,
+      hours: 0,
+      verifiedSince: null,
+      hoursDiffering: 0,
+      firstDifference: null,
+      lastDifference: null,
+      unverifiable: null,
+      priceCorrections: { hours: 0, recent: [] },
+      trades: { replay: 0, recorded: input.trades.length, matched: 0 },
+      value: { replay: input.startCapital, recorded: input.startCapital, gapPct: 0 },
+    };
   }
+
+  // The closes the agent saw: today's closes with every close a decision stored put back in its hour.
+  // Overlaid for all hours before replaying, so the rules' look-back reads the stored closes too.
+  const seen: Record<string, (number | null)[]> = { ...input.series };
+  const corrections: (PriceRevision & { at: number })[] = [];
+  let correctedHours = 0;
+  let overlaid = false;
+  const stored = new Set<number>();
+  for (const run of runs) {
+    const index = Math.round((run.ts - input.startTs) / 3600);
+    const revisions = index >= 0 ? priceRevisions(run.decisions ?? [], input.series, index) : null;
+    if (revisions === null) continue;
+    stored.add(index);
+    for (const decision of run.decisions ?? []) {
+      const closes = input.series[decision.token];
+      if (typeof decision.price !== "number" || !closes) continue;
+      if (seen[decision.token] === closes) {
+        seen[decision.token] = [...closes];
+        overlaid = true;
+      }
+      seen[decision.token][index] = decision.price;
+    }
+    if (revisions.length) {
+      correctedHours += 1;
+      corrections.push(...revisions.map((revision) => ({ ...revision, at: run.ts })));
+    }
+  }
+  // Verifiable: the agent stored the close of this hour and of every hour of its rules' look-back.
+  const lookback = paramsLookback(input.params);
+  const verifiable = (index: number) => {
+    for (let i = index - lookback; i <= index; i++) if (!stored.has(i)) return false;
+    return true;
+  };
+  let verifiedSince: number | null = null;
 
   const recordedByHour = new Map<number, string[]>();
   for (const trade of input.trades) recordedByHour.set(trade.ts, [...(recordedByHour.get(trade.ts) ?? []), `${trade.token}:${trade.side}`]);
@@ -75,10 +152,9 @@ export function verifyAgent(input: VerifyInput): VerifyResult {
   let state: AgentState = { cash: input.startCapital, positions: {} };
   let replayTrades = 0;
   let matched = 0;
-  let firstDifference: VerifyResult["firstDifference"] = null;
-  let lastDifference: VerifyResult["lastDifference"] = null;
-  let hoursDiffering = 0;
   let lastEquity = input.startCapital;
+  const verified = emptyWindow();
+  const before = emptyWindow();
 
   for (const run of runs) {
     const index = Math.round((run.ts - input.startTs) / 3600);
@@ -88,12 +164,24 @@ export function verifyAgent(input: VerifyInput): VerifyResult {
     // The co-pilot's "passed" verdicts, exactly as recorded for this hour.
     const passed = (run.decisions ?? []).filter((decision) => decision.ai?.verdict === "passed");
     const veto = passed.length ? new Map(passed.map((decision) => [decision.token, decision.ai!.reasoning])) : undefined;
-    const hour = runHour(state, input.params, input.series, index, run.ts, { funding: input.funding, ...(input.openInterest ? { openInterest: input.openInterest } : {}), ...(veto ? { veto } : {}) });
+    const options = { funding: input.funding, ...(input.openInterest ? { openInterest: input.openInterest } : {}), ...(veto ? { veto } : {}) };
+    const recordedKeys = [...(recordedByHour.get(run.ts) ?? [])].sort();
+    // First on the closes as each decision stored them. A candle repaired before this hour ran was already
+    // corrected in the look-back the agent read, so an hour that does not match is replayed once more on
+    // today's closes: both are closes the agent really had, and either one matching is a match.
+    let hour = runHour(state, input.params, seen, index, run.ts, options);
+    let difference = compare(run, hour, recordedKeys);
+    if (difference && overlaid) {
+      const corrected = runHour(state, input.params, input.series, index, run.ts, options);
+      if (!compare(run, corrected, recordedKeys)) {
+        hour = corrected;
+        difference = null;
+      }
+    }
     state = hour.state;
     lastEquity = hour.equity;
 
     const replayKeys = hour.fills.map((fill) => `${fill.token}:${fill.side}`).sort();
-    const recordedKeys = [...(recordedByHour.get(run.ts) ?? [])].sort();
     replayTrades += replayKeys.length;
     const remaining = [...recordedKeys];
     for (const key of replayKeys) {
@@ -103,31 +191,42 @@ export function verifyAgent(input: VerifyInput): VerifyResult {
         remaining.splice(at, 1);
       }
     }
-    const sameTrades = replayKeys.length === recordedKeys.length && replayKeys.every((key, i) => key === recordedKeys[i]);
-    const gap = run.equity > 0 ? Math.abs(hour.equity / run.equity - 1) : 0;
-    const difference = !sameTrades
-      ? { at: run.ts, detail: `trades differ: replay ${list(replayKeys)}, recorded ${list(recordedKeys)}` }
-      : gap > VALUE_TOLERANCE
-        ? { at: run.ts, detail: `value differs: replay $${hour.equity.toFixed(2)}, recorded $${run.equity.toFixed(2)}` }
-        : null;
+    const isVerifiable = verifiable(index);
+    if (isVerifiable) verifiedSince ??= run.ts;
+    const window = isVerifiable ? verified : before;
+    window.hours += 1;
     if (difference) {
-      hoursDiffering += 1;
-      firstDifference ??= difference;
-      lastDifference = difference;
+      window.hoursDiffering += 1;
+      window.firstDifference ??= difference;
+      window.lastDifference = difference;
     }
   }
 
+  // With no verifiable hour, the other hours are all there is, so they decide the status.
+  const deciding = verifiedSince === null ? before : verified;
   const recorded = runs[runs.length - 1].equity;
   return {
-    status: firstDifference ? "differs" : "match",
+    status: deciding.hoursDiffering ? "differs" : "match",
     method,
-    hours: runs.length,
-    hoursDiffering,
+    hours: verified.hours + before.hours,
+    verifiedSince,
+    hoursDiffering: deciding.hoursDiffering,
+    firstDifference: deciding.firstDifference,
+    lastDifference: deciding.lastDifference,
+    unverifiable: verifiedSince !== null && before.hours ? before : null,
+    priceCorrections: { hours: correctedHours, recent: corrections.slice(-RECENT_CORRECTIONS) },
     trades: { replay: replayTrades, recorded: input.trades.length, matched },
     value: { replay: lastEquity, recorded, gapPct: recorded > 0 ? (lastEquity / recorded - 1) * 100 : 0 },
-    firstDifference,
-    lastDifference,
   };
+}
+
+/** How one replayed hour parts ways with the record (its trades, else its value), or null when it matches. */
+function compare(run: { ts: number; equity: number }, hour: { fills: { token: string; side: string }[]; equity: number }, recordedKeys: string[]): Difference | null {
+  const replayKeys = hour.fills.map((fill) => `${fill.token}:${fill.side}`).sort();
+  const sameTrades = replayKeys.length === recordedKeys.length && replayKeys.every((key, i) => key === recordedKeys[i]);
+  if (!sameTrades) return { at: run.ts, detail: `trades differ: replay ${list(replayKeys)}, recorded ${list(recordedKeys)}` };
+  const gap = run.equity > 0 ? Math.abs(hour.equity / run.equity - 1) : 0;
+  return gap > VALUE_TOLERANCE ? { at: run.ts, detail: `value differs: replay $${hour.equity.toFixed(2)}, recorded $${run.equity.toFixed(2)}` } : null;
 }
 
 type RecordedTrade = { ts: number; token: string; side: string; quantity: number; price: number; costUsd: number };
