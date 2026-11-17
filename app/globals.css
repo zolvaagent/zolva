@@ -10821,7 +10821,7 @@ li.stats-ranks__row {
   color: var(--color-dark);
 }
 
-.trench-hero__cta:hover {
+.trench-hero .trench-hero__cta:hover {
   background: #ffffff;
 }
 
@@ -11147,4 +11147,91 @@ li.stats-ranks__row {
   .trench-section {
     margin-top: var(--space-500);
   }
+}
+
+/* The Trenches CTA: the home page's turning gradient ring (connect-ring), drawn just outside the
+   button with a soft glow under it, so it reads as the one thing to do on the page. */
+.trench-hero__cta {
+  position: relative;
+  isolation: isolate;
+  font-weight: 600;
+}
+
+.trench-hero__cta::before,
+.trench-hero__cta::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: inherit;
+  background: conic-gradient(from var(--connect-angle), #8075ff, #a9dcff, #2fcf78, #ff9646, #8075ff 60%, rgba(128, 117, 255, 0.15) 80%, #8075ff);
+  animation: connect-ring 4s linear infinite;
+  pointer-events: none;
+}
+
+.trench-hero__cta::before {
+  padding: 2.5px;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.trench-hero__cta::after {
+  z-index: -2;
+  filter: blur(14px);
+  opacity: 0.55;
+}
+
+.trench-hero__cta:focus-visible {
+  outline: 2px solid var(--color-purple-rich);
+  outline-offset: 5px;
+}
+
+/* On the light final section the button is dark, so the ring keeps its contrast. */
+.trench-final .trench-hero__cta {
+  background: var(--color-text);
+  color: var(--color-on-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trench-hero__cta::before,
+  .trench-hero__cta::after {
+    animation: none;
+  }
+}
+
+.trench-final .trench-hero__cta:hover {
+  background: var(--color-text-hover);
+}
+
+/* "How it works" glides down instead of jumping (Trenches page only). */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.trenches-page) {
+    scroll-behavior: smooth;
+  }
+}
+
+.trench-section {
+  scroll-margin-top: var(--space-500);
+}
+
+.trench-hero__logos {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
+  color: var(--color-on-dark);
+  font-weight: 600;
+}
+
+.trench-hero__logos img {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.trench-hero__x {
+  color: var(--color-on-dark-muted);
+  font-weight: 400;
 }

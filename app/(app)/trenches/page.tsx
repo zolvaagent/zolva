@@ -58,7 +58,16 @@ export default async function TrenchesPage() {
         <div className="trench-hero__copy">
           <p className="trench-hero__eyebrow">
             <span className="trench-hero__beta">Beta</span>
-            Zolva <span aria-hidden="true">×</span> Rushr
+            <span className="trench-hero__logos">
+              <img src="/img/brand/zolva-mark-small.png" alt="" width={22} height={22} />
+              Zolva
+              <span className="trench-hero__x" aria-hidden="true">
+                ×
+              </span>
+              {/* Rushr's own logo mark, from their open source repo (rushr-dev/platform). */}
+              <img src="/img/partners/rushr-mark.png" alt="" width={22} height={22} />
+              Rushr
+            </span>
           </p>
           <h1 id="trench-hero-title" className="trench-hero__title">Memecoin agents, live on Rushr.</h1>
           <p className="trench-hero__lead">
