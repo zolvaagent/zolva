@@ -60,6 +60,13 @@ const toView = (row: AgentRow): TrenchAgentView => ({
   createdAt: row.created_at,
 });
 
+/** Agents can be created by everyone once open, and by the test wallets before that. */
+export function mayCreateTrenchAgent(settings: TrenchSettings | null, owner: string | null): boolean {
+  if (!settings) return false;
+  if (settings.new_agents_open) return true;
+  return Boolean(owner) && (settings.test_owners ?? []).includes(owner!.toLowerCase());
+}
+
 export async function getTrenchSettings(db: SupabaseClient): Promise<TrenchSettings | null> {
   const { data } = await db.from("trench_settings").select("*").eq("id", 1).maybeSingle();
   return (data as TrenchSettings | null) ?? null;

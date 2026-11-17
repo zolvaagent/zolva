@@ -7,7 +7,7 @@ import { EXPLORER_URL } from "@/lib/chain";
 import { shortAddress, usd } from "@/lib/format";
 import { getLabRecord, LAB_HANDLE, LAB_WALLET, RUSHR_PROFILE_URL, type LabRecord } from "@/lib/rushr";
 import { db } from "@/lib/supabase";
-import { getTrenchSettings, listMyTrenchAgents, type TrenchAgentView } from "@/lib/trench/data";
+import { getTrenchSettings, listMyTrenchAgents, mayCreateTrenchAgent, type TrenchAgentView } from "@/lib/trench/data";
 import { PRESET_INFO } from "@/lib/trench/rules";
 
 export const metadata: Metadata = {
@@ -35,7 +35,7 @@ function ago(iso: string | null, now: number): string {
 export default async function TrenchesPage() {
   const owner = await getSessionAddress();
   const [record, settings, mine] = await Promise.all([getLabRecord(), getTrenchSettings(db()), owner ? listMyTrenchAgents(db(), owner) : Promise.resolve([])]);
-  const open = Boolean(settings?.new_agents_open);
+  const open = mayCreateTrenchAgent(settings, owner);
   const create = (
     <Link className="button button--primary" href="/trenches/new">
       Create a trench agent

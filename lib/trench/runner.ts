@@ -40,6 +40,8 @@ const STALE_ORDER_MS = 5 * 60_000;
 export type TrenchSettings = {
   enabled: boolean;
   new_agents_open: boolean;
+  /** Wallets that may create agents while new_agents_open is false (release test). */
+  test_owners: string[];
   max_agent_budget_usd: number;
   max_total_budget_usd: number;
   max_token_exposure_usd: number;

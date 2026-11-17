@@ -19,6 +19,7 @@ import { formatEther, parseAbi, type Address, type PublicClient } from "viem";
 
 import { env } from "../env.ts";
 import { encryptSecret } from "./crypto.ts";
+import { mayCreateTrenchAgent } from "./data.ts";
 import { withdrawEth } from "./executor.ts";
 import { maxTxWeiFor, trenchPolicyRules } from "./policy.ts";
 import { isPresetId, limitsFor, PRESETS, type PresetId } from "./rules.ts";
@@ -68,7 +69,7 @@ async function ethUsd(chain: PublicClient): Promise<number> {
 
 export async function createAgent(db: SupabaseClient, owner: string, input: { name: unknown; preset: unknown; budgetUsd: unknown; callouts: unknown; riskAccepted: unknown }): Promise<string> {
   const settings = await loadSettings(db);
-  if (!settings.new_agents_open) throw new TrenchError("Trench agents are not open yet.");
+  if (!mayCreateTrenchAgent(settings, owner)) throw new TrenchError("Trench agents are not open yet.");
   const name = typeof input.name === "string" ? input.name.trim() : "";
   if (name.length < 1 || name.length > 40) throw new TrenchError("Give the agent a name of up to 40 characters.");
   if (!isPresetId(input.preset)) throw new TrenchError("Pick a preset.");
