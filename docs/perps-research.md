@@ -896,3 +896,34 @@ Dip hunter are negative in every crypto year (BTC + ETH: -29 / -49 / -21 / -38 /
 Breakout template lose most years; DCA tracks the market with smaller drops; Vol Trend long passes only as one
 market per agent on BTC (drop 19%) or ETH (17%), not as one agent for both (33%) and not on stocks. Full tables,
 the proposed Tested/Experiment rule and the first monthly post-mortem data: notes folder grok-research-items.md.
+
+## IPO first months, for the $ANT launch (2026-11-17)
+
+Owner: "All four" ($ANT market listing, IPO Day DCA agent, this research, an X story). `scripts/research-ipo-first-month.mts`,
+pre-registered in `e625d30` (fixed list of 12 much-watched US IPOs, Yahoo daily closes; a data bug was fixed before
+reading results: `range=max` returned sparse bars, now an explicit window). Entry = the first close (token buyers
+rarely get the IPO price). Not advice; past IPOs do not predict $ANT.
+
+| IPO | d5 | d20 | d60 | d120 | Worst vs day 1 | Worst from top (120 d) |
+|---|---|---|---|---|---|---|
+| META 2012 | -17% | -18% | -47% | -50% | -54% | -54% |
+| BABA 2014 | -4% | -6% | +12% | -13% | -13% | -32% |
+| UBER 2019 | +1% | +3% | -6% | -19% | -31% | -38% |
+| SNOW 2020 | -14% | -4% | +47% | -11% | -16% | -45% |
+| ABNB 2020 | +2% | +2% | +27% | +4% | -14% | -39% |
+| COIN 2021 | -5% | -14% | -23% | -30% | -33% | -35% |
+| RIVN 2021 | +45% | +15% | -42% | -66% | -70% | -82% |
+| ARM 2023 | -18% | -18% | +6% | +121% | -25% | -25% |
+| RDDT 2024 | -2% | -19% | +20% | +18% | -22% | -40% |
+| CRWV 2025 | +20% | +5% | +299% | +212% | -11% | -52% |
+| CRCL 2025 | +28% | +149% | +44% | -16% | -20% | -75% |
+| FIG 2025 | -32% | -38% | -54% | -75% | -77% | -78% |
+
+- After about 6 months (120 trading days) **8 of 12 were below their first close**; median -14%. After 20 days,
+  7 of 12 were below.
+- Even the winners fell hard on the way: median worst fall from the high inside 6 months -42%; only ARM stayed
+  within 25%.
+- Spreading the entry over the first 20 days (DCA) beat buying on day 1 in **8 of 12**, though the medians are close
+  (day 60: +8% day 1 vs +6% DCA; day 120: -15% vs -13%). The spread is huge either way: CRWV +212%, FIG -75%.
+Reading for Zolva: an "IPO Day" DCA agent is the honest thing to run on $ANT from the first hour; rule agents need
+48 h (presets) to 50 days (Vol Trend) of history anyway. Expect big swings; nothing here says which way $ANT goes.

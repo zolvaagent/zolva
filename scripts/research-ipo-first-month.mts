@@ -39,10 +39,12 @@ const IPOS: [string, string][] = [
 ];
 const COST = 0.005;
 
-async function daily(symbol: string): Promise<{ day: string; close: number }[]> {
-  const file = join(CACHE, `${symbol}-1d-max.json`);
+/** Daily closes from 7 days before to 300 days after the IPO (explicit window: range=max returns sparse bars). */
+async function daily(symbol: string, ipoDay: string): Promise<{ day: string; close: number }[]> {
+  const file = join(CACHE, `${symbol}-1d-ipo.json`);
   if (!existsSync(file)) {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=max&interval=1d`;
+    const start = Math.floor(Date.parse(ipoDay) / 1000) - 7 * 86400;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?period1=${start}&period2=${start + 307 * 86400}&interval=1d`;
     const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error(`${response.status} ${url}`);
     const body = (await response.json()) as {
@@ -70,7 +72,7 @@ async function main() {
   const rows: Record<string, number | null>[] = [];
   console.log("IPO    first day    d5    d20   d60   d120  worst vs d1  worst from top  Day1@60  DCA20@60  Day1@120  DCA20@120");
   for (const [symbol, ipoDay] of IPOS) {
-    const all = await daily(symbol);
+    const all = await daily(symbol, ipoDay);
     const bars = all.filter((b) => b.day >= ipoDay);
     if (!bars.length) {
       console.log(`${symbol}: no data`);
