@@ -22,10 +22,11 @@ import { curveOf, readCurve, sellOut } from "./curve.ts";
 import { buySellRatio, caPosted, listStage, runMinute, socialStage, statsStage, type CandidateInput, type HeldInput, type MinuteAction, type Position, type RushrToken, type Verdict } from "./engine.ts";
 import { trade, type AgentWallet, type Signer } from "./executor.ts";
 import { limitsFor, parseTrenchRules, PRESET_INFO, type Market, type PresetId } from "./rules.ts";
-import { commentOn, postCallout, safetyBlocked, sellQuoteWei, tokenColumn, tokenRow, tokenStats } from "./rushr-api.ts";
+import { commentOn, postCallout, safetyBlocked, safetyRefusesBuy, sellQuoteWei, tokenColumn, tokenRow, tokenStats } from "./rushr-api.ts";
 import { dexPaidMinutes, narrative, xProfile, xTweets } from "./social.ts";
 
 const ETH_USD_FEED: Address = "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9";
+const BALANCE_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 const feedAbi = parseAbi(["function latestRoundData() view returns (uint80, int256 answer, uint256, uint256 updatedAt, uint80)"]);
 /** New candidates whose stats are fetched per minute, and new paid X/model checks per minute. */
 const MAX_CHECKS_PER_MINUTE = 12;
@@ -69,8 +70,12 @@ type PositionRow = {
   token: string;
   symbol: string;
   curve: string;
+  /** Raw token amounts (numeric). PostgREST returns numeric as a JSON number, which loses precision past
+   *  about 16 digits, so they are always read as text (tokens_exact, tokens_bought_exact) instead. */
   tokens: string;
   tokens_bought: string;
+  tokens_exact: string;
+  tokens_bought_exact: string;
   cost_eth: number;
   cost_usd: number;
   opened_at: string;
@@ -88,12 +93,15 @@ type PositionRow = {
   closed_at: string | null;
 };
 
+/** Every position column, plus the token amounts as exact text (see PositionRow). */
+const POSITION_SELECT = "*, tokens_exact:tokens::text, tokens_bought_exact:tokens_bought::text";
+
 export type MinuteSummary = { minute: string; ran: boolean; note?: string; agents: number; candidates: number; trades: number; errors: string[] };
 
 const toPosition = (row: PositionRow): Position => ({
   token: row.token,
-  tokens: BigInt(row.tokens),
-  tokensBought: BigInt(row.tokens_bought),
+  tokens: BigInt(row.tokens_exact),
+  tokensBought: BigInt(row.tokens_bought_exact),
   costEth: row.cost_eth,
   openedAtMs: Date.parse(row.opened_at),
   entryBonding: row.entry_bonding,
@@ -238,10 +246,10 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
 
   const rules = parseTrenchRules(agent.rules, agent.preset);
   const limits = limitsFor(rules, Number(agent.budget_usd));
-  const { data: rows, error } = await db.from("trench_positions").select("*").eq("agent_id", agent.id);
+  const { data: rows, error } = await db.from("trench_positions").select(POSITION_SELECT).eq("agent_id", agent.id);
   if (error) throw new Error(`loading positions failed: ${error.message}`);
   const positions = (rows ?? []) as PositionRow[];
-  const open = positions.filter((row) => row.closed_at === null && BigInt(row.tokens) > 0n);
+  const open = positions.filter((row) => row.closed_at === null && BigInt(row.tokens_exact) > 0n);
   const everHeld = new Set(positions.map((row) => row.token));
 
   const held: (HeldInput & { row: PositionRow })[] = [];
@@ -323,8 +331,17 @@ async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWalle
   const { db, chain, signer, ethPrice, nowMs, minute } = shared;
   const side = action.kind === "sell" ? "sell" : "buy";
   let amountIn: bigint;
+  // A full sell closes the position whatever the record says, so a record above the wallet's balance
+  // (a rounded amount, a transfer tax) can never block an exit again.
+  const closing = action.kind === "sell" && action.share >= 0.999;
   if (action.kind === "sell") {
-    amountIn = action.share >= 0.999 ? action.position.tokens : (action.position.tokens * BigInt(Math.round(action.share * 1e6))) / 1_000_000n;
+    const wanted = closing ? action.position.tokens : (action.position.tokens * BigInt(Math.round(action.share * 1e6))) / 1_000_000n;
+    const held = await chain.readContract({ address: action.token as Address, abi: BALANCE_ABI, functionName: "balanceOf", args: [wallet.address] });
+    amountIn = closing || wanted > held ? held : wanted;
+    if (amountIn <= 0n) {
+      await logDecision(db, agent.id, "error", "sell skipped: the wallet holds none of this token", action.token, action.symbol);
+      return;
+    }
   } else {
     amountIn = parseEther((action.usd / ethPrice).toFixed(18));
     const balance = await chain.getBalance({ address: wallet.address });
@@ -344,12 +361,12 @@ async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWalle
 
     if (action.kind === "sell") {
       const position = action.position;
-      const soldShare = Number(amountIn) / Number(position.tokens);
+      const soldShare = closing ? 1 : Math.min(1, Number(amountIn) / Number(position.tokens));
       const soldCostEth = position.costEth * soldShare;
       const soldCostUsd = (row?.cost_usd ?? 0) * soldShare;
       const pnlUsd = eth * ethPrice - soldCostUsd;
       await db.from("trench_trades").insert({ agent_id: agent.id, token: action.token, symbol: action.symbol, side, eth, usd: eth * ethPrice, tokens: amountIn.toString(), pnl_usd: pnlUsd, reason: action.reason, tx_hash: fill.txHash, fee_tx_hash: fill.feeTxHash });
-      const left = position.tokens - amountIn;
+      const left = closing || amountIn >= position.tokens ? 0n : position.tokens - amountIn;
       const next = { ...position, tokens: left, costEth: position.costEth - soldCostEth, laddersDone: action.ladderStep ?? position.laddersDone };
       await db
         .from("trench_positions")
@@ -444,7 +461,7 @@ async function gatherCandidates(shared: Shared, agents: TrenchAgentRow[]): Promi
     }
     checked += 1;
     try {
-      const [stats, blocked, paid] = await Promise.all([tokenStats(token.address), safetyBlocked(token.address), dexPaidMinutes(token.address, Date.parse(token.created_at)).catch(() => null)]);
+      const [stats, blocked, paid] = await Promise.all([tokenStats(token.address), safetyRefusesBuy(token.address), dexPaidMinutes(token.address, Date.parse(token.created_at)).catch(() => null)]);
       const checks = { stats, safetyBlocked: blocked, dexPaidMinutesAfterLaunch: paid };
       let social: Verdict | null = null;
       const passesStats = agentRules.some((rules) => statsStage({ ...checks, tradesRank }, rules).pass);

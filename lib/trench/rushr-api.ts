@@ -67,11 +67,25 @@ export function tokenStats(address: string): Promise<RushrStats> {
 
 /** Blocked by Rushr's safety check. Fails closed: an error means "blocked". */
 export async function safetyBlocked(address: string): Promise<boolean> {
+  return (await safety(address)).blocked;
+}
+
+/**
+ * Rushr's safety check for a token we might buy: blocked, or rated high risk. Rushr's trade build refuses
+ * a high risk buy unless it is told to accept the risk (we never are), so without this the agent retried
+ * the same refused build every minute (KINETRA, IDLEX: hundreds of 422 "unsafe_token"). Fails closed.
+ */
+export async function safetyRefusesBuy(address: string): Promise<boolean> {
+  const check = await safety(address);
+  return check.blocked || check.riskLevel === "high";
+}
+
+async function safety(address: string): Promise<{ blocked: boolean; riskLevel: string | null }> {
   try {
-    const body = await call<{ safety?: { blocked?: boolean } }>(`/v1/tokens/${address}/safety`);
-    return body.safety?.blocked !== false;
+    const body = await call<{ safety?: { blocked?: boolean; riskLevel?: string } }>(`/v1/tokens/${address}/safety`);
+    return { blocked: body.safety?.blocked !== false, riskLevel: body.safety?.riskLevel ?? null };
   } catch {
-    return true;
+    return { blocked: true, riskLevel: null };
   }
 }
 
