@@ -940,3 +940,13 @@ trench-strategy-review.md; data: trench-lab-trades.csv and the trench_* tables.
 Update 2026-11-18: after Development's fixes (eeb5975, Lab 7e93ae8) the three stuck positions were sold (HYLIT -$1.80,
 HOLBRIC -$0.87, ROTHERA -$7.32 at -73%). Final record: 14 closed trades, 14 losses, -$26.02 realised; both bots stay
 paused for buys.
+
+## Trench exit v2: frozen values and gate (2026-11-18)
+
+Rushr's exit review (7 trades, 5 minute replay: -17.5% to about -10.5% per trade, in-sample) led the owner to approve
+a configurable exit v2. Research's frozen values: take 50% at +20%, then stop at entry +3% and trail 15% from the
+peak; stop -25% only after two consecutive 1-minute closes below; flow exit (1h buys/sells < 0.7 or top-10 selling)
+= full exit at a loss, trail 10% in profit; time stop as v1; no re-entry; never sell more than the wallet holds,
+pause after 2 failed sells. Gate before real money: the pre-registered backtest (`scripts/research-trench-backtest.mts`,
+`cd9459c`, every PONS launch of the last 14 days from chain logs) must PASS; the owner chose this backtest instead of
+the 14 day dry run. Note: notes folder trench-exit-v2-decision.md.
