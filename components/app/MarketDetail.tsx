@@ -11,6 +11,7 @@ import type { AgentSummary } from "@/lib/data/agents";
 import type { MarketRow } from "@/lib/data/markets";
 import { blocksTrading, HARMONIC_URL, sessionCheckedAt, sessionDetail, sessionLabel, type TokenSession } from "@/lib/harmonic";
 import type { LongbowListing } from "@/lib/longbow";
+import { LongbowMark } from "@/components/ui/LongbowMark";
 import { dateAt, fundingYearly, percent, points, price, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const RANGES = [
@@ -281,10 +282,7 @@ export function MarketDetail({
                 // LLTV, borrow rate and USDG available, as Longbow asked; while the price feed is paused
                 // (stock feeds outside market hours) the rate is replaced by that note.
                 <p className="note">
-                  {/* Longbow's own mark (longbow.finance/favicon.png) on a white chip, so its navy reads in dark mode too. */}
-                  <span className="partner-chip" aria-hidden="true">
-                    <img src="/img/partners/longbow-mark.png" alt="" width={12} height={12} />
-                  </span>
+                  <LongbowMark />
                   <span>
                     Longbow lists a market for this token · LLTV {Number((longbow.lltv * 100).toFixed(1))}%
                     {longbow.feedFrozen

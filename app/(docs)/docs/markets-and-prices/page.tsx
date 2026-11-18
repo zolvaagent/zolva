@@ -55,6 +55,35 @@ export default function MarketsAndPrices() {
         an allowlist: stock tokens checked against Robinhood&apos;s official Stock Token list, and ETH and BTC against Chainlink&apos;s token directory for Robinhood Chain.
       </p>
       <Callout title="More coins later">New coins are added only when the real token has a deep enough pool against USDG and an independent price to check it against.</Callout>
+
+      <H2 id="longbow">Borrowing against a token: Longbow</H2>
+      <p>
+        <a href="https://www.longbow.finance" target="_blank" rel="noopener noreferrer">
+          Longbow
+        </a>{" "}
+        is a lending protocol on Robinhood Chain, built on Morpho Blue. It lends USDG against stock tokens, ETFs and ETH. When Longbow has a market for a token, Zolva shows it with
+        Longbow&apos;s mark: on Markets (with a <Link href="/markets">Borrowable on Longbow</Link> tab) and on the token&apos;s page, with:
+      </p>
+      <ul>
+        <li>
+          <strong>LLTV</strong>: the liquidation loan-to-value. A loan is liquidated when it reaches this share of the collateral&apos;s value.
+        </li>
+        <li>
+          <strong>Borrow rate</strong>: Longbow&apos;s current yearly rate for USDG loans in that market. While the stock&apos;s price feed is paused outside US market hours, Zolva shows that the feed is
+          paused instead of the rate.
+        </li>
+        <li>
+          <strong>Available</strong>: the USDG that can be borrowed right now. A fully used market shows 0.
+        </li>
+      </ul>
+      <p>
+        These numbers come from Longbow&apos;s public markets data, read once an hour and matched by token address, never by name. The same fields are in the{" "}
+        <Link href="/docs/public-api">public API</Link> and MCP. Rates and liquidity change all the time; check them on Longbow before you borrow.
+      </p>
+      <Callout title="Outside link, not advice">
+        Zolva does not borrow, lend or hold anything on Longbow, and agents never borrow. Links to Longbow carry Zolva&apos;s builder code, so Zolva gets a share of Longbow&apos;s fee on borrows made
+        through them. Borrowing against a token can lose the collateral if its price falls.
+      </Callout>
     </DocsArticle>
   );
 }

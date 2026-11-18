@@ -7,13 +7,17 @@ import { LighterBadge } from "@/components/ui/LighterBadge";
 import { TickerAvatar } from "@/components/ui/TickerAvatar";
 import type { MarketRow } from "@/lib/data/markets";
 import { dateAt, fundingYearly, percent, price, sparkline, tone } from "@/lib/format";
+import { LongbowMark } from "@/components/ui/LongbowMark";
 import { hoursText } from "@/lib/studio/history";
 
 const VIEWS = [
   ["all", "All"],
   ["gainers", "Top gainers"],
   ["losers", "Top losers"],
+  ["longbow", "Borrowable on Longbow"],
 ] as const;
+
+const LONGBOW_TITLE = "Borrowable on Longbow: Longbow (Morpho Blue lending on Robinhood Chain) lends USDG against this token";
 
 type View = (typeof VIEWS)[number][0];
 
@@ -79,7 +83,8 @@ function MarketStatus({ asset, asOf, marketOpen }: { asset: Asset; asOf: number;
   );
 }
 
-export function Markets({ rows, asOf, marketOpen }: { rows: MarketRow[]; asOf: number; marketOpen: boolean }) {
+/** borrowable: lowercase token addresses Longbow lends USDG against (lib/longbow.ts); empty hides the Longbow tab. */
+export function Markets({ rows, asOf, marketOpen, borrowable = [] }: { rows: MarketRow[]; asOf: number; marketOpen: boolean; borrowable?: string[] }) {
   const [asset, setAsset] = useState<Asset>("stock");
   // Sits in the same row as the filters, so the page has one toolbar.
   const assetTabs = (
@@ -95,15 +100,21 @@ export function Markets({ rows, asOf, marketOpen }: { rows: MarketRow[]; asOf: n
   return (
     <>
       <MarketStatus asset={asset} asOf={asOf} marketOpen={marketOpen} />
-      <MarketList key={asset} asset={asset} rows={rows.filter((row) => inGroup(row, asset))} leading={assetTabs} />
+      <MarketList key={asset} asset={asset} rows={rows.filter((row) => inGroup(row, asset))} leading={assetTabs} borrowable={borrowable} />
     </>
   );
 }
 
-function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[]; leading: ReactNode }) {
+function MarketList({ asset, rows, leading, borrowable }: { asset: Asset; rows: MarketRow[]; leading: ReactNode; borrowable: string[] }) {
   const words = ASSETS[asset];
   const [view, setView] = useState<View>("all");
   const [query, setQuery] = useState("");
+  // Perps are never Longbow collateral (only spot tokens are).
+  const onLongbow = useMemo(() => {
+    const set = new Set(borrowable);
+    return (row: MarketRow) => row.venue !== "lighter" && set.has(row.address.toLowerCase());
+  }, [borrowable]);
+  const views = rows.some(onLongbow) ? VIEWS : VIEWS.filter(([key]) => key !== "longbow");
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -111,8 +122,9 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
     const day = (row: MarketRow) => row.stats.change24h ?? 0;
     if (view === "gainers") return list.filter((row) => day(row) > 0).sort((a, b) => day(b) - day(a));
     if (view === "losers") return list.filter((row) => day(row) < 0).sort((a, b) => day(a) - day(b));
+    if (view === "longbow") return list.filter(onLongbow).sort((a, b) => a.symbol.localeCompare(b.symbol));
     return list.sort((a, b) => a.symbol.localeCompare(b.symbol));
-  }, [rows, view, query]);
+  }, [rows, view, query, onLongbow]);
 
   return (
     <>
@@ -120,7 +132,7 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
         <div className="filter-group">
           {leading}
           <div className="tabs" role="tablist" aria-label="Show">
-            {VIEWS.map(([key, label]) => (
+            {views.map(([key, label]) => (
               <button key={key} className="tab" role="tab" type="button" aria-selected={view === key} onClick={() => setView(key)}>
                 {label}
               </button>
@@ -137,7 +149,15 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
       {!visible.length ? (
         <div className="card">
           <div className="empty">
-            <h2 className="card__title">{query ? `No ${words.noun} matches "${query.trim()}"` : view === "gainers" ? "Nothing is up in the last 24 hours" : "Nothing is down in the last 24 hours"}</h2>
+            <h2 className="card__title">
+              {query
+                ? `No ${words.noun} matches "${query.trim()}"`
+                : view === "gainers"
+                  ? "Nothing is up in the last 24 hours"
+                  : view === "longbow"
+                    ? `Longbow lends against none of these ${words.label.toLowerCase()} right now`
+                    : "Nothing is down in the last 24 hours"}
+            </h2>
             <p>{query ? `Try ${words.example}.` : `Check All to see every ${words.noun}.`}</p>
             <button
               className="button button--ghost"
@@ -183,6 +203,7 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
                           <TickerAvatar symbol={row.symbol} />
                           <span>
                             <strong>{row.symbol}</strong> <NewPill hours={row.stats.newHours} />
+                            {onLongbow(row) && <LongbowMark title={LONGBOW_TITLE} />}
                             <span className="market-name">{row.name}</span>
                           </span>
                         </Link>
@@ -234,6 +255,7 @@ function MarketList({ asset, rows, leading }: { asset: Asset; rows: MarketRow[];
                 <TickerAvatar symbol={row.symbol} />
                 <span className="market-card__name">
                   <strong>{row.symbol}</strong> <NewPill hours={row.stats.newHours} />
+                  {onLongbow(row) && <LongbowMark title={LONGBOW_TITLE} />}
                   <span className="market-name">{row.name}</span>
                 </span>
                 <Spark values={row.stats.week} height={28} />
