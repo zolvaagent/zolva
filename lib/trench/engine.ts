@@ -201,8 +201,9 @@ export function gainPct(position: Pick<Position, "costEth">, valueEth: number): 
  *
  * Exit v2 (ExitRules.lockInPct, weakFlowTrailPct, stopConfirmMinutes): the stop fires only after
  * stopConfirmMinutes one-minute closes at or below it (position.stopHits, counted by track); after the
- * first take profit the stop sits at entry + lockInPct; weak buying in profit tightens the trail to
- * weakFlowTrailPct instead of selling everything (in a loss it still sells everything).
+ * first take profit the stop sits at entry + lockInPct; weak flow (sellers lead the last hour, or the
+ * top-10 holders sell) in profit tightens the trail to weakFlowTrailPct instead of selling everything
+ * (in a loss it still sells everything). With weakFlowTrailPct 0 (v1), top-10 selling stays a red flag.
  */
 export function decideExit(position: Position, market: Market, x: ExitRules, onCurve = true): ExitAction {
   const gain = gainPct(position, market.valueEth);
@@ -219,14 +220,17 @@ export function decideExit(position: Position, market: Market, x: ExitRules, onC
 
   if (market.safetyBlocked) return all("invalidated: Rushr safety blocked", "red");
   if (market.devPct < position.entryDevPct - 0.05) return all(`invalidated: dev sold (${position.entryDevPct}% to ${market.devPct}%)`, "red");
-  if (market.top10Pct < position.entryTop10Pct - 5) return all(`invalidated: top 10 wallets sold (${position.entryTop10Pct}% to ${market.top10Pct}%)`, "red");
-  const weakFlow = market.volume1hUsd >= x.minVolume1hUsd && market.buySell1h !== null && market.buySell1h < x.minBuySell1h;
-  if (weakFlow) {
+  const topTenSold = market.top10Pct < position.entryTop10Pct - 5;
+  // v1 (no flow trail): top-10 selling is a red flag, everything out at once.
+  if (topTenSold && x.weakFlowTrailPct <= 0) return all(`invalidated: top 10 wallets sold (${position.entryTop10Pct}% to ${market.top10Pct}%)`, "red");
+  const sellersLead = market.volume1hUsd >= x.minVolume1hUsd && market.buySell1h !== null && market.buySell1h < x.minBuySell1h;
+  if (sellersLead || topTenSold) {
+    const why = sellersLead ? `1h buy/sell ${market.buySell1h!.toFixed(2)}` : `top 10 wallets sold (${position.entryTop10Pct}% to ${market.top10Pct}%)`;
     if (gain > 0 && x.weakFlowTrailPct > 0) {
       // In profit: tighten the trail instead of selling everything.
-      if (perToken <= high * (1 - x.weakFlowTrailPct / 100)) return all(`tight trail: sellers lead (1h buy/sell ${market.buySell1h!.toFixed(2)}) and price ${x.weakFlowTrailPct}% under the high`, "trail");
+      if (perToken <= high * (1 - x.weakFlowTrailPct / 100)) return all(`tight trail: ${why}, price ${x.weakFlowTrailPct}% under the high`, "trail");
     } else {
-      return all(`invalidated: 1h buy/sell ${market.buySell1h!.toFixed(2)}`, "flow");
+      return all(`invalidated: ${why}`, "flow");
     }
   }
 

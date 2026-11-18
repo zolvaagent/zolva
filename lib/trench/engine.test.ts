@@ -491,8 +491,9 @@ describe("exit v2", () => {
   const inProfit = { ...position, laddersDone: 1, tokens: 500n, costEth: 0.5, highPerToken: 0.00125 };
 
   it("is Curve Rider's default: half at +20%, stop to entry +3%, 15% trail, 2-minute stop, re-entry on", () => {
-    expect(V2).toMatchObject({ ladder: [{ gainPct: 20, sellShareOfEntry: 0.5 }], lockInPct: 3, trailingPct: 15, weakFlowTrailPct: 8, stopConfirmMinutes: 2 });
-    expect(RULES.entry).toMatchObject({ reentryEnabled: true, reentryCooldownMinutes: 60, reentryMinBuySell6h: 1.2 });
+    // Research's frozen values (docs/perps-research.md, b8cc25c): no re-entry.
+    expect(V2).toMatchObject({ ladder: [{ gainPct: 20, sellShareOfEntry: 0.5 }], lockInPct: 3, trailingPct: 15, weakFlowTrailPct: 10, stopConfirmMinutes: 2 });
+    expect(RULES.entry).toMatchObject({ reentryEnabled: false });
     // Graduated Safe keeps its exits.
     expect(parseTrenchRules({}, "graduated_safe").exit).toMatchObject({ lockInPct: -100, weakFlowTrailPct: 0, stopConfirmMinutes: 1 });
   });
@@ -523,12 +524,25 @@ describe("exit v2", () => {
     const weak = { ...market, buySell1h: 0.5 };
     expect(decideExit(position, { ...weak, valueEth: 0.97 }, V2)).toMatchObject({ kind: "sell", exitKind: "flow" });
     // In profit and close to the high: hold.
-    expect(decideExit({ ...position, highPerToken: 0.00112 }, { ...weak, valueEth: 1.1 }, V2).kind).toBe("hold");
-    // In profit but 8% or more under the high: sell on the tight trail.
-    expect(decideExit({ ...position, highPerToken: 0.0012 }, { ...weak, valueEth: 1.1 }, V2)).toMatchObject({ kind: "sell", exitKind: "trail" });
+    expect(decideExit({ ...position, highPerToken: 0.00115 }, { ...weak, valueEth: 1.1 }, V2).kind).toBe("hold");
+    // In profit but 10% or more under the high: sell on the tight trail.
+    expect(decideExit({ ...position, highPerToken: 0.00125 }, { ...weak, valueEth: 1.1 }, V2)).toMatchObject({ kind: "sell", exitKind: "trail" });
+    // Top-10 holders selling is weak flow too: out in a loss, the tight trail in profit.
+    expect(decideExit(position, { ...market, top10Pct: 18, valueEth: 0.97 }, V2)).toMatchObject({ kind: "sell", exitKind: "flow", reason: expect.stringMatching(/top 10/) });
+    expect(decideExit({ ...position, highPerToken: 0.00112 }, { ...market, top10Pct: 18, valueEth: 1.1 }, V2).kind).toBe("hold");
   });
 
+  it("re-entry is off in the frozen set", () => {
+    const NOW2 = Date.parse("2026-11-17T12:00:00Z");
+    const exit = { exitKind: "flow" as const, exitAtMs: NOW2 - 90 * 60_000, exitMarketCapUsd: 20_000, highMarketCapUsd: 26_000, reentries: 0 };
+    expect(reentryVerdict(exit, { ...token, market_cap_usd: 22_000 }, 1.3, RULES, NOW2).pass).toBe(false);
+  });
+
+  // The re-entry rule itself, switched on as a custom agent could: one re-entry after a flow or time exit.
+  const RULES_RE = parseTrenchRules({ ...PRESETS.almost_bonded, entry: { ...PRESETS.almost_bonded.entry, reentryEnabled: true } }, "almost_bonded");
+
   it("allows one re-entry after a flow or time exit only, with cooldown, strong flow and a price window", () => {
+    const RULES = RULES_RE;
     const NOW2 = Date.parse("2026-11-17T12:00:00Z");
     const exit = { exitKind: "flow" as const, exitAtMs: NOW2 - 90 * 60_000, exitMarketCapUsd: 20_000, highMarketCapUsd: 26_000, reentries: 0 };
     const back = { ...token, market_cap_usd: 22_000 };
@@ -543,11 +557,12 @@ describe("exit v2", () => {
   });
 
   it("runMinute re-buys a token held before only when the re-entry passes", () => {
+    const RULES = RULES_RE;
     const strong = { ...stats, "6h": w(1300, 1000) };
     const NOW2 = Date.parse("2026-11-17T12:00:00Z");
     const back = { ...token, market_cap_usd: 22_000 };
     const previous = new Map([[token.address, { exitKind: "time" as const, exitAtMs: NOW2 - 90 * 60_000, exitMarketCapUsd: 20_000, highMarketCapUsd: 26_000, reentries: 0 }]]);
-    const input = minute({ nowMs: NOW2, everHeld: new Set([token.address]), previous, candidates: [candidate({ token: back, checks: { stats: strong, safetyBlocked: false, dexPaidMinutesAfterLaunch: 11 } })] });
+    const input = minute({ rules: RULES, nowMs: NOW2, everHeld: new Set([token.address]), previous, candidates: [candidate({ token: back, checks: { stats: strong, safetyBlocked: false, dexPaidMinutesAfterLaunch: 11 } })] });
     expect(runMinute(input).actions).toEqual([expect.objectContaining({ kind: "buy", reentry: true, reason: expect.stringMatching(/^re-entry:/) })]);
     const stopped = new Map([[token.address, { ...previous.get(token.address)!, exitKind: "stop" as const }]]);
     expect(runMinute({ ...input, previous: stopped }).actions).toEqual([]);

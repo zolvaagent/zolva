@@ -12,9 +12,10 @@
  *
  * Exit v2 (owner 2026-11-18, "Yes, send both"; Research's review trench-exit-review-2026-11-18.md, values
  * Research's to tune): bank 50% early, then lock the stop above entry and trail the rest; weak buying
- * while in profit tightens the trail instead of selling everything; the stop needs N one-minute closes
- * below it; one re-entry per token after a flow or time exit. Curve Rider uses it; Graduated Safe keeps
- * its exits (the new fields off) until Research says otherwise.
+ * (or top-10 holders selling) while in profit tightens the trail instead of selling everything; the
+ * stop needs N one-minute closes below it. Re-entry exists but is off. Values: Research's frozen set
+ * (docs/perps-research.md "Trench exit v2", b8cc25c). Curve Rider uses it; Graduated Safe keeps its
+ * exits (the new fields off) until Research says otherwise.
  */
 
 /** Where a preset trades: on the PONS bonding curve, or graduated tokens on Uniswap. */
@@ -123,7 +124,8 @@ export const PRESETS = {
       requireDexPaid: true,
       maxDexPaidMinutes: 90,
       requireSocial: true,
-      reentryEnabled: true,
+      // Research froze exit v2 without re-entry (2026-11-18); the rule is built but off.
+      reentryEnabled: false,
       reentryCooldownMinutes: 60,
       reentryMinBuySell6h: 1.2,
     },
@@ -142,7 +144,7 @@ export const PRESETS = {
       addBondingPts: 0.1,
       addMinBuySell6h: 1,
       lockInPct: 3,
-      weakFlowTrailPct: 8,
+      weakFlowTrailPct: 10,
       stopConfirmMinutes: 2,
     },
     sizing: { firstBuyShare: 0.1, addShare: 0.1, maxPerTokenShare: 0.2, maxOpenTokens: 4, dailyLossShare: 0.2, totalLossShare: 0.7 },
