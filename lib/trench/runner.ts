@@ -319,6 +319,7 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
       const message = (cause as Error).message.slice(0, 300);
       shared.summary.errors.push(`${agent.id.slice(0, 8)} ${action.symbol}: ${message}`);
       await logDecision(db, agent.id, "error", `${action.kind} failed: ${message}`, action.token, action.symbol);
+      if (action.kind === "sell") await alertOnFailedSells(shared, agent, action.token, action.symbol);
     }
   }
 
@@ -420,6 +421,30 @@ async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWalle
     await db.from("trench_executions").update({ status: "failed", error: (cause as Error).message.slice(0, 500) }).eq("id", executionId);
     throw cause;
   }
+}
+
+/**
+ * After 2 failed sells of the same token in a row, say so loudly and pause the agent (no new buys;
+ * exits keep trying): an "alert" line in the agent's log (shown in red) and in the minute summary.
+ * HYLIT's exit failed 906 times on 2026-11-17 without anyone noticing until Research looked.
+ */
+async function alertOnFailedSells(shared: Shared, agent: TrenchAgentRow, token: string, symbol: string): Promise<void> {
+  const { db } = shared;
+  const { data } = await db.from("trench_executions").select("status").eq("agent_id", agent.id).eq("token", token).eq("side", "sell").order("created_at", { ascending: false }).limit(10);
+  let failedInARow = 0;
+  for (const row of data ?? []) {
+    if (row.status !== "failed") break;
+    failedInARow += 1;
+  }
+  if (failedInARow < 2) return;
+  const text = `ALERT: ${failedInARow} sells of ${symbol} failed in a row; the position can't be closed. Agent paused; exits keep trying. Check the wallet and Rushr.`;
+  shared.summary.errors.push(`${agent.id.slice(0, 8)} ${text}`);
+  if (agent.status === "active") {
+    await db.from("trench_agents").update({ status: "paused", halted_reason: `Paused: ${failedInARow} sells of ${symbol} failed in a row.` }).eq("id", agent.id);
+    agent.status = "paused";
+  }
+  // At 2 failures, then every 10, so the log doesn't drown in alerts.
+  if (failedInARow === 2 || failedInARow % 10 === 0) await logDecision(db, agent.id, "alert", text, token, symbol);
 }
 
 /** One public call per position a few minutes after the buy, so Rushr links our entry. */

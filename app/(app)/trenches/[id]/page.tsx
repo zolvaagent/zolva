@@ -25,7 +25,7 @@ const clock = (iso: string) => new Date(iso).toISOString().slice(11, 16);
 const signed = (value: number) => `${value >= 0 ? "+" : "-"}${usd(Math.abs(value))}`;
 
 /** Terminal colour per log action. */
-const TONE: Record<string, string> = { buy: "gain", add: "gain", sell: "warn", halt: "loss", error: "loss", scan: "dim", hold: "dim", skip: "dim" };
+const TONE: Record<string, string> = { buy: "gain", add: "gain", sell: "warn", halt: "loss", error: "loss", alert: "loss", scan: "dim", hold: "dim", skip: "dim", note: "warn" };
 
 /** One trench agent, for its owner only (everyone else gets a 404). */
 export default async function TrenchAgentPage({ params }: { params: Promise<{ id: string }> }) {
