@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { secretsMatch } from "@/lib/secrets";
 import { runActiveAgents } from "@/lib/agents/runner";
 import { clearMarketCache } from "@/lib/data/market";
+import { refreshVerifyStatuses } from "@/lib/data/verify-status";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 import { runLighterAgents, type LighterBinding, type PerpsLiveResult } from "@/lib/live/perps-runner";
@@ -20,6 +21,7 @@ import { db } from "@/lib/supabase";
  *    any hour missed in the last day), then repairs two tokens' candles from
  *    GeckoTerminal when it lets us (never a close an agent already acted on).
  * 2. Runs every active agent on the new hour (atomic, at most once per hour).
+ * 3. Re-checks a few public agents with Verify for the README badge (best effort).
  */
 export async function POST(request: NextRequest) {
   if (!secretsMatch(request.headers.get("x-cron-secret"), env.cronSecret)) {
@@ -56,9 +58,12 @@ export async function POST(request: NextRequest) {
     refreshed: 0,
     note: cause instanceof Error ? cause.message : String(cause),
   }));
+  // README badge: re-check a few public agents with Verify, oldest result first. Best effort, last, so it
+  // never delays prices or agents.
+  const verify = await refreshVerifyStatuses(client).catch((cause: unknown) => ({ error: cause instanceof Error ? cause.message : String(cause) }));
   const liveOk = !("error" in live) && live.failed.length === 0;
   const perpsOk = !("error" in perps) && perps.failed.length === 0;
   const ok = ingest.failed.length === 0 && agents.failed.length === 0 && liveOk && perpsOk;
-  return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents, live, perps, membership }, { status: ok ? 200 : 502 });
+  return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents, live, perps, membership, verify }, { status: ok ? 200 : 502 });
 }
 

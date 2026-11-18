@@ -4,6 +4,7 @@ import { ACTIVITY_HOURS, getActivity } from "@/lib/data/activity";
 import { getAgentDetail, listAgents } from "@/lib/data/agents";
 import { getMarketDetail, getMarketOverview } from "@/lib/data/markets";
 import { loadAndVerifyAgent } from "@/lib/data/verify";
+import { loadVerifyBadge, saveVerifyStatus } from "@/lib/data/verify-status";
 import { getLongbowListings } from "@/lib/longbow";
 import { db } from "@/lib/supabase";
 
@@ -36,6 +37,8 @@ export async function verifyBody(id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const result = await loadAndVerifyAgent(db(), id.toLowerCase());
   if (!result) return null;
+  // Keep the README badge's stored result fresh; a failed save never fails the response.
+  await saveVerifyStatus(db(), result).catch((cause: unknown) => console.error("verify status", cause));
   const iso = (ts: number) => new Date(ts * 1000).toISOString();
   const difference = (value: { at: number; detail: string } | null) => (value ? { at: iso(value.at), detail: value.detail } : null);
   const before = result.unverifiable;
@@ -135,6 +138,14 @@ export function consensusAnswer(body: Awaited<ReturnType<typeof consensusBody>> 
     note: consensusNote(markets, agents.length),
     disclaimer: DISCLAIMER,
   };
+}
+
+/**
+ * The README badge "replay-verified N/M agents" (shields.io endpoint JSON), from the stored verify result
+ * of every public agent; the hourly tick re-checks them in rotation.
+ */
+export async function verifyBadgeBody() {
+  return loadVerifyBadge(db());
 }
 
 export async function marketsBody() {

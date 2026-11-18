@@ -356,6 +356,10 @@ export default function PublicApi() {
         transaction on Robinhood Chain.
       </p>
       <Example path="/agents/ae0581f0-e99b-4d80-abf0-fd98fff11c78/verify" />
+      <p>
+        <code>GET /badge/verify</code> sums it up for a README badge (shields.io endpoint format): how many public agents match, from each agent&apos;s latest stored result. The hourly
+        tick re-checks a few agents in rotation, so every agent is replayed again within about 9 hours.
+      </p>
 
       <H2 id="markets">GET /markets</H2>
       <p>

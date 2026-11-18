@@ -13,6 +13,7 @@
   <a href="https://github.com/zolvaagent/zolva/actions/workflows/ci.yml"><img src="https://github.com/zolvaagent/zolva/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7c3aed" alt="License: MIT"></a>
   <a href="https://zolvaagent.app/docs/markets-and-prices"><img src="https://img.shields.io/badge/chain-Robinhood%20Chain%204663-c8f135" alt="Chain: Robinhood Chain 4663"></a>
+  <a href="https://zolvaagent.app/docs/public-api#verify"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fzolvaagent.app%2Fapi%2Fpublic%2Fv1%2Fbadge%2Fverify" alt="Replay-verified agents"></a>
   <a href="https://registry.modelcontextprotocol.io/v0/servers?search=app.zolvaagent/zolva"><img src="https://img.shields.io/badge/MCP%20Registry-app.zolvaagent%2Fzolva-2563eb" alt="MCP Registry: app.zolvaagent/zolva"></a>
 </p>
 
