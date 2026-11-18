@@ -950,3 +950,22 @@ peak; stop -25% only after two consecutive 1-minute closes below; flow exit (1h 
 pause after 2 failed sells. Gate before real money: the pre-registered backtest (`scripts/research-trench-backtest.mts`,
 `cd9459c`, every PONS launch of the last 14 days from chain logs) must PASS; the owner chose this backtest instead of
 the 14 day dry run. Note: notes folder trench-exit-v2-decision.md.
+
+## Trench backtest (2026-11-18): NO-GO
+
+Pre-registered in `cd9459c` (`scripts/research-trench-backtest.mts`). Every PONS launch of the last 14 days from
+chain logs: 11,415 launches, 663 reached 35% bonding, **47 graduated (0.4%)**. Curve Rider entries rebuilt from
+chain data (dev %, fresh %, X checks not rebuildable), exits v1 and v2 on the same entries, real curve fee/tax +
+0.25% Rushr + 0.5% slippage per fill.
+
+| Picker | Trades | v1 mean | v2 mean | v2 at 2x costs | v2 without best | v2 worst | v2 wins |
+|---|---|---|---|---|---|---|---|
+| Chain-only (gate) | 207 | -32.5% | **-22.4%** | -27.0% | -23.0% | -86.7% | 40% |
+| + DEX paid within 90 min | 54 | +2.0% | **+1.0%** (median +6.2%) | -6.8% | -0.9% | -48.0% | 57% |
+
+- Gate (v2, chain-only picker): fails every line except "v2 beats v1". **NO-GO.**
+- Exit v2 beats v1 by about 10 points per trade, as the replay suggested, but cannot make the picker positive.
+- The DEX-paid filter is the one entry check that matters: it moves the mean from -22% to about break-even. Even
+  so it fails the gate (negative at 2x costs and without the best trade, worst trade -48%, 54 trades).
+- Optimistic on purpose (fills at minute closes, no failed sells, looser picker), so live would likely be worse.
+Raw output: notes folder trench-backtest-raw.txt.
