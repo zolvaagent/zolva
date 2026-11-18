@@ -927,3 +927,13 @@ rarely get the IPO price). Not advice; past IPOs do not predict $ANT.
   (day 60: +8% day 1 vs +6% DCA; day 120: -15% vs -13%). The spread is huge either way: CRWV +212%, FIG -75%.
 Reading for Zolva: an "IPO Day" DCA agent is the honest thing to run on $ANT from the first hour; rule agents need
 48 h (presets) to 50 days (Vol Trend) of history anyway. Expect big swings; nothing here says which way $ANT goes.
+
+## Trench bots review (2026-11-18): 11 closed trades, 11 losses
+
+Owner paused both trench bots ("almost bonded" preset on PONS curve tokens) for a strategy review. Zolva agent 84c65efb
+and the VPS Lab agent (@zolva_lab) together: 11 closed trades, all losses, realised about -$16 (stops filled at -25% to
+-31%; "invalidated" exits -5% to -12%; no take-profit ever hit; bonding mostly fell after entry). Three positions are
+stuck with no working stop because of two bugs (JSON number rounding of token amounts; a buy recorded as 0 tokens
+after RPC lag). Recommendation: stay paused, fix the bugs, and require a pre-registered rule plus a 2 week / 50 trade
+dry run that is positive after costs before any trench agent trades real money again. Details: notes folder
+trench-strategy-review.md; data: trench-lab-trades.csv and the trench_* tables.
