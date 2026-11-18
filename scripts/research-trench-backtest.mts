@@ -35,6 +35,17 @@
  * >= -35%; mean > 0 in each of the two weeks separately; v2 mean > v1 mean on the same entries.
  * Anything else = NO-GO. Known optimism: entries and exits fill at the minute close with no queue or failed sells.
  *
+ * Follow-up, MODE=dexpaid (added 2026-11-18 after the NO-GO, owner: "coba backtest hanya token DEX paid saja"),
+ * fixed before its first run. Universe: every launch of the 14 days with trades whose DexScreener order (approved,
+ * earliest paymentTimestamp) exists; same costs (creator tax <= 2% kept), exit v2 (v1 shown), same gate lines.
+ *   A  buy at the first minute close at or after the payment (no other entry filter)
+ *   B  A, only when paid within 90 minutes of launch
+ *   C  B, entry at the first minute after the payment with bonding 35%-70% and a 15%-45% pullback, within 24 h
+ *   D  A split by payment delay: <= 30 min, 30-90 min, > 90 min
+ * These 14 days already showed the DEX-paid effect, so A-D are EXPLORATION, not evidence. The decision gate is
+ * forward: launches from 2026-11-19 00:00 UTC onward (rerun with FROM=1795564800 after at least 7 days), with the
+ * same variant chosen now = B (paid within 90 min, exit v2), must pass every line of the gate above on its own.
+ *
  *   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/research-trench-backtest.mts
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -289,6 +300,23 @@ async function dexPaid(token: string, launchT: number): Promise<boolean> {
   return orders.some((o) => o.status === "approved" && o.paymentTimestamp != null && o.paymentTimestamp / 1000 - launchT <= 90 * 60);
 }
 
+/** Earliest approved DexScreener payment (unix seconds) for a token, or null. Cached; ~1 call/s. */
+async function paidAt(token: string): Promise<number | null> {
+  const file = join(CACHE, "dex", `${token}.json`);
+  let body: unknown;
+  if (existsSync(file)) body = JSON.parse(readFileSync(file, "utf8"));
+  else {
+    await sleep(1100);
+    const r = await fetch(`https://api.dexscreener.com/orders/v1/robinhood/${token}`, { signal: AbortSignal.timeout(30_000) }).catch(() => null);
+    body = r?.ok ? await r.json() : [];
+    mkdirSync(join(CACHE, "dex"), { recursive: true });
+    writeFileSync(file, JSON.stringify(body));
+  }
+  const orders = (Array.isArray(body) ? body : ((body as { orders?: unknown[] })?.orders ?? [])) as { status?: string; paymentTimestamp?: number }[];
+  const times = orders.filter((o) => o.status === "approved" && o.paymentTimestamp != null).map((o) => (o.paymentTimestamp as number) / 1000);
+  return times.length ? Math.min(...times) : null;
+}
+
 const pct = (v: number) => `${v >= 0 ? "+" : ""}${(v * 100).toFixed(1)}%`;
 
 async function main() {
@@ -324,9 +352,6 @@ async function main() {
   }
   console.log(`Reached 35% bonding: ${reached35}; graduated (100%): ${graduated}; entries by the chain-only picker: ${entries.length}.`);
 
-  const paid = new Set<string>();
-  for (const x of entries) if (await dexPaid(x.launch.token, x.launch.t)) paid.add(x.launch.token);
-
   const weekSplit = now / 1000 - 7 * 86400;
   const report = (label: string, set: typeof entries) => {
     console.log(`\n${label}: ${set.length} trades`);
@@ -351,6 +376,47 @@ async function main() {
     const pass = set.length >= 50 && v2[0] > 0 && rows.v2x2[0] > 0 && v2[1] > 0 && v2[2] >= -0.35 && v2[3] > 0 && v2[4] > 0 && v2[0] > rows.v1x1[0];
     console.log(`  GATE (v2): ${pass ? "PASS" : "NO-GO"}`);
   };
+  if (process.env.MODE === "dexpaid") {
+    const from = Number(process.env.FROM ?? 0);
+    const variants: Record<string, typeof entries> = { A: [], B: [], C: [], "D <=30m": [], "D 30-90m": [], "D >90m": [] };
+    let checked = 0;
+    let paidCount = 0;
+    for (const launch of tested) {
+      if (launch.t < from) continue;
+      const list = (trades[launch.curve] ?? []).sort((a, b) => a[0] - b[0]);
+      if (!list.length) continue;
+      const pay = await paidAt(launch.token);
+      if (++checked % 500 === 0) console.log(`  checked ${checked} tokens, ${paidCount} paid`);
+      if (pay == null) continue;
+      paidCount++;
+      const buys = list.filter((x) => x[1] === 0);
+      const ethIn = buys.reduce((s, x) => s + x[2], 0);
+      const taxRate = ethIn > 0 ? buys.reduce((s, x) => s + x[5], 0) / ethIn : 0;
+      const feeRate = ethIn > 0 ? buys.reduce((s, x) => s + x[4], 0) / ethIn : 0.01;
+      if (taxRate > 0.02) continue;
+      const ms = minutes(launch, list);
+      if (!ms.length || pay > ms[ms.length - 1].t + 3600) continue; // paid after the 72 h window or long after the last trade
+      const cost = feeRate + taxRate + RUSHR_FEE + SLIPPAGE;
+      let e = ms.findIndex((m) => m.t >= Math.floor(pay / 60) * 60);
+      if (e < 0) e = ms.length - 1;
+      const delay = (pay - launch.t) / 60;
+      const item = { launch, ms, e, cost };
+      variants.A.push(item);
+      variants[delay <= 30 ? "D <=30m" : delay <= 90 ? "D 30-90m" : "D >90m"].push(item);
+      if (delay <= 90) {
+        variants.B.push(item);
+        const c = ms.findIndex((m, k) => k >= e && m.t - launch.t <= 24 * 3600 && m.bonding >= 0.35 && m.bonding <= 0.7 && 1 - m.close / m.high >= 0.15 && 1 - m.close / m.high <= 0.45);
+        if (c >= 0) variants.C.push({ ...item, e: c });
+      }
+    }
+    console.log(`DEX paid mode${from ? ` (launches from ${new Date(from * 1000).toISOString()})` : ""}: ${checked} tokens with trades checked, ${paidCount} paid.`);
+    for (const [label, set] of Object.entries(variants)) report(`Variant ${label}`, set);
+    return;
+  }
+
+  const paid = new Set<string>();
+  for (const x of entries) if (await dexPaid(x.launch.token, x.launch.t)) paid.add(x.launch.token);
+
   report("Chain-only picker (gate)", entries);
   report("+ DEX paid within 90 min", entries.filter((x) => paid.has(x.launch.token)));
 }
