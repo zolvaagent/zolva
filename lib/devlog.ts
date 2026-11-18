@@ -44,7 +44,7 @@ export const DEVLOG: DevlogEntry[] = [
     body: "Stock pages now show each Longbow market's borrow rate and the USDG available to borrow next to its LLTV, as Longbow suggested. While a stock's price feed is paused outside market hours, the page says so instead of showing the rate. Markets marks every token Longbow lends against, with a Borrowable on Longbow tab. The same fields are in the public API and MCP, read from Longbow's markets API every hour.",
     sources: [
       commit("3034504"),
-      commit("e8d64a7"),
+      commit("342d06a"),
       { label: "Longbow", href: "https://www.longbow.finance" },
       { label: "/docs/markets-and-prices", href: "https://zolvaagent.app/docs/markets-and-prices#longbow" },
     ],
