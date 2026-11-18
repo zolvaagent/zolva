@@ -937,3 +937,6 @@ stuck with no working stop because of two bugs (JSON number rounding of token am
 after RPC lag). Recommendation: stay paused, fix the bugs, and require a pre-registered rule plus a 2 week / 50 trade
 dry run that is positive after costs before any trench agent trades real money again. Details: notes folder
 trench-strategy-review.md; data: trench-lab-trades.csv and the trench_* tables.
+Update 2026-11-18: after Development's fixes (eeb5975, Lab 7e93ae8) the three stuck positions were sold (HYLIT -$1.80,
+HOLBRIC -$0.87, ROTHERA -$7.32 at -73%). Final record: 14 closed trades, 14 losses, -$26.02 realised; both bots stay
+paused for buys.
