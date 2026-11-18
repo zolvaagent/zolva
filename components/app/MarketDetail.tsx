@@ -281,7 +281,10 @@ export function MarketDetail({
                 // LLTV, borrow rate and USDG available, as Longbow asked; while the price feed is paused
                 // (stock feeds outside market hours) the rate is replaced by that note.
                 <p className="note">
-                  <i className="ph ph-bank" aria-hidden="true" />
+                  {/* Longbow's own mark (longbow.finance/favicon.png) on a white chip, so its navy reads in dark mode too. */}
+                  <span className="partner-chip" aria-hidden="true">
+                    <img src="/img/partners/longbow-mark.png" alt="" width={12} height={12} />
+                  </span>
                   <span>
                     Longbow lists a market for this token · LLTV {Number((longbow.lltv * 100).toFixed(1))}%
                     {longbow.feedFrozen
