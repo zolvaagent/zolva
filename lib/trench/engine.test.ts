@@ -15,6 +15,7 @@ import {
   decideExit,
   listStage,
   mustHalt,
+  reentryVerdict,
   runMinute,
   socialStage,
   statsStage,
@@ -32,7 +33,9 @@ import { describeRules, EDITABLE_FIELDS, isCustom, limitsFor, parseTrenchRules, 
 import { parseNarrative } from "./social.ts";
 
 const RULES = parseTrenchRules({}, "almost_bonded");
-const X = RULES.exit;
+// The Lab agent's own exits (v1): Curve Rider moved to exit v2 on 2026-11-18, the Lab agent did not,
+// so the Lab cases run on v1 settings to keep both decision paths covered.
+const X = { ...RULES.exit, ladder: [{ gainPct: 50, sellShareOfEntry: 0.5 }, { gainPct: 100, sellShareOfEntry: 0.25 }], trailingPct: 30, lockInPct: -100, weakFlowTrailPct: 0, stopConfirmMinutes: 1 };
 const LIMITS = limitsFor(RULES, 100);
 
 describe("rules", () => {
@@ -70,6 +73,7 @@ const position: Position = {
   lastBondingMove: { bonding: 0.5, atMs: 0 },
   entryDevPct: 0,
   entryTop10Pct: 25,
+  stopHits: 0,
 };
 const market: Market = { nowMs: H, valueEth: 1, bonding: 0.52, graduated: false, devPct: 0, top10Pct: 25, buySell1h: 1.2, volume1hUsd: 500, buySell6h: 1.1, safetyBlocked: false };
 
@@ -264,7 +268,8 @@ describe("runMinute", () => {
   });
 
   it("keeps running exits while buys are off", () => {
-    const held = [{ position, symbol: "OLD", costUsd: 10, market: { ...market, valueEth: 0.7 } }];
+    // Curve Rider (v2) needs 2 closes below the stop: this is the second.
+    const held = [{ position: { ...position, stopHits: 1 }, symbol: "OLD", costUsd: 10, market: { ...market, valueEth: 0.7 } }];
     const { actions } = runMinute(minute({ held, book: { realisedTodayUsd: 0, realisedTotalUsd: 0, halted: false, buysOff: true } }));
     expect(actions[0]).toMatchObject({ kind: "sell", reason: expect.stringMatching(/^stop/) });
     expect(actions[1]).toMatchObject({ kind: "skip", reason: expect.stringMatching(/buys are off/) });
@@ -476,5 +481,75 @@ describe("Require X checks off", () => {
 describe("callout amounts", () => {
   it("shows cents under $10 so a $3.65 buy is not called $4", () => {
     expect(buyCallout({ symbol: "HYLIT", usd: 3.65, ruleFacts: "bonding 58%", narrative: null, presetName: "Curve Rider", stopPct: 25 })).toMatch(/^Bullish \$HYLIT: bought \$3\.65 by rule/);
+  });
+});
+
+// ---------------------------------------------------------------- exit v2 (Curve Rider, 2026-11-18)
+
+describe("exit v2", () => {
+  const V2 = RULES.exit;
+  const inProfit = { ...position, laddersDone: 1, tokens: 500n, costEth: 0.5, highPerToken: 0.00125 };
+
+  it("is Curve Rider's default: half at +20%, stop to entry +3%, 15% trail, 2-minute stop, re-entry on", () => {
+    expect(V2).toMatchObject({ ladder: [{ gainPct: 20, sellShareOfEntry: 0.5 }], lockInPct: 3, trailingPct: 15, weakFlowTrailPct: 8, stopConfirmMinutes: 2 });
+    expect(RULES.entry).toMatchObject({ reentryEnabled: true, reentryCooldownMinutes: 60, reentryMinBuySell6h: 1.2 });
+    // Graduated Safe keeps its exits.
+    expect(parseTrenchRules({}, "graduated_safe").exit).toMatchObject({ lockInPct: -100, weakFlowTrailPct: 0, stopConfirmMinutes: 1 });
+  });
+
+  it("banks 50% at +20%", () => {
+    expect(decideExit(position, { ...market, valueEth: 1.21 }, V2)).toMatchObject({ kind: "sell", share: 0.5, ladderStep: 1, exitKind: "ladder" });
+  });
+
+  it("needs two one-minute closes below the stop", () => {
+    const below = { ...market, valueEth: 0.7 };
+    const first = track(position, below, V2);
+    expect(first.stopHits).toBe(1);
+    expect(decideExit(first, below, V2)).toMatchObject({ kind: "hold", reason: expect.stringMatching(/1 of 2 closes below the stop/) });
+    const second = track(first, below, V2);
+    expect(decideExit(second, below, V2)).toMatchObject({ kind: "sell", share: 1, exitKind: "stop" });
+    // A wick that recovers resets the count.
+    expect(track(first, { ...market, valueEth: 0.9 }, V2).stopHits).toBe(0);
+  });
+
+  it("after the first take profit, the stop sits at entry +3% and the rest trails 15%", () => {
+    expect(decideExit(inProfit, { ...market, valueEth: 0.51 }, V2)).toMatchObject({ kind: "sell", exitKind: "lock" });
+    expect(decideExit(inProfit, { ...market, valueEth: 0.6 }, V2).kind).toBe("hold");
+    // High 0.00125/token, 15% under = 0.0010625 x 500 = 0.531 ETH.
+    expect(decideExit(inProfit, { ...market, valueEth: 0.53 }, V2)).toMatchObject({ kind: "sell", exitKind: "trail" });
+  });
+
+  it("weak buying: full exit in a loss, a tighter trail in profit", () => {
+    const weak = { ...market, buySell1h: 0.5 };
+    expect(decideExit(position, { ...weak, valueEth: 0.97 }, V2)).toMatchObject({ kind: "sell", exitKind: "flow" });
+    // In profit and close to the high: hold.
+    expect(decideExit({ ...position, highPerToken: 0.00112 }, { ...weak, valueEth: 1.1 }, V2).kind).toBe("hold");
+    // In profit but 8% or more under the high: sell on the tight trail.
+    expect(decideExit({ ...position, highPerToken: 0.0012 }, { ...weak, valueEth: 1.1 }, V2)).toMatchObject({ kind: "sell", exitKind: "trail" });
+  });
+
+  it("allows one re-entry after a flow or time exit only, with cooldown, strong flow and a price window", () => {
+    const NOW2 = Date.parse("2026-11-17T12:00:00Z");
+    const exit = { exitKind: "flow" as const, exitAtMs: NOW2 - 90 * 60_000, exitMarketCapUsd: 20_000, highMarketCapUsd: 26_000, reentries: 0 };
+    const back = { ...token, market_cap_usd: 22_000 };
+    expect(reentryVerdict(exit, back, 1.3, RULES, NOW2)).toEqual({ pass: true });
+    expect(reason(reentryVerdict({ ...exit, exitKind: "stop" }, back, 1.3, RULES, NOW2))).toMatch(/no re-entry/);
+    expect(reason(reentryVerdict({ ...exit, exitKind: "red" }, back, 1.3, RULES, NOW2))).toMatch(/no re-entry/);
+    expect(reason(reentryVerdict({ ...exit, reentries: 1 }, back, 1.3, RULES, NOW2))).toMatch(/already re-entered/);
+    expect(reason(reentryVerdict({ ...exit, exitAtMs: NOW2 - 30 * 60_000 }, back, 1.3, RULES, NOW2))).toMatch(/cooldown/);
+    expect(reason(reentryVerdict(exit, back, 1.1, RULES, NOW2))).toMatch(/6h buy\/sell 1.2/);
+    expect(reason(reentryVerdict(exit, { ...token, market_cap_usd: 19_000 }, 1.3, RULES, NOW2))).toMatch(/not above the last exit/);
+    expect(reason(reentryVerdict(exit, { ...token, market_cap_usd: 27_000 }, 1.3, RULES, NOW2))).toMatch(/old high/);
+  });
+
+  it("runMinute re-buys a token held before only when the re-entry passes", () => {
+    const strong = { ...stats, "6h": w(1300, 1000) };
+    const NOW2 = Date.parse("2026-11-17T12:00:00Z");
+    const back = { ...token, market_cap_usd: 22_000 };
+    const previous = new Map([[token.address, { exitKind: "time" as const, exitAtMs: NOW2 - 90 * 60_000, exitMarketCapUsd: 20_000, highMarketCapUsd: 26_000, reentries: 0 }]]);
+    const input = minute({ nowMs: NOW2, everHeld: new Set([token.address]), previous, candidates: [candidate({ token: back, checks: { stats: strong, safetyBlocked: false, dexPaidMinutesAfterLaunch: 11 } })] });
+    expect(runMinute(input).actions).toEqual([expect.objectContaining({ kind: "buy", reentry: true, reason: expect.stringMatching(/^re-entry:/) })]);
+    const stopped = new Map([[token.address, { ...previous.get(token.address)!, exitKind: "stop" as const }]]);
+    expect(runMinute({ ...input, previous: stopped }).actions).toEqual([]);
   });
 });

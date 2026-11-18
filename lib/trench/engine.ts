@@ -165,6 +165,8 @@ export type Position = {
   lastBondingMove: { bonding: number; atMs: number };
   entryDevPct: number;
   entryTop10Pct: number;
+  /** One-minute closes in a row at or below the stop (exit v2 confirms the stop over N minutes). */
+  stopHits: number;
 };
 
 export type Market = {
@@ -181,47 +183,70 @@ export type Market = {
   safetyBlocked: boolean;
 };
 
-export type ExitAction = { kind: "hold"; reason: string } | { kind: "sell"; share: number; reason: string; ladderStep?: number } | { kind: "add"; reason: string };
+/**
+ * Why a position was sold: decides whether the token may be bought again (only after "flow" or
+ * "time", see EntryRules.reentryEnabled).
+ */
+export type ExitKind = "stop" | "lock" | "red" | "flow" | "graduation" | "time" | "trail" | "ladder" | "halt";
+
+export type ExitAction = { kind: "hold"; reason: string } | { kind: "sell"; share: number; reason: string; ladderStep?: number; exitKind: ExitKind } | { kind: "add"; reason: string };
 
 export function gainPct(position: Pick<Position, "costEth">, valueEth: number): number {
   return position.costEth > 0 ? (valueEth / position.costEth - 1) * 100 : 0;
 }
 
-/** First match wins: stop, invalidation, graduation, time stop, ladder, trailing stop; else maybe add. */
+/**
+ * First match wins: stop (or the locked-in stop after the first take profit), red flags, weak flow,
+ * graduation, time stops, ladder, trailing stop; else maybe add.
+ *
+ * Exit v2 (ExitRules.lockInPct, weakFlowTrailPct, stopConfirmMinutes): the stop fires only after
+ * stopConfirmMinutes one-minute closes at or below it (position.stopHits, counted by track); after the
+ * first take profit the stop sits at entry + lockInPct; weak buying in profit tightens the trail to
+ * weakFlowTrailPct instead of selling everything (in a loss it still sells everything).
+ */
 export function decideExit(position: Position, market: Market, x: ExitRules, onCurve = true): ExitAction {
   const gain = gainPct(position, market.valueEth);
   const perToken = position.tokens > 0n ? market.valueEth / Number(position.tokens) : 0;
-  const all = (reason: string): ExitAction => ({ kind: "sell", share: 1, reason });
+  const high = Math.max(position.highPerToken, perToken);
+  const all = (reason: string, exitKind: ExitKind): ExitAction => ({ kind: "sell", share: 1, reason, exitKind });
 
-  if (gain <= -x.stopPct) return all(`stop: ${gain.toFixed(1)}% from entry`);
-
-  if (market.safetyBlocked) return all("invalidated: Rushr safety blocked");
-  if (market.devPct < position.entryDevPct - 0.05) return all(`invalidated: dev sold (${position.entryDevPct}% to ${market.devPct}%)`);
-  if (market.top10Pct < position.entryTop10Pct - 5) return all(`invalidated: top 10 wallets sold (${position.entryTop10Pct}% to ${market.top10Pct}%)`);
-  if (market.volume1hUsd >= x.minVolume1hUsd && market.buySell1h !== null && market.buySell1h < x.minBuySell1h) {
-    return all(`invalidated: 1h buy/sell ${market.buySell1h.toFixed(2)}`);
+  if (position.laddersDone > 0 && x.lockInPct > -100 && gain <= x.lockInPct) return all(`locked-in stop: ${gain.toFixed(1)}% after taking profit (stop at entry +${x.lockInPct}%)`, "lock");
+  // This minute's close always counts (track() has usually counted it already).
+  const closesBelow = gain <= -x.stopPct ? Math.max(position.stopHits, 1) : 0;
+  if (closesBelow >= x.stopConfirmMinutes) {
+    return all(x.stopConfirmMinutes > 1 ? `stop: ${gain.toFixed(1)}% from entry, ${closesBelow} closes below -${x.stopPct}%` : `stop: ${gain.toFixed(1)}% from entry`, "stop");
   }
 
-  if (onCurve && (market.graduated || market.bonding >= x.graduateBonding)) return all(`graduation: bonding ${(market.bonding * 100).toFixed(0)}%`);
+  if (market.safetyBlocked) return all("invalidated: Rushr safety blocked", "red");
+  if (market.devPct < position.entryDevPct - 0.05) return all(`invalidated: dev sold (${position.entryDevPct}% to ${market.devPct}%)`, "red");
+  if (market.top10Pct < position.entryTop10Pct - 5) return all(`invalidated: top 10 wallets sold (${position.entryTop10Pct}% to ${market.top10Pct}%)`, "red");
+  const weakFlow = market.volume1hUsd >= x.minVolume1hUsd && market.buySell1h !== null && market.buySell1h < x.minBuySell1h;
+  if (weakFlow) {
+    if (gain > 0 && x.weakFlowTrailPct > 0) {
+      // In profit: tighten the trail instead of selling everything.
+      if (perToken <= high * (1 - x.weakFlowTrailPct / 100)) return all(`tight trail: sellers lead (1h buy/sell ${market.buySell1h!.toFixed(2)}) and price ${x.weakFlowTrailPct}% under the high`, "trail");
+    } else {
+      return all(`invalidated: 1h buy/sell ${market.buySell1h!.toFixed(2)}`, "flow");
+    }
+  }
+
+  if (onCurve && (market.graduated || market.bonding >= x.graduateBonding)) return all(`graduation: bonding ${(market.bonding * 100).toFixed(0)}%`, "graduation");
 
   const heldHours = (market.nowMs - position.openedAtMs) / 3_600_000;
   const best = Math.max(position.maxGainPct, gain);
-  if (heldHours >= x.timeStopHours && best < x.timeStopNeedGainPct) return all(`time stop: no +${x.timeStopNeedGainPct}% in ${x.timeStopHours}h (best ${best.toFixed(1)}%)`);
+  if (heldHours >= x.timeStopHours && best < x.timeStopNeedGainPct) return all(`time stop: no +${x.timeStopNeedGainPct}% in ${x.timeStopHours}h (best ${best.toFixed(1)}%)`, "time");
   const flatHours = (market.nowMs - position.lastBondingMove.atMs) / 3_600_000;
   if (onCurve && Math.abs(market.bonding - position.lastBondingMove.bonding) < x.flatBondingPts && flatHours >= x.flatBondingHours) {
-    return all(`time stop: bonding flat for ${flatHours.toFixed(1)}h`);
+    return all(`time stop: bonding flat for ${flatHours.toFixed(1)}h`, "time");
   }
 
   const step = x.ladder[position.laddersDone];
   if (step && gain >= step.gainPct) {
     // A share of what was bought, as a share of what is held now.
     const share = Math.min(1, (step.sellShareOfEntry * Number(position.tokensBought)) / Number(position.tokens));
-    return { kind: "sell", share, reason: `take profit: +${gain.toFixed(0)}%, sell ${step.sellShareOfEntry * 100}% of the entry`, ladderStep: position.laddersDone + 1 };
+    return { kind: "sell", share, reason: `take profit: +${gain.toFixed(0)}%, sell ${step.sellShareOfEntry * 100}% of the entry`, ladderStep: position.laddersDone + 1, exitKind: "ladder" };
   }
-  if (position.laddersDone > 0) {
-    const high = Math.max(position.highPerToken, perToken);
-    if (perToken <= high * (1 - x.trailingPct / 100)) return all(`trailing stop: ${x.trailingPct}% below the high`);
-  }
+  if (position.laddersDone > 0 && perToken <= high * (1 - x.trailingPct / 100)) return all(`trailing stop: ${x.trailingPct}% below the high`, "trail");
 
   if (
     onCurve &&
@@ -234,7 +259,8 @@ export function decideExit(position: Position, market: Market, x: ExitRules, onC
   ) {
     return { kind: "add", reason: `strength: bonding ${(position.entryBonding * 100).toFixed(0)}% to ${(market.bonding * 100).toFixed(0)}%, +${gain.toFixed(0)}%` };
   }
-  return { kind: "hold", reason: `${gain >= 0 ? "+" : ""}${gain.toFixed(1)}%, bonding ${(market.bonding * 100).toFixed(0)}%` };
+  const waiting = closesBelow > 0 ? ` (${closesBelow} of ${x.stopConfirmMinutes} closes below the stop)` : "";
+  return { kind: "hold", reason: `${gain >= 0 ? "+" : ""}${gain.toFixed(1)}%, bonding ${(market.bonding * 100).toFixed(0)}%${waiting}` };
 }
 
 /** Update the running high, best gain and bonding clock after a minute (before deciding). */
@@ -246,6 +272,7 @@ export function track(position: Position, market: Market, x: ExitRules): Positio
     highPerToken: Math.max(position.highPerToken, perToken),
     maxGainPct: Math.max(position.maxGainPct, gainPct(position, market.valueEth)),
     lastBondingMove: moved ? { bonding: market.bonding, atMs: market.nowMs } : position.lastBondingMove,
+    stopHits: gainPct(position, market.valueEth) <= -x.stopPct ? position.stopHits + 1 : 0,
   };
 }
 
@@ -303,6 +330,25 @@ export type Crowding = {
 
 export type HeldInput = { position: Position; symbol: string; costUsd: number; market: Market };
 
+/** A closed position: how it ended, when, the market cap then and the highest seen while held. */
+export type PreviousExit = { exitKind: ExitKind | null; exitAtMs: number; exitMarketCapUsd: number | null; highMarketCapUsd: number | null; reentries: number };
+
+/** May this agent buy a token it held before? One re-entry, after a flow or time exit only, once flow is strong again and the price is back above the exit but under the old high. */
+export function reentryVerdict(previous: PreviousExit | undefined, token: RushrToken, buySell6h: number | null, rules: TrenchRules, nowMs: number): Verdict {
+  const r = rules.entry;
+  if (!previous || !r.reentryEnabled) return no("held before");
+  if (previous.reentries >= 1) return no("already re-entered once");
+  if (previous.exitKind !== "flow" && previous.exitKind !== "time") return no(`left on a ${previous.exitKind ?? "unknown"} exit: no re-entry`);
+  const waited = (nowMs - previous.exitAtMs) / 60_000;
+  if (waited < r.reentryCooldownMinutes) return no(`re-entry cooldown: ${Math.round(waited)} of ${r.reentryCooldownMinutes} min`);
+  if (buySell6h === null || buySell6h < r.reentryMinBuySell6h) return no(`re-entry needs 6h buy/sell ${r.reentryMinBuySell6h}, has ${buySell6h?.toFixed(2) ?? "none"}`);
+  const cap = token.market_cap_usd;
+  if (cap === null || previous.exitMarketCapUsd === null || previous.highMarketCapUsd === null) return no("re-entry: price history missing");
+  if (!(cap > previous.exitMarketCapUsd)) return no("re-entry: price not above the last exit");
+  if (!(cap < previous.highMarketCapUsd)) return no("re-entry: price at or above the old high");
+  return PASS;
+}
+
 /**
  * A candidate with the facts for stages 2 and 3, gathered once for every agent. `checks` null: not
  * fetched this minute; `social` null: X and narrative not checked yet. Either way it is not bought.
@@ -321,16 +367,18 @@ export type MinuteInput = {
   limits: Limits;
   book: Omit<Book, "open">;
   held: HeldInput[];
-  /** Tokens this agent ever held (a token is bought at most once). */
+  /** Tokens this agent ever held (bought again only by a re-entry, see `previous`). */
   everHeld: ReadonlySet<string>;
+  /** How each closed position ended, for the one re-entry after a flow or time exit. */
+  previous?: ReadonlyMap<string, PreviousExit>;
   candidates: CandidateInput[];
   crowding: Crowding;
 };
 
 export type MinuteAction =
-  | { kind: "sell"; token: string; symbol: string; share: number; reason: string; ladderStep?: number; position: Position }
+  | { kind: "sell"; token: string; symbol: string; share: number; reason: string; ladderStep?: number; exitKind: ExitKind; position: Position }
   | { kind: "add"; token: string; symbol: string; usd: number; reason: string; position: Position }
-  | { kind: "buy"; token: string; symbol: string; usd: number; reason: string; candidate: RushrToken }
+  | { kind: "buy"; token: string; symbol: string; usd: number; reason: string; candidate: RushrToken; reentry: boolean }
   | { kind: "hold"; token: string; symbol: string; reason: string; position: Position }
   | { kind: "skip"; token: string; symbol: string; reason: string };
 
@@ -359,9 +407,11 @@ export function runMinute(input: MinuteInput): MinuteResult {
 
   for (const item of input.held) {
     const position = track(item.position, item.market, rules.exit);
-    const action: ExitAction = halt ? { kind: "sell", share: 1, reason: book.halted ? "agent halted" : `total stop: P&L passed -$${limits.totalLossUsd}` } : decideExit(position, item.market, rules.exit, rules.market === "curve");
+    const action: ExitAction = halt
+      ? { kind: "sell", share: 1, reason: book.halted ? "agent halted" : `total stop: P&L passed -$${limits.totalLossUsd}`, exitKind: "halt" }
+      : decideExit(position, item.market, rules.exit, rules.market === "curve");
     if (action.kind === "sell") {
-      actions.push({ kind: "sell", token: position.token, symbol: item.symbol, share: action.share, reason: action.reason, ladderStep: action.ladderStep, position });
+      actions.push({ kind: "sell", token: position.token, symbol: item.symbol, share: action.share, reason: action.reason, ladderStep: action.ladderStep, exitKind: action.exitKind, position });
       continue;
     }
     if (action.kind === "add") {
@@ -384,9 +434,18 @@ export function runMinute(input: MinuteInput): MinuteResult {
   if (halt) return { actions, halt };
 
   for (const { token, tradesRank, checks, social } of input.candidates) {
-    if (input.everHeld.has(token.address)) continue;
+    const heldBefore = input.everHeld.has(token.address);
+    if (heldBefore && !input.previous?.has(token.address)) continue;
     const first = listStage(token, rules, input.nowMs);
     if (!first.pass || checks === null) continue;
+    if (heldBefore) {
+      const again = reentryVerdict(input.previous!.get(token.address), token, buySellRatio(checks.stats["6h"]), rules, input.nowMs);
+      if (!again.pass) {
+        // Quietly skip tokens that simply can't come back; say why only for real re-entry candidates.
+        if (!/held before|already re-entered|no re-entry/.test(again.reason)) actions.push({ kind: "skip", token: token.address, symbol: token.symbol, reason: again.reason });
+        continue;
+      }
+    }
     const second = statsStage({ ...checks, tradesRank }, rules);
     if (!second.pass) {
       actions.push({ kind: "skip", token: token.address, symbol: token.symbol, reason: second.reason });
@@ -413,7 +472,7 @@ export function runMinute(input: MinuteInput): MinuteResult {
       rules.market === "curve"
         ? `bonding ${((token.bonding_progress ?? 0) * 100).toFixed(0)}%, dev ${token.dev_pct}%, fresh ${token.fresh_pct}%, pullback ${pullbackPct(token)?.toFixed(0)}%`
         : `graduated, ${token.holders} holders, $${Math.round((token.volume_24h_usd ?? 0) / 1000)}k 24h volume, Rushr risk ${token.risk}, top 10 ${token.top10_pct}%`;
-    actions.push({ kind: "buy", token: token.address, symbol: token.symbol, usd: check.usd, reason, candidate: token });
+    actions.push({ kind: "buy", token: token.address, symbol: token.symbol, usd: check.usd, reason: heldBefore ? `re-entry: ${reason}` : reason, candidate: token, reentry: heldBefore });
     planned.set(token.address, (planned.get(token.address) ?? 0) + 1);
     plannedUsd.set(token.address, (plannedUsd.get(token.address) ?? 0) + check.usd);
     book.open.push({ token: token.address, costUsd: check.usd, valueUsd: check.usd });

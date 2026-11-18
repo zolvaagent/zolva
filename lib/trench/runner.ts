@@ -19,9 +19,9 @@ import { createChainClient, MAX_FEED_AGE_SECONDS } from "../prices/onchain.ts";
 import { buyCallout, CALLOUT_DELAY_MS, sellComment } from "./callouts.ts";
 import { decryptSecret } from "./crypto.ts";
 import { curveOf, readCurve, sellOut } from "./curve.ts";
-import { buySellRatio, caPosted, listStage, runMinute, socialStage, statsStage, type CandidateInput, type HeldInput, type MinuteAction, type Position, type RushrToken, type Verdict } from "./engine.ts";
+import { buySellRatio, caPosted, listStage, runMinute, socialStage, statsStage, type CandidateInput, type ExitKind, type HeldInput, type MinuteAction, type Position, type PreviousExit, type RushrToken, type Verdict } from "./engine.ts";
 import { trade, type AgentWallet, type Signer } from "./executor.ts";
-import { limitsFor, parseTrenchRules, PRESET_INFO, type Market, type PresetId } from "./rules.ts";
+import { agentRules, limitsFor, PRESET_INFO, type Market, type PresetId } from "./rules.ts";
 import { commentOn, postCallout, safetyBlocked, safetyRefusesBuy, sellQuoteWei, tokenColumn, tokenRow, tokenStats } from "./rushr-api.ts";
 import { dexPaidMinutes, narrative, xProfile, xTweets } from "./social.ts";
 
@@ -63,6 +63,7 @@ export type TrenchAgentRow = {
   rushr_handle: string | null;
   rushr_key_enc: string | null;
   callouts: boolean;
+  custom: boolean | null;
 };
 
 type PositionRow = {
@@ -91,6 +92,11 @@ type PositionRow = {
   narrative: string | null;
   callout_id: string | null;
   closed_at: string | null;
+  stop_hits: number | null;
+  exit_kind: ExitKind | null;
+  exit_mcap: number | null;
+  high_mcap: number | null;
+  reentries: number | null;
 };
 
 /** Every position column, plus the token amounts as exact text (see PositionRow). */
@@ -112,6 +118,7 @@ const toPosition = (row: PositionRow): Position => ({
   lastBondingMove: { bonding: row.last_bonding, atMs: Date.parse(row.last_bonding_at) },
   entryDevPct: row.entry_dev_pct,
   entryTop10Pct: row.entry_top10_pct,
+  stopHits: row.stop_hits ?? 0,
 });
 
 const positionColumns = (position: Position) => ({
@@ -124,6 +131,7 @@ const positionColumns = (position: Position) => ({
   added: position.added,
   last_bonding: position.lastBondingMove.bonding,
   last_bonding_at: new Date(position.lastBondingMove.atMs).toISOString(),
+  stop_hits: position.stopHits,
 });
 
 async function ethUsd(chain: PublicClient, nowMs: number): Promise<number> {
@@ -206,6 +214,7 @@ async function marketFor(shared: Shared, row: PositionRow, position: Position, w
   const valueWei = onCurve ? sellOut(position.tokens, curve) : await sellQuoteWei(wallet.rushrKey, row.token, position.tokens, wallet.address);
   return {
     curve,
+    marketCapUsd: listed?.market_cap_usd ?? null,
     market: {
       nowMs: shared.nowMs,
       valueEth: Number(formatEther(valueWei)),
@@ -244,19 +253,27 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
     return;
   }
 
-  const rules = parseTrenchRules(agent.rules, agent.preset);
+  const rules = agentRules(agent);
   const limits = limitsFor(rules, Number(agent.budget_usd));
   const { data: rows, error } = await db.from("trench_positions").select(POSITION_SELECT).eq("agent_id", agent.id);
   if (error) throw new Error(`loading positions failed: ${error.message}`);
   const positions = (rows ?? []) as PositionRow[];
   const open = positions.filter((row) => row.closed_at === null && BigInt(row.tokens_exact) > 0n);
   const everHeld = new Set(positions.map((row) => row.token));
+  // How each closed position ended, for the one re-entry after a flow or time exit.
+  const previous = new Map<string, PreviousExit>(
+    positions
+      .filter((row) => row.closed_at !== null)
+      .map((row) => [row.token, { exitKind: row.exit_kind, exitAtMs: Date.parse(row.closed_at!), exitMarketCapUsd: row.exit_mcap, highMarketCapUsd: row.high_mcap, reentries: row.reentries ?? 0 }]),
+  );
+  const capNow = new Map<string, number | null>();
 
   const held: (HeldInput & { row: PositionRow })[] = [];
   for (const row of open) {
     try {
       const position = toPosition(row);
-      const { market } = await marketFor(shared, row, position, wallet);
+      const { market, marketCapUsd } = await marketFor(shared, row, position, wallet);
+      capNow.set(row.token, marketCapUsd);
       held.push({ row, position, symbol: row.symbol, costUsd: row.cost_usd, market });
     } catch (cause) {
       // Without a price the position can't be judged this minute; it is tried again next minute.
@@ -273,6 +290,7 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
     book: { realisedTodayUsd: today, realisedTotalUsd: total, halted: agent.status === "halted", buysOff: !shared.settings.enabled || agent.status !== "active" },
     held,
     everHeld,
+    previous,
     candidates: shared.candidates,
     crowding: {
       maxTokenExposureUsd: Number(shared.settings.max_token_exposure_usd),
@@ -309,12 +327,16 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
       if (action.kind === "hold" || action.kind === "skip") {
         if (action.kind === "hold") {
           const item = held.find((entry) => entry.position.token === action.token);
-          if (item) await db.from("trench_positions").update(positionColumns(action.position)).eq("agent_id", agent.id).eq("token", action.token);
+          if (item) {
+            const cap = capNow.get(action.token) ?? null;
+            const high = cap === null ? item.row.high_mcap : Math.max(cap, item.row.high_mcap ?? 0);
+            await db.from("trench_positions").update({ ...positionColumns(action.position), high_mcap: high }).eq("agent_id", agent.id).eq("token", action.token);
+          }
         }
         if (snapshot) await logDecision(db, agent.id, action.kind, action.reason, action.token, action.symbol);
         continue;
       }
-      await execute(shared, agent, wallet, action, held.find((entry) => entry.position.token === action.token)?.row ?? null);
+      await execute(shared, agent, wallet, action, held.find((entry) => entry.position.token === action.token)?.row ?? null, capNow.get(action.token) ?? null);
     } catch (cause) {
       const message = (cause as Error).message.slice(0, 300);
       shared.summary.errors.push(`${agent.id.slice(0, 8)} ${action.symbol}: ${message}`);
@@ -328,7 +350,7 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
 }
 
 /** Claims the order slot, trades, and records the result. */
-async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWallet, action: Exclude<MinuteAction, { kind: "hold" } | { kind: "skip" }>, row: PositionRow | null): Promise<void> {
+async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWallet, action: Exclude<MinuteAction, { kind: "hold" } | { kind: "skip" }>, row: PositionRow | null, capUsd: number | null = null): Promise<void> {
   const { db, chain, signer, ethPrice, nowMs, minute } = shared;
   const side = action.kind === "sell" ? "sell" : "buy";
   let amountIn: bigint;
@@ -371,7 +393,13 @@ async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWalle
       const next = { ...position, tokens: left, costEth: position.costEth - soldCostEth, laddersDone: action.ladderStep ?? position.laddersDone };
       await db
         .from("trench_positions")
-        .update({ ...positionColumns(next), cost_usd: (row?.cost_usd ?? 0) - soldCostUsd, closed_at: left <= 0n ? new Date(nowMs).toISOString() : null })
+        .update({
+          ...positionColumns(next),
+          cost_usd: (row?.cost_usd ?? 0) - soldCostUsd,
+          closed_at: left <= 0n ? new Date(nowMs).toISOString() : null,
+          // How it ended and at what market cap: the one re-entry needs both.
+          ...(left <= 0n ? { exit_kind: action.exitKind, exit_mcap: capUsd } : {}),
+        })
         .eq("agent_id", agent.id)
         .eq("token", action.token);
       shared.exposure.set(action.token, Math.max(0, (shared.exposure.get(action.token) ?? 0) - soldCostUsd));
@@ -398,9 +426,7 @@ async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWalle
     }
     const token = action.candidate;
     const curve = await curveOf(chain, token.address as Address);
-    await db.from("trench_positions").insert({
-      agent_id: agent.id,
-      token: token.address,
+    const opened = {
       symbol: token.symbol,
       curve: curve ?? "",
       tokens: fill.tokens.toString(),
@@ -415,7 +441,21 @@ async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWalle
       entry_dev_pct: token.dev_pct ?? 0,
       entry_top10_pct: token.top10_pct ?? 0,
       narrative: shared.narratives.get(token.address) ?? null,
-    });
+      stop_hits: 0,
+      high_mcap: token.market_cap_usd ?? null,
+    };
+    if (action.reentry) {
+      // A re-entry reopens the token's row (one row per agent and token): fresh entry state, one more re-entry
+      // counted, and a new call on Rushr.
+      const { data: before } = await db.from("trench_positions").select("reentries").eq("agent_id", agent.id).eq("token", token.address).single();
+      await db
+        .from("trench_positions")
+        .update({ ...opened, closed_at: null, exit_kind: null, exit_mcap: null, callout_id: null, ladders_done: 0, added: false, max_gain_pct: 0, reentries: Number(before?.reentries ?? 0) + 1 })
+        .eq("agent_id", agent.id)
+        .eq("token", token.address);
+    } else {
+      await db.from("trench_positions").insert({ agent_id: agent.id, token: token.address, ...opened });
+    }
     await logDecision(db, agent.id, "buy", `bought $${usd.toFixed(2)}: ${action.reason}`, action.token, action.symbol);
   } catch (cause) {
     await db.from("trench_executions").update({ status: "failed", error: (cause as Error).message.slice(0, 500) }).eq("id", executionId);
@@ -474,12 +514,12 @@ async function gatherCandidates(shared: Shared, agents: TrenchAgentRow[]): Promi
     ["curve", ranked("curve")],
     ["graduated", ranked("graduated")],
   ]);
-  const agentRules = agents.map((agent) => parseTrenchRules(agent.rules, agent.preset));
+  const rulesOfAgents = agents.map((agent) => agentRules(agent));
   const socialBudget = { left: MAX_SOCIAL_PER_MINUTE };
   let checked = 0;
   for (const token of shared.list) {
     const tradesRank = (rankLists.get(shared.marketOf.get(token.address) ?? "curve") ?? []).indexOf(token) + 1;
-    const passesList = agentRules.some((rules) => listStage(token, rules, shared.nowMs).pass);
+    const passesList = rulesOfAgents.some((rules) => listStage(token, rules, shared.nowMs).pass);
     if (!passesList || checked >= MAX_CHECKS_PER_MINUTE) {
       shared.candidates.push({ token, tradesRank, checks: null, social: null });
       continue;
@@ -489,8 +529,8 @@ async function gatherCandidates(shared: Shared, agents: TrenchAgentRow[]): Promi
       const [stats, blocked, paid] = await Promise.all([tokenStats(token.address), safetyRefusesBuy(token.address), dexPaidMinutes(token.address, Date.parse(token.created_at)).catch(() => null)]);
       const checks = { stats, safetyBlocked: blocked, dexPaidMinutesAfterLaunch: paid };
       let social: Verdict | null = null;
-      const passesStats = agentRules.some((rules) => statsStage({ ...checks, tradesRank }, rules).pass);
-      if (passesStats && agentRules.some((rules) => rules.entry.requireSocial)) {
+      const passesStats = rulesOfAgents.some((rules) => statsStage({ ...checks, tradesRank }, rules).pass);
+      if (passesStats && rulesOfAgents.some((rules) => rules.entry.requireSocial)) {
         const result = await socialVerdict(shared.db, token, socialBudget).catch(() => null);
         social = result?.verdict ?? null;
         if (result) shared.narratives.set(token.address, result.narrative);
@@ -521,7 +561,7 @@ export async function runTrenchMinute(db: SupabaseClient, nowMs: number = Date.n
 
   const { data: agentRows, error: agentsError } = await db
     .from("trench_agents")
-    .select("id, owner, name, preset, rules, budget_usd, status, wallet_address, privy_wallet_id, rushr_handle, rushr_key_enc, callouts")
+    .select("id, owner, name, preset, rules, custom, budget_usd, status, wallet_address, privy_wallet_id, rushr_handle, rushr_key_enc, callouts")
     .in("status", ["active", "paused", "halted"]);
   if (agentsError) return { ...summary, note: `agents: ${agentsError.message}` };
   const exposure = await exposureByToken(db);
@@ -543,7 +583,7 @@ export async function runTrenchMinute(db: SupabaseClient, nowMs: number = Date.n
   try {
     const chain = createChainClient(env.robinhoodRpcUrl);
     // Each market's list only when an agent trades it.
-    const markets = new Set(agents.map((agent) => parseTrenchRules(agent.rules, agent.preset).market));
+    const markets = new Set(agents.map((agent) => agentRules(agent).market));
     const [ethPrice, curveList, graduatedList] = await Promise.all([
       ethUsd(chain, nowMs),
       markets.has("curve") ? tokenColumn("almost") : Promise.resolve([]),

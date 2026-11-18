@@ -5,7 +5,7 @@ import "server-only";
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { parseTrenchRules, type PresetId, type TrenchRules } from "./rules.ts";
+import { agentRules, type PresetId, type TrenchRules } from "./rules.ts";
 import type { TrenchSettings } from "./runner.ts";
 
 export type TrenchAgentView = {
@@ -56,7 +56,7 @@ const toView = (row: AgentRow): TrenchAgentView => ({
   id: row.id,
   name: row.name,
   preset: row.preset,
-  rules: parseTrenchRules(row.rules, row.preset),
+  rules: agentRules({ preset: row.preset, rules: row.rules, custom: row.custom }),
   custom: row.custom === true,
   budgetUsd: Number(row.budget_usd),
   status: row.status,

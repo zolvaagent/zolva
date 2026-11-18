@@ -9,6 +9,12 @@
  * "graduated_safe" trades tokens after they left the curve, through Uniswap; owner decision
  * 2026-11-17 to open it to everyone, against Research's NO-GO on graduated tokens (2026-11-16), so it
  * waits 6 h after graduation, filters hard and exits fast.
+ *
+ * Exit v2 (owner 2026-11-18, "Yes, send both"; Research's review trench-exit-review-2026-11-18.md, values
+ * Research's to tune): bank 50% early, then lock the stop above entry and trail the rest; weak buying
+ * while in profit tightens the trail instead of selling everything; the stop needs N one-minute closes
+ * below it; one re-entry per token after a flow or time exit. Curve Rider uses it; Graduated Safe keeps
+ * its exits (the new fields off) until Research says otherwise.
  */
 
 /** Where a preset trades: on the PONS bonding curve, or graduated tokens on Uniswap. */
@@ -42,6 +48,10 @@ export type EntryRules = {
   maxDexPaidMinutes: number;
   /** The project's X account: blue check, website, contract posted by itself, and the AI narrative veto. */
   requireSocial: boolean;
+  /** One re-entry per token, only after a flow or time exit (never a stop or red flag). */
+  reentryEnabled: boolean;
+  reentryCooldownMinutes: number;
+  reentryMinBuySell6h: number;
 };
 
 export type ExitRules = {
@@ -58,6 +68,12 @@ export type ExitRules = {
   minVolume1hUsd: number;
   addBondingPts: number;
   addMinBuySell6h: number;
+  /** After the first take profit the stop moves to entry + this (%). -100 = off. */
+  lockInPct: number;
+  /** Weak buying while in profit: trail this tight (%) instead of selling everything. 0 = off (sell all). */
+  weakFlowTrailPct: number;
+  /** The stop fires after this many one-minute closes in a row below it (1 = the first). */
+  stopConfirmMinutes: number;
 };
 
 /** Shares of the agent's money. */
@@ -107,14 +123,15 @@ export const PRESETS = {
       requireDexPaid: true,
       maxDexPaidMinutes: 90,
       requireSocial: true,
+      reentryEnabled: true,
+      reentryCooldownMinutes: 60,
+      reentryMinBuySell6h: 1.2,
     },
     exit: {
       stopPct: 25,
-      ladder: [
-        { gainPct: 50, sellShareOfEntry: 0.5 },
-        { gainPct: 100, sellShareOfEntry: 0.25 },
-      ],
-      trailingPct: 30,
+      // v2: bank half at +20% (v1: +50% and +100%; ORRY and HOLBRIC reached +31% and still lost).
+      ladder: [{ gainPct: 20, sellShareOfEntry: 0.5 }],
+      trailingPct: 15,
       graduateBonding: 0.95,
       timeStopHours: 6,
       timeStopNeedGainPct: 20,
@@ -124,6 +141,9 @@ export const PRESETS = {
       minVolume1hUsd: 200,
       addBondingPts: 0.1,
       addMinBuySell6h: 1,
+      lockInPct: 3,
+      weakFlowTrailPct: 8,
+      stopConfirmMinutes: 2,
     },
     sizing: { firstBuyShare: 0.1, addShare: 0.1, maxPerTokenShare: 0.2, maxOpenTokens: 4, dailyLossShare: 0.2, totalLossShare: 0.7 },
   },
@@ -152,6 +172,9 @@ export const PRESETS = {
       requireDexPaid: false,
       maxDexPaidMinutes: 90,
       requireSocial: false,
+      reentryEnabled: false,
+      reentryCooldownMinutes: 60,
+      reentryMinBuySell6h: 1.2,
     },
     exit: {
       stopPct: 15,
@@ -167,6 +190,9 @@ export const PRESETS = {
       minVolume1hUsd: 500,
       addBondingPts: 0.1,
       addMinBuySell6h: 1,
+      lockInPct: -100,
+      weakFlowTrailPct: 0,
+      stopConfirmMinutes: 1,
     },
     sizing: { firstBuyShare: 0.08, addShare: 0, maxPerTokenShare: 0.08, maxOpenTokens: 5, dailyLossShare: 0.15, totalLossShare: 0.5 },
   },
@@ -251,6 +277,9 @@ export function parseTrenchRules(raw: unknown, base: PresetId = "almost_bonded")
       requireDexPaid: bool(entry.requireDexPaid, e.requireDexPaid),
       maxDexPaidMinutes: clamp(entry.maxDexPaidMinutes, e.maxDexPaidMinutes, 0, 10_080),
       requireSocial: bool(entry.requireSocial, e.requireSocial),
+      reentryEnabled: bool(entry.reentryEnabled, e.reentryEnabled),
+      reentryCooldownMinutes: clamp(entry.reentryCooldownMinutes, e.reentryCooldownMinutes, 15, 1440),
+      reentryMinBuySell6h: clamp(entry.reentryMinBuySell6h, e.reentryMinBuySell6h, 0, 10),
     },
     exit: {
       // Locked guard: always a stop, between 5% and 50%.
@@ -266,6 +295,9 @@ export function parseTrenchRules(raw: unknown, base: PresetId = "almost_bonded")
       minVolume1hUsd: clamp(exit.minVolume1hUsd, x.minVolume1hUsd, 0, 1_000_000),
       addBondingPts: clamp(exit.addBondingPts, x.addBondingPts, 0, 0.5),
       addMinBuySell6h: clamp(exit.addMinBuySell6h, x.addMinBuySell6h, 0, 10),
+      lockInPct: clamp(exit.lockInPct, x.lockInPct, -100, 50),
+      weakFlowTrailPct: clamp(exit.weakFlowTrailPct, x.weakFlowTrailPct, 0, 50),
+      stopConfirmMinutes: Math.round(clamp(exit.stopConfirmMinutes, x.stopConfirmMinutes, 1, 10)),
     },
     sizing: {
       firstBuyShare: clamp(sizing.firstBuyShare, s.firstBuyShare, 0.01, 0.5),
@@ -276,6 +308,14 @@ export function parseTrenchRules(raw: unknown, base: PresetId = "almost_bonded")
       totalLossShare: clamp(sizing.totalLossShare, s.totalLossShare, 0.05, 1),
     },
   };
+}
+
+/**
+ * The rules an agent trades with: its own edited copy when custom, otherwise its preset as it is
+ * today (so preset updates such as exit v2 reach every non-custom agent).
+ */
+export function agentRules(agent: { preset: PresetId; rules: unknown; custom?: boolean | null }): TrenchRules {
+  return agent.custom ? parseTrenchRules(agent.rules, agent.preset) : parseTrenchRules(PRESETS[agent.preset], agent.preset);
 }
 
 /** True when rules differ from their preset (a custom agent). */
@@ -306,6 +346,8 @@ export const EDITABLE_FIELDS: EditableField[] = [
   { group: "exit", key: "stopPct", label: "Stop loss", unit: "%", scale: 1, min: LOCKED.minStopPct, max: LOCKED.maxStopPct, step: 1, markets: ["curve", "graduated"] },
   { group: "exit", key: "trailingPct", label: "Trailing stop after the first take profit", unit: "%", scale: 1, min: 5, max: 90, step: 5, markets: ["curve", "graduated"] },
   { group: "exit", key: "timeStopHours", label: "Time stop", unit: "h", scale: 1, min: 0.5, max: 168, step: 0.5, markets: ["curve", "graduated"] },
+  { group: "exit", key: "lockInPct", label: "Stop after the first take profit, entry +", unit: "%", scale: 1, min: -100, max: 50, step: 1, markets: ["curve", "graduated"] },
+  { group: "exit", key: "stopConfirmMinutes", label: "Stop needs closes below it", unit: "min", scale: 1, min: 1, max: 10, step: 1, markets: ["curve", "graduated"] },
   { group: "sizing", key: "firstBuyShare", label: "Per new token", unit: "% of its money", scale: 100, min: 1, max: 50, step: 1, markets: ["curve", "graduated"] },
   { group: "sizing", key: "maxOpenTokens", label: "Tokens at once", unit: "", scale: 1, min: 1, max: 10, step: 1, markets: ["curve", "graduated"] },
   { group: "sizing", key: "dailyLossShare", label: "Day stop after losing", unit: "%", scale: 100, min: 1, max: 100, step: 1, markets: ["curve", "graduated"] },
@@ -324,7 +366,10 @@ export function describeRules(rules: TrenchRules): { buys: string; sells: string
       : `Graduated ${e.minHoursSinceGraduation} h or more ago, under ${e.maxAgeHours} h old; ${e.minHolders}+ holders, $${Math.round(e.minVolume24hUsd / 1000)}k+ volume in 24 h, top 10 at most ${e.maxTop10Pct}%, dev ${e.maxDevPct}% or less, tax ${e.maxTaxBps / 100}% or less, Rushr risk ${e.maxRisk} or lower, buyers at ${e.minBuySell6h}x sellers or more`;
   const ladder = x.ladder.map((step) => `${pct(step.sellShareOfEntry)} at +${step.gainPct}%`).join(", ");
   const timeStop = x.timeStopNeedGainPct >= 1000 ? `everything after ${x.timeStopHours} h` : `after ${x.timeStopHours} h without +${x.timeStopNeedGainPct}%`;
-  const sells = `Stop -${x.stopPct}%; ${ladder || "no take profit"}, the rest on a ${x.trailingPct}% trailing stop; ${timeStop}${rules.market === "curve" ? "; everything near graduation" : ""}; at once if sellers take over`;
+  const stop = x.stopConfirmMinutes > 1 ? `Stop -${x.stopPct}% after ${x.stopConfirmMinutes} one-minute closes below it` : `Stop -${x.stopPct}%`;
+  const lock = x.lockInPct > -100 && x.ladder.length > 0 ? `, then the stop moves to entry +${x.lockInPct}%` : "";
+  const flow = x.weakFlowTrailPct > 0 ? `; if sellers take over: out at a loss, a ${x.weakFlowTrailPct}% trail in profit` : "; at once if sellers take over";
+  const sells = `${stop}; ${ladder || "no take profit"}${lock}, the rest on a ${x.trailingPct}% trailing stop; ${timeStop}${rules.market === "curve" ? "; everything near graduation" : ""}${flow}${e.reentryEnabled ? `; one re-entry after a flow or time exit (${e.reentryCooldownMinutes} min later, buyers ${e.reentryMinBuySell6h}x)` : ""}`;
   const sizing = `${pct(s.firstBuyShare)} of its money per new token${s.addShare > 0 ? `, one add of ${pct(s.addShare)}` : ""}, at most ${pct(s.maxPerTokenShare)} in one token and ${s.maxOpenTokens} tokens at once. Day stop after -${pct(s.dailyLossShare)}, stops for good after -${pct(s.totalLossShare)}.`;
   const line = `${pct(s.firstBuyShare)} per token · stop -${x.stopPct}% · up to ${s.maxOpenTokens} tokens · stops for good at -${pct(s.totalLossShare)}`;
   return { buys, sells, sizing, line };
