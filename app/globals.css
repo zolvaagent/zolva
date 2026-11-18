@@ -2623,6 +2623,7 @@ main:focus {
   border-radius: var(--radius-md);
   background: #fff;
   box-shadow: inset 0 0 0 1px var(--color-border);
+  vertical-align: text-bottom;
 }
 
 /* Market page: the issuer status line and its hover card (same look as the Stats bar tips). */

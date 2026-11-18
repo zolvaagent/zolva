@@ -203,7 +203,7 @@ function MarketList({ asset, rows, leading, borrowable }: { asset: Asset; rows: 
                           <TickerAvatar symbol={row.symbol} />
                           <span>
                             <strong>{row.symbol}</strong> <NewPill hours={row.stats.newHours} />
-                            {onLongbow(row) && <LongbowMark title={LONGBOW_TITLE} />}
+                            {onLongbow(row) && <>{" "}<LongbowMark title={LONGBOW_TITLE} /></>}
                             <span className="market-name">{row.name}</span>
                           </span>
                         </Link>
@@ -255,7 +255,7 @@ function MarketList({ asset, rows, leading, borrowable }: { asset: Asset; rows: 
                 <TickerAvatar symbol={row.symbol} />
                 <span className="market-card__name">
                   <strong>{row.symbol}</strong> <NewPill hours={row.stats.newHours} />
-                  {onLongbow(row) && <LongbowMark title={LONGBOW_TITLE} />}
+                  {onLongbow(row) && <>{" "}<LongbowMark title={LONGBOW_TITLE} /></>}
                   <span className="market-name">{row.name}</span>
                 </span>
                 <Spark values={row.stats.week} height={28} />
