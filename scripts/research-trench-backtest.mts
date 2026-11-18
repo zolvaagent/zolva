@@ -43,7 +43,7 @@
  *   C  B, entry at the first minute after the payment with bonding 35%-70% and a 15%-45% pullback, within 24 h
  *   D  A split by payment delay: <= 30 min, 30-90 min, > 90 min
  * These 14 days already showed the DEX-paid effect, so A-D are EXPLORATION, not evidence. The decision gate is
- * forward: launches from 2026-11-19 00:00 UTC onward (rerun with FROM=1795564800 after at least 7 days), with the
+ * forward: launches from 2026-11-19 00:00 UTC onward (rerun with FROM=1795046400 after at least 7 days), with the
  * same variant chosen now = B (paid within 90 min, exit v2), must pass every line of the gate above on its own.
  *
  *   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/research-trench-backtest.mts
