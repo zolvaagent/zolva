@@ -8,7 +8,7 @@ const NVDA = "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC";
 // Longbow also lists "NVDAon", a different token with a similar name.
 const NVDA_ON = "0xf1b95AE4E7700b962714702EA53784Dc8492a856";
 
-// Shape of real entries from longbow.finance/api/markets (2026-11-13, trimmed).
+// Shape of real entries from longbow.finance/api/markets (2026-11-13 and 2026-11-18, trimmed).
 const market = (overrides: Record<string, unknown>) => ({
   key: "NVDA",
   symbol: "NVDA",
@@ -21,8 +21,21 @@ const market = (overrides: Record<string, unknown>) => ({
   collateralAddress: NVDA,
   lltv: 0.625,
   availableToBorrow: 25.1,
+  borrowAPR: 0.24,
+  feedAgeSec: 317,
+  feedFrozen: false,
   ...overrides,
 });
+
+const NVDA_LISTING = {
+  collateral: NVDA.toLowerCase(),
+  lltv: 0.625,
+  url: "https://www.longbow.finance/borrow/NVDA?builder=Z68EKTE",
+  borrowAprPct: 0.24,
+  availableUsdg: 25.1,
+  feedFrozen: false,
+  feedAgeSec: 317,
+};
 
 const body = [
   market({}),
@@ -36,14 +49,22 @@ const body = [
 describe("parseLongbowMarkets", () => {
   it("keeps live long USDG markets, keyed by lowercase collateral address", () => {
     expect(parseLongbowMarkets(body)).toEqual([
-      { collateral: NVDA.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA?builder=Z68EKTE" },
-      { collateral: NVDA_ON.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDAon?builder=Z68EKTE" },
+      NVDA_LISTING,
+      { ...NVDA_LISTING, collateral: NVDA_ON.toLowerCase(), url: "https://www.longbow.finance/borrow/NVDAon?builder=Z68EKTE" },
     ]);
   });
 
   it("keeps the highest LLTV when a token has two USDG markets", () => {
     const listings = parseLongbowMarkets([market({ key: "NVDA-LOW", lltv: 0.385 }), market({ key: "NVDA" })]);
-    expect(listings).toEqual([{ collateral: NVDA.toLowerCase(), lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA?builder=Z68EKTE" }]);
+    expect(listings).toEqual([NVDA_LISTING]);
+  });
+
+  it("reads the borrow rate, liquidity and a paused price feed", () => {
+    const [frozen] = parseLongbowMarkets([market({ feedFrozen: true, feedAgeSec: 52_000, availableToBorrow: 0 })]);
+    expect(frozen).toMatchObject({ feedFrozen: true, feedAgeSec: 52_000, availableUsdg: 0, borrowAprPct: 0.24 });
+    // Missing or unreadable numbers are null, never NaN or negative; a missing feedFrozen is not frozen.
+    const [bare] = parseLongbowMarkets([market({ borrowAPR: "1.4", availableToBorrow: -3, feedAgeSec: undefined, feedFrozen: undefined })]);
+    expect(bare).toMatchObject({ borrowAprPct: null, availableUsdg: null, feedAgeSec: null, feedFrozen: false });
   });
 
   it("skips entries with a bad address, LLTV or key, and bodies that are not a list", () => {
@@ -87,16 +108,16 @@ describe("fetching", () => {
     expect(await getLongbowListings({ fetchImpl: ok(body), now: 10 * 60_000 })).toHaveLength(2);
   });
 
-  it("reuses a good read for hours", async () => {
+  it("reuses a good read for an hour", async () => {
     let calls = 0;
     const counting = (async () => {
       calls += 1;
       return Response.json(body);
     }) as unknown as typeof fetch;
     await getLongbowListings({ fetchImpl: counting, now: 0 });
-    await getLongbowListings({ fetchImpl: counting, now: 2 * 3600_000 });
+    await getLongbowListings({ fetchImpl: counting, now: 50 * 60_000 });
     expect(calls).toBe(1);
-    await getLongbowListings({ fetchImpl: counting, now: 4 * 3600_000 });
+    await getLongbowListings({ fetchImpl: counting, now: 61 * 60_000 });
     expect(calls).toBe(2);
   });
 });

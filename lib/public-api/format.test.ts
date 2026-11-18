@@ -163,8 +163,11 @@ describe("publicMarket", () => {
   });
 
   it("carries Longbow's listing for the same address only, and null without one", () => {
-    const longbow = [{ collateral: "0xaaa", lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA" }];
-    expect(publicMarket(row, longbow).longbow).toEqual({ lltvPct: 62.5, url: "https://www.longbow.finance/borrow/NVDA" });
+    const listing = { collateral: "0xaaa", lltv: 0.625, url: "https://www.longbow.finance/borrow/NVDA", borrowAprPct: 1.456, availableUsdg: 244.9646, feedFrozen: false, feedAgeSec: 300 };
+    const longbow = [listing];
+    expect(publicMarket(row, longbow).longbow).toEqual({ lltvPct: 62.5, borrowAprPct: 1.46, availableUsdg: 244.96, feedFrozen: false, url: "https://www.longbow.finance/borrow/NVDA" });
+    // A paused price feed (market closed) hides the rate; a fully used market shows 0 available.
+    expect(publicMarket(row, [{ ...listing, feedFrozen: true, availableUsdg: 0 }]).longbow).toMatchObject({ borrowAprPct: null, availableUsdg: 0, feedFrozen: true });
     expect(publicMarket({ ...row, address: "0xAAA" }, longbow).longbow).not.toBeNull();
     expect(publicMarket({ ...row, address: "0xccc" }, longbow).longbow).toBeNull();
     expect(publicMarket(row).longbow).toBeNull();

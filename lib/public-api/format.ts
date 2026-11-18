@@ -143,7 +143,15 @@ export function publicAgentDetail(detail: AgentDetail, nowSeconds: number) {
 function publicLongbow(row: MarketRow, longbow: LongbowListing[]) {
   if (row.venue === "lighter") return null;
   const listing = longbowListingFor(longbow, row.address);
-  return listing ? { lltvPct: round(listing.lltv * 100, 2), url: listing.url } : null;
+  if (!listing) return null;
+  return {
+    lltvPct: round(listing.lltv * 100, 2),
+    // Not shown while the price feed is paused (stock feeds outside market hours).
+    borrowAprPct: listing.feedFrozen || listing.borrowAprPct === null ? null : round(listing.borrowAprPct, 2),
+    availableUsdg: listing.availableUsdg === null ? null : round(listing.availableUsdg, 2),
+    feedFrozen: listing.feedFrozen,
+    url: listing.url,
+  };
 }
 
 /** longbow: Longbow's market listings (lib/longbow.ts); empty leaves every market's `longbow` null. */

@@ -2,15 +2,17 @@
  * Longbow (longbow.finance): a Morpho Blue lending protocol on Robinhood Chain where
  * stock tokens, ETFs and ETH can be posted as collateral to borrow USDG. Zolva only
  * reads its market list, to say "Longbow lists a market for this token" with the market's
- * LLTV and a link. Nothing here borrows, lends or signs.
+ * LLTV, borrow rate, USDG available to borrow and a link. Nothing here borrows, lends or signs.
  *
  * The list comes from Longbow's own `/api/markets` JSON (undocumented, no key). It is
  * optional: any failure (down, slow, new shape) gives an empty list, so pages and the
  * public API carry on without the field. Markets are matched by collateral ADDRESS,
  * never by symbol (same-name clones exist; Longbow also lists "NVDAon" and similar).
  *
- * Available liquidity is deliberately not read: on Zolva's tokens it is 0 to ~93 USDG,
- * which would look broken next to a "borrow" number.
+ * Longbow asked (2026-11-18) that the borrow rate and available liquidity be shown next to
+ * the LLTV, and that the price feed be checked: stock feeds pause outside market hours
+ * (feedFrozen), and then the borrow rate is not shown, only that the feed is paused.
+ * A fully used market shows 0 available. Longbow suggests reading every few hours.
  *
  * Every link carries Zolva's Longbow builder code (`?builder=`). Longbow keeps it in the
  * visitor's browser for 30 days and pays Zolva 50% of its performance fee on the borrows
@@ -24,8 +26,8 @@ export const LONGBOW_URL = "https://www.longbow.finance";
 export const LONGBOW_BUILDER_CODE = "Z68EKTE";
 const MARKETS_URL = `${LONGBOW_URL}/api/markets`;
 
-/** How long one read of the market list is reused (3 hours: listings change rarely). */
-export const LONGBOW_TTL_SECONDS = 3 * 3600;
+/** How long one read of the market list is reused (1 hour: rates, liquidity and feed state move). */
+export const LONGBOW_TTL_SECONDS = 3600;
 /** After a failed read, wait this long before trying again, so an outage does not slow every request. */
 const FAILURE_RETRY_SECONDS = 5 * 60;
 
@@ -37,7 +39,20 @@ export type LongbowListing = {
   lltv: number;
   /** The market's borrow page on Longbow, with Zolva's builder code. */
   url: string;
+  /** Yearly borrow rate in percent (Longbow's borrowAPR: 1.46 = 1.46%); null when not given. */
+  borrowAprPct: number | null;
+  /** USDG that can be borrowed now (availableToBorrow); 0 when the market is fully used, null when not given. */
+  availableUsdg: number | null;
+  /** True when Longbow says the collateral's price feed is paused (stock feeds outside market hours). */
+  feedFrozen: boolean;
+  /** Seconds since the price feed last updated; null when not given. */
+  feedAgeSec: number | null;
 };
+
+/** A finite number at or above zero, else null. */
+function amount(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 // Longbow's market keys are short ids (NVDA, SPY-WETH, CASHCAT_LEGACY); anything else is not linked.
@@ -68,7 +83,15 @@ export function parseLongbowMarkets(body: unknown): LongbowListing[] {
     const collateral = market.collateralAddress.toLowerCase();
     const current = best.get(collateral);
     if (current && current.lltv >= lltv) continue;
-    best.set(collateral, { collateral, lltv, url: `${LONGBOW_URL}/borrow/${market.key}?builder=${LONGBOW_BUILDER_CODE}` });
+    best.set(collateral, {
+      collateral,
+      lltv,
+      url: `${LONGBOW_URL}/borrow/${market.key}?builder=${LONGBOW_BUILDER_CODE}`,
+      borrowAprPct: amount(market.borrowAPR),
+      availableUsdg: amount(market.availableToBorrow),
+      feedFrozen: market.feedFrozen === true,
+      feedAgeSec: amount(market.feedAgeSec),
+    });
   }
   return [...best.values()];
 }
@@ -93,8 +116,8 @@ export async function fetchLongbowMarkets({ timeoutMs = 3000, fetchImpl = fetch 
 // Two cache layers: this isolate's memory (also works in next dev), then the Worker's
 // edge cache (shared across isolates in a colo). Both hold the parsed listings only.
 let memory: { listings: LongbowListing[]; until: number } | null = null;
-// v2: links carry the builder code; the new key skips copies cached before that.
-const EDGE_KEY = "https://cache.zolvaagent.app/longbow/markets-v2";
+// v3: listings carry the borrow rate, liquidity and feed state; the new key skips older shapes.
+const EDGE_KEY = "https://cache.zolvaagent.app/longbow/markets-v3";
 
 function edgeCache(): Cache | undefined {
   return (globalThis as { caches?: { default?: Cache } }).caches?.default;

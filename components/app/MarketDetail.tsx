@@ -21,6 +21,12 @@ const RANGES = [
 
 type RangeKey = (typeof RANGES)[number]["key"];
 
+/** USDG available to borrow on Longbow: whole dollars, cents under $10, plain 0 when fully used. */
+function formatUsdg(value: number): string {
+  if (value <= 0) return "0 USDG";
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: value < 10 ? 2 : 0 })} USDG`;
+}
+
 function Stat({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
   return (
     <div className="stat">
@@ -272,15 +278,24 @@ export function MarketDetail({
                 </div>
               ) : null}
               {longbow ? (
-                // Listing and LLTV only: Longbow's available liquidity on these tokens is too small to show.
+                // LLTV, borrow rate and USDG available, as Longbow asked; while the price feed is paused
+                // (stock feeds outside market hours) the rate is replaced by that note.
                 <p className="note">
                   <i className="ph ph-bank" aria-hidden="true" />
                   <span>
-                    Longbow lists a market for this token · LLTV {Number((longbow.lltv * 100).toFixed(1))}%{" · "}
+                    Longbow lists a market for this token · LLTV {Number((longbow.lltv * 100).toFixed(1))}%
+                    {longbow.feedFrozen
+                      ? " · price feed paused (market closed)"
+                      : longbow.borrowAprPct !== null
+                        ? ` · borrow rate ${Number(longbow.borrowAprPct.toFixed(2))}% a year`
+                        : ""}
+                    {longbow.availableUsdg !== null ? ` · ${formatUsdg(longbow.availableUsdg)} available` : ""}
+                    {" · "}
                     <a className="session-note__link" href={longbow.url} target="_blank" rel="noopener noreferrer" title="Longbow, Morpho Blue lending on Robinhood Chain">
                       Longbow
                     </a>
-                    {" · "}Outside link, not advice. Zolva gets a share of Longbow&apos;s fee on borrows made through it.
+                    {" · "}Outside link, not advice. Rates change; not investment advice. Zolva gets a share of Longbow&apos;s fee on
+                    borrows made through it.
                   </span>
                 </p>
               ) : null}
