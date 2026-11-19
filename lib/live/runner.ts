@@ -10,7 +10,7 @@ import { blocksTrading, fetchSession } from "@/lib/harmonic";
 import { env } from "@/lib/env";
 import { USDG } from "@/lib/live/contracts";
 import { confirmSwap, executeSwap, oracleProblem, type LiveContext, type SwapOrder, type SwapResult } from "@/lib/live/executor";
-import { liveSellQuantity, tooSmallReason } from "@/lib/live/order-size";
+import { liveSellQuantity, tooSmallReason, unitsFromDecimal } from "@/lib/live/order-size";
 import { createChainClient, MAX_FEED_AGE_SECONDS } from "@/lib/prices/onchain";
 
 const HOUR = 3600;
@@ -34,7 +34,8 @@ type Settings = { enabled: boolean; daily_volume_usd: number; max_slippage_bps: 
 type TokenInfo = { address: string; symbol: string; price_pool: string; pool_kind: string; token_decimals: number; chainlink_feed: string | null };
 type LiveAgent = AgentRow & { owner: string; trading_wallet: string };
 type WalletRow = { address: string; privy_wallet_id: string };
-type ExecutionRow = { id: string; agent_id: string; token_address: string; side: "buy" | "sell"; amount_in: number | null; tx_hash: string | null; status: string; created_at: string };
+/** amount_in is read as exact text (see unitsFromDecimal). */
+type ExecutionRow = { id: string; agent_id: string; token_address: string; side: "buy" | "sell"; amount_in: string | null; tx_hash: string | null; status: string; created_at: string };
 
 const usdOf = (side: string, amountIn: number, amountOut: number) => (side === "buy" ? amountIn : amountOut);
 
@@ -82,7 +83,7 @@ export async function runLiveAgents(db: SupabaseClient): Promise<LiveResult> {
   result.agents = agents.length;
 
   // 1. Finish what a crashed tick left behind.
-  const { data: open } = await db.from("executions").select("id, agent_id, token_address, side, amount_in, tx_hash, status, created_at").in("status", ["pending", "submitted"]);
+  const { data: open } = await db.from("executions").select("id, agent_id, token_address, side, amount_in:amount_in::text, tx_hash, status, created_at").in("status", ["pending", "submitted"]);
   for (const execution of (open ?? []) as ExecutionRow[]) {
     const agent = agentOf.get(execution.agent_id);
     const wallet = agent && walletOf.get(agent.trading_wallet);
@@ -91,7 +92,7 @@ export async function runLiveAgents(db: SupabaseClient): Promise<LiveResult> {
       const decimals = execution.side === "buy" ? 6 : token.token_decimals;
       const confirmed = await confirmSwap(
         contextFor(wallet),
-        { tokenOut: (execution.side === "buy" ? token.address : USDG) as Hex, amountIn: parseUnits(String(execution.amount_in), decimals), side: execution.side, tokenDecimals: token.token_decimals },
+        { tokenOut: (execution.side === "buy" ? token.address : USDG) as Hex, amountIn: unitsFromDecimal(execution.amount_in, decimals), side: execution.side, tokenDecimals: token.token_decimals },
         execution.tx_hash as Hex,
       );
       await settle(db, execution.id, execution.side, token.token_decimals, confirmed);
@@ -239,7 +240,8 @@ async function executeFill(
         decision_price: fill.price,
         oracle_price: oraclePrice,
         max_slippage_bps: settings.max_slippage_bps,
-        amount_in: amountIn,
+        // Exact: what the swap sends, as a decimal string (a JS number would round past ~16 digits).
+        amount_in: formatUnits(raw, fill.side === "buy" ? 6 : token.token_decimals),
         status: "pending",
       },
       { onConflict: "agent_id,decided_ts,token_address,side", ignoreDuplicates: true },

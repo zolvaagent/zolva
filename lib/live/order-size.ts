@@ -24,3 +24,16 @@ export function tooSmallReason(order: { side: "buy" | "sell"; reason: string; us
   if (fullExit || order.usd >= MIN_LIVE_ORDER_USD) return null;
   return `order of $${order.usd.toFixed(2)} is under the $${MIN_LIVE_ORDER_USD} live minimum`;
 }
+
+/**
+ * Base units from an exact decimal string (a numeric column read as text, such as "12.345678").
+ * Digits past `decimals` are cut, never rounded up, so the result never exceeds the recorded amount.
+ * numeric is always read as text: PostgREST returns it as a JSON number, which loses precision past
+ * about 16 digits and can come back in exponent form ("1e-7"), which parseUnits rejects.
+ */
+export function unitsFromDecimal(text: string, decimals: number): bigint {
+  const match = /^(\d+)(?:\.(\d*))?$/.exec(text.trim());
+  if (!match) throw new Error(`not a plain decimal amount: ${text}`);
+  const fraction = (match[2] ?? "").slice(0, decimals).padEnd(decimals, "0");
+  return BigInt(match[1]) * 10n ** BigInt(decimals) + BigInt(fraction || "0");
+}
