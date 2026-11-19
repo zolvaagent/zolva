@@ -151,6 +151,18 @@ npm run deploy:prod   # build, deploy, push secrets, set the pg_cron backup, hea
 
 `wrangler.jsonc` holds the Worker name, routes, cron trigger and bindings. `npm run deploy:prod` pushes the values in `.dev.vars` as Worker secrets.
 
+## Security model
+
+What the code enforces. This is not an audit; to report a problem, see [SECURITY.md](SECURITY.md).
+
+- **Ownership.** An agent's owner is always the signed-in wallet or the owner of the API key, never a value from the request. Every route that changes an agent loads it by id and that owner (`ownAgent` in `lib/trench/onboard.ts`, `store.ownAgent` in the public API, `.eq("owner", …)` in `lib/agents/create.ts`). Anyone else gets "not found".
+- **Trench withdrawals** go only to the agent's owner, enforced twice: the server sends to the signed-in wallet, and the agent wallet's Privy policy only allows transfers to that owner.
+- **Real money wallets.** Each trench agent has its own wallet. Live spot agents trade from the owner's own wallet through Zolva's signer, limited by a Privy policy to approved tokens and the Uniswap router, with the proceeds paid back into the same wallet.
+- **Database.** Queries go through the Supabase client and database functions with the service role key, which stays on the server (`lib/supabase.ts` is `server-only`). There is no raw SQL, and request input never goes into a query string.
+- **Amounts.** On-chain amounts are integer token units built on the server (`parseUnits`, `bigint`). Sells are capped at the wallet's `balanceOf`.
+- **AI co-pilot.** It can only veto a rule's signal. It never sizes a trade or skips a stop loss.
+- **Tests.** 483 unit tests, including the engine parity test against `prototype/engine.js`. CI runs them on every push (see Checks).
+
 ## Checks
 
 GitHub Actions runs the type check, lint and the full test suite on every push and pull request (`.github/workflows/ci.yml`). The engine parity test fails if `lib/engine/` and `prototype/engine.js` stop trading alike.
