@@ -28,6 +28,11 @@ import type { Market } from "@/lib/data/market";
 import { DCA_BUYS, DCA_CADENCES, dcaEveryText, dcaSpanText, maxMarketsFor, strategyNeedsPerps, type StudioStrategy } from "@/lib/agents/copy";
 
 const MAX_ACTIVE = 5;
+/**
+ * Backtests above this many trades a week get a cost warning. Zolva's busiest agents trade about 12 a
+ * week and have not beaten holding (2026-11-19), so the warning starts at one trade a day.
+ */
+const BUSY_TRADES_PER_WEEK = 7;
 /** The picker shows stocks first, then crypto; one agent may hold both. */
 const TOKEN_GROUPS = [
   ["stock", "Stocks"],
@@ -993,10 +998,11 @@ function BacktestCard({
           &quot;Buying all at once&quot; puts everything in on the first day.
         </p>
       )}
-      {tradesPerWeek > 14 && (
+      {tradesPerWeek > BUSY_TRADES_PER_WEEK && (
         <p className="note">
           <i className="ph ph-warning" />
-          About {Math.round(tradesPerWeek)} trades a week. Each one costs 0.5%, which adds up fast.
+          About {Math.round(tradesPerWeek)} trades a week ({result.fills.length} in 30 days). Each one costs 0.5% of its size, so every trade has to win by more than that. Trading
+          more often does not make rules better; compare with holding before you launch.
         </p>
       )}
       {strategy === "custom" && edge > 10 && (

@@ -28,6 +28,7 @@ import { RulesSummary } from "@/components/app/RulesSummary";
 import { VerifyAgent } from "@/components/app/VerifyAgent";
 import { UpochBadge } from "@/components/app/UpochBadge";
 import { OrderLedger } from "@/components/app/OrderLedger";
+import { exposure } from "@/lib/agents/exposure";
 import type { Ledger } from "@/lib/agents/ledger";
 import {
   dateAt,
@@ -831,6 +832,8 @@ export function AgentView({
   }
 
   const visible = runs.slice(Math.max(0, runs.length - RANGES[range]));
+  // Share of the loaded hours (up to the last 30 days) with a position open.
+  const invested = exposure(runs);
   const lastRun = runs[runs.length - 1];
   // Gain or loss on open positions at the latest price; a short gains when the price falls.
   const unrealizedUsd = positions.reduce((sum, position) => {
@@ -878,6 +881,18 @@ export function AgentView({
                 value={percent(-summary.maxDrawdownPct)}
               />
             </div>
+            {invested && (
+              <p className="note" title="An hour counts as invested when a position was open at its end. Sitting in cash is a choice too.">
+                <i className="ph ph-clock" aria-hidden="true" />
+                <span>
+                  {invested.investedHours === 0
+                    ? `In cash all of the last ${invested.hours.toLocaleString("en-US")} hours: no position open.`
+                    : invested.investedHours === invested.hours
+                      ? `In the market all of the last ${invested.hours.toLocaleString("en-US")} hours.`
+                      : `In the market ${Math.round(invested.investedPct)}% of the last ${invested.hours.toLocaleString("en-US")} hours (${invested.investedHours.toLocaleString("en-US")} hours), in cash the rest.`}
+                </span>
+              </p>
+            )}
             <div className="card-head" style={{ margin: 0 }}>
               <h2 className="card__title">Value over time</h2>
               <div className="tabs" role="tablist" aria-label="Chart range">
