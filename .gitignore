@@ -54,6 +54,9 @@ CLAUDE.md
 .claude/
 /docs/x/
 /assets/x/
+# Brand sources (images, prompts, build scripts): kept locally and in D:/Claude/robinhood/zolva-brand-assets, not in the repo.
+# The site serves only what is in public/.
+/assets/
 /video/
 
 # MCP Registry domain-auth private key (never commit)
