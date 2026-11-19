@@ -207,6 +207,16 @@
       "poolCreated": "2026-07-23",
       "verifiedOfficial": true,
       "quotedIn": "USDG"
+    },
+    {
+      "symbol": "ANT",
+      "address": "0xbbb6c29bcc3a1028a2b54310df73f4f7a3bcb373",
+      "pricePool": "0x0ff3e9a6114a1c1e7a6490a5d9bc250990046400",
+      "poolLiquidityUsd": 72366,
+      "volume24hUsd": null,
+      "poolCreated": "2026-11-19",
+      "verifiedOfficial": true,
+      "quotedIn": "USDG"
     }
   ]
 }
