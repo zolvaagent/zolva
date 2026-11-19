@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { firstCloseAt } from "@/lib/listing";
 import { listAgents, type AgentSummary } from "@/lib/data/agents";
 import { getMarket, type AssetClass, type MarketToken, type MarketVenue } from "@/lib/data/market";
 import { isMarketHours } from "@/lib/format";
@@ -103,6 +104,34 @@ export type MarketDetail = {
 };
 
 const DETAIL_HOURS = 721;
+
+/** An allowlisted token with no hourly close yet (a brand new listing). */
+export type UnpricedListing = { address: string; symbol: string; name: string; verifiedOfficial: boolean; /** When the first hourly close is expected (ms). */ firstCloseAtMs: number };
+
+/**
+ * The listing behind /markets/<symbol> when it has no hourly close yet, or null (unknown, disabled, or it
+ * has prices, in which case getMarketDetail is the one to use). Looked up by the allowlist's symbol.
+ */
+export async function getUnpricedListing(db: SupabaseClient, symbol: string): Promise<UnpricedListing | null> {
+  if (!/^[A-Za-z0-9]{1,12}$/.test(symbol)) return null;
+  const { data: token, error } = await db
+    .from("tokens")
+    .select("address, symbol, name, history_start, verified_official")
+    .eq("symbol", symbol.toUpperCase())
+    .eq("enabled", true)
+    .neq("venue", "lighter")
+    .maybeSingle();
+  if (error || !token) return null;
+  const { count } = await db.from("candles").select("ts", { count: "exact", head: true }).eq("token_address", token.address);
+  if ((count ?? 0) > 0) return null;
+  return {
+    address: token.address,
+    symbol: token.symbol,
+    name: token.name,
+    verifiedOfficial: token.verified_official === true,
+    firstCloseAtMs: firstCloseAt(token.history_start ? Date.parse(token.history_start) : null, Date.now()),
+  };
+}
 
 /** One stock's page data, or null for an unknown symbol. */
 export async function getMarketDetail(db: SupabaseClient, symbol: string, options: MarketOptions = {}): Promise<MarketDetail | null> {
