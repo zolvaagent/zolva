@@ -71,6 +71,15 @@ export default function Guardrails() {
       </ul>
       <p>Paper trading stays free. Logging in never asks for a transaction, and nothing on Zolva is investment advice. The full rules are in the <a href="/terms">Terms</a>.</p>
 
+      <H2 id="token-safety">Checking a token yourself</H2>
+      <p>
+        Token safety check: QProof by QHooks (
+        <a href="https://qhooks.com/qproof" target="_blank" rel="noopener noreferrer">
+          qhooks.com/qproof
+        </a>
+        ) checks a token for sells that fail, risky contract functions, LP lock and holder concentration. Not an audit.
+      </p>
+
       <H2 id="coming-next">Coming next</H2>
       <ul>
         <li>

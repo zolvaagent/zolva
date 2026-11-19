@@ -21,6 +21,7 @@ import { decryptSecret } from "./crypto.ts";
 import { curveOf, readCurve, sellOut } from "./curve.ts";
 import { buySellRatio, caPosted, listStage, runMinute, socialStage, statsStage, type CandidateInput, type ExitKind, type HeldInput, type MinuteAction, type Position, type PreviousExit, type RushrToken, type Verdict } from "./engine.ts";
 import { trade, type AgentWallet, type Signer } from "./executor.ts";
+import { noteQproofCandidate, qproofStep } from "./qproof.ts";
 import { agentRules, limitsFor, PRESET_INFO, type Market, type PresetId } from "./rules.ts";
 import { commentOn, postCallout, safetyBlocked, safetyRefusesBuy, sellQuoteWei, tokenColumn, tokenRow, tokenStats } from "./rushr-api.ts";
 import { dexPaidMinutes, narrative, xProfile, xTweets } from "./social.ts";
@@ -102,7 +103,7 @@ type PositionRow = {
 /** Every position column, plus the token amounts as exact text (see PositionRow). */
 const POSITION_SELECT = "*, tokens_exact:tokens::text, tokens_bought_exact:tokens_bought::text";
 
-export type MinuteSummary = { minute: string; ran: boolean; note?: string; agents: number; candidates: number; trades: number; errors: string[] };
+export type MinuteSummary = { minute: string; ran: boolean; note?: string; agents: number; candidates: number; trades: number; errors: string[]; qproof?: string };
 
 const toPosition = (row: PositionRow): Position => ({
   token: row.token,
@@ -336,6 +337,8 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
         if (snapshot) await logDecision(db, agent.id, action.kind, action.reason, action.token, action.symbol);
         continue;
       }
+      // QProof shadow log (QHooks pilot): note the candidate, never wait on or change the buy.
+      if (action.kind === "buy") await noteQproofCandidate(db, { token: action.token, symbol: action.symbol, agentId: agent.id });
       await execute(shared, agent, wallet, action, held.find((entry) => entry.position.token === action.token)?.row ?? null, capNow.get(action.token) ?? null);
     } catch (cause) {
       const message = (cause as Error).message.slice(0, 300);
@@ -618,6 +621,8 @@ export async function runTrenchMinute(db: SupabaseClient, nowMs: number = Date.n
         shared.summary.errors.push(`${agent.id.slice(0, 8)}: ${(cause as Error).message.slice(0, 200)}`);
       }
     }
+    // QProof shadow log, after every agent ran: at most one free call to QHooks a minute. Never fails the minute.
+    shared.summary.qproof = await qproofStep(db, nowMs).catch((cause: unknown) => `qproof: ${(cause as Error).message.slice(0, 200)}`);
     await db.from("trench_minutes").update({ finished_at: new Date().toISOString(), summary: shared.summary }).eq("minute", minute);
     return shared.summary;
   } catch (cause) {
