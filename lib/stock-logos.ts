@@ -17,6 +17,8 @@
 export const STOCK_LOGOS: Record<string, { src: string; background?: string }> = {
   AAPL: { src: "/img/stocks/AAPL.png" },
   AMC: { src: "/img/stocks/AMC.png" },
+  // Anthropic: the A\ mark from anthropic.com (apple-touch-icon, 2026-11-19), not a ticker lookup.
+  ANT: { src: "/img/stocks/ANT.png" },
   AMZN: { src: "/img/stocks/AMZN.png", background: "#232f3e" },
   BABA: { src: "/img/stocks/BABA.png" },
   CRCL: { src: "/img/stocks/CRCL.png" },
