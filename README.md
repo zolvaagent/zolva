@@ -167,6 +167,8 @@ What the code enforces. This is not an audit; to report a problem, see [SECURITY
 
 GitHub Actions runs the type check, lint and the full test suite on every push and pull request (`.github/workflows/ci.yml`). The engine parity test fails if `lib/engine/` and `prototype/engine.js` stop trading alike.
 
+**Tests:** 52 test files, 483 tests (Vitest, `npm test`). They cover the trading engine and its parity with `prototype/engine.js`, strategy rules and the Studio, Verify replays, live order sizing and execution, trench agents and the QProof client, price ingest, the public API and MCP tools, API keys, x402 payments, the AI co-pilot limits and strategy writer, and the docs reference tables.
+
 ## Rules for contributors
 
 - Never pick a token by symbol or name. Same name clones exist; use the address allowlist (`tokens` table, `data/stock-tokens.json`).
