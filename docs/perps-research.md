@@ -983,3 +983,17 @@ Source: tradingagentstack.com top list (owner: "ok go"). Public fills from the H
   hourly engine (the grid works inside the hour with maker orders). Only a zero-fee venue (Lighter) and a
   minute-level engine could run it, and the known risk is a long fall that leaves lots stuck.
 Lighter pools: trades are public (`/api/v1/trades?account_index=`), not yet studied.
+
+## Vault study step 0: Lighter pools Candle Effect v2 and Steady Wealth Builder, 2026-11-20
+`scripts/research-lighter-pools.mts` (read-only; Lighter `/trades` serves only the last 3,000 trades per account,
+`/candles` for context). PnL is before fees, from the pool's rebuilt position per market.
+- **Steady Wealth Builder** (last 37 days, 171 round trips): mostly long (84%), 82% maker, median hold 1.3 h,
+  median move +1.09%, 92% winners but avg win $65 vs avg loss -$96. It scales into losers: LIT reached 1.8x the
+  pool's collateral in one trip, NEAR 1.1x. +10.8% of collateral in 37 days, mostly LIT (+$6.8k of $9.0k).
+  Profile: small take-profit plus averaging down with leverage; steady until one trip does not come back.
+- **Candle Effect v2** (last 7 days, 124 trips): taker scalper on HYPE, LIT, BTC; 60% long, median hold 0.8 h,
+  median move +0.21%, 81% winners, size up to a third of collateral. +1.3% of collateral in 7 days before fees.
+- Entries: no clear dip or trend trigger on hourly candles (longs after a 24h fall only 55-58% of the time).
+Verdict with the FuturAI vault: all three are intra-hour, high-win-rate, small-target strategies (grid or
+scalper) whose risk sits in rare large losses. None reveals a rule our hourly engine could reproduce, and the
+"Sortino" rankings reward exactly this smooth-until-it-breaks shape. Not taken further.
