@@ -227,8 +227,8 @@ trade over 207 entries (v1 -32.5%). The only filter that matters is "DEX profile
 break-even, +1.0%, but it fails at 2x costs). Details: docs/perps-research.md "Trench backtest".
 
 Where it stands:
-- Both bots paused for buys. Exit v2 is built and tested but not deployed (commits 2b1e3c2 + 7417ab8 on branch
-  backup/main-pre-align-20261118, migration 20261118000500 not applied).
+- Exit v2 is live (b7ab633, deployed 8710b83b) and the owner resumed both bots on 2026-11-18 ~09:49 UTC on small
+  sizes ($3.65 @vyz1, $3 Lab), despite the NO-GO. First v2 trades on @vyz1: ARCH +$0.91, PALISEC -$0.74.
 - Next gate (Research, 0ed941b): a DEX-paid preset (variant B with exit v2) must pass on launches from 2026-11-19,
   rerun after at least 7 days. Only then real money again, with that preset.
 - Open: Rushr's 5 sign-ups per day per IP (ask the dev); the backtest result on the /trenches preset cards.

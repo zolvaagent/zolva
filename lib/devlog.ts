@@ -10,6 +10,7 @@ export const DEVLOG_AREAS = [
   "Markets",
   "Perps",
   "Real money",
+  "Trenches",
   "Swap",
   "API & MCP",
   "Token",
@@ -36,6 +37,35 @@ const commit = (hash: string) => ({
 });
 
 export const DEVLOG: DevlogEntry[] = [
+  {
+    id: "2026-11-18-trench-test-14-trades-14-losses-then-exit-v2",
+    date: "2026-11-18",
+    area: "Trenches",
+    title: "Trench test: 14 trades, 14 losses, then exit v2",
+    body: "Our two house-money trench agents closed 14 trades, all at a loss (-$26.02). Two bugs made it worse: a sell recorded at 0 ETH from a lagging RPC node, and exits refused for hours because token amounts lost precision in the database. Both are fixed, and an agent now pauses itself after two failed sells. The pre-registered backtest over every Pons launch of 14 days (11,415 launches, 47 graduated) came out NO-GO: Curve Rider lost 22% per trade even with the new exits (32% with the old). Exit v2 banks half at +20%, then moves the stop above entry and trails the rest; both bots resumed with it on small sizes. Its first live trade, ARCH, closed at +$0.91. The next test looks only at tokens with a paid DEX profile, on launches from 19 November.",
+    sources: [
+      commit("d189869"),
+      commit("eeb5975"),
+      commit("15aabd7"),
+      commit("6f895bc"),
+      commit("b7ab633"),
+      { label: "/terms", href: "https://zolvaagent.app/terms" },
+    ],
+  },
+  {
+    id: "2026-11-17-trenches-memecoin-agents-on-rushr",
+    date: "2026-11-17",
+    area: "Trenches",
+    title: "Trenches: memecoin agents on Rushr (beta)",
+    body: "A trench agent trades Robinhood Chain memecoins with real money through Rushr's trade builder and safety checks. It gets its own wallet that you fund, an Agent profile on Rushr's leaderboard, and checks every minute. Pick Curve Rider (Pons tokens near graduation), Graduated Safe (tokens after graduation), or your own rules with the stop loss and safety checks locked. Setup is one form; Zolva checks every field of each trade before it signs, and posts a call on Rushr after each buy. Each agent trades at most $100.",
+    sources: [
+      commit("cef5241"),
+      commit("c00bf47"),
+      commit("8fb1f92"),
+      { label: "/trenches", href: "https://zolvaagent.app/trenches" },
+      { label: "Rushr", href: "https://rushr.trade" },
+    ],
+  },
   {
     id: "2026-11-18-longbow-borrow-rates-and-liquidity-on-markets",
     date: "2026-11-18",

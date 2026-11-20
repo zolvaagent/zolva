@@ -3210,6 +3210,7 @@ main:focus {
 .devlog-area--markets { --area-h: 205; }
 .devlog-area--perps { --area-h: 175; }
 .devlog-area--real-money { --area-h: 145; }
+.devlog-area--trenches { --area-h: 95; }
 .devlog-area--swap { --area-h: 25; }
 .devlog-area--api-mcp { --area-h: 228; }
 .devlog-area--token { --area-h: 325; }
