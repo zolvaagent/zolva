@@ -176,7 +176,7 @@ The full B (users create live trench agents) touches user money in seven new pla
 1. Owner asks the Rushr dev: sign-up allowance per IP for a platform, CORS for `/v1/agents/register`, owner linking / "runs on Zolva", partner terms (operator responsibility, many agents from one platform), referral terms, read limits.
 2. Development checks Privy: several embedded wallets per user with separate signer policies, and pricing at scale.
 
-### 4.4 Release 1 build (2026-11-17): ready for the owner's review, not deployed
+### 4.4 Release 1 build (2026-11-17): released, see 4.5 for what happened after
 
 Owner: "keep continue until done and i will review". Built locally, **nothing committed, pushed, deployed or migrated**, no wallet made, nothing registered.
 
@@ -210,6 +210,28 @@ Release steps, each with the owner's yes:
 2. Apply the migration; set `TRENCH_KEY_SECRET` (32 random bytes, base64) and `X_API_KEY` in `.dev.vars`; deploy.
 3. Release test: owner sets `new_agents_open` for the owner only (or temporarily), creates one agent with email login and ~$30, sets `enabled = true`, watches 48 h (decisions, fees paid, callouts, Rushr record vs ledger, withdraw).
 4. Then `new_agents_open = true` for everyone.
+
+### 4.5 Status (2026-11-20)
+
+What shipped (all live on zolvaagent.app): Trenches open to everyone (owner's call) with Curve Rider (was Almost
+Bonded), Graduated Safe and "Your own rules" (edit a preset, guards locked, a Require X checks toggle); one-form
+setup with no Privy popups (the server makes the wallet, signs Rushr's sign-up and hands the wallet to the user);
+funding with copy and Rabby/MetaMask; capital = what the wallet holds at Start (max $100); archive; agent page with
+header controls, strategy strip and a terminal decision log (one scan line a minute); fills read at fixed blocks with
+Rushr's fee in P&L; exact token amounts and sells capped at the wallet balance; alert and auto-pause after 2 failed
+sells; a Trench agents (beta) section in /terms.
+
+What the test showed: 14 closed trades across @vyz1 and the Lab agent, all losses (-$26.02). The pre-registered
+backtest (every PONS launch of 14 days; 11,415 launches, 47 graduated) is NO-GO: Curve Rider with exit v2 -22.4% per
+trade over 207 entries (v1 -32.5%). The only filter that matters is "DEX profile paid within 90 min" (about
+break-even, +1.0%, but it fails at 2x costs). Details: docs/perps-research.md "Trench backtest".
+
+Where it stands:
+- Both bots paused for buys. Exit v2 is built and tested but not deployed (commits 2b1e3c2 + 7417ab8 on branch
+  backup/main-pre-align-20261118, migration 20261118000500 not applied).
+- Next gate (Research, 0ed941b): a DEX-paid preset (variant B with exit v2) must pass on launches from 2026-11-19,
+  rerun after at least 7 days. Only then real money again, with that preset.
+- Open: Rushr's 5 sign-ups per day per IP (ask the dev); the backtest result on the /trenches preset cards.
 
 ### 4.3 Later
 Custom trench agents (edit a preset's rules or write them in words via the strategy writer; guards locked), more presets, AI veto, owner linking on Rushr, A as an add-on for existing live agents.
