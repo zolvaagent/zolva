@@ -44,6 +44,8 @@ const FUNDING_PER_HOUR = 0.1 / (365 * 24);
 const CACHE = process.env.OHLC_CACHE ?? join(tmpdir(), "zolva-binance-ohlc");
 const SMA_HOURS = 1200;
 const MAX_LOTS = 10;
+/** Check only: a limit fills only when price trades this far through it (queue risk). FILL_BUFFER=0.001 = 0.1%. */
+const FILL_BUFFER = Number(process.env.FILL_BUFFER ?? 0);
 
 type Bar = { t: number; o: number; h: number; l: number; c: number };
 
@@ -100,7 +102,7 @@ function simulate(bars: Bar[], rule: Rule): Result {
     // Sells: lots bought in an earlier bar whose target this bar reaches.
     const keep: typeof lots = [];
     for (const lot of lots) {
-      if (lot.bar < i && bar.h >= lot.tp) {
+      if (lot.bar < i && bar.h >= lot.tp * (1 + FILL_BUFFER)) {
         const px = Math.max(bar.o, lot.tp);
         cash += lot.qty * px * (1 - COST);
         anchor = px;
@@ -113,7 +115,7 @@ function simulate(bars: Bar[], rule: Rule): Result {
     if (!Number.isFinite(anchor)) anchor = bars[i - 1].c;
     if (allowed && lots.length < MAX_LOTS) {
       const level = anchor * (1 - rule.step);
-      if (bar.l <= level) {
+      if (bar.l <= level * (1 - FILL_BUFFER)) {
         const px = Math.min(bar.o, level);
         const usd = equityAt(i - 1) * (1 / MAX_LOTS);
         if (usd <= cash) {
@@ -189,6 +191,16 @@ async function main() {
     console.log(row(coin, hold));
   }
 
+  // Check only, added after the first run (not used for selection): does the grid add anything over simply
+  // holding a fixed share while the same regime is on? CONTROL=0.35 holds 35% of equity (about the grid's time
+  // in the market) from regime on to regime off, same costs and funding.
+  if (process.env.CONTROL) {
+    const share = Number(process.env.CONTROL);
+    console.log(`\nControl: hold ${share * 100}% of equity while the regime is on`);
+    for (const coin of COINS) console.log(row(coin, simulateRegimeHold(data.get(coin)!, share)));
+    return;
+  }
+
   const results = RULES.map((rule) => ({ rule, by: new Map(COINS.map((c) => [c, simulate(data.get(c)!, rule)] as const)) }));
   if (process.env.SHOW) {
     for (const { rule, by } of results.filter((x) => new RegExp(process.env.SHOW!).test(label(x.rule)))) {
@@ -219,6 +231,67 @@ async function main() {
     }
     console.log(`=> ${passes}/${COINS.length} coins pass: ${passes >= 4 ? "PASS" : "NO-GO"}`);
   }
+}
+
+/** Control: the grid with every lot replaced by one position of `share` while the regime is on. */
+function simulateRegimeHold(bars: Bar[], share: number): Result {
+  // Reuse simulate's bookkeeping by running a grid that can never trade, then overlaying the position here.
+  const sma: number[] = new Array(bars.length).fill(NaN);
+  let sum = 0;
+  for (let i = 0; i < bars.length; i++) {
+    sum += bars[i].c;
+    if (i >= SMA_HOURS) sum -= bars[i - SMA_HOURS].c;
+    if (i >= SMA_HOURS - 1) sma[i] = sum / SMA_HOURS;
+  }
+  let cash = 1;
+  let qty = 0;
+  let regime = false;
+  let hours = 0;
+  let trades = 0;
+  const curve: { t: number; e: number }[] = [];
+  const first = bars.findIndex((b) => b.t >= START);
+  for (let i = first; i < bars.length; i++) {
+    const bar = bars[i];
+    cash -= qty * bars[i - 1].c * FUNDING_PER_HOUR;
+    if (qty > 0) hours++;
+    if (Number.isFinite(sma[i])) {
+      if (!regime && bar.c > sma[i] * 1.03) {
+        regime = true;
+        const usd = (cash + qty * bar.c) * share;
+        qty = (usd * (1 - COST)) / bar.c;
+        cash -= usd;
+        trades++;
+      } else if (regime && bar.c < sma[i] * 0.97) {
+        regime = false;
+        cash += qty * bar.c * (1 - COST);
+        qty = 0;
+        trades++;
+      }
+    }
+    curve.push({ t: bar.t, e: cash + qty * bar.c });
+  }
+  const yearReturn = (y: number) => {
+    const inYear = curve.filter((p) => new Date(p.t).getUTCFullYear() === y);
+    const before = curve.filter((p) => new Date(p.t).getUTCFullYear() < y).at(-1)?.e ?? 1;
+    return inYear.length ? inYear.at(-1)!.e / before - 1 : NaN;
+  };
+  let peak = 0;
+  let drop = 0;
+  for (const p of curve) {
+    peak = Math.max(peak, p.e);
+    drop = Math.max(drop, 1 - p.e / peak);
+  }
+  const train = curve.filter((p) => p.t < TRAIN_END);
+  return {
+    years: Object.fromEntries(YEARS.map((y) => [y, yearReturn(y)])),
+    drop,
+    trainReturn: train.at(-1)!.e - 1,
+    trainDrop: NaN,
+    testReturn: curve.at(-1)!.e / train.at(-1)!.e - 1,
+    total: curve.at(-1)!.e - 1,
+    exposure: hours / curve.length,
+    trades,
+  };
 }
 
 function simulateHold(bars: Bar[]): Result {

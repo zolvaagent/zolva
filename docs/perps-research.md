@@ -997,3 +997,20 @@ Lighter pools: trades are public (`/api/v1/trades?account_index=`), not yet stud
 Verdict with the FuturAI vault: all three are intra-hour, high-win-rate, small-target strategies (grid or
 scalper) whose risk sits in rare large losses. None reveals a rule our hourly engine could reproduce, and the
 "Sortino" rankings reward exactly this smooth-until-it-breaks shape. Not taken further.
+
+## Trend-filtered dip grid (2026-11-20): pre-registered PASS, but fragile; not built
+Idea from the vault study (FuturAI grid) with the Vol Trend regime as a filter. `scripts/research-dip-grid.mts`,
+pre-registered in c92b488 before the first run. Binance hourly OHLC 2020-10 to now, fills when the bar's low/high
+touches the limit, 0.05% a fill, longs pay 10%/yr funding. Fit coins SOL, LINK, DOGE, XRP, ADA, AVAX.
+- Plain grid (FuturAI as is): every setting fails, worst drops 48-98% (lots pile up in 2022).
+- Trend filter (variant B): locked step 2%/target 1%, step 3%/target 2%, step 3%/target 1%; they pass on 5, 5 and
+  6 of 6 coins (drops 9-32%, positive test returns). Unseen BTC/ETH: +26% to +112% total, drops 8-19%.
+  Still positive at 2x costs.
+- Control (check only, added after the run): holding 35% while the same regime is on gives drops of 42-68% on the
+  alts, so the grid does cut risk there. On BTC/ETH the control returns more (+210%/+218%) at drops of 23-31%.
+- Why it is not ready (checks added after the run, not part of the gate):
+  - Fill sensitivity: when a limit must be traded through by 0.1%, 3%/1% still passes on 5 of 6 coins; at 0.3%
+    both settings fail on most coins. The result leans on touch fills that a real order book may not give.
+  - Most of the return is 2021. 2025 and 2026 are flat to negative on most coins, even with touch fills.
+Verdict: no engine work and no Lab agent from this. If revisited, the honest next test is forward: minute data
+and real Lighter order book fills over several weeks, not more hourly backtests.
