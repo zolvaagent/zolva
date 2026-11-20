@@ -38,6 +38,42 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-19-ant-listed-on-ipo-day",
+    date: "2026-11-19",
+    area: "Markets",
+    title: "$ANT listed on IPO day",
+    body: "Anthropic began trading on Nasdaq on 19 November, and its Robinhood Stock Token is on Zolva the same day. Six tokens on Robinhood Chain were called ANT or Anthropic; all six were copies. The official one had been deployed before the IPO under a placeholder name and was renamed after the listing. Zolva picked it by its contract (Robinhood's Stock Token bytecode and beacon), never by its name. Prices come from its Uniswap 0.3% USDG pool every hour. A brand new listing now shows when its first hourly price lands instead of an error page. A Lab paper agent buys ANT in 20 daily steps; a second, which needs 49 hours of prices before it decides, starts on 21 November.",
+    sources: [
+      commit("59b9509"),
+      commit("51070e7"),
+      { label: "/markets/ANT", href: "https://zolvaagent.app/markets/ANT" },
+      { label: "Token contract", href: "https://robinhoodchain.blockscout.com/token/0xbbb6c29bcc3a1028a2b54310df73f4f7a3bcb373" },
+    ],
+  },
+  {
+    id: "2026-11-19-time-in-the-market-and-a-warning-for-busy-rules",
+    date: "2026-11-19",
+    area: "Agents",
+    title: "Time in the market, and a warning for busy rules",
+    body: "Two lessons from five weeks of agents. Trading more did not help: our busiest agents (about 12 trades a week) did not beat holding, so the Studio backtest now warns from 7 trades a week and shows what the trading costs. And cash is a position: every agent page now says how much of the last 30 days the agent held a position and how much it sat in cash.",
+    sources: [
+      commit("dbecd94"),
+      { label: "/agents", href: "https://zolvaagent.app/agents" },
+    ],
+  },
+  {
+    id: "2026-11-19-qproof-token-checks-logged-for-trench-candidates",
+    date: "2026-11-19",
+    area: "Trenches",
+    title: "QProof token checks logged for trench candidates",
+    body: "Integration pilot with QHooks: every token a trench agent wants to buy is now checked with QProof (sells that fail, risky contract functions, LP lock, holder concentration) and the report is stored next to the decision. For two weeks it is log only: it never blocks or changes a trade. Then we compare the verdicts with what the tokens did. The docs now point to QProof for checking a token yourself.",
+    sources: [
+      commit("b2dbd5d"),
+      { label: "QProof", href: "https://qhooks.com/qproof" },
+      { label: "/docs/guardrails", href: "https://zolvaagent.app/docs/guardrails#token-safety" },
+    ],
+  },
+  {
     id: "2026-11-18-trench-test-14-trades-14-losses-then-exit-v2",
     date: "2026-11-18",
     area: "Trenches",
@@ -53,6 +89,19 @@ export const DEVLOG: DevlogEntry[] = [
     ],
   },
   {
+    id: "2026-11-18-every-public-agent-replays-to-a-match",
+    date: "2026-11-18",
+    area: "API & MCP",
+    title: "Every public agent replays to a match",
+    body: "Verify replays an agent with the real engine and compares every trade and value with the record. 21 older agents showed differences. The ones we could trace came from our own hourly price repair, which rewrote closes after agents had already acted on them. Now each hour is replayed on the exact closes the agent saw (stored with every decision since 14 November), the repair never rewrites a close an agent used, and older hours that can't be checked are listed apart instead of hidden. All public agents now match, and the README carries a live replay-verified badge. Factor (@FactorAgents) agreed to read this endpoint for a replay-verified mark on Zolva's ERC-8004 entry #25650.",
+    sources: [
+      commit("b069764"),
+      commit("bdab001"),
+      commit("ca37757"),
+      { label: "Verify endpoint", href: "https://zolvaagent.app/docs/public-api#verify" },
+    ],
+  },
+  {
     id: "2026-11-17-trenches-memecoin-agents-on-rushr",
     date: "2026-11-17",
     area: "Trenches",
@@ -64,6 +113,17 @@ export const DEVLOG: DevlogEntry[] = [
       commit("8fb1f92"),
       { label: "/trenches", href: "https://zolvaagent.app/trenches" },
       { label: "Rushr", href: "https://rushr.trade" },
+    ],
+  },
+  {
+    id: "2026-11-17-upoch-verified-on-three-agent-pages",
+    date: "2026-11-17",
+    area: "Agents",
+    title: "Upoch Verified on three agent pages",
+    body: "Upoch mirrors three Zolva agents on chain and checks that their workflow keeps checkpointing and can be recovered. Those three agent pages now show Upoch's Verified badge, linked to its proof page. It says the workflow is recoverable, not that the results are right; that is what Zolva's own Verify replay checks. We serve the badge through our own cache, so visitors don't load it from Upoch.",
+    sources: [
+      commit("abb3a3c"),
+      { label: "Upoch", href: "https://upoch.tech" },
     ],
   },
   {
