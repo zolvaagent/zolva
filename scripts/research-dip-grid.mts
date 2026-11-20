@@ -53,7 +53,7 @@ async function ohlc(coin: string): Promise<Bar[]> {
   let from = bars.length ? bars.at(-1)!.t + HOUR : START - SMA_HOURS * HOUR;
   const until = Math.floor(Date.now() / HOUR) * HOUR - HOUR;
   while (from <= until) {
-    const url = `https://api.binance.com/api/v3/klines?symbol=${coin}USDT&interval=1h&startTime=${from}&limit=1000`;
+    const url = `https://data-api.binance.vision/api/v3/klines?symbol=${coin}USDT&interval=1h&startTime=${from}&limit=1000`;
     const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
     if (!response.ok) throw new Error(`${response.status} ${url}`);
     const rows = (await response.json()) as [number, string, string, string, string][];
