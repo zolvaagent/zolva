@@ -969,3 +969,17 @@ chain data (dev %, fresh %, X checks not rebuildable), exits v1 and v2 on the sa
   so it fails the gate (negative at 2x costs and without the best trade, worst trade -48%, 54 trades).
 - Optimistic on purpose (fills at minute closes, no failed sells, looser picker), so live would likely be worse.
 Raw output: notes folder trench-backtest-raw.txt.
+
+## Vault study step 0: FuturAI Labs (Hyperliquid), 2026-11-20
+Source: tradingagentstack.com top list (owner: "ok go"). Public fills from the Hyperliquid info API
+(`scripts/research-vault-fills.mts`, read-only), vault `0xb65dd7c56afbf3b272ab5fc49be44b47dca18003`.
+- 12,371 fills, 1 Mar to 20 Nov 2026, long only, 18 coins (ADA, LINK, HYPE, SOL, XRP, DOGE, ETH, BTC, ...).
+- It is a maker grid: about $450-700 per order, a new buy about 0.3-0.6% below the last sell, and every lot
+  sold about **+0.56%** above its buy (the same on every coin). 84% maker fills, fees 1.9 bp of volume.
+  Median hold 1-6 hours; in falls lots pile up (ADA up to 52 open lots).
+- Exposure is tiny: $15k open on a $516k account (2.9%). Realised PnL $20.7k minus fees $1.5k in 264 days,
+  about 3.7% of today's account. The "Sortino 28" mostly measures idle cash, not a strong edge.
+- Fit for Zolva: poor on Robinhood Chain spot (a 0.56% target is eaten by pool fees and slippage) and on our
+  hourly engine (the grid works inside the hour with maker orders). Only a zero-fee venue (Lighter) and a
+  minute-level engine could run it, and the known risk is a long fall that leaves lots stuck.
+Lighter pools: trades are public (`/api/v1/trades?account_index=`), not yet studied.
