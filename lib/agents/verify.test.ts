@@ -216,3 +216,26 @@ describe("closes the agent saw (stored since 2026-11-14)", () => {
     expect(result).toMatchObject({ status: "differs", verifiedSince: null, unverifiable: null });
   });
 });
+
+describe("hour by hour for DCA (several buys of the same market)", () => {
+  it("adds each buy to the position like the engine, so a DCA agent matches", () => {
+    const dca: AgentParams = { strategy: "dca", maxPositionPct: 100, stopLossPct: 8, dca: { buys: 5, everyHours: 24, startTs: START + 60 * 3600 } };
+    let state: AgentState = { cash: 1000, positions: {} };
+    const runs: { ts: number; equity: number; cash: number }[] = [];
+    const trades: { ts: number; token: string; side: string; quantity: number; price: number; costUsd: number }[] = [];
+    for (const index of range(60, 260)) {
+      const ts = START + index * 3600;
+      const hour = runHour(state, dca, { "0xaaa": series["0xaaa"] }, index, ts);
+      state = hour.state;
+      runs.push({ ts, equity: hour.equity, cash: hour.state.cash });
+      trades.push(...hour.fills.map((fill) => ({ ts, token: fill.token, side: fill.side, quantity: fill.quantity, price: fill.price, costUsd: fill.costUsd })));
+    }
+    expect(trades.length).toBe(5);
+    const anchors = anchorsFromRecord(1000, runs, trades);
+    const result = verifyAgent({ params: dca, startCapital: 1000, series: { "0xaaa": series["0xaaa"] }, funding: {}, startTs: START, runs, trades, anchors });
+    expect(result).toMatchObject({ status: "match", method: "hour_by_hour", hoursDiffering: 0 });
+    // After all five buys the rebuilt position holds every token bought.
+    const last = anchors.get(runs[runs.length - 1].ts)!;
+    expect(last.positions["0xaaa"].quantity).toBeCloseTo(trades.reduce((sum, trade) => sum + trade.quantity, 0), 9);
+  });
+});

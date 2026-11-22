@@ -234,7 +234,7 @@ type RecordedTrade = { ts: number; token: string; side: string; quantity: number
 /**
  * The recorded state at the start of every hour, rebuilt from the record itself: cash from the previous
  * hour's run, positions from the trades before the hour. Exact for spot long-only agents, where a buy
- * opens a whole position (entry includes its cost) and a sell closes it. Other agents (shorts, perps
+ * opens a position or adds to it (DCA; entry is the average paid, costs included) and a sell closes it. Other agents (shorts, perps
  * funding, resizes) get no anchors and replay cumulatively.
  */
 export function anchorsFromRecord(startCapital: number, runs: { ts: number; cash: number }[], trades: RecordedTrade[]): Map<number, AgentState> {
@@ -247,7 +247,19 @@ export function anchorsFromRecord(startCapital: number, runs: { ts: number; cash
   for (const run of sortedRuns) {
     while (next < sortedTrades.length && sortedTrades[next].ts < run.ts) {
       const trade = sortedTrades[next++];
-      if (trade.side === "buy") open.set(trade.token, { quantity: trade.quantity, entryPrice: (trade.quantity * trade.price + trade.costUsd) / trade.quantity, openedAt: trade.ts });
+      if (trade.side === "buy") {
+        // A buy into a held token adds to it (DCA buys the same market again and again), exactly as the
+        // engine does: quantities add up, the entry is the average paid per token with costs, and the
+        // position keeps its first open time. Replacing it here undervalued ANT's DCA agent after its 2nd buy.
+        const held = open.get(trade.token);
+        const paid = trade.quantity * trade.price + trade.costUsd;
+        open.set(
+          trade.token,
+          held
+            ? { ...held, quantity: held.quantity + trade.quantity, entryPrice: (held.quantity * held.entryPrice + paid) / (held.quantity + trade.quantity) }
+            : { quantity: trade.quantity, entryPrice: paid / trade.quantity, openedAt: trade.ts },
+        );
+      }
       else if (trade.side === "sell") open.set(trade.token, undefined as never);
     }
     const positions: AgentState["positions"] = {};
