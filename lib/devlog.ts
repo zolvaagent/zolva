@@ -38,6 +38,18 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-22-zolva-liquidity-locked-for-good",
+    date: "2026-11-22",
+    area: "Token",
+    title: "ZOLVA liquidity locked for good",
+    body: "We added full-range liquidity to ZOLVA's main pool (Uniswap v4, ETH / ZOLVA) and sent its position NFT to the dead address, so no one can take that liquidity out again; its trading fees stay in the pool too. The ZOLVA report now lists every locked position with what it holds at today's price, read from the chain, and it is one click away in the app sidebar and the site footer.",
+    sources: [
+      commit("5059eeb"),
+      { label: "/token/report", href: "https://zolvaagent.app/token/report" },
+      { label: "Lock tx", href: "https://robinhoodchain.blockscout.com/tx/0x0989f3172aa79b5a642c72e67f6b698f81b1b9a3c3660c08829278d1c6059d4b" },
+    ],
+  },
+  {
     id: "2026-11-19-ant-listed-on-ipo-day",
     date: "2026-11-19",
     area: "Markets",
