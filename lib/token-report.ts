@@ -66,3 +66,32 @@ export function creditTotals(rows: LedgerRow[]): CreditTotals {
   }
   return { freeGrantedUsd, paidAddedUsd, spentUsd };
 }
+
+/**
+ * A Uniswap v4 position in ZOLVA's main pool whose position NFT was sent to the dead address: no one
+ * can remove that liquidity again. Amounts are what the position holds at the pool's current price.
+ */
+export type LockedPosition = { tokenId: string; txHash: string; blockNumber: number; ts: number | null; eth: number; zolva: number; fullRange: boolean };
+
+/** The ticks packed into a v4 PositionInfo word: tickLower in bits 8-31, tickUpper in bits 32-55. */
+export function positionTicks(info: bigint): { tickLower: number; tickUpper: number } {
+  return {
+    tickLower: Number(BigInt.asIntN(24, (info >> 8n) & 0xffffffn)),
+    tickUpper: Number(BigInt.asIntN(24, (info >> 32n) & 0xffffffn)),
+  };
+}
+
+/**
+ * Raw token amounts held by `liquidity` between two ticks at the pool's price (Uniswap's liquidity
+ * math in floating point, which is plenty for a report). Below the range it is all token0, above it
+ * all token1.
+ */
+export function positionAmounts(liquidity: bigint, sqrtPriceX96: bigint, tickLower: number, tickUpper: number): { amount0: number; amount1: number } {
+  const L = Number(liquidity);
+  const price = Number(sqrtPriceX96) / 2 ** 96;
+  const lower = Math.sqrt(1.0001 ** tickLower);
+  const upper = Math.sqrt(1.0001 ** tickUpper);
+  if (price <= lower) return { amount0: L * (1 / lower - 1 / upper), amount1: 0 };
+  if (price >= upper) return { amount0: 0, amount1: L * (upper - lower) };
+  return { amount0: L * (1 / price - 1 / upper), amount1: L * (price - lower) };
+}

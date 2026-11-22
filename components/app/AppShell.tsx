@@ -84,6 +84,10 @@ export function AppSidebar() {
           <i className="ph ph-notebook" />
           Dev log
         </Link>
+        <Link className="app-link" href="/token/report" aria-current={pathname.startsWith("/token/report") ? "page" : undefined}>
+          <i className="ph ph-fire" />
+          ZOLVA report
+        </Link>
         <Link className="app-link" href="/terms">
           <i className="ph ph-file-text" />
           Terms

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { burnTotals, classifyBurn, creditTotals, LAUNCH_BURN_TX, type Burn } from "./token-report";
+import { burnTotals, classifyBurn, creditTotals, LAUNCH_BURN_TX, positionAmounts, positionTicks, type Burn } from "./token-report";
 
 const ROUTER = "0x204faca1764b154221e35c0d20abb3c525710498";
 const options = { router: ROUTER, creditTxs: new Set(["0xcredit"]) };
@@ -40,5 +40,22 @@ describe("creditTotals", () => {
     expect(totals.freeGrantedUsd).toBeCloseTo(1, 9);
     expect(totals.paidAddedUsd).toBeCloseTo(2, 9);
     expect(totals.spentUsd).toBeCloseTo(0.0015, 9);
+  });
+});
+
+describe("locked liquidity", () => {
+  it("reads the ticks out of a v4 PositionInfo word", () => {
+    // The burnt full-range ZOLVA position (#4342522): ticks -887200 and 887200.
+    const info = (BigInt.asUintN(24, 887200n) << 32n) | (BigInt.asUintN(24, -887200n) << 8n);
+    expect(positionTicks(info)).toEqual({ tickLower: -887200, tickUpper: 887200 });
+  });
+
+  it("splits a position into its two tokens at the pool price", () => {
+    const sqrtPriceX96 = 2n ** 96n; // price 1
+    const inRange = positionAmounts(10n ** 18n, sqrtPriceX96, -887200, 887200);
+    expect(inRange.amount0 / 1e18).toBeCloseTo(1, 6);
+    expect(inRange.amount1 / 1e18).toBeCloseTo(1, 6);
+    expect(positionAmounts(10n ** 18n, sqrtPriceX96, 100, 200).amount1).toBe(0);
+    expect(positionAmounts(10n ** 18n, sqrtPriceX96, -200, -100).amount0).toBe(0);
   });
 });

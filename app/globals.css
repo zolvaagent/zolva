@@ -10497,6 +10497,10 @@ li.stats-ranks__row {
   line-height: 18px;
 }
 
+.token-report__locked {
+  margin-bottom: var(--space-200);
+}
+
 .token-report__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

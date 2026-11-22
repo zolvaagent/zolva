@@ -12,9 +12,12 @@ import { BURN_LABELS } from "@/lib/token-report";
 
 export const metadata: Metadata = {
   title: "ZOLVA report",
-  description: "Every ZOLVA burn on chain, the swap fees waiting for the next buyback, and how AI credits were granted and spent.",
+  description: "Every ZOLVA burn on chain, the liquidity locked forever, the swap fees waiting for the next buyback, and how AI credits were granted and spent.",
 };
 export const dynamic = "force-dynamic";
+
+/** Uniswap v4 PositionManager: the contract of every v4 position NFT. */
+const POSITION_NFT = "0x58daec3116aae6d93017baaea7749052e8a04fa7";
 
 const tokens = (value: number) => value.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const dollars = (value: number) => `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: value < 1 ? 4 : 2 })}`;
@@ -33,7 +36,7 @@ export default async function TokenReportPage() {
         <div>
           <h1 className="page__title">ZOLVA report</h1>
           <p className="page__lead">
-            What has been burnt, what the swap fee has collected for the next buyback, and how AI credits were used. Read from Robinhood Chain and Zolva&apos;s ledger, updated {dateAt(report.builtAt)}.
+            What has been burnt, the liquidity locked for good, what the swap fee has collected for the next buyback, and how AI credits were used. Read from Robinhood Chain and Zolva&apos;s ledger, updated {dateAt(report.builtAt)}.
           </p>
         </div>
         <Link className="button button--ghost" href="/docs/token">
@@ -66,6 +69,55 @@ export default async function TokenReportPage() {
         </a>
         , which no one can spend from.
       </p>
+
+      <section className="card token-report__locked" aria-labelledby="locked-liquidity">
+        <div className="card-head">
+          <h2 className="card__title" id="locked-liquidity">
+            Liquidity locked forever
+          </h2>
+          <span className="muted">At today&apos;s price</span>
+        </div>
+        <p className="muted token-report__note">
+          Liquidity added to ZOLVA&apos;s main pool (Uniswap v4, ETH / ZOLVA) whose position NFT was then sent to the dead address. No one can remove it again; its trading fees stay in the pool too.
+        </p>
+        {report.lockedLiquidity.length ? (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Position</th>
+                  <th className="num">ETH</th>
+                  <th className="num">ZOLVA</th>
+                  <th className="sr-only">Transaction</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.lockedLiquidity.map((position) => (
+                  <tr key={position.tokenId}>
+                    <td className="muted">{position.ts !== null ? dateAt(position.ts) : `Block ${position.blockNumber}`}</td>
+                    <td>
+                      <a className="text-link mono" href={`${EXPLORER_URL}/token/${POSITION_NFT}/instance/${position.tokenId}`} target="_blank" rel="noopener noreferrer">
+                        #{position.tokenId}
+                      </a>
+                      {position.fullRange ? <span className="muted"> · full range</span> : null}
+                    </td>
+                    <td className="num">{amount(position.eth)}</td>
+                    <td className="num">{tokens(position.zolva)}</td>
+                    <td>
+                      <a className="text-link" href={`${EXPLORER_URL}/tx/${position.txHash}`} target="_blank" rel="noopener noreferrer">
+                        Tx <i className="ph ph-arrow-up-right" aria-hidden="true" />
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted">No liquidity has been locked yet.</p>
+        )}
+      </section>
 
       <div className="token-report__grid">
         <section className="card" aria-labelledby="burn-kinds">

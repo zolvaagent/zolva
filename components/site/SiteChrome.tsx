@@ -177,6 +177,7 @@ export function SiteFooter() {
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/docs/verify">Verify Zolva</Link>
+            <Link href="/token/report">ZOLVA report</Link>
             <a href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer">
               Source code
             </a>
