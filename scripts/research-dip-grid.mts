@@ -51,7 +51,7 @@ type Bar = { t: number; o: number; h: number; l: number; c: number };
 
 async function ohlc(coin: string): Promise<Bar[]> {
   const file = join(CACHE, `${coin}.json`);
-  let bars: Bar[] = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
+  const bars: Bar[] = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
   let from = bars.length ? bars.at(-1)!.t + HOUR : START - SMA_HOURS * HOUR;
   const until = Math.floor(Date.now() / HOUR) * HOUR - HOUR;
   while (from <= until) {
