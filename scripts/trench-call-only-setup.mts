@@ -28,7 +28,7 @@ const vars = Object.fromEntries(
     .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1).trim()]),
 );
 
-const BIO = "Zolva Lab signals: rule-picked calls on Pons tokens, with the exit posted under each call. Holds nothing. Not advice.";
+const BIO = "Zolva Lab: rule-based picks from the trenches, posted as calls. Run by @zolva_agent. Not advice.";
 
 async function main() {
   const [handleArg, nameArg, ownerArg] = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
