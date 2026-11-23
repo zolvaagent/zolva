@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AgentKindPills, matchesVenue, VENUE_FILTERS, type VenueFilter } from "@/components/app/AgentKind";
-import { MIN_RANKED_DAYS, MIN_RANKED_RUNS } from "@/lib/agents/tested";
+import { isRankedRecord, MIN_RANKED_DAYS, MIN_RANKED_RUNS } from "@/lib/agents/tested";
 import type { AgentPeriod, AgentSummary, PeriodStats } from "@/lib/data/agents";
-import { marketList, percent, points, shortAddress, STRATEGY_NAMES, tone } from "@/lib/format";
+import { marketList, percent, points, shortAddress, signedUsd, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const SORTS = [
   ["return", "Highest return"],
@@ -37,9 +37,9 @@ const daysText = (days: number) => (days === 1 ? "1 day" : `${days} days`);
 
 /**
  * Research's minimum track record: an agent is ranked, and shows risk numbers, only after 30 days and
- * 720 hourly runs (lib/agents/tested.ts). Measured from its own record, so it never depends on the clock.
+ * 720 hourly runs (lib/agents/tested.ts).
  */
-const isRanked = (agent: AgentSummary) => agent.runs >= MIN_RANKED_RUNS && ((agent.lastTs ?? agent.createdAt) - agent.createdAt) / 86400 >= MIN_RANKED_DAYS;
+const isRanked = (agent: AgentSummary) => isRankedRecord(agent);
 
 /** "Tested" (matches a rule that passed Research's 6 year test) or "Experiment" (everything else). */
 function TestedPill({ agent }: { agent: AgentSummary }) {
@@ -223,8 +223,23 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                         {STRATEGY_NAMES[agent.strategy]} · {marketList(agent.tokens.map((token) => token.symbol))}
                       </div>
                     </span>
-                    <span className="muted" style={{ textAlign: "right", fontSize: 12 }}>
-                      New, {daysText(recordDays(agent))}
+                    {/* Return so far and open P&L only: no edge, drop or rank until the record is long enough. */}
+                    <span style={{ textAlign: "right" }} title={`Too early to judge: ${daysText(recordDays(agent))} of ${MIN_RANKED_DAYS}`}>
+                      <span style={{ fontSize: 14 }}>
+                        <span className={tone(agent.returnPct)} style={{ fontWeight: 600 }}>
+                          {percent(agent.returnPct)}
+                        </span>
+                        <span className="muted"> so far</span>
+                      </span>
+                      {agent.openPnl != null ? (
+                        <div style={{ fontSize: 12, lineHeight: "16px" }}>
+                          <span className="muted">open </span>
+                          <span className={tone(agent.openPnl)}>{signedUsd(agent.openPnl)}</span>
+                        </div>
+                      ) : null}
+                      <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
+                        New, {daysText(recordDays(agent))}
+                      </div>
                     </span>
                   </Link>
                 ))}

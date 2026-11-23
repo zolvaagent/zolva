@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LeaderboardPage() {
   const client = db();
-  const [all, address] = await Promise.all([listAgents(client, { periods: true }), getSessionAddress()]);
+  const [all, address] = await Promise.all([listAgents(client, { periods: true, openPnl: true }), getSessionAddress()]);
   const agents = all.filter((agent) => agent.status === "active");
   return (
     <div className="container page">

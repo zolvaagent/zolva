@@ -55,3 +55,11 @@ export function isTested(agent: TestedInput): boolean {
 /** Research's minimum track record before an agent is ranked or shows risk numbers. */
 export const MIN_RANKED_DAYS = 30;
 export const MIN_RANKED_RUNS = 720;
+
+/**
+ * Whether an agent's record is long enough to be ranked: 30 days and 720 hourly runs, measured from its
+ * own record so it never depends on the clock. Unix seconds.
+ */
+export function isRankedRecord(agent: { runs: number; createdAt: number; lastTs: number | null }): boolean {
+  return agent.runs >= MIN_RANKED_RUNS && ((agent.lastTs ?? agent.createdAt) - agent.createdAt) / 86400 >= MIN_RANKED_DAYS;
+}

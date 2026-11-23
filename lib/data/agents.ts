@@ -8,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isHouseOwner, LAB_AGENTS } from "@/lib/agents/house";
 import { periodsOf, type AgentPeriod, type PeriodRow, type PeriodStats } from "@/lib/agents/periods";
-import { isTested, type TestedInput } from "@/lib/agents/tested";
+import { isRankedRecord, isTested, type TestedInput } from "@/lib/agents/tested";
 import type { AgentRow } from "@/lib/agents/plan";
 import type { Decision } from "@/lib/engine/engine";
 import { isPerpSymbol } from "@/lib/format";
@@ -50,6 +50,11 @@ export type AgentSummary = {
   periods?: Record<AgentPeriod, PeriodStats | null>;
   /** Leaderboard only: the agent exactly matches a rule that passed Research's 6 year test (lib/agents/tested.ts). */
   tested?: boolean;
+  /**
+   * Leaderboard "New agents" only (listAgents with openPnl): P&L of the positions still open at the last
+   * run, in dollars, after costs; null when the agent holds nothing. Not set for ranked agents.
+   */
+  openPnl?: number | null;
 };
 
 export { AGENT_PERIODS, type AgentPeriod, type PeriodStats } from "@/lib/agents/periods";
@@ -129,7 +134,7 @@ async function toSummaries(db: SupabaseClient, rows: StatsRow[]): Promise<AgentS
 const STATS_COLUMNS = "id, owner, name, strategy, status, token_addresses, start_capital, equity, hold_equity, runs, max_drawdown, trades, created_at, last_ts, published_at, mode";
 
 /** Every published paper agent (active and paused), newest first. Private agents only show to their owner. */
-export async function listAgents(db: SupabaseClient, options: { periods?: boolean } = {}): Promise<AgentSummary[]> {
+export async function listAgents(db: SupabaseClient, options: { periods?: boolean; openPnl?: boolean } = {}): Promise<AgentSummary[]> {
   const { data, error } = await db
     .from("agent_stats")
     .select(STATS_COLUMNS)
@@ -138,11 +143,12 @@ export async function listAgents(db: SupabaseClient, options: { periods?: boolea
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Loading agents failed: ${error.message}`);
   const rows = data as StatsRow[];
-  const [summaries, periods, params] = await Promise.all([
+  const [listed, periods, params] = await Promise.all([
     toSummaries(db, rows),
     options.periods ? periodStats(db) : null,
     options.periods ? db.from("agents").select("id, params").in("id", rows.map((row) => row.id)) : null,
   ]);
+  const summaries = options.openPnl ? await withOpenPnl(db, listed) : listed;
   if (!periods) return summaries;
   const paramsOf = new Map(((params?.data ?? []) as { id: string; params: TestedInput["params"] }[]).map((row) => [row.id, row.params]));
   return summaries.map((summary) => ({
@@ -152,6 +158,43 @@ export async function listAgents(db: SupabaseClient, options: { periods?: boolea
   }));
 }
 
+
+/**
+ * Adds open P&L to agents not ranked yet: value at the last run minus its cash minus what the open
+ * positions cost (average entry including trading costs; a short's margin when it has one). The same
+ * basis as the ledger's unrealised P&L (lib/agents/ledger.ts), from the last hourly run.
+ */
+async function withOpenPnl(db: SupabaseClient, agents: AgentSummary[]): Promise<AgentSummary[]> {
+  const young = agents.filter((agent) => !isRankedRecord(agent) && agent.lastTs !== null);
+  if (!young.length) return agents;
+  const ids = young.map((agent) => agent.id);
+  const [positions, runs] = await Promise.all([
+    db.from("positions").select("agent_id, quantity, avg_entry_price, side, margin").in("agent_id", ids),
+    db.from("agent_runs").select("agent_id, ts, cash").in("agent_id", ids).in("ts", young.map((agent) => new Date(agent.lastTs! * 1000).toISOString())),
+  ]);
+  // Open P&L is extra: the leaderboard still works without it.
+  if (positions.error || runs.error) {
+    console.error(`Loading open P&L failed: ${(positions.error ?? runs.error)!.message}`);
+    return agents;
+  }
+  const basis = new Map<string, number>();
+  for (const row of positions.data as { agent_id: string; quantity: number; avg_entry_price: number; side: string; margin: number | null }[]) {
+    const cost = row.side === "short" && row.margin !== null ? Number(row.margin) : Number(row.quantity) * Number(row.avg_entry_price);
+    basis.set(row.agent_id, (basis.get(row.agent_id) ?? 0) + cost);
+  }
+  const lastTs = new Map(young.map((agent) => [agent.id, agent.lastTs]));
+  const cash = new Map<string, number>();
+  // The ts filter matches any agent's last run time, so keep each agent's own.
+  for (const row of runs.data as { agent_id: string; ts: string; cash: number }[]) {
+    if (Date.parse(row.ts) / 1000 === lastTs.get(row.agent_id)) cash.set(row.agent_id, Number(row.cash));
+  }
+  return agents.map((agent) => {
+    if (!lastTs.has(agent.id)) return agent;
+    const cost = basis.get(agent.id);
+    const agentCash = cash.get(agent.id);
+    return { ...agent, openPnl: cost === undefined || agentCash === undefined ? null : agent.equity - agentCash - cost };
+  });
+}
 
 /** Every published paper agent's starting values per timeframe (agent_period_stats), by agent id. */
 async function periodStats(db: SupabaseClient): Promise<Map<string, PeriodRow[]>> {
