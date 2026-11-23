@@ -1014,3 +1014,24 @@ touches the limit, 0.05% a fill, longs pay 10%/yr funding. Fit coins SOL, LINK, 
   - Most of the return is 2021. 2025 and 2026 are flat to negative on most coins, even with touch fills.
 Verdict: no engine work and no Lab agent from this. If revisited, the honest next test is forward: minute data
 and real Lighter order book fills over several weeks, not more hourly backtests.
+
+## Trench DEX-paid only (exploration, finished 2026-11-19): NO-GO on every variant
+`MODE=dexpaid scripts/research-trench-backtest.mts`, the same 14 days of PONS launches as the chain-only test:
+11,392 launches, 10,846 with trades, **186 paid DEX listings** (DexScreener orders API). Entry at the first
+minute close after the payment, exits v1 and v2 (frozen values), costs 1x = the 6% round trip, 2x = 12%.
+| Variant | Trades | v2 mean (1x) | median | wins | without best | worst | v2 mean (2x) |
+|---|---|---|---|---|---|---|---|
+| A all paid | 127 | -1.8% | -0.5% | 50% | -2.8% | -66.6% | -9.4% |
+| B paid <= 90 min (pre-registered) | 107 | -2.0% | +1.4% | 51% | -3.2% | -66.6% | -9.7% |
+| C B + bonding 35-70% + pullback 15-45% | 62 | +0.8% | +1.7% | 53% | -0.9% | -66.6% | -6.8% |
+| D paid <= 30 min | 82 | -3.3% | -2.7% | 48% | -4.9% | -66.6% | -10.9% |
+| D paid 30-90 min | 25 | +2.4% | +6.7% | 64% | -0.1% | -39.2% | -5.6% |
+| D paid > 90 min | 20 | -0.7% | -3.9% | 40% | -3.3% | -34.0% | -8.0% |
+- Gate (v2: mean > 0 after costs AND without the best trade AND worst >= -35%): fails on every variant.
+  The two slightly positive ones (C, D 30-90 min) turn negative without their best trade and at 2x costs,
+  and have 25-62 trades. Exit v1 is a little better on mean in A/B (+1.5%/+1.8%) but has 33-35% wins and
+  -72.6% worst; it fails the same lines.
+- Reading: paying for a DEX listing is not a filter that makes this picker profitable; it lifts the mean by a
+  few points at most, inside the noise.
+- The pre-registered real test stays as fixed: variant B on launches from 2026-11-19 (FROM=1795046400) once
+  at least 7 days exist (from 2026-11-26), all gate lines.
