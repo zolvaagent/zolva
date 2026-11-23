@@ -11,13 +11,14 @@ import type { RushrStats, RushrToken } from "./engine.ts";
 const API = "https://api.rushr.trade";
 export const SIWE_PREFIX = "rushr.trade wants you to sign in with your Ethereum account:";
 
+// Plain fields (no parameter properties), so scripts run under Node's type stripping.
 export class RushrError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly code: string | null,
-  ) {
+  readonly status: number;
+  readonly code: string | null;
+  constructor(message: string, status: number, code: string | null) {
     super(message);
+    this.status = status;
+    this.code = code;
   }
 }
 

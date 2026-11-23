@@ -16,15 +16,15 @@ import { formatEther, parseAbi, parseEther, type Address, type PublicClient } fr
 
 import { env } from "../env.ts";
 import { createChainClient, MAX_FEED_AGE_SECONDS } from "../prices/onchain.ts";
-import { buyCallout, CALLOUT_DELAY_MS, sellComment } from "./callouts.ts";
+import { buyCallout, callOnlyCallout, CALLOUT_DELAY_MS, cleanPitch, exitSignalComment, sellComment } from "./callouts.ts";
 import { decryptSecret } from "./crypto.ts";
-import { curveOf, readCurve, sellOut } from "./curve.ts";
-import { buySellRatio, caPosted, listStage, runMinute, socialStage, statsStage, type CandidateInput, type ExitKind, type HeldInput, type MinuteAction, type Position, type PreviousExit, type RushrToken, type Verdict } from "./engine.ts";
+import { buyOut, curveOf, readCurve, sellOut } from "./curve.ts";
+import { buySellRatio, caPosted, gainPct, listStage, runMinute, socialStage, statsStage, type CandidateInput, type ExitKind, type HeldInput, type MinuteAction, type Position, type PreviousExit, type RushrToken, type Verdict } from "./engine.ts";
 import { trade, type AgentWallet, type Signer } from "./executor.ts";
 import { noteQproofCandidate, qproofStep } from "./qproof.ts";
-import { agentRules, limitsFor, PRESET_INFO, type Market, type PresetId } from "./rules.ts";
+import { agentRules, limitsFor, PRESET_INFO, type Limits, type Market, type PresetId, type TrenchRules } from "./rules.ts";
 import { commentOn, postCallout, safetyBlocked, safetyRefusesBuy, sellQuoteWei, tokenColumn, tokenRow, tokenStats } from "./rushr-api.ts";
-import { dexPaidMinutes, narrative, xProfile, xTweets } from "./social.ts";
+import { callPitch, dexPaidMinutes, narrative, xProfile, xTweets } from "./social.ts";
 
 const ETH_USD_FEED: Address = "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9";
 const BALANCE_ABI = parseAbi(["function balanceOf(address) view returns (uint256)"]);
@@ -38,6 +38,9 @@ const GAS_RESERVE_ETH = 0.0003;
 const STALE_RUN_MS = 4 * 60_000;
 /** A pending order this old means a run died mid-trade: the agent is paused for the owner. */
 const STALE_ORDER_MS = 5 * 60_000;
+/** Call-only agents (owner 2026-11-23): at most this many calls a day, and the paper money behind them. */
+export const CALL_ONLY_MAX_CALLS_PER_DAY = 10;
+const CALL_ONLY_PAPER_CAPITAL_USD = 1000;
 
 export type TrenchSettings = {
   enabled: boolean;
@@ -65,6 +68,8 @@ export type TrenchAgentRow = {
   rushr_key_enc: string | null;
   callouts: boolean;
   custom: boolean | null;
+  /** Posts calls and tracks paper positions; never trades (see paperAct). */
+  call_only: boolean | null;
 };
 
 type PositionRow = {
@@ -98,6 +103,8 @@ type PositionRow = {
   exit_mcap: number | null;
   high_mcap: number | null;
   reentries: number | null;
+  paper: boolean | null;
+  call_mcap: number | null;
 };
 
 /** Every position column, plus the token amounts as exact text (see PositionRow). */
@@ -212,7 +219,16 @@ async function marketFor(shared: Shared, row: PositionRow, position: Position, w
   const [curve, stats, blocked] = await Promise.all([row.curve ? readCurve(shared.chain, row.curve as Address) : Promise.resolve(null), tokenStats(row.token), safetyBlocked(row.token)]);
   // On the curve: its own sell quote. Graduated (or never a PONS curve): Rushr's Uniswap sell quote.
   const onCurve = curve !== null && !curve.graduated;
-  const valueWei = onCurve ? sellOut(position.tokens, curve) : await sellQuoteWei(wallet.rushrKey, row.token, position.tokens, wallet.address);
+  let valueWei: bigint;
+  if (onCurve) valueWei = sellOut(position.tokens, curve);
+  else if (row.paper) {
+    // A paper position's wallet holds nothing, so Rushr may refuse a sell quote: then value it by market cap.
+    const capNow = listed?.market_cap_usd ?? null;
+    valueWei = await sellQuoteWei(wallet.rushrKey, row.token, position.tokens, wallet.address).catch((cause: unknown) => {
+      if (!capNow || !row.call_mcap) throw cause;
+      return parseEther(((position.costEth * capNow) / row.call_mcap).toFixed(18));
+    });
+  } else valueWei = await sellQuoteWei(wallet.rushrKey, row.token, position.tokens, wallet.address);
   return {
     curve,
     marketCapUsd: listed?.market_cap_usd ?? null,
@@ -229,6 +245,11 @@ async function marketFor(shared: Shared, row: PositionRow, position: Position, w
       safetyBlocked: blocked,
     },
   };
+}
+
+/** A call-only agent's paper book: virtual capital, up to 10 open calls, no loss stops (nothing is at risk). */
+export function callOnlyLimits(rules: TrenchRules): Limits {
+  return { ...limitsFor(rules, CALL_ONLY_PAPER_CAPITAL_USD), addUsd: 0, maxOpenTokens: CALL_ONLY_MAX_CALLS_PER_DAY, dailyLossUsd: Number.MAX_SAFE_INTEGER, totalLossUsd: Number.MAX_SAFE_INTEGER };
 }
 
 async function realisedUsd(db: SupabaseClient, agentId: string, sinceIso: string | null): Promise<number> {
@@ -255,7 +276,8 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
   }
 
   const rules = agentRules(agent);
-  const limits = limitsFor(rules, Number(agent.budget_usd));
+  const callOnly = agent.call_only === true;
+  const limits = callOnly ? callOnlyLimits(rules) : limitsFor(rules, Number(agent.budget_usd));
   const { data: rows, error } = await db.from("trench_positions").select(POSITION_SELECT).eq("agent_id", agent.id);
   if (error) throw new Error(`loading positions failed: ${error.message}`);
   const positions = (rows ?? []) as PositionRow[];
@@ -283,22 +305,28 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
   }
 
   const dayStart = new Date(Math.floor(nowMs / 86_400_000) * 86_400_000).toISOString();
-  const [today, total] = await Promise.all([realisedUsd(db, agent.id, dayStart), realisedUsd(db, agent.id, null)]);
+  // A call-only agent has no trades, so no realised P&L; its calls today count toward the daily cap.
+  const [today, total] = callOnly ? [0, 0] : await Promise.all([realisedUsd(db, agent.id, dayStart), realisedUsd(db, agent.id, null)]);
+  const calls = { left: callOnly ? Math.max(0, CALL_ONLY_MAX_CALLS_PER_DAY - positions.filter((row) => Date.parse(row.opened_at) >= Date.parse(dayStart)).length) : 0 };
+  const buysOff = !shared.settings.enabled || agent.status !== "active" || (callOnly && calls.left <= 0);
   const result = runMinute({
     nowMs,
     rules,
     limits,
-    book: { realisedTodayUsd: today, realisedTotalUsd: total, halted: agent.status === "halted", buysOff: !shared.settings.enabled || agent.status !== "active" },
+    book: { realisedTodayUsd: today, realisedTotalUsd: total, halted: agent.status === "halted", buysOff },
     held,
     everHeld,
     previous,
     candidates: shared.candidates,
-    crowding: {
-      maxTokenExposureUsd: Number(shared.settings.max_token_exposure_usd),
-      maxBuysPerTokenMinute: Number(shared.settings.max_buys_per_token_minute),
-      exposureUsd: shared.exposure,
-      buysThisMinute: shared.buysThisMinute,
-    },
+    // Paper calls hold nothing, so Zolva's crowding limits neither apply to them nor count them.
+    crowding: callOnly
+      ? { maxTokenExposureUsd: Number.MAX_SAFE_INTEGER, maxBuysPerTokenMinute: Number.MAX_SAFE_INTEGER, exposureUsd: new Map(), buysThisMinute: new Map() }
+      : {
+          maxTokenExposureUsd: Number(shared.settings.max_token_exposure_usd),
+          maxBuysPerTokenMinute: Number(shared.settings.max_buys_per_token_minute),
+          exposureUsd: shared.exposure,
+          buysThisMinute: shared.buysThisMinute,
+        },
   });
 
   if (result.halt && agent.status !== "halted") {
@@ -315,7 +343,7 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
     `${count("skip")} rejected on deeper checks`,
     `${held.length} held`,
     `${count("buy") + count("add")} buys, ${count("sell")} sells`,
-    shared.settings.enabled && agent.status === "active" ? null : "buys off",
+    buysOff ? (callOnly && calls.left <= 0 ? `${CALL_ONLY_MAX_CALLS_PER_DAY} calls today, no more` : "buys off") : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -337,6 +365,11 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
         if (snapshot) await logDecision(db, agent.id, action.kind, action.reason, action.token, action.symbol);
         continue;
       }
+      if (callOnly) {
+        const item = held.find((entry) => entry.position.token === action.token) ?? null;
+        await paperAct(shared, agent, wallet, action, item, capNow.get(action.token) ?? null, calls);
+        continue;
+      }
       // QProof shadow log (QHooks pilot): note the candidate, never wait on or change the buy.
       if (action.kind === "buy") await noteQproofCandidate(db, { token: action.token, symbol: action.symbol, agentId: agent.id });
       await execute(shared, agent, wallet, action, held.find((entry) => entry.position.token === action.token)?.row ?? null, capNow.get(action.token) ?? null);
@@ -348,12 +381,14 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
     }
   }
 
-  if (agent.callouts) await postCallouts(shared, agent, wallet, rules.exit.stopPct);
+  if (agent.callouts && !callOnly) await postCallouts(shared, agent, wallet, rules.exit.stopPct);
   await db.from("trench_agents").update({ last_run_at: new Date(nowMs).toISOString() }).eq("id", agent.id);
 }
 
 /** Claims the order slot, trades, and records the result. */
 async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWallet, action: Exclude<MinuteAction, { kind: "hold" } | { kind: "skip" }>, row: PositionRow | null, capUsd: number | null = null): Promise<void> {
+  // Second guard after runAgent's branch (the database refuses it too): a call-only agent never trades.
+  if (agent.call_only !== false) throw new Error("call-only agents never trade");
   const { db, chain, signer, ethPrice, nowMs, minute } = shared;
   const side = action.kind === "sell" ? "sell" : "buy";
   let amountIn: bigint;
@@ -467,6 +502,115 @@ async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWalle
 }
 
 /**
+ * A call-only agent's action (owner 2026-11-23). Never a transaction: a buy opens a paper position
+ * at the curve's own quote and posts the call at once (there is no swap for Rushr to link); a sell
+ * closes it at the market value and replies under the call. Adds are ignored. No call when the model
+ * can't say clearly what the project is building.
+ */
+async function paperAct(shared: Shared, agent: TrenchAgentRow, wallet: AgentWallet, action: Exclude<MinuteAction, { kind: "hold" } | { kind: "skip" }>, item: (HeldInput & { row: PositionRow }) | null, capUsd: number | null, calls: { left: number }): Promise<void> {
+  const { db, chain, ethPrice, nowMs } = shared;
+  if (action.kind === "add") return;
+
+  if (action.kind === "sell") {
+    if (!item) return;
+    const { position, market, row } = item;
+    const closing = action.share >= 0.999;
+    const soldTokens = closing ? position.tokens : (position.tokens * BigInt(Math.round(action.share * 1e6))) / 1_000_000n;
+    const soldShare = closing ? 1 : Number(soldTokens) / Number(position.tokens);
+    // The price move since the call: the remaining cost basis shrinks with every partial exit.
+    const sinceCallPct = gainPct(position, market.valueEth);
+    const peakPct = Math.max(position.maxGainPct, sinceCallPct);
+    const left = closing ? 0n : position.tokens - soldTokens;
+    const next = { ...position, tokens: left, costEth: position.costEth * (1 - soldShare), maxGainPct: peakPct, laddersDone: action.ladderStep ?? position.laddersDone };
+    await db
+      .from("trench_positions")
+      .update({
+        ...positionColumns(next),
+        cost_usd: row.cost_usd * (1 - soldShare),
+        closed_at: left <= 0n ? new Date(nowMs).toISOString() : null,
+        ...(left <= 0n ? { exit_kind: action.exitKind, exit_mcap: capUsd } : {}),
+      })
+      .eq("agent_id", agent.id)
+      .eq("token", action.token);
+    await logDecision(db, agent.id, "sell", `paper exit ${(soldShare * 100).toFixed(0)}% at ${sinceCallPct.toFixed(1)}% since call: ${action.reason}`, action.token, action.symbol);
+    if (row.callout_id && row.callout_id !== "failed") {
+      await commentOn(wallet.rushrKey, row.callout_id, exitSignalComment({ exitKind: action.exitKind, sharePct: soldShare * 100, sinceCallPct, peakPct })).catch(() => undefined);
+    }
+    return;
+  }
+
+  // One call per token, ever: no re-entries on paper.
+  if (action.reentry || calls.left <= 0) return;
+  const token = action.candidate;
+  const candidate = shared.candidates.find((entry) => entry.token.address === token.address);
+  const curve = await curveOf(chain, token.address as Address);
+  const state = curve ? await readCurve(chain, curve) : null;
+  if (!curve || !state || state.graduated) {
+    await logDecision(db, agent.id, "skip", "no call: not on a PONS curve", action.token, action.symbol);
+    return;
+  }
+  const pitch = await pitchFor(token);
+  if (!pitch) {
+    await logDecision(db, agent.id, "skip", "no call: the project's posts don't say clearly what it is", action.token, action.symbol);
+    return;
+  }
+  const ethIn = parseEther((action.usd / ethPrice).toFixed(18));
+  const tokens = buyOut(ethIn, state);
+  const eth = Number(formatEther(ethIn));
+  const { error } = await db.from("trench_positions").insert({
+    agent_id: agent.id,
+    token: token.address,
+    symbol: token.symbol,
+    curve,
+    paper: true,
+    call_mcap: token.market_cap_usd ?? null,
+    tokens: tokens.toString(),
+    tokens_bought: tokens.toString(),
+    cost_eth: eth,
+    cost_usd: action.usd,
+    opened_at: new Date(nowMs).toISOString(),
+    entry_bonding: token.bonding_progress ?? 0,
+    high_per_token: tokens > 0n ? eth / Number(tokens) : 0,
+    last_bonding: token.bonding_progress ?? 0,
+    last_bonding_at: new Date(nowMs).toISOString(),
+    entry_dev_pct: token.dev_pct ?? 0,
+    entry_top10_pct: token.top10_pct ?? 0,
+    narrative: pitch,
+    stop_hits: 0,
+    high_mcap: token.market_cap_usd ?? null,
+  });
+  if (error) throw new Error(`saving the paper call failed: ${error.message}`);
+  calls.left -= 1;
+  const body = callOnlyCallout({
+    symbol: token.symbol,
+    pitch,
+    bonding: token.bonding_progress,
+    devPct: token.dev_pct,
+    dexPaidMinutes: candidate?.checks?.dexPaidMinutesAfterLaunch ?? null,
+    // The shared X check passes only when the project's own account posted this contract address.
+    caPostedByOwnX: candidate?.social?.pass === true,
+  });
+  await logDecision(db, agent.id, "buy", `paper call at $${action.usd.toFixed(0)}: ${action.reason}`, action.token, action.symbol);
+  try {
+    const id = await postCallout(wallet.rushrKey, token.address, body);
+    await db.from("trench_positions").update({ callout_id: id }).eq("agent_id", agent.id).eq("token", token.address);
+  } catch (cause) {
+    await db.from("trench_positions").update({ callout_id: "failed" }).eq("agent_id", agent.id).eq("token", token.address);
+    await logDecision(db, agent.id, "error", `call on Rushr failed: ${(cause as Error).message.slice(0, 200)}`, action.token, action.symbol);
+  }
+}
+
+/** The call's pitch from the project's own X, in our words; null means no call. */
+async function pitchFor(token: RushrToken): Promise<string | null> {
+  const xKey = env.xApiKey;
+  const modelKey = env.openRouterKey;
+  if (!xKey || !modelKey || !token.twitter_handle) return null;
+  const [profile, tweets] = await Promise.all([xProfile(xKey, token.twitter_handle), xTweets(xKey, token.twitter_handle)]);
+  const pitch = await callPitch(modelKey, env.trenchNarrativeModel, { name: token.name, symbol: token.symbol, bio: profile.description, tweets: tweets.filter((tweet) => !tweet.isRetweet).map((tweet) => tweet.text) });
+  return pitch ? cleanPitch(pitch) : null;
+}
+
+/**
  * After 2 failed sells of the same token in a row, say so loudly and pause the agent (no new buys;
  * exits keep trying): an "alert" line in the agent's log (shown in red) and in the minute summary.
  * HYLIT's exit failed 906 times on 2026-11-17 without anyone noticing until Research looked.
@@ -547,7 +691,8 @@ async function gatherCandidates(shared: Shared, agents: TrenchAgentRow[]): Promi
 
 /** Every Zolva agent's open exposure per token (USD at cost). */
 async function exposureByToken(db: SupabaseClient): Promise<Map<string, number>> {
-  const { data, error } = await db.from("trench_positions").select("token, cost_usd").is("closed_at", null);
+  // Paper positions (call-only agents) hold nothing and never count.
+  const { data, error } = await db.from("trench_positions").select("token, cost_usd").is("closed_at", null).eq("paper", false);
   if (error) throw new Error(`loading exposure failed: ${error.message}`);
   const map = new Map<string, number>();
   for (const row of data ?? []) map.set(row.token, (map.get(row.token) ?? 0) + Number(row.cost_usd));
@@ -564,13 +709,14 @@ export async function runTrenchMinute(db: SupabaseClient, nowMs: number = Date.n
 
   const { data: agentRows, error: agentsError } = await db
     .from("trench_agents")
-    .select("id, owner, name, preset, rules, custom, budget_usd, status, wallet_address, privy_wallet_id, rushr_handle, rushr_key_enc, callouts")
+    .select("id, owner, name, preset, rules, custom, budget_usd, status, wallet_address, privy_wallet_id, rushr_handle, rushr_key_enc, callouts, call_only")
     .in("status", ["active", "paused", "halted"]);
   if (agentsError) return { ...summary, note: `agents: ${agentsError.message}` };
   const exposure = await exposureByToken(db);
   // Paused and halted agents still run their exits while they hold something.
   const holders = new Set<string>();
-  if (exposure.size > 0) {
+  {
+    // Any open position, paper too, keeps a paused agent's exits running.
     const { data } = await db.from("trench_positions").select("agent_id").is("closed_at", null);
     for (const row of data ?? []) holders.add(row.agent_id);
   }

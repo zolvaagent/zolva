@@ -31,6 +31,22 @@ export function maxFeeWeiFor(maxTxWei: bigint): bigint {
   return maxTxWei / 50n;
 }
 
+/**
+ * The call-only agent's wallet policy (owner 2026-11-23): it allows nothing. Privy denies every
+ * request no rule allows, and the one rule only matches chain 0, which no transaction uses (Privy
+ * wants at least one rule). Rushr's sign-in is signed before the policy goes on.
+ */
+export function callOnlyPolicyRules() {
+  return [
+    {
+      name: "Nothing: call-only agent",
+      method: "eth_signTransaction",
+      action: "ALLOW",
+      conditions: [{ field_source: "ethereum_transaction", field: "chain_id", operator: "eq", value: "0" }],
+    },
+  ];
+}
+
 export function trenchPolicyRules(wallet: string, owner: string, maxTxWei: bigint) {
   const self = wallet.toLowerCase();
   const home = owner.toLowerCase();
