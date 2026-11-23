@@ -38,6 +38,28 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-23-agents-page-list-first-details-on-demand",
+    date: "2026-11-23",
+    area: "Agents",
+    title: "Agents page: list first, details on demand",
+    body: "The Agents page was too packed to read. Now Zolva's tested agents (rules that passed Research's 6 year test) are the only cards, community agents are short rows with their return, how they did against holding and their last 7 days, and the Lab's experiments sit folded away. Pick 24 hours, 7 days, 30 days or all time, as on the Leaderboard. Click any agent to see its latest decision, what it holds and its open P&L, and copy its rules to the Studio. The 7 day lines here and on the dashboard now show the full week; most were cut short before.",
+    sources: [
+      commit("df4899c"),
+      { label: "/agents", href: "https://zolvaagent.app/agents" },
+    ],
+  },
+  {
+    id: "2026-11-23-new-agents-show-their-return-so-far",
+    date: "2026-11-23",
+    area: "Agents",
+    title: "New agents show their return so far",
+    body: "Agents with less than 30 days of record are not ranked on the Leaderboard, and their cards only said how new they were. Now they also show their return so far and, while they hold a position, its open P&L. Still no rank, edge or drawdown: a short record says little.",
+    sources: [
+      commit("92d94b2"),
+      { label: "/leaderboard", href: "https://zolvaagent.app/leaderboard" },
+    ],
+  },
+  {
     id: "2026-11-22-zolva-liquidity-locked-for-good",
     date: "2026-11-22",
     area: "Token",
