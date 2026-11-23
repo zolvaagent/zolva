@@ -5355,6 +5355,21 @@ main:focus {
   display: block;
 }
 
+.tested-cards__more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-200);
+}
+
+/* Owner after a name another public agent also uses ("SPY QQQ DCA  0x4c81…9246"). */
+.agent-owner {
+  margin-left: var(--space-75);
+  color: var(--color-text-faint);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
 /* Community and Lab: 56px rows. Agent · Return · vs holding · Last 7 days. */
 .agent-rows {
   overflow: hidden;

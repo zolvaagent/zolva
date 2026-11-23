@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { statsFor, TIMEFRAMES, TOO_YOUNG, type Timeframe } from "@/lib/agents/periods";
 import { isRankedRecord, MIN_RANKED_DAYS, MIN_RANKED_RUNS } from "@/lib/agents/tested";
 import type { AgentCard, AgentGroup } from "@/lib/data/agents";
-import { percent, points, signedUsd, sparkline, tone } from "@/lib/format";
+import { percent, points, shortAddress, signedUsd, sparkline, tone } from "@/lib/format";
 
 /**
  * /agents: list first, details on demand (Research's proposal, Brand's prototype/agents.html, owner
@@ -24,8 +24,9 @@ const SORTS = [
 ] as const;
 type Sort = (typeof SORTS)[number]["value"];
 
-/** Community rows shown before "Show all". */
+/** Community rows and tested cards shown before "Show all", so tested agents stay one short row. */
 const COMMUNITY_PREVIEW = 8;
+const TESTED_PREVIEW = 4;
 
 const SIDE_LABELS = { buy: "Bought", sell: "Sold", short: "Shorted", cover: "Covered" } as const;
 
@@ -51,6 +52,7 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
   const [timeframe, setTimeframe] = useState<Timeframe>("all");
   const [sort, setSort] = useState<Sort>("return");
   const [showAll, setShowAll] = useState(false);
+  const [showAllTested, setShowAllTested] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
 
@@ -78,6 +80,17 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
     return { tested: of("tested"), community: of("community"), lab: of("lab") };
   }, [cards, query, venue, timeframe, sort]);
 
+  // Agents that share a name with another public agent get a faint owner label so they don't look duplicated.
+  const ownerTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const card of cards) counts.set(card.summary.name, (counts.get(card.summary.name) ?? 0) + 1);
+    return new Map(
+      cards
+        .filter((card) => (counts.get(card.summary.name) ?? 0) > 1)
+        .map((card) => [card.summary.id, card.summary.isHouse ? "Zolva" : shortAddress(card.summary.owner)]),
+    );
+  }, [cards]);
+
   const open = openId ? (cards.find((card) => card.summary.id === openId) ?? null) : null;
   const select = (card: AgentCard, button: HTMLButtonElement) => {
     trigger.current = button;
@@ -89,6 +102,7 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
     trigger.current?.focus();
   };
 
+  const tested = showAllTested ? groups.tested : groups.tested.slice(0, TESTED_PREVIEW);
   const community = showAll ? groups.community : groups.community.slice(0, COMMUNITY_PREVIEW);
   const windowLabel = timeframe === "all" ? "" : ` · ${timeframe}`;
   const nothing = !groups.tested.length && !groups.community.length && !groups.lab.length;
@@ -155,10 +169,17 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
                 <span className="agents-section__note">Rules that passed Research&apos;s 6 year test</span>
               </div>
               <div className="tested-cards">
-                {groups.tested.map((card) => (
-                  <TestedCard key={card.summary.id} card={card} timeframe={timeframe} current={openId === card.summary.id} onSelect={select} />
+                {tested.map((card) => (
+                  <TestedCard key={card.summary.id} card={card} owner={ownerTags.get(card.summary.id)} timeframe={timeframe} current={openId === card.summary.id} onSelect={select} />
                 ))}
               </div>
+              {groups.tested.length > TESTED_PREVIEW && (
+                <div className="tested-cards__more">
+                  <button className="button button--ghost button--small" type="button" onClick={() => setShowAllTested(!showAllTested)}>
+                    {showAllTested ? "Show fewer" : `Show all ${groups.tested.length} tested`}
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
@@ -181,7 +202,7 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
                 </div>
                 <ul>
                   {community.map((card) => (
-                    <AgentRow key={card.summary.id} card={card} timeframe={timeframe} current={openId === card.summary.id} onSelect={select} />
+                    <AgentRow key={card.summary.id} card={card} owner={ownerTags.get(card.summary.id)} timeframe={timeframe} current={openId === card.summary.id} onSelect={select} />
                   ))}
                 </ul>
                 {groups.community.length > COMMUNITY_PREVIEW && (
@@ -210,7 +231,7 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
                 <div className="agent-rows">
                   <ul>
                     {groups.lab.map((card) => (
-                      <AgentRow key={card.summary.id} card={card} timeframe={timeframe} current={openId === card.summary.id} onSelect={select} />
+                      <AgentRow key={card.summary.id} card={card} owner={ownerTags.get(card.summary.id)} timeframe={timeframe} current={openId === card.summary.id} onSelect={select} />
                     ))}
                   </ul>
                 </div>
@@ -222,7 +243,7 @@ export function AgentDirectory({ cards }: { cards: AgentCard[] }) {
 
       <p className="agents-disclaimer">Paper trading with virtual money at real prices. Past results do not predict future results. Not investment advice.</p>
 
-      <AgentPanel card={open} timeframe={timeframe} onClose={close} />
+      <AgentPanel card={open} owner={open ? ownerTags.get(open.summary.id) : undefined} timeframe={timeframe} onClose={close} />
     </>
   );
 }
@@ -260,14 +281,22 @@ function Spark({ curve, height }: { curve: number[]; height: number }) {
   );
 }
 
-type ItemProps = { card: AgentCard; timeframe: Timeframe; current: boolean; onSelect: (card: AgentCard, button: HTMLButtonElement) => void };
+/** Faint short owner after a name another public agent also uses. */
+function OwnerTag({ owner }: { owner?: string }) {
+  return owner ? <span className="agent-owner">{owner}</span> : null;
+}
 
-function TestedCard({ card, timeframe, current, onSelect }: ItemProps) {
+type ItemProps = { card: AgentCard; owner?: string; timeframe: Timeframe; current: boolean; onSelect: (card: AgentCard, button: HTMLButtonElement) => void };
+
+function TestedCard({ card, owner, timeframe, current, onSelect }: ItemProps) {
   const stats = statsFor(card.summary, timeframe);
   const tooYoung = timeframe === "all" ? "" : TOO_YOUNG[timeframe];
   return (
     <button className="tested-card" type="button" aria-current={current || undefined} aria-haspopup="dialog" onClick={(event) => onSelect(card, event.currentTarget)}>
-      <span className="tested-card__name">{card.summary.name}</span>
+      <span className="tested-card__name">
+        {card.summary.name}
+        <OwnerTag owner={owner} />
+      </span>
       <span className="pill-row tested-card__pills">
         <AgentPills card={card} />
       </span>
@@ -293,14 +322,17 @@ function TestedCard({ card, timeframe, current, onSelect }: ItemProps) {
   );
 }
 
-function AgentRow({ card, timeframe, current, onSelect }: ItemProps) {
+function AgentRow({ card, owner, timeframe, current, onSelect }: ItemProps) {
   const stats = statsFor(card.summary, timeframe);
   const tooYoung = timeframe === "all" ? "" : TOO_YOUNG[timeframe];
   return (
     <li>
       <button className="agent-row" type="button" aria-current={current || undefined} aria-haspopup="dialog" onClick={(event) => onSelect(card, event.currentTarget)}>
         <span className="agent-row__name">
-          <span className="agent-row__title">{card.summary.name}</span>
+          <span className="agent-row__title">
+            {card.summary.name}
+            <OwnerTag owner={owner} />
+          </span>
           <span className="agent-row__pills">
             <AgentPills card={card} />
           </span>
@@ -332,7 +364,7 @@ function AgentRow({ card, timeframe, current, onSelect }: ItemProps) {
 }
 
 /** Side panel on desktop, bottom sheet on phones. Escape and the scrim close it. */
-function AgentPanel({ card, timeframe, onClose }: { card: AgentCard | null; timeframe: Timeframe; onClose: () => void }) {
+function AgentPanel({ card, owner, timeframe, onClose }: { card: AgentCard | null; owner?: string; timeframe: Timeframe; onClose: () => void }) {
   const closeButton = useRef<HTMLButtonElement>(null);
   // Keep the last agent while the panel slides out.
   const [shown, setShown] = useState<AgentCard | null>(card);
@@ -355,13 +387,13 @@ function AgentPanel({ card, timeframe, onClose }: { card: AgentCard | null; time
       <div className="agent-scrim" data-open={isOpen || undefined} onClick={onClose} aria-hidden="true" />
       <aside className="agent-panel" data-open={isOpen || undefined} role="dialog" aria-modal="true" aria-labelledby="agent-panel-name" aria-hidden={!isOpen} inert={!isOpen}>
         <span className="agent-panel__grabber" aria-hidden="true" />
-        {agent && <PanelContent card={agent} timeframe={timeframe} onClose={onClose} closeButton={closeButton} />}
+        {agent && <PanelContent card={agent} owner={card ? owner : undefined} timeframe={timeframe} onClose={onClose} closeButton={closeButton} />}
       </aside>
     </>
   );
 }
 
-function PanelContent({ card, timeframe, onClose, closeButton }: { card: AgentCard; timeframe: Timeframe; onClose: () => void; closeButton: React.RefObject<HTMLButtonElement | null> }) {
+function PanelContent({ card, owner, timeframe, onClose, closeButton }: { card: AgentCard; owner?: string; timeframe: Timeframe; onClose: () => void; closeButton: React.RefObject<HTMLButtonElement | null> }) {
   const { summary, latest, lastTrade, holdings } = card;
   const stats = statsFor(summary, timeframe);
   const fresh = isNew(card);
@@ -374,6 +406,7 @@ function PanelContent({ card, timeframe, onClose, closeButton }: { card: AgentCa
         <div>
           <h2 className="agent-panel__name" id="agent-panel-name">
             {summary.name}
+            <OwnerTag owner={owner} />
           </h2>
           <div className="agent-panel__meta">
             <AgentPills card={card} />
