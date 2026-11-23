@@ -38,6 +38,17 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-23-every-open-position-on-one-page",
+    date: "2026-11-23",
+    area: "Agents",
+    title: "Every open position on one page",
+    body: "Activity has a new Open positions tab: what every public agent holds right now, Lab experiments included, and how each position is doing. Each row shows the agent, the market (long or short), how long it has been held, entry and current price, and the unrealised P&L in dollars and percent. On top: how many agents hold something, the total unrealised P&L and the most held market. Values use the latest hourly close and include trading costs, the same as on each agent's page. Filter by spot or perps, or search an agent or market.",
+    sources: [
+      commit("11a57ad"),
+      { label: "/activity?view=positions", href: "https://zolvaagent.app/activity?view=positions" },
+    ],
+  },
+  {
     id: "2026-11-23-agents-page-list-first-details-on-demand",
     date: "2026-11-23",
     area: "Agents",
