@@ -8,7 +8,9 @@ import { getCredits } from "@/lib/data/credits";
 import { storedTier } from "@/lib/membership";
 import { TIERS } from "@/lib/tiers";
 import type { Decision } from "@/lib/engine/engine";
+import { DEVLOG } from "@/lib/devlog";
 import { db } from "@/lib/supabase";
+import { whatsNewItems } from "@/lib/whats-new";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -63,5 +65,5 @@ export default async function DashboardPage() {
     : (everyone
         .filter((agent) => agent.status === "active" && agent.published && agent.venue === "spot" && agent.runs >= 72 && agent.tokens.length <= STUDIO_MAX_MARKETS && (STUDIO_STRATEGIES as readonly string[]).includes(agent.strategy))
         .sort((a, b) => b.returnPct - a.returnPct)[0] ?? null);
-  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} tier={tier} maxActive={TIERS[tier].activeAgents} starter={starter} />;
+  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} tier={tier} maxActive={TIERS[tier].activeAgents} starter={starter} whatsNew={whatsNewItems(DEVLOG)} />;
 }

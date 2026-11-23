@@ -2,12 +2,14 @@ import Link from "next/link";
 
 import { RealMoneyPill } from "@/components/app/AgentKind";
 import { DecisionRow } from "@/components/app/AgentView";
+import { WhatsNew } from "@/components/app/WhatsNew";
 import { TrackedLink } from "@/components/ui/TrackedLink";
 import type { AgentSummary } from "@/lib/data/agents";
 import type { Decision } from "@/lib/engine/engine";
 import { dateAt, marketList, percent, shortAddress, sparkline, STRATEGY_NAMES, tone, usd } from "@/lib/format";
 import { formatCredits } from "@/lib/ai/models";
 import { TIERS, type Tier } from "@/lib/tiers";
+import type { WhatsNewItem } from "@/lib/whats-new";
 
 type Props = {
   /** AI co-pilot credits, USD. */
@@ -23,6 +25,8 @@ type Props = {
   maxActive: number;
   /** A public paper agent a new account can start from ("Use these rules"), or null. */
   starter: AgentSummary | null;
+  /** Latest dev log entries; the card shows the ones this browser has not closed yet. */
+  whatsNew: WhatsNewItem[];
 };
 
 /** Agent cards shown before "Show more": with the Build card that fills three rows of two. */
@@ -33,7 +37,7 @@ function greeting() {
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Dashboard({ address, agents, curves, latest, top, credits, tier, maxActive, starter }: Props) {
+export function Dashboard({ address, agents, curves, latest, top, credits, tier, maxActive, starter, whatsNew }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
   // Paper totals leave real money agents out: their dollars are not virtual.
   const paper = agents.filter((agent) => !agent.live);
@@ -122,6 +126,9 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
           New agent
         </Link>
       </div>
+
+      {/* A new account sees its first launch instead: updates mean little before an agent runs. */}
+      {agents.length > 0 && <WhatsNew items={whatsNew} />}
 
       {/* A new account has nothing to total yet: point it at its first launch instead. */}
       {agents.length === 0 ? (
