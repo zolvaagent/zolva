@@ -6,7 +6,7 @@ export { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES };
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { isHouseOwner, LAB_AGENTS } from "@/lib/agents/house";
+import { isHouseOwner, isLabOwner, LAB_AGENTS } from "@/lib/agents/house";
 import { periodsOf, type AgentPeriod, type PeriodRow, type PeriodStats } from "@/lib/agents/periods";
 import { isRankedRecord, isTested, type TestedInput } from "@/lib/agents/tested";
 import type { AgentRow } from "@/lib/agents/plan";
@@ -223,9 +223,15 @@ export async function equityCurves(db: SupabaseClient, agentIds: string[], hours
   const curves = new Map<string, number[]>();
   if (!agentIds.length) return curves;
   const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
-  const { data, error } = await db.from("agent_runs").select("agent_id, ts, equity").in("agent_id", agentIds).gte("ts", since).order("ts").limit(5000);
-  if (error) throw new Error(`Loading equity failed: ${error.message}`);
-  for (const row of data) {
+  // Supabase returns at most 1,000 rows per call, so ask for a few agents at a time (one row per hour
+  // each) and run those calls side by side; one call for every agent cut most curves short.
+  const perCall = Math.max(1, Math.floor(1000 / (hours + 1)));
+  const chunks: string[][] = [];
+  for (let i = 0; i < agentIds.length; i += perCall) chunks.push(agentIds.slice(i, i + perCall));
+  const results = await Promise.all(chunks.map((ids) => db.from("agent_runs").select("agent_id, ts, equity").in("agent_id", ids).gte("ts", since).order("ts").limit(1000)));
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw new Error(`Loading equity failed: ${failed.error.message}`);
+  for (const row of results.flatMap((result) => result.data ?? [])) {
     const list = curves.get(row.agent_id) ?? [];
     list.push(Number(row.equity));
     curves.set(row.agent_id, list);
@@ -382,12 +388,26 @@ export type AgentCard = {
   curve: number[];
   /** The Studio can rebuild this agent from its settings ("Copy to Studio"). */
   copyable: boolean;
+  /**
+   * Section on /agents: "tested" matches a rule that passed Research's 6 year test (wins over the rest),
+   * "lab" is a Zolva Lab research agent (owner in LAB_WALLETS), "community" is everyone else, Zolva's
+   * house agents included.
+   */
+  group: AgentGroup;
 };
+
+export type AgentGroup = "tested" | "community" | "lab";
+
+export function agentGroup(agent: Pick<AgentSummary, "tested" | "owner">): AgentGroup {
+  if (agent.tested) return "tested";
+  return isLabOwner(agent.owner) ? "lab" : "community";
+}
 
 
 /** Every active published paper agent with what it holds and its latest reasoning, for /agents. */
 export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
-  const agents = (await listAgents(db)).filter((agent) => agent.status === "active");
+  // With timeframes, the Tested match and open P&L, like the Leaderboard.
+  const agents = (await listAgents(db, { periods: true, openPnl: true })).filter((agent) => agent.status === "active");
   if (!agents.length) return [];
   const ids = agents.map((agent) => agent.id);
   const lastHours = [...new Set(agents.flatMap((agent) => (agent.lastTs === null ? [] : [new Date(agent.lastTs * 1000).toISOString()])))];
@@ -438,6 +458,7 @@ export async function listAgentCards(db: SupabaseClient): Promise<AgentCard[]> {
       lastTrade: lastTradeOf.get(summary.id) ?? null,
       curve: curves.get(summary.id) ?? [],
       copyable: copyBlock(summary, paramsOf.get(summary.id) ?? {}) === null,
+      group: agentGroup(summary),
     };
   });
 }

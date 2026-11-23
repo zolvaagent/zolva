@@ -24,3 +24,23 @@ export function periodsOf(summary: { equity: number; holdEquity: number }, rows:
   }
   return out;
 }
+
+/** Timeframes on the Leaderboard and /agents: the agent's last 24 hours, 7 days, 30 days, or everything since launch. */
+export const TIMEFRAMES = [
+  ["24h", "24h"],
+  ["7d", "7d"],
+  ["30d", "30d"],
+  ["all", "All time"],
+] as const;
+export type Timeframe = AgentPeriod | "all";
+
+export const TOO_YOUNG: Record<AgentPeriod, string> = { "24h": "Running for less than 24 hours", "7d": "Running for less than 7 days", "30d": "Running for less than 30 days" };
+
+/** The numbers for a timeframe; null when the agent is younger than it. */
+export function statsFor(
+  agent: { returnPct: number; edge: number; maxDrawdownPct: number; periods?: Record<AgentPeriod, PeriodStats | null> },
+  timeframe: Timeframe,
+): PeriodStats | null {
+  if (timeframe === "all") return { returnPct: agent.returnPct, edge: agent.edge, maxDrawdownPct: agent.maxDrawdownPct };
+  return agent.periods?.[timeframe] ?? null;
+}

@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agents · Zolva</title>
+    <meta name="description" content="Prototype: the /agents page as a compact list with details on demand." />
+    <meta name="robots" content="noindex" />
+    <!-- Set the theme before paint, same idea as the inline script in app/layout.tsx -->
+    <script>
+      (function () {
+        var saved = null;
+        try { saved = localStorage.getItem("zolva-theme"); } catch (error) {}
+        var dark = saved ? saved === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <style>
+      /* Tokens copied from app/globals.css (:root and :root[data-theme="dark"]). */
+      :root {
+        --color-bg: #ffffff;
+        --color-bg-subtle: #fafaf9;
+        --color-surface: #ffffff;
+        --color-border: #f1f1f0;
+        --color-border-strong: #e1e1e0;
+        --color-text: #252228;
+        --color-text-90: rgba(37, 34, 40, 0.9);
+        --color-text-muted: rgba(37, 34, 40, 0.65);
+        --color-text-faint: #8f8e8e;
+        --color-on-text: #ffffff;
+        --color-tint: rgba(37, 34, 40, 0.05);
+        --color-tint-strong: rgba(37, 34, 40, 0.09);
+        --color-gain: #0a9a4c;
+        --color-gain-soft: #e6f8ee;
+        --color-loss: #e04400;
+        --color-loss-soft: #fdeee6;
+        --color-purple-rich: #8075ff;
+        --color-purple-8: #e5e5ff;
+        --color-focus: #9898ff;
+        --color-backdrop: rgba(37, 34, 40, 0.3);
+
+        --font-sans: "Inter", system-ui, sans-serif;
+        --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+        --space-50: 4px;
+        --space-75: 8px;
+        --space-100: 12px;
+        --space-200: 16px;
+        --space-300: 24px;
+        --space-400: 32px;
+        --space-500: 40px;
+        --space-600: 48px;
+
+        --radius-lg: 8px;
+        --radius-xl: 12px;
+        --radius-2xl: 16px;
+        --radius-3xl: 24px;
+        --radius-full: 9999px;
+
+        --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+        --duration-micro: 150ms;
+
+        --sidebar: 232px;
+        --panel: 440px;
+      }
+
+      :root[data-theme="dark"] {
+        color-scheme: dark;
+        --color-bg: #121116;
+        --color-bg-subtle: #16151b;
+        --color-surface: #1e1d24;
+        --color-border: rgba(255, 255, 255, 0.08);
+        --color-border-strong: rgba(255, 255, 255, 0.14);
+        --color-text: #f1f0f3;
+        --color-text-90: rgba(241, 240, 243, 0.9);
+        --color-text-muted: rgba(241, 240, 243, 0.66);
+        --color-text-faint: #8f8d96;
+        --color-on-text: #121116;
+        --color-tint: rgba(255, 255, 255, 0.06);
+        --color-tint-strong: rgba(255, 255, 255, 0.11);
+        --color-gain: #2fcf78;
+        --color-gain-soft: rgba(47, 207, 120, 0.14);
+        --color-loss: #ff7a45;
+        --color-loss-soft: rgba(255, 122, 69, 0.14);
+        --color-purple-8: rgba(128, 117, 255, 0.16);
+        --color-backdrop: rgba(0, 0, 0, 0.5);
+      }
+
+      *, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+      body {
+        background: var(--color-bg);
+        color: var(--color-text);
+        font: 14px/20px var(--font-sans);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button, input, select { font: inherit; color: inherit; }
+
+      :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+      .num { font-variant-numeric: tabular-nums; }
+      .gain { color: var(--color-gain); }
+      .loss { color: var(--color-loss); }
+      .muted { color: var(--color-text-muted); }
+      .faint { color: var(--color-text-faint); }
+
+      /* ---------- Review bar (not part of the design) ---------- */
+      .review-bar {
+        display: flex; justify-content: space-between; align-items: center; gap: var(--space-200);
+        padding: var(--space-75) var(--space-200);
+        border-bottom: 1px dashed var(--color-border-strong);
+        color: var(--color-text-faint);
+        font: 12px/16px var(--font-mono);
+      }
+      .review-bar button { padding: 2px 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-full); background: none; cursor: pointer; }
+
+      /* ---------- App shell (stub of the real sidebar) ---------- */
+      .shell { display: grid; grid-template-columns: var(--sidebar) 1fr; min-height: 100vh; }
+      .sidebar { position: sticky; top: 0; height: 100vh; padding: var(--space-300) var(--space-200); border-right: 1px solid var(--color-border); }
+      .sidebar__brand { display: flex; align-items: center; gap: var(--space-75); margin-bottom: var(--space-400); font-size: 18px; font-weight: 600; letter-spacing: -0.03em; }
+      .sidebar__brand i { font-size: 22px; color: var(--color-purple-rich); }
+      .sidebar nav { display: flex; flex-direction: column; gap: 2px; }
+      .sidebar a { display: flex; align-items: center; gap: var(--space-100); height: 36px; padding: 0 var(--space-100); border-radius: var(--radius-lg); color: var(--color-text-muted); text-decoration: none; }
+      .sidebar a i { font-size: 18px; }
+      .sidebar a[aria-current="page"] { background: var(--color-tint); color: var(--color-text); }
+      .topbar { display: none; }
+
+      .main { min-width: 0; padding: var(--space-500) var(--space-500) 120px; }
+      .page { max-width: 1080px; margin: 0 auto; }
+
+      /* ---------- Head + filters ---------- */
+      .page__head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-300); margin-bottom: var(--space-300); }
+      .page__title { font-size: 32px; line-height: 38px; font-weight: 500; letter-spacing: -0.03em; }
+      .page__lead { margin-top: var(--space-75); max-width: 520px; color: var(--color-text-muted); font-size: 15px; line-height: 22px; }
+
+      .button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-75); height: 40px; padding: 0 var(--space-200); border: 0; border-radius: var(--radius-full); font-size: 15px; font-weight: 500; letter-spacing: -0.01em; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color var(--duration-micro) var(--ease-out-expo); }
+      .button--primary { background: var(--color-text); color: var(--color-on-text); }
+      .button--ghost { background: var(--color-tint); color: var(--color-text); }
+      .button--ghost:hover { background: var(--color-tint-strong); }
+      .button--small { height: 32px; font-size: 14px; font-weight: 450; }
+
+      .filters { display: flex; align-items: center; gap: var(--space-100); margin-bottom: var(--space-500); }
+      .search { position: relative; flex: 1; max-width: 360px; }
+      .search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-text-faint); font-size: 16px; }
+      .search input { width: 100%; height: 36px; padding: 0 12px 0 36px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-full); background: var(--color-surface); }
+      .segment { display: inline-flex; padding: 3px; border-radius: var(--radius-full); background: var(--color-tint); }
+      .segment button { height: 30px; padding: 0 14px; border: 0; border-radius: var(--radius-full); background: none; color: var(--color-text-muted); cursor: pointer; }
+      .segment button[aria-pressed="true"] { background: var(--color-surface); color: var(--color-text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+      .sort { margin-left: auto; display: flex; align-items: center; gap: var(--space-75); color: var(--color-text-muted); }
+      .sort select { height: 36px; padding: 0 30px 0 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-full); background: var(--color-surface); appearance: none;
+        background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+        background-position: calc(100% - 15px) 16px, calc(100% - 10px) 16px; background-size: 5px 5px; background-repeat: no-repeat; }
+
+      /* ---------- Sections ---------- */
+      .section { margin-bottom: var(--space-600); }
+      .section__head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-200); margin-bottom: var(--space-200); }
+      .section__title { font-size: 18px; line-height: 24px; font-weight: 500; letter-spacing: -0.02em; }
+      .section__title .count { margin-left: 6px; color: var(--color-text-faint); font-weight: 400; }
+      .section__note { color: var(--color-text-muted); font-size: 13px; }
+
+      .pill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: var(--radius-full); background: var(--color-tint); color: var(--color-text-muted); font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; }
+      .pill--tested { background: var(--color-gain-soft); color: var(--color-gain); }
+      .pill--new { background: var(--color-purple-8); color: var(--color-purple-rich); }
+
+      /* Tested cards: the only big cards on the page */
+      .tested { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-200); }
+      .tcard { display: flex; flex-direction: column; gap: var(--space-100); padding: var(--space-200); border: 1px solid var(--color-border); border-radius: var(--radius-2xl); background: var(--color-surface); text-align: left; cursor: pointer; transition: border-color var(--duration-micro) var(--ease-out-expo), transform var(--duration-micro) var(--ease-out-expo); }
+      .tcard:hover { border-color: var(--color-border-strong); }
+      .tcard[aria-current="true"] { border-color: var(--color-purple-rich); }
+      .tcard__top { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+      .tcard__pills { display: flex; flex-wrap: wrap; gap: 4px; }
+      .tcard__name { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+      .tcard__markets { color: var(--color-text-faint); font-size: 12px; }
+      .tcard__return { font-size: 26px; line-height: 30px; font-weight: 500; letter-spacing: -0.03em; }
+      .tcard__vs { font-size: 12px; color: var(--color-text-muted); }
+      .tcard svg { width: 100%; height: 36px; }
+
+      /* Compact list */
+      .list { border: 1px solid var(--color-border); border-radius: var(--radius-2xl); background: var(--color-surface); overflow: hidden; }
+      .row, .list__head { display: grid; grid-template-columns: minmax(0, 1fr) 96px 104px 96px; align-items: center; gap: var(--space-200); padding: 0 var(--space-200); }
+      .list__head { height: 36px; border-bottom: 1px solid var(--color-border); color: var(--color-text-faint); font-size: 12px; }
+      .list__head span:nth-child(n+2) { text-align: right; }
+      .row { width: 100%; height: 56px; border: 0; border-bottom: 1px solid var(--color-border); background: none; text-align: left; cursor: pointer; transition: background-color var(--duration-micro) var(--ease-out-expo); }
+      .row:last-child { border-bottom: 0; }
+      .row:hover, .row[aria-current="true"] { background: var(--color-tint); }
+      .row__name { display: flex; align-items: center; gap: var(--space-75); min-width: 0; }
+      .row__name span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+      /* Phone-only second line (pills); markets live in the panel now (owner, 2026-11-23) */
+      .row__sub { display: none; }
+      .row__pills { display: inline-flex; flex: none; gap: 4px; }
+      /* On phones the pills move to the second line so the name keeps the first line */
+      .row__pills--phone { display: none; }
+      .row__return, .row__vs { text-align: right; }
+      .row__return small { display: block; color: var(--color-text-faint); font-size: 11px; line-height: 12px; }
+      .row svg { width: 96px; height: 24px; justify-self: end; }
+      .list__more { display: flex; justify-content: center; padding: var(--space-200); border-top: 1px solid var(--color-border); }
+
+      /* Lab: collapsed by default */
+      details.lab summary { display: flex; justify-content: space-between; align-items: center; gap: var(--space-200); padding: var(--space-200); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-2xl); cursor: pointer; list-style: none; }
+      details.lab summary::-webkit-details-marker { display: none; }
+      details.lab summary i { transition: transform var(--duration-micro) var(--ease-out-expo); }
+      details.lab[open] summary { margin-bottom: var(--space-200); }
+      details.lab[open] summary i { transform: rotate(180deg); }
+
+      .disclaimer { margin-top: var(--space-400); color: var(--color-text-faint); font-size: 12px; }
+
+      /* ---------- Side panel (desktop) / bottom sheet (mobile) ---------- */
+      .scrim { position: fixed; inset: 0; z-index: 40; background: var(--color-backdrop); opacity: 0; pointer-events: none; transition: opacity 200ms var(--ease-out-expo); }
+      /* Hidden (not just moved) while closed, so its edge and shadow never peek in; visibility
+         flips after the slide-out so the exit still animates. */
+      .panel { position: fixed; top: 0; right: 0; bottom: 0; z-index: 50; width: var(--panel); max-width: 100%; display: flex; flex-direction: column; border-left: 1px solid var(--color-border); background: var(--color-surface); box-shadow: -24px 0 48px -24px rgba(0,0,0,0.25); transform: translateX(100%); visibility: hidden; transition: transform 320ms var(--ease-out-expo), visibility 0s linear 320ms; }
+      body.panel-open .panel { transform: none; visibility: visible; transition: transform 320ms var(--ease-out-expo), visibility 0s; }
+      body.panel-open .scrim { opacity: 1; pointer-events: auto; }
+      .panel__head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-200); padding: var(--space-300); border-bottom: 1px solid var(--color-border); }
+      .panel__name { font-size: 20px; line-height: 26px; font-weight: 500; letter-spacing: -0.02em; }
+      .panel__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: var(--space-75); color: var(--color-text-faint); font-size: 12px; }
+      .icon-button { display: grid; place-items: center; flex: none; width: 32px; height: 32px; border: 0; border-radius: var(--radius-full); background: var(--color-tint); cursor: pointer; }
+      .panel__body { flex: 1; overflow-y: auto; padding: var(--space-300); display: flex; flex-direction: column; gap: var(--space-300); }
+      /* In a short bottom sheet the body scrolls; its blocks must not squash to fit */
+      .panel__body > * { flex-shrink: 0; }
+      .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; border-radius: var(--radius-xl); overflow: hidden; background: var(--color-border); }
+      .stat { padding: var(--space-100) var(--space-200); background: var(--color-surface); }
+      .stat dt { color: var(--color-text-faint); font-size: 12px; }
+      .stat dd { margin-top: 2px; font-size: 18px; line-height: 24px; font-weight: 500; letter-spacing: -0.02em; }
+      .panel h3 { margin-bottom: var(--space-75); color: var(--color-text-faint); font: 500 11px/16px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+      .decision { padding: var(--space-200); border-radius: var(--radius-xl); background: var(--color-bg-subtle); border: 1px solid var(--color-border); }
+      .decision__top { display: flex; align-items: center; gap: var(--space-75); margin-bottom: var(--space-75); color: var(--color-text-faint); font-size: 12px; }
+      .decision p { color: var(--color-text-90); line-height: 21px; }
+      .act { padding: 1px 8px; border-radius: var(--radius-full); font: 600 11px/18px var(--font-sans); letter-spacing: 0.04em; }
+      .act--hold { background: var(--color-tint-strong); color: var(--color-text-muted); }
+      .act--buy { background: var(--color-gain-soft); color: var(--color-gain); }
+      .act--sell, .act--short { background: var(--color-loss-soft); color: var(--color-loss); }
+      .kv { display: flex; justify-content: space-between; gap: var(--space-200); padding: var(--space-75) 0; border-bottom: 1px solid var(--color-border); }
+      .kv:last-child { border-bottom: 0; }
+      .panel__foot { display: flex; gap: var(--space-100); padding: var(--space-200) var(--space-300); border-top: 1px solid var(--color-border); }
+      .panel__foot .button { flex: 1; }
+      .grabber { display: none; }
+
+      /* ---------- Phone ---------- */
+      @media (max-width: 860px) {
+        .shell { grid-template-columns: 1fr; }
+        .sidebar { display: none; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; height: 56px; padding: 0 var(--space-200); border-bottom: 1px solid var(--color-border); font-size: 17px; font-weight: 600; letter-spacing: -0.03em; }
+        .topbar i { color: var(--color-purple-rich); }
+        .main { padding: var(--space-300) var(--space-200) 96px; }
+        .page__head { flex-direction: column; align-items: stretch; }
+        .page__title { font-size: 28px; line-height: 34px; }
+        .filters { flex-wrap: wrap; margin-bottom: var(--space-400); }
+        .search { flex-basis: 100%; max-width: none; }
+        .sort span { display: none; }
+        /* Three lines on phones: search / venue + sort / timeframe across the full width */
+        .sort { order: 2; margin-left: auto; }
+        #timeframes { order: 3; flex-basis: 100%; }
+        #timeframes button { flex: 1; padding: 0 8px; }
+        .tested { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-100); }
+        .tcard { padding: var(--space-100) var(--space-100) var(--space-100); }
+        .tcard__return { font-size: 22px; }
+
+        /* Two-line rows: name + pill on top, markets underneath; numbers on the right */
+        .list__head { display: none; }
+        .row { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; row-gap: 2px; height: auto; padding: 10px var(--space-200); }
+        .row__name { grid-column: 1; grid-row: 1; }
+        .row__sub { display: flex; align-items: center; gap: 4px; min-width: 0; grid-column: 1; grid-row: 2; }
+        .row__return { grid-column: 2; grid-row: 1; }
+        .row__vs { grid-column: 2; grid-row: 2; font-size: 12px; }
+        .row__return small { display: inline; margin-left: 4px; }
+        .row__name .row__pills { display: none; }
+        .row__pills--phone { display: inline-flex; margin-right: 4px; }
+        .row__pills--phone .pill { height: 20px; padding: 0 6px; font-size: 11px; }
+        .section__head { flex-direction: column; align-items: flex-start; gap: 2px; }
+        .row svg { display: none; }
+
+        /* Bottom sheet instead of a side panel */
+        .panel { top: auto; left: 0; width: 100%; max-height: 86vh; border-left: 0; border-top: 1px solid var(--color-border); border-radius: var(--radius-3xl) var(--radius-3xl) 0 0; transform: translateY(100%); }
+        body.panel-open .panel { transform: none; }
+        .grabber { display: block; width: 40px; height: 4px; margin: 8px auto 0; border-radius: 2px; background: var(--color-border-strong); }
+        .panel__head { padding: var(--space-200); }
+        .panel__body { padding: var(--space-200); }
+        .panel__foot { padding: var(--space-100) var(--space-200) calc(var(--space-100) + env(safe-area-inset-bottom, 0px)); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .panel, .scrim { transition: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="review-bar">
+      <span>Prototype · /agents · sample data shaped like 23 Nov · click any agent</span>
+      <button type="button" id="theme-toggle">Toggle theme</button>
+    </div>
+
+    <div class="shell">
+      <aside class="sidebar" aria-label="App">
+        <div class="sidebar__brand"><i class="ph ph-lightning"></i>Zolva</div>
+        <nav>
+          <a href="#"><i class="ph ph-squares-four"></i>Dashboard</a>
+          <a href="#"><i class="ph ph-flask"></i>Studio</a>
+          <a href="#" aria-current="page"><i class="ph ph-robot"></i>Agents</a>
+          <a href="#"><i class="ph ph-trophy"></i>Leaderboard</a>
+          <a href="#"><i class="ph ph-chart-line"></i>Markets</a>
+          <a href="#"><i class="ph ph-pulse"></i>Activity</a>
+        </nav>
+      </aside>
+
+      <div>
+        <header class="topbar"><span><i class="ph ph-lightning"></i> Zolva</span><i class="ph ph-list" style="color:inherit;font-size:22px"></i></header>
+
+        <main class="main" id="main">
+          <div class="page">
+            <div class="page__head">
+              <div>
+                <h1 class="page__title">Agents</h1>
+                <p class="page__lead">Every public agent and why it made its last move. All paper trading. Like one? Start from its rules.</p>
+              </div>
+              <a class="button button--primary" href="#">Build your agent</a>
+            </div>
+
+            <div class="filters" role="search">
+              <label class="search"><i class="ph ph-magnifying-glass"></i><input id="q" type="search" placeholder="Search agents or markets" aria-label="Search agents or markets" /></label>
+              <div class="segment" role="group" aria-label="Venue">
+                <button type="button" data-venue="all" aria-pressed="true">All</button>
+                <button type="button" data-venue="spot" aria-pressed="false">Spot</button>
+                <button type="button" data-venue="perps" aria-pressed="false">Perps</button>
+              </div>
+              <!-- Same timeframes as the Leaderboard: return and vs holding over that window -->
+              <div class="segment" role="group" aria-label="Timeframe" id="timeframes">
+                <button type="button" data-period="24h" aria-pressed="false">24h</button>
+                <button type="button" data-period="7d" aria-pressed="false">7d</button>
+                <button type="button" data-period="30d" aria-pressed="false">30d</button>
+                <button type="button" data-period="all" aria-pressed="true">All time</button>
+              </div>
+              <label class="sort"><span>Sort</span>
+                <select id="sort" aria-label="Sort">
+                  <option value="return" selected>Highest return</option>
+                  <option value="traded">Traded last</option>
+                  <option value="newest">Newest</option>
+                </select>
+              </label>
+            </div>
+
+            <section class="section" aria-labelledby="t-tested">
+              <div class="section__head">
+                <h2 class="section__title" id="t-tested">Zolva's tested agents</h2>
+                <span class="section__note">Rules that passed Research's 6 year test</span>
+              </div>
+              <div class="tested" id="tested"></div>
+            </section>
+
+            <section class="section" aria-labelledby="t-community">
+              <div class="section__head">
+                <h2 class="section__title" id="t-community">Community agents <span class="count" id="community-count"></span></h2>
+                <span class="section__note" id="period-note">Return is since the agent started</span>
+              </div>
+              <div class="list" role="list" id="community">
+                <div class="list__head" aria-hidden="true"><span>Agent</span><span id="h-return">Return</span><span id="h-vs">vs holding</span><span>Last 7 days</span></div>
+              </div>
+            </section>
+
+            <section class="section" aria-labelledby="t-lab">
+              <details class="lab">
+                <summary>
+                  <span><b class="section__title" id="t-lab">Lab experiments <span class="count" id="lab-count"></span></b><br /><span class="section__note">Zolva's research agents testing ideas. Most get stopped.</span></span>
+                  <i class="ph ph-caret-down"></i>
+                </summary>
+                <div class="list" role="list" id="lab"></div>
+              </details>
+            </section>
+
+            <p class="disclaimer">Paper trading with virtual money at real prices. Past results do not predict future results. Not investment advice.</p>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <div class="scrim" id="scrim"></div>
+    <aside class="panel" id="panel" role="dialog" aria-modal="true" aria-labelledby="p-name" aria-hidden="true">
+      <span class="grabber" aria-hidden="true"></span>
+      <div class="panel__head">
+        <div><h2 class="panel__name" id="p-name"></h2><div class="panel__meta" id="p-meta"></div></div>
+        <button class="icon-button" type="button" id="p-close" aria-label="Close"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="panel__body" id="p-body"></div>
+      <div class="panel__foot">
+        <a class="button button--ghost" href="#"><i class="ph ph-copy"></i>Use these rules</a>
+        <a class="button button--primary" href="#">View agent</a>
+      </div>
+    </aside>
+
+    <script>
+      // Sample data shaped like the live list on 23 Nov 2026 (names, returns and vs holding taken
+      // from list_agents; Tested follows lib/agents/tested.ts: Vol Trend on one market at the
+      // tested venues). "days" < 30 shows the New state the leaderboard uses for unranked agents.
+      const AGENTS = [
+        { name: "Paper BTC Vol Trend", group: "tested", venue: "spot", markets: ["BTC"], ret: 0, vs: 6.34, days: 7, dd: 0, trades: 0, act: "hold", why: "Waiting. BTC is still below its 50-day trend line, so the rule keeps cash.", holds: "Cash", last: "No trades yet" },
+        { name: "Paper ETH Vol Trend", group: "tested", venue: "spot", markets: ["ETH"], ret: 0, vs: 5.64, days: 7, dd: 0, trades: 0, act: "hold", why: "Waiting. ETH is below its trend line; the rule only buys in an uptrend.", holds: "Cash", last: "No trades yet" },
+        { name: "SOL Vol Trend L+S", group: "tested", venue: "perps", markets: ["SOL-PERP"], ret: 2.37, vs: 9.03, days: 9, dd: 3.33, trades: 1, act: "hold", why: "Holding the short. SOL is still below its trend line and funding has not flipped.", holds: "Short SOL-PERP, 38% of the agent", last: "Short SOL-PERP · 14 Nov" },
+        { name: "XRP Vol Trend L+S", group: "tested", venue: "perps", markets: ["XRP-PERP"], ret: 2.52, vs: 9.3, days: 9, dd: 3.78, trades: 1, act: "hold", why: "Holding the short. XRP stays under its trend line.", holds: "Short XRP-PERP, 41% of the agent", last: "Short XRP-PERP · 14 Nov" },
+
+        { name: "Chip Breakout", group: "community", byZolva: true, venue: "spot", markets: ["NVDA", "MU", "TSM"], ret: -1.48, vs: 28.9, days: 39, dd: 6.11, trades: 24, act: "hold", why: "Waiting. TSM is at $336.33; it buys when price crosses above its 72h high of $345.15, about 2.6% away.", holds: "Cash", last: "Sold MU · 19 Nov" },
+        { name: "Asia Trend Filter", group: "community", byZolva: true, venue: "spot", markets: ["BABA", "TSM"], ret: -3.13, vs: 9.41, days: 39, dd: 5.54, trades: 9, act: "hold", why: "Waiting. Both markets are below their 48h average, so the filter keeps cash.", holds: "Cash", last: "Sold BABA · 18 Nov" },
+        { name: "BTC ETH Momentum", group: "community", venue: "spot", markets: ["BTC", "ETH"], ret: -2.57, vs: 15.36, days: 12, dd: 4.4, trades: 4, act: "hold", why: "Waiting. Momentum is negative on both; it buys after two up hours in a row.", holds: "Cash", last: "Sold ETH · 17 Nov" },
+        { name: "XYZ BTC", group: "community", venue: "perps", markets: ["BTC-PERP", "HYPE-PERP", "ETH-PERP"], ret: -3.17, vs: 13.77, days: 12, dd: 10.57, trades: 10, act: "buy", why: "Bought HYPE-PERP. It dropped 6.2% in 24 hours, past the 5% dip line.", holds: "Long HYPE-PERP, 25% of the agent", last: "Bought HYPE-PERP · 23 Nov" },
+        { name: "BTC-PERP ZEC-PERP Momentum", group: "community", venue: "perps", markets: ["BTC-PERP", "ZEC-PERP"], ret: -3.58, vs: 15.73, days: 11, dd: 4.76, trades: 6, act: "hold", why: "Waiting for two up hours in a row on either market.", holds: "Cash", last: "Sold ZEC-PERP · 21 Nov" },
+        { name: "GOOGL META NVDA Mean reversion", group: "community", venue: "spot", markets: ["GOOGL", "META", "NVDA"], ret: -3.62, vs: 8.78, days: 10, dd: 5.91, trades: 10, act: "hold", why: "Holding META. It is still below its 24h average; it sells once it gets back to it.", holds: "META, 31% of the agent", last: "Bought META · 22 Nov" },
+        { name: "SPY QQQ DCA", group: "community", venue: "spot", markets: ["SPY", "QQQ"], ret: -0.09, vs: 4.98, days: 4, dd: 0.16, trades: 2, act: "hold", why: "Next scheduled buy in 18 hours.", holds: "SPY and QQQ, 4% of the agent", last: "Bought QQQ · 22 Nov" },
+        { name: "NVDA Dip Hunter", group: "community", venue: "spot", markets: ["NVDA"], ret: -4.1, vs: 21.2, days: 16, dd: 7.8, trades: 6, act: "hold", why: "Waiting. NVDA is down 1.8% today; it buys a 4% dip.", holds: "Cash", last: "Sold NVDA · 20 Nov" },
+        { name: "ETH Spike Fade", group: "community", venue: "spot", markets: ["ETH"], ret: 1.12, vs: 6.8, days: 14, dd: 2.1, trades: 3, act: "sell", why: "Sold ETH. It reached the 6% take profit above the entry.", holds: "Cash", last: "Sold ETH · 23 Nov" },
+        { name: "Mag 7 Momentum", group: "community", venue: "spot", markets: ["AAPL", "MSFT", "NVDA", "GOOGL", "META", "AMZN", "TSLA"], ret: -5.4, vs: 7.9, days: 21, dd: 8.2, trades: 18, act: "hold", why: "Holding AAPL and MSFT; the others are below their trend.", holds: "AAPL and MSFT, 60% of the agent", last: "Sold TSLA · 21 Nov" },
+
+        { name: "Lab · Perps Bounce Short 3x", group: "lab", venue: "perps", markets: ["BTC-PERP", "ETH-PERP", "SOL-PERP", "HYPE-PERP", "ZEC-PERP", "XRP-PERP", "LIT-PERP", "NEAR-PERP"], ret: 10.96, vs: 26.27, days: 10, dd: 14.31, trades: 7, act: "short", why: "Shorted ZEC-PERP after a 7% bounce inside a downtrend.", holds: "Short ZEC-PERP", last: "Short ZEC-PERP · 23 Nov" },
+        { name: "Lab · Perps Dip + Fade", group: "lab", venue: "perps", markets: ["BTC-PERP", "ETH-PERP", "SOL-PERP", "HYPE-PERP"], ret: 3.67, vs: 21.64, days: 11, dd: 1.38, trades: 4, act: "hold", why: "Waiting for a dip or a spike past the lines.", holds: "Cash", last: "Covered SOL-PERP · 20 Nov" },
+        { name: "Lab · Crypto Spike Fade", group: "lab", venue: "spot", markets: ["ETH", "BTC"], ret: 2, vs: 6.66, days: 20, dd: 5.41, trades: 2, act: "hold", why: "Paused on 10 Nov.", holds: "Cash", last: "Sold BTC · 9 Nov" },
+        { name: "Lab · ANT IPO Day DCA", group: "lab", venue: "spot", markets: ["ANT"], ret: -0.11, vs: 2.62, days: 3, dd: 0.41, trades: 3, act: "buy", why: "Scheduled buy: 2% of the agent into ANT.", holds: "ANT, 6% of the agent", last: "Bought ANT · 23 Nov" },
+        { name: "Lab · Perps Deep Dip Alts", group: "lab", venue: "perps", markets: ["HYPE-PERP", "ZEC-PERP", "XRP-PERP", "LIT-PERP", "NEAR-PERP"], ret: -0.16, vs: 21.92, days: 13, dd: 10.14, trades: 41, act: "hold", why: "Waiting for a 12% drop on any market.", holds: "Cash", last: "Sold LIT-PERP · 22 Nov" },
+      ];
+
+      const RANKED_DAYS = 30;
+
+      // ---------- Timeframes (same as the Leaderboard: 24h · 7d · 30d · All time) ----------
+      const PERIODS = { "24h": { days: 1, share: 0.08, label: "24h" }, "7d": { days: 7, share: 0.45, label: "7d" }, "30d": { days: 30, share: 1, label: "30d" } };
+      const TOO_YOUNG = { "24h": "Running for less than 24 hours", "7d": "Running for less than 7 days", "30d": "Running for less than 30 days" };
+      let period = "all";
+
+      /** Sample per-period numbers (prototype only; the real page reads agent_period_stats).
+       *  null when the agent is younger than the window, exactly like Leaderboard.tsx statsFor(). */
+      function statsFor(agent) {
+        if (period === "all") return { ret: agent.ret, vs: agent.vs };
+        const p = PERIODS[period];
+        if (agent.days < p.days) return null;
+        // An agent that never traded sat in cash: its return is 0 in every window; only holding moved.
+        if (agent.trades === 0) return { ret: 0, vs: Math.round(agent.vs * p.share * 100) / 100 };
+        let seed = [...agent.name].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + p.days * 31;
+        const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) - 0.5;
+        const round = (n) => Math.round(n * 100) / 100;
+        return { ret: round(agent.ret * p.share + rand() * 1.6 * p.share + rand() * 0.4), vs: round(agent.vs * p.share + rand() * 1.2 * p.share) };
+      }
+      const pct = (n) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)}%`;
+      const pts = (n) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n).toFixed(1)} pts`;
+      const tone = (n) => (n > 0 ? "gain" : n < 0 ? "loss" : "muted");
+
+      /** Deterministic sample sparkline ending at the agent's return (prototype only). */
+      function spark(agent, width, height) {
+        let seed = [...agent.name].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+        const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+        // A gentle drift from 0 to the return plus a little smoothed noise, so it reads like a
+        // value line rather than a spike at the end. The real page draws the agent's equity.
+        const points = [];
+        const wobble = Math.max(Math.abs(agent.ret), 1) * 0.35;
+        let noise = 0;
+        for (let i = 0; i < 28; i++) {
+          noise = noise * 0.7 + (rand() - 0.5) * wobble;
+          const t = i / 27;
+          points.push(agent.ret * t + noise * Math.sin(Math.PI * t));
+        }
+        const min = Math.min(...points, 0), max = Math.max(...points, 0) || 1, span = max - min || 1;
+        const d = points.map((v, i) => `${i ? "L" : "M"}${((i / (points.length - 1)) * width).toFixed(1)} ${(height - 2 - ((v - min) / span) * (height - 4)).toFixed(1)}`).join(" ");
+        const zero = (height - 2 - ((0 - min) / span) * (height - 4)).toFixed(1);
+        const color = agent.ret > 0 ? "var(--color-gain)" : agent.ret < 0 ? "var(--color-loss)" : "var(--color-text-faint)";
+        return `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true"><line x1="0" x2="${width}" y1="${zero}" y2="${zero}" stroke="var(--color-border-strong)" stroke-dasharray="2 3"/><path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+      }
+
+      /** Tested pill, plus "New · N days" while the record is under 30 days. */
+      function pills(agent) {
+        // Experiment is the default, so it gets no pill (owner, 2026-11-23); only Tested and New show.
+        const tested = agent.group === "tested" ? `<span class="pill pill--tested" title="Matches a rule that passed Research's 6 year backtest at this venue's cost">Tested</span>` : "";
+        const fresh = agent.days < RANKED_DAYS ? `<span class="pill pill--new" title="Not ranked until ${RANKED_DAYS} days and 720 hourly runs">New · ${agent.days} d</span>` : "";
+        return tested + fresh;
+      }
+
+      function numbersBlock(agent) {
+        const st = statsFor(agent);
+        if (!st) return `<span><span class="tcard__return faint" title="${TOO_YOUNG[period]}">—</span><br /><span class="tcard__vs">${TOO_YOUNG[period]}</span></span>`;
+        return `<span><span class="tcard__return num ${tone(st.ret)}">${pct(st.ret)}</span><br /><span class="tcard__vs num">${pts(st.vs)} vs holding</span></span>`;
+      }
+
+      function testedCard(agent, index) {
+        return `<button class="tcard" type="button" data-i="${index}">
+          <span class="tcard__top"><span class="tcard__name">${agent.name}</span><span class="tcard__pills">${pills(agent)}</span></span>
+          <span class="tcard__markets">${agent.markets.join(" · ")} · ${agent.venue === "perps" ? "Perps" : "Spot"}</span>
+          ${numbersBlock(agent)}
+          ${spark(agent, 200, 36)}
+        </button>`;
+      }
+
+      function rowNumbers(agent, fresh) {
+        const st = statsFor(agent);
+        if (!st) return `<span class="row__return faint" title="${TOO_YOUNG[period]}">—</span><span class="row__vs faint" title="${TOO_YOUNG[period]}">—</span>`;
+        // "so far" only on All time: the record is shorter than 30 days, so the total is still young
+        const soFar = period === "all" && fresh ? "<small>so far</small>" : "";
+        return `<span class="row__return num ${tone(st.ret)}">${pct(st.ret)}${soFar}</span><span class="row__vs num ${tone(st.vs)}">${pts(st.vs)}</span>`;
+      }
+
+      function row(agent, index) {
+        const fresh = agent.days < RANKED_DAYS;
+        return `<button class="row" type="button" role="listitem" data-i="${index}">
+          <span class="row__name"><span>${agent.name}</span><span class="row__pills">${pills(agent)}</span></span>
+          <span class="row__sub"><span class="row__pills row__pills--phone">${pills(agent)}</span></span>
+          ${rowNumbers(agent, fresh)}
+          ${spark(agent, 96, 24)}
+        </button>`;
+      }
+
+      // ---------- Filtering, sorting, rendering ----------
+      let venue = "all";
+      let showAll = false;
+      const COMMUNITY_PREVIEW = 8;
+
+      function visible(group) {
+        const q = document.getElementById("q").value.trim().toLowerCase();
+        const sort = document.getElementById("sort").value;
+        const list = AGENTS.map((agent, i) => ({ agent, i }))
+          .filter(({ agent }) => agent.group === group)
+          .filter(({ agent }) => venue === "all" || agent.venue === venue)
+          .filter(({ agent }) => !q || agent.name.toLowerCase().includes(q) || agent.markets.some((m) => m.toLowerCase().includes(q)));
+        if (sort === "return") {
+          list.sort((a, b) => {
+            const x = statsFor(a.agent), y = statsFor(b.agent);
+            if (!x || !y) return x ? -1 : y ? 1 : a.agent.days - b.agent.days;
+            return y.ret - x.ret;
+          });
+        }
+        if (sort === "newest") list.sort((a, b) => a.agent.days - b.agent.days);
+        return list;
+      }
+
+      function render() {
+        document.getElementById("tested").innerHTML = visible("tested").map(({ agent, i }) => testedCard(agent, i)).join("") || `<p class="muted">No tested agent matches.</p>`;
+
+        const community = visible("community");
+        document.getElementById("community-count").textContent = community.length;
+        const shown = showAll ? community : community.slice(0, COMMUNITY_PREVIEW);
+        const list = document.getElementById("community");
+        list.querySelectorAll(".row, .list__more, .empty").forEach((node) => node.remove());
+        list.insertAdjacentHTML("beforeend", shown.map(({ agent, i }) => row(agent, i)).join("") || `<p class="empty muted" style="padding:16px">No agent matches.</p>`);
+        if (community.length > COMMUNITY_PREVIEW) {
+          list.insertAdjacentHTML("beforeend", `<div class="list__more"><button class="button button--ghost button--small" type="button" id="more">${showAll ? "Show fewer" : `Show all ${community.length}`}</button></div>`);
+        }
+
+        const lab = visible("lab");
+        document.getElementById("lab-count").textContent = lab.length;
+        document.getElementById("lab").innerHTML = lab.map(({ agent, i }) => row(agent, i)).join("");
+      }
+
+      // ---------- Panel ----------
+      const panel = document.getElementById("panel");
+      let lastFocus = null;
+
+      function openPanel(index, trigger) {
+        const agent = AGENTS[index];
+        document.querySelectorAll("[aria-current='true']").forEach((el) => el.removeAttribute("aria-current"));
+        trigger.setAttribute("aria-current", "true");
+        lastFocus = trigger;
+        document.getElementById("p-name").textContent = agent.name;
+        document.getElementById("p-meta").innerHTML = `${pills(agent)}<span>${agent.venue === "perps" ? "Perps" : "Spot"} · ${agent.markets.join(", ")}</span>`;
+        const fresh = agent.days < RANKED_DAYS;
+        document.getElementById("p-body").innerHTML = `
+          <dl class="stats">
+            ${panelNumbers(agent, fresh)}
+            <div class="stat"><dt>Worst drop</dt><dd class="num">${agent.dd ? "−" + agent.dd.toFixed(1) + "%" : "0%"}</dd></div>
+            <div class="stat"><dt>Trades</dt><dd class="num">${agent.trades}</dd></div>
+          </dl>
+          ${fresh ? `<p class="muted" style="font-size:13px">${agent.days} days old. Ranked after ${RANKED_DAYS} days and 720 hourly runs; until then a short record says little.</p>` : ""}
+          <div>
+            <h3>Latest decision</h3>
+            <div class="decision"><div class="decision__top"><span class="act act--${agent.act}">${agent.act.toUpperCase()}</span><span>Today, 09:00</span></div><p>${agent.why}</p></div>
+          </div>
+          <div>
+            <h3>Right now</h3>
+            <div class="kv"><span class="muted">Holds</span><span>${agent.holds}</span></div>
+            <div class="kv"><span class="muted">Last trade</span><span>${agent.last}</span></div>
+            <div class="kv"><span class="muted">Running for</span><span>${agent.days} days</span></div>
+          </div>`;
+        panel.setAttribute("aria-hidden", "false");
+        document.body.classList.add("panel-open");
+        document.getElementById("p-close").focus();
+      }
+
+      function panelNumbers(agent, fresh) {
+        const st = statsFor(agent);
+        const label = period === "all" ? (fresh ? " so far" : "") : ` · ${PERIODS[period].label}`;
+        if (!st) return `<div class="stat"><dt>Return${label}</dt><dd class="faint">—</dd></div><div class="stat"><dt>vs holding${label}</dt><dd class="faint">—</dd></div>`;
+        return `<div class="stat"><dt>Return${label}</dt><dd class="num ${tone(st.ret)}">${pct(st.ret)}</dd></div><div class="stat"><dt>vs holding${label}</dt><dd class="num ${tone(st.vs)}">${pts(st.vs)}</dd></div>`;
+      }
+
+      function closePanel() {
+        document.body.classList.remove("panel-open");
+        panel.setAttribute("aria-hidden", "true");
+        document.querySelectorAll("[aria-current='true']").forEach((el) => el.removeAttribute("aria-current"));
+        lastFocus?.focus();
+      }
+
+      document.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-i]");
+        if (item) return openPanel(Number(item.dataset.i), item);
+        if (event.target.closest("#more")) { showAll = !showAll; render(); }
+      });
+      document.getElementById("p-close").addEventListener("click", closePanel);
+      document.getElementById("scrim").addEventListener("click", closePanel);
+      document.addEventListener("keydown", (event) => { if (event.key === "Escape" && document.body.classList.contains("panel-open")) closePanel(); });
+
+      document.querySelectorAll("[data-venue]").forEach((button) => button.addEventListener("click", () => {
+        venue = button.dataset.venue;
+        document.querySelectorAll("[data-venue]").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+        render();
+      }));
+      document.querySelectorAll("[data-period]").forEach((button) => button.addEventListener("click", () => {
+        period = button.dataset.period;
+        document.querySelectorAll("[data-period]").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+        const window = period === "all" ? "" : ` · ${PERIODS[period].label}`;
+        document.getElementById("h-return").textContent = `Return${window}`;
+        document.getElementById("h-vs").textContent = `vs holding${window}`;
+        document.getElementById("period-note").textContent = period === "all" ? "Return is since the agent started" : `Return over the last ${period === "24h" ? "24 hours" : PERIODS[period].days + " days"}`;
+        render();
+      }));
+      document.getElementById("q").addEventListener("input", render);
+      document.getElementById("sort").addEventListener("change", render);
+
+      // Review only: flip the theme and remember it (same key as the app).
+      document.getElementById("theme-toggle").addEventListener("click", () => {
+        const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", next);
+        try { localStorage.setItem("zolva-theme", next); } catch (error) {}
+      });
+
+      render();
+    </script>
+  </body>
+</html>

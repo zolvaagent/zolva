@@ -5,7 +5,8 @@ import { useMemo, useState } from "react";
 
 import { AgentKindPills, matchesVenue, VENUE_FILTERS, type VenueFilter } from "@/components/app/AgentKind";
 import { isRankedRecord, MIN_RANKED_DAYS, MIN_RANKED_RUNS } from "@/lib/agents/tested";
-import type { AgentPeriod, AgentSummary, PeriodStats } from "@/lib/data/agents";
+import { statsFor, TIMEFRAMES, TOO_YOUNG, type Timeframe } from "@/lib/agents/periods";
+import type { AgentSummary, PeriodStats } from "@/lib/data/agents";
 import { marketList, percent, points, shortAddress, signedUsd, STRATEGY_NAMES, tone } from "@/lib/format";
 
 const SORTS = [
@@ -14,22 +15,6 @@ const SORTS = [
   ["drawdown", "Smallest drop"],
 ] as const;
 
-/** Timeframes: the agent's last 24 hours, 7 days, 30 days, or everything since launch. */
-const TIMEFRAMES = [
-  ["24h", "24h"],
-  ["7d", "7d"],
-  ["30d", "30d"],
-  ["all", "All time"],
-] as const;
-type Timeframe = AgentPeriod | "all";
-
-/** The numbers ranked for a timeframe; null when the agent is younger than it. */
-function statsFor(agent: AgentSummary, timeframe: Timeframe): PeriodStats | null {
-  if (timeframe === "all") return { returnPct: agent.returnPct, edge: agent.edge, maxDrawdownPct: agent.maxDrawdownPct };
-  return agent.periods?.[timeframe] ?? null;
-}
-
-const TOO_YOUNG: Record<AgentPeriod, string> = { "24h": "Running for less than 24 hours", "7d": "Running for less than 7 days", "30d": "Running for less than 30 days" };
 
 /** Days of live paper record: hourly runs / 24. */
 const recordDays = (agent: AgentSummary) => Math.floor(agent.runs / 24);

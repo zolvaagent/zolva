@@ -32,6 +32,11 @@ const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
 /** Whether an agent is run by Zolva (house or lab), so the UI labels it "by Zolva". */
 export const isHouseOwner = (owner: string) => HOUSE_OWNERS.has(owner);
 
+const LAB_OWNERS = new Set<string>(LAB_WALLETS);
+
+/** Whether an agent belongs to Zolva Lab, Research's experiments (not the house agents on HOUSE_WALLET). */
+export const isLabOwner = (owner: string) => LAB_OWNERS.has(owner);
+
 export type HouseAgent = {
   name: string;
   strategy: StrategyKey | "custom";
