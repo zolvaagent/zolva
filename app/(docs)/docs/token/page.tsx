@@ -19,6 +19,7 @@ const ROWS: [string, (key: keyof typeof TIERS) => string][] = [
   ["Agents with free hourly AI reviews", (key) => (TIERS[key].freeAiAgents ? `${TIERS[key].freeAiAgents} (Lite models)` : "None (welcome credits only)")],
   ["Running agents at once", (key) => String(TIERS[key].activeAgents)],
   ["Strategy writer tries a day", (key) => String(TIERS[key].writerPerDay)],
+  ["Questions to agents a day", (key) => String(TIERS[key].askPerDay)],
 ];
 
 export default function Token() {

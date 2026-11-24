@@ -19,12 +19,14 @@ export type TierLimits = {
   activeAgents: number;
   /** AI strategy writer tries per 24 hours. */
   writerPerDay: number;
+  /** "Ask your agent" questions per 24 hours. */
+  askPerDay: number;
 };
 
 export const TIERS: Record<Tier, TierLimits> = {
-  free: { label: "Free", minUsd: 0, freeAiAgents: 0, activeAgents: 5, writerPerDay: 10 },
-  holder: { label: "Holder", minUsd: 25, freeAiAgents: 1, activeAgents: 10, writerPerDay: 20 },
-  pro: { label: "Pro", minUsd: 150, freeAiAgents: 3, activeAgents: 20, writerPerDay: 50 },
+  free: { label: "Free", minUsd: 0, freeAiAgents: 0, activeAgents: 5, writerPerDay: 10, askPerDay: 20 },
+  holder: { label: "Holder", minUsd: 25, freeAiAgents: 1, activeAgents: 10, writerPerDay: 20, askPerDay: 50 },
+  pro: { label: "Pro", minUsd: 150, freeAiAgents: 3, activeAgents: 20, writerPerDay: 50, askPerDay: 100 },
 };
 
 const ORDER: Tier[] = ["free", "holder", "pro"];

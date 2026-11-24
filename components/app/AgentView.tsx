@@ -27,6 +27,7 @@ import type { Rules } from "@/lib/engine/rules";
 import { RulesSummary } from "@/components/app/RulesSummary";
 import { VerifyAgent } from "@/components/app/VerifyAgent";
 import { PalisecAccount } from "@/components/app/PalisecAccount";
+import { AskAgent } from "@/components/app/AskAgent";
 import type { PalisecLinkStatus } from "@/lib/data/palisec";
 import { UpochBadge } from "@/components/app/UpochBadge";
 import { OrderLedger } from "@/components/app/OrderLedger";
@@ -936,6 +937,9 @@ export function AgentView({
               ]}
             />
           </div>
+
+          {/* Same access as the ask API: published paper agents for anyone logged in, any agent for its owner. */}
+          {(isOwner || (agent.mode === "paper" && isPublished)) && <AskAgent agentId={agent.id} agentName={agent.name} market={summary.tokens[0]?.symbol ?? null} />}
 
           <div className="card">
             <div className="card-head">

@@ -12291,3 +12291,86 @@ td .leaderboard__pnl {
 .leaderboard__agent .leaderboard__sub {
   flex-wrap: wrap;
 }
+
+/* Agent page: "Ask {agent}". */
+.ask-agent .card__title i {
+  color: var(--color-purple-rich);
+}
+
+.ask-agent__lead {
+  margin: 0 0 var(--space-200);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.ask-agent__log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-200);
+  margin: 0 0 var(--space-200);
+  padding: 0;
+  list-style: none;
+}
+
+.ask-agent__question {
+  justify-self: end;
+  width: fit-content;
+  max-width: 85%;
+  margin: 0 0 var(--space-75) auto;
+  padding: var(--space-75) var(--space-100);
+  border-radius: var(--radius-xl);
+  background: var(--color-tint);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.ask-agent__answer {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+  white-space: pre-line;
+}
+
+.ask-agent__suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-75);
+  margin-bottom: var(--space-200);
+}
+
+.ask-agent__suggestion {
+  height: auto;
+  min-height: 28px;
+  padding: var(--space-50) var(--space-100);
+  border: 0;
+  cursor: pointer;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.ask-agent__suggestion:hover {
+  background: var(--color-tint-strong);
+}
+
+.ask-agent__form {
+  display: flex;
+  gap: var(--space-100);
+}
+
+.ask-agent__form .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ask-agent__error {
+  margin: var(--space-100) 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-loss);
+}
+
+.ask-agent__note {
+  margin: var(--space-100) 0 0;
+  font-size: 12px;
+  line-height: 16px;
+}
