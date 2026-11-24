@@ -2901,6 +2901,9 @@ main:focus {
 
 .agent-layout {
   display: grid;
+  /* minmax(0, ...) so a wide table (Order ledger) scrolls inside its card instead of
+     stretching the column and the whole page sideways on phones. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-200);
 }
 
