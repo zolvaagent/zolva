@@ -38,6 +38,17 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-24-agent-pages-fit-your-phone",
+    date: "2026-11-24",
+    area: "Site",
+    title: "Agent pages fit your phone again",
+    body: "On phones, an agent's page could slide sideways: its order ledger table was wider than the screen and pushed the whole page with it. Now the page stays put and only the ledger table scrolls, inside its own card.",
+    sources: [
+      commit("cee98d3"),
+      { label: "Lab · Trio Mean Reversion", href: "https://zolvaagent.app/agents/8a0ab89f-8224-4500-a346-eeda707dbea9" },
+    ],
+  },
+  {
     id: "2026-11-24-agents-suggest-your-next-question",
     date: "2026-11-24",
     area: "Agents",
