@@ -12292,15 +12292,105 @@ td .leaderboard__pnl {
   flex-wrap: wrap;
 }
 
-/* Agent page: "Ask {agent}". */
-.ask-agent .card__title i {
-  color: var(--color-purple-rich);
+/* Agent page: "Ask this agent" floating button and side panel (a bottom sheet below 900px). */
+.ask-fab {
+  position: fixed;
+  right: var(--space-300);
+  bottom: var(--space-300);
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75);
+  height: 48px;
+  padding: 0 var(--space-200);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-purple-rich);
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  transition: transform var(--duration-micro) var(--ease-out-expo), opacity 200ms var(--ease-out-expo);
 }
 
-.ask-agent__lead {
-  margin: 0 0 var(--space-200);
+.ask-fab:hover {
+  transform: translateY(-1px);
+}
+
+.ask-fab i {
+  font-size: 20px;
+}
+
+.ask-fab[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ask-fab__count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--space-50);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.ask-panel__head-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-75);
+}
+
+.ask-panel__start .muted {
+  margin: 0 0 var(--space-100);
   font-size: 13px;
   line-height: 18px;
+}
+
+.ask-panel__foot {
+  padding: var(--space-200) var(--space-300) calc(var(--space-200) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 899px) {
+  /* Above the app's bottom tab bar. */
+  .ask-fab {
+    right: var(--space-200);
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .ask-panel {
+    height: 86vh;
+  }
+
+  .ask-panel__foot {
+    padding: var(--space-100) var(--space-200) calc(var(--space-100) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.decision__ask {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-25);
+  margin-left: var(--space-75);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-purple-rich);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.decision__ask:hover {
+  text-decoration: underline;
 }
 
 .ask-agent__log {

@@ -27,7 +27,7 @@ import type { Rules } from "@/lib/engine/rules";
 import { RulesSummary } from "@/components/app/RulesSummary";
 import { VerifyAgent } from "@/components/app/VerifyAgent";
 import { PalisecAccount } from "@/components/app/PalisecAccount";
-import { AskAgent } from "@/components/app/AskAgent";
+import { AskAgent, openAskAgent } from "@/components/app/AskAgent";
 import type { PalisecLinkStatus } from "@/lib/data/palisec";
 import { UpochBadge } from "@/components/app/UpochBadge";
 import { OrderLedger } from "@/components/app/OrderLedger";
@@ -160,6 +160,9 @@ export function AgentView({
     router.refresh();
   };
   const isPublished = agent.published_at !== null;
+  // Same access as the ask API (lib/ai/ask-service.ts): published paper agents for anyone logged in,
+  // any agent for its owner. Logged-out visitors see the button and are asked to log in.
+  const canAsk = isOwner || (agent.mode === "paper" && isPublished);
   // Published once: the page stays public even when the agent is off the leaderboard.
   const wasPublished = agent.first_published_at !== null;
   const isLive = agent.mode === "live";
@@ -869,6 +872,7 @@ export function AgentView({
       {isOwner && tokenDialog}
       {isOwner && publishDialog}
       {isOwner && limitDialog}
+      {canAsk && <AskAgent agentId={agent.id} agentName={agent.name} market={summary.tokens[0]?.symbol ?? null} />}
       <div className="agent-layout">
         <div className="stack">
           <div className="card stack">
@@ -938,9 +942,6 @@ export function AgentView({
             />
           </div>
 
-          {/* Same access as the ask API: published paper agents for anyone logged in, any agent for its owner. */}
-          {(isOwner || (agent.mode === "paper" && isPublished)) && <AskAgent agentId={agent.id} agentName={agent.name} market={summary.tokens[0]?.symbol ?? null} />}
-
           <div className="card">
             <div className="card-head">
               <h2 className="card__title">Decision log</h2>
@@ -973,6 +974,7 @@ export function AgentView({
                       reasoning={decision.reasoning}
                       ai={decision.ai}
                       explanation={explainDecision(decision, engineParams, symbolOf(decision.token))}
+                      onAskWhy={canAsk && decision.action !== "hold" ? () => openAskAgent(`Why did you ${decision.action} ${symbolOf(decision.token)} on ${dateAt(run.ts)}?`) : undefined}
                     />
                   ))}
                 </div>
@@ -1172,6 +1174,7 @@ export function DecisionRow({
   reasoning,
   ai,
   explanation = null,
+  onAskWhy,
 }: {
   symbol: string;
   action: string;
@@ -1179,6 +1182,8 @@ export function DecisionRow({
   ai?: Decision["ai"];
   /** Plain-words details (lib/engine/explain.ts); null hides the Details toggle. */
   explanation?: Explanation | null;
+  /** Agent page: opens "Ask this agent" with a question about this decision. */
+  onAskWhy?: () => void;
 }) {
   return (
     <div className="decision">
@@ -1199,6 +1204,11 @@ export function DecisionRow({
               {aiModel(ai.model)?.label ?? ai.model}
             </span>
           </span>
+        )}
+        {onAskWhy && (
+          <button className="decision__ask" type="button" onClick={onAskWhy}>
+            <i className="ph ph-chat-circle-dots" aria-hidden="true" /> Ask why
+          </button>
         )}
         {explanation && (
           <details className="decision__details">
