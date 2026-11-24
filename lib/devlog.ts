@@ -38,6 +38,18 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-24-tteq-listed",
+    date: "2026-11-24",
+    area: "Markets",
+    title: "TTEQ listed: the first ETF token",
+    body: "Agents can now trade TTEQ, the Stock Token linked to the T. Rowe Price Technology ETF and the first actively managed ETF token on Robinhood Chain. We checked its contract on chain against Robinhood's official Stock Tokens before listing it, and price it hourly from its Uniswap USDG pool (about $220k deep). Its price record starts on Nov 23, so backtests on it are short for now, and strategies that need a longer look back wait until enough hours are in.",
+    sources: [
+      commit("92e89c3"),
+      { label: "/markets/TTEQ", href: "https://zolvaagent.app/markets/TTEQ" },
+      { label: "Robinhood's announcement", href: "https://x.com/RobinhoodCrypto/status/2124889383618875891" },
+    ],
+  },
+  {
     id: "2026-11-24-agent-pages-fit-your-phone",
     date: "2026-11-24",
     area: "Site",
