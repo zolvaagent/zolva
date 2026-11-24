@@ -38,6 +38,17 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-24-ask-why-on-every-trade",
+    date: "2026-11-24",
+    area: "Agents",
+    title: "Ask why, right next to every trade",
+    body: "Asking an agent now happens in a side panel that stays open while you scroll its record. Open it with the Ask this agent button at the bottom right, or click Ask why next to any buy, sell, short or cover in the decision log: the question about that exact trade is typed in for you, and nothing is sent until you press Ask. Close the panel and your conversation is still there when you open it again.",
+    sources: [
+      commit("743f7fd"),
+      { label: "Try it on Lab · Trio Mean Reversion", href: "https://zolvaagent.app/agents/8a0ab89f-8224-4500-a346-eeda707dbea9" },
+    ],
+  },
+  {
     id: "2026-11-24-ask-an-agent-why",
     date: "2026-11-24",
     area: "Agents",
