@@ -217,6 +217,16 @@
       "poolCreated": "2026-11-19",
       "verifiedOfficial": true,
       "quotedIn": "USDG"
+    },
+    {
+      "symbol": "TTEQ",
+      "address": "0x80e10255a83b257f5a8674d363f547842aa53b8e",
+      "pricePool": "0x59848647aff854d7ea97a9ff955653da178e8677",
+      "poolLiquidityUsd": 220112,
+      "volume24hUsd": null,
+      "poolCreated": "2026-11-23",
+      "verifiedOfficial": true,
+      "quotedIn": "USDG"
     }
   ]
 }
