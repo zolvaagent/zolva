@@ -7,8 +7,9 @@ export { copyBlock, STUDIO_MAX_MARKETS, STUDIO_STRATEGIES };
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isHouseOwner, isLabOwner, LAB_AGENTS } from "@/lib/agents/house";
+import { openPnlAt } from "@/lib/agents/pnl-split";
 import { periodsOf, type AgentPeriod, type PeriodRow, type PeriodStats } from "@/lib/agents/periods";
-import { isRankedRecord, isTested, type TestedInput } from "@/lib/agents/tested";
+import { isTested, type TestedInput } from "@/lib/agents/tested";
 import type { AgentRow } from "@/lib/agents/plan";
 import type { Decision } from "@/lib/engine/engine";
 import { isPerpSymbol } from "@/lib/format";
@@ -51,8 +52,8 @@ export type AgentSummary = {
   /** Leaderboard only: the agent exactly matches a rule that passed Research's 6 year test (lib/agents/tested.ts). */
   tested?: boolean;
   /**
-   * Leaderboard "New agents" only (listAgents with openPnl): P&L of the positions still open at the last
-   * run, in dollars, after costs; null when the agent holds nothing. Not set for ranked agents.
+   * listAgents with openPnl: unrealised P&L of the open positions at the close of the last run, in
+   * dollars (lib/agents/pnl-split.ts); 0 when flat, null when a close is missing, unset before a first run.
    */
   openPnl?: number | null;
 };
@@ -160,40 +161,48 @@ export async function listAgents(db: SupabaseClient, options: { periods?: boolea
 
 
 /**
- * Adds open P&L to agents not ranked yet: value at the last run minus its cash minus what the open
- * positions cost (average entry including trading costs; a short's margin when it has one). The same
- * basis as the ledger's unrealised P&L (lib/agents/ledger.ts), from the last hourly run.
+ * Open P&L of every agent that has run, in dollars: its positions valued at the close of its own last
+ * run (lib/agents/pnl-split.ts), so Total - open = Realised lines up with the value on the same hour.
+ * 0 for a flat agent, null when a close is missing. Extra: the leaderboard works without it.
  */
 async function withOpenPnl(db: SupabaseClient, agents: AgentSummary[]): Promise<AgentSummary[]> {
-  const young = agents.filter((agent) => !isRankedRecord(agent) && agent.lastTs !== null);
-  if (!young.length) return agents;
-  const ids = young.map((agent) => agent.id);
-  const [positions, runs] = await Promise.all([
-    db.from("positions").select("agent_id, quantity, avg_entry_price, side, margin").in("agent_id", ids),
-    db.from("agent_runs").select("agent_id, ts, cash").in("agent_id", ids).in("ts", young.map((agent) => new Date(agent.lastTs! * 1000).toISOString())),
-  ]);
-  // Open P&L is extra: the leaderboard still works without it.
-  if (positions.error || runs.error) {
-    console.error(`Loading open P&L failed: ${(positions.error ?? runs.error)!.message}`);
+  const ran = agents.filter((agent) => agent.lastTs !== null);
+  if (!ran.length) return agents;
+  const positions = await db.from("positions").select("agent_id, token_address, quantity, avg_entry_price, side, margin").in("agent_id", ran.map((agent) => agent.id));
+  if (positions.error) {
+    console.error(`Loading open P&L failed: ${positions.error.message}`);
     return agents;
   }
-  const basis = new Map<string, number>();
-  for (const row of positions.data as { agent_id: string; quantity: number; avg_entry_price: number; side: string; margin: number | null }[]) {
-    const cost = row.side === "short" && row.margin !== null ? Number(row.margin) : Number(row.quantity) * Number(row.avg_entry_price);
-    basis.set(row.agent_id, (basis.get(row.agent_id) ?? 0) + cost);
+  type Row = { agent_id: string; token_address: string; quantity: number; avg_entry_price: number; side: string; margin: number | null };
+  const rows = positions.data as Row[];
+  const lastTs = new Map(ran.map((agent) => [agent.id, agent.lastTs!]));
+  const closes = new Map<string, number>();
+  if (rows.length) {
+    const hours = [...new Set(rows.map((row) => lastTs.get(row.agent_id)).filter((ts): ts is number => ts !== undefined))];
+    const tokens = [...new Set(rows.map((row) => row.token_address))];
+    // At most tokens x distinct last-run hours rows: a handful of hours, since agents run together.
+    const candles = await db.from("candles").select("token_address, ts, close").in("token_address", tokens).in("ts", hours.map((ts) => new Date(ts * 1000).toISOString())).limit(5000);
+    if (candles.error) {
+      console.error(`Loading closes for open P&L failed: ${candles.error.message}`);
+      return agents;
+    }
+    for (const candle of candles.data as { token_address: string; ts: string; close: number }[]) closes.set(`${candle.token_address}@${Date.parse(candle.ts) / 1000}`, Number(candle.close));
   }
-  const lastTs = new Map(young.map((agent) => [agent.id, agent.lastTs]));
-  const cash = new Map<string, number>();
-  // The ts filter matches any agent's last run time, so keep each agent's own.
-  for (const row of runs.data as { agent_id: string; ts: string; cash: number }[]) {
-    if (Date.parse(row.ts) / 1000 === lastTs.get(row.agent_id)) cash.set(row.agent_id, Number(row.cash));
+  const held = new Map<string, Parameters<typeof openPnlAt>[0]>();
+  for (const row of rows) {
+    const ts = lastTs.get(row.agent_id);
+    if (ts === undefined) continue;
+    const list = held.get(row.agent_id) ?? [];
+    list.push({
+      side: row.side === "short" ? "short" : "long",
+      quantity: Number(row.quantity),
+      entryPrice: Number(row.avg_entry_price),
+      margin: row.margin === null ? null : Number(row.margin),
+      price: closes.get(`${row.token_address}@${ts}`) ?? null,
+    });
+    held.set(row.agent_id, list);
   }
-  return agents.map((agent) => {
-    if (!lastTs.has(agent.id)) return agent;
-    const cost = basis.get(agent.id);
-    const agentCash = cash.get(agent.id);
-    return { ...agent, openPnl: cost === undefined || agentCash === undefined ? null : agent.equity - agentCash - cost };
-  });
+  return agents.map((agent) => (lastTs.has(agent.id) ? { ...agent, openPnl: openPnlAt(held.get(agent.id) ?? []) } : agent));
 }
 
 /** Every published paper agent's starting values per timeframe (agent_period_stats), by agent id. */

@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { AgentKindPills, matchesVenue, VENUE_FILTERS, type VenueFilter } from "@/components/app/AgentKind";
 import { isRankedRecord, MIN_RANKED_DAYS, MIN_RANKED_RUNS } from "@/lib/agents/tested";
 import { statsFor, TIMEFRAMES, TOO_YOUNG, type Timeframe } from "@/lib/agents/periods";
+import { pnlSplit } from "@/lib/agents/pnl-split";
 import type { AgentSummary, PeriodStats } from "@/lib/data/agents";
 import { marketList, percent, points, shortAddress, signedUsd, STRATEGY_NAMES, tone } from "@/lib/format";
 
@@ -113,9 +114,11 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                         <th>#</th>
                         <th>Agent</th>
                         <th>Strategy</th>
-                        <th>Markets</th>
                         <th className="num">Return</th>
                         <th className="num">vs holding</th>
+                        <th className="num" title="Dollars since launch, whatever the timeframe: total, and how much of it is still open">
+                          P&amp;L $
+                        </th>
                         <th className="num">Worst drop</th>
                         <th className="num">Trades</th>
                         <th className="num">Record</th>
@@ -125,7 +128,7 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                       {rows.map(({ agent, stats }, i) => (
                         <tr key={agent.id} className={agent.owner === viewer ? "leaderboard__mine" : undefined}>
                           <td className="rank">{i + 1}</td>
-                          <td>
+                          <td className="leaderboard__agent">
                             <Link className="row-link" href={`/agents/${agent.id}`}>{agent.name}</Link>
                             {agent.isHouse && (
                               <span className="pill" style={{ marginLeft: 6 }}>
@@ -144,12 +147,18 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                               <AgentKindPills agent={agent} />
                             </div>
                           </td>
-                          <td>{STRATEGY_NAMES[agent.strategy]}</td>
-                          <td className="muted" title={agent.tokens.map((token) => token.symbol).join(", ")}>
-                            {marketList(agent.tokens.map((token) => token.symbol))}
+                          {/* Strategy over its markets: one column, so the P&L $ column fits without scrolling. */}
+                          <td>
+                            {STRATEGY_NAMES[agent.strategy]}
+                            <div className="muted leaderboard__markets" title={agent.tokens.map((token) => token.symbol).join(", ")}>
+                              {marketList(agent.tokens.map((token) => token.symbol))}
+                            </div>
                           </td>
                           <td className={`num ${stats ? tone(stats.returnPct) : ""}`}>{stats ? percent(stats.returnPct) : dash}</td>
                           <td className={`num ${stats ? tone(stats.edge) : ""}`}>{stats ? points(stats.edge) : dash}</td>
+                          <td className="num">
+                            <PnlDollars agent={agent} />
+                          </td>
                           <td className="num">{stats ? percent(-stats.maxDrawdownPct) : dash}</td>
                           <td className="num">{agent.trades}</td>
                           <td className="num muted">{daysText(recordDays(agent))}</td>
@@ -180,6 +189,7 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                       <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
                         {stats ? points(stats.edge) : tooYoung}
                       </div>
+                      <PnlDollars agent={agent} inline />
                     </span>
                   </Link>
                 ))}
@@ -216,12 +226,7 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
                         </span>
                         <span className="muted"> so far</span>
                       </span>
-                      {agent.openPnl != null ? (
-                        <div style={{ fontSize: 12, lineHeight: "16px" }}>
-                          <span className="muted">open </span>
-                          <span className={tone(agent.openPnl)}>{signedUsd(agent.openPnl)}</span>
-                        </div>
-                      ) : null}
+                      <PnlDollars agent={agent} inline />
                       <div className="muted" style={{ fontSize: 12, lineHeight: "16px" }}>
                         New, {daysText(recordDays(agent))}
                       </div>
@@ -234,5 +239,46 @@ export function Leaderboard({ agents, viewer = null }: { agents: AgentSummary[];
         </>
       )}
     </>
+  );
+}
+
+/** "since launch" P&L split in words, for the tooltip (lib/agents/pnl-split.ts). */
+function pnlTitle(totalUsd: number, realisedUsd: number | null, openUsd: number | null): string {
+  if (realisedUsd === null || openUsd === null) return `Since launch: ${signedUsd(totalUsd)}, after fees and funding.`;
+  return `Since launch: ${signedUsd(totalUsd)} = realised ${signedUsd(realisedUsd)} (closed trades, after all fees and funding) + open ${signedUsd(openUsd)} (positions still held, at the last hourly close).`;
+}
+
+/**
+ * Dollar P&L since launch: the total, and the open part when the agent holds something. Some agents
+ * start with $1,000, so the dollars sit next to the %. Table cell by default; inline is one line for
+ * mobile and the New agents cards ("+$468 · open +$1,205").
+ */
+function PnlDollars({ agent, inline = false }: { agent: AgentSummary; inline?: boolean }) {
+  const split = pnlSplit(agent.startCapital, agent.equity, agent.openPnl);
+  const totalUsd = agent.equity - agent.startCapital;
+  const open = split && Math.abs(split.openUsd) >= 0.005 ? split.openUsd : null;
+  const title = pnlTitle(totalUsd, split?.realisedUsd ?? null, split?.openUsd ?? null);
+  if (inline) {
+    return (
+      <div className="leaderboard__pnl" style={{ fontSize: 12, lineHeight: "16px" }} title={title}>
+        <span className={tone(totalUsd)}>{signedUsd(totalUsd)}</span>
+        {open !== null && (
+          <>
+            <span className="muted"> · open </span>
+            <span className={tone(open)}>{signedUsd(open)}</span>
+          </>
+        )}
+      </div>
+    );
+  }
+  return (
+    <span className="leaderboard__pnl" title={title}>
+      <span className={tone(totalUsd)}>{signedUsd(totalUsd)}</span>
+      {open !== null && (
+        <span className="leaderboard__pnl-open muted">
+          open <span className={tone(open)}>{signedUsd(open)}</span>
+        </span>
+      )}
+    </span>
   );
 }

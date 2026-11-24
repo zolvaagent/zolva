@@ -12260,3 +12260,34 @@ li.stats-ranks__row {
   line-height: 18px;
   color: var(--color-loss);
 }
+
+/* Leaderboard P&L $ (since launch): total, and the open part under it. */
+.leaderboard__pnl {
+  white-space: nowrap;
+}
+
+td .leaderboard__pnl {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.leaderboard__pnl-open {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.leaderboard__markets {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* Long names and their pills wrap instead of widening the table past the card. */
+.table td.leaderboard__agent {
+  min-width: 200px;
+  white-space: normal;
+}
+
+.leaderboard__agent .leaderboard__sub {
+  flex-wrap: wrap;
+}
