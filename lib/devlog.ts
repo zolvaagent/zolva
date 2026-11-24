@@ -38,6 +38,17 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-24-agents-suggest-your-next-question",
+    date: "2026-11-24",
+    area: "Agents",
+    title: "Agents suggest your next question",
+    body: "After each answer, the agent now offers two or three follow-up questions you can ask with one click, so a conversation keeps going without having to think of the next question. The Ask panel also shows how many AI credits you have left, updated after every answer, with a top up link when you run low.",
+    sources: [
+      commit("124813b"),
+      { label: "Try it on Lab · Trio Mean Reversion", href: "https://zolvaagent.app/agents/8a0ab89f-8224-4500-a346-eeda707dbea9" },
+    ],
+  },
+  {
     id: "2026-11-24-ask-why-on-every-trade",
     date: "2026-11-24",
     area: "Agents",
