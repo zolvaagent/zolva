@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useAuth } from "@/components/ui/Providers";
 import { HISTORY_MAX_TURNS, QUESTION_MAX_LENGTH, type AskTurn } from "@/lib/ai/ask-agent";
+import { formatCredits } from "@/lib/ai/models";
 
 const OPEN_EVENT = "zolva:ask-agent";
 
@@ -15,6 +16,9 @@ const OPEN_EVENT = "zolva:ask-agent";
 export function openAskAgent(question: string) {
   window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: { question } }));
 }
+
+/** One answered question, with the next questions the agent suggested. */
+type Turn = AskTurn & { followUps: string[] };
 
 type Props = {
   agentId: string;
@@ -32,7 +36,9 @@ type Props = {
 export function AskAgent({ agentId, agentName, market }: Props) {
   const { address, openLogin } = useAuth();
   const [open, setOpen] = useState(false);
-  const [turns, setTurns] = useState<AskTurn[]>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  /** AI credits left (USD), loaded when the panel first opens and updated after each answer. */
+  const [credits, setCredits] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +77,21 @@ export function AskAgent({ agentId, agentName, market }: Props) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open, close]);
 
+  // Credits left, once per page view, when a logged-in visitor first opens the panel.
+  useEffect(() => {
+    if (!open || !address || credits !== null) return;
+    let cancelled = false;
+    fetch(`/api/agents/${agentId}/ask`)
+      .then((response) => (response.ok ? (response.json() as Promise<{ creditsUsd?: number }>) : null))
+      .then((body) => {
+        if (!cancelled && typeof body?.creditsUsd === "number") setCredits(body.creditsUsd);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, address, agentId, credits]);
+
   // Keep the newest answer in view.
   useEffect(() => {
     logEnd.current?.scrollIntoView({ block: "end" });
@@ -86,16 +107,17 @@ export function AskAgent({ agentId, agentName, market }: Props) {
     const response = await fetch(`/api/agents/${agentId}/ask`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: text, history: turns.slice(-HISTORY_MAX_TURNS) }),
+      body: JSON.stringify({ question: text, history: turns.slice(-HISTORY_MAX_TURNS).map(({ question, answer }) => ({ question, answer })) }),
     }).catch(() => null);
-    const body = (await response?.json().catch(() => null)) as { answer?: string; error?: string } | null;
+    const body = (await response?.json().catch(() => null)) as { answer?: string; followUps?: string[]; creditsUsd?: number; error?: string } | null;
     setPending(null);
     if (!response?.ok || !body?.answer) {
       setDraft(text);
       setError(body?.error ?? "Something went wrong. Please try again.");
       return;
     }
-    setTurns((previous) => [...previous, { question: text, answer: body.answer! }]);
+    setTurns((previous) => [...previous, { question: text, answer: body.answer!, followUps: Array.isArray(body.followUps) ? body.followUps : [] }]);
+    if (typeof body.creditsUsd === "number") setCredits(body.creditsUsd);
     inputRef.current?.focus();
   };
 
@@ -158,6 +180,16 @@ export function AskAgent({ agentId, agentName, market }: Props) {
                 <li key={index}>
                   <p className="ask-agent__question">{turn.question}</p>
                   <p className="ask-agent__answer">{turn.answer}</p>
+                  {/* Next questions the agent suggested: only under the latest answer, while there is room to ask. */}
+                  {index === turns.length - 1 && !pending && !full && turn.followUps.length > 0 && (
+                    <div className="ask-agent__suggestions ask-agent__followups" aria-label="Suggested next questions">
+                      {turn.followUps.map((followUp) => (
+                        <button key={followUp} className="pill ask-agent__suggestion" type="button" onClick={() => void ask(followUp)}>
+                          {followUp}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </li>
               ))}
               {pending && (
@@ -209,7 +241,23 @@ export function AskAgent({ agentId, agentName, market }: Props) {
               )}
             </p>
           )}
-          <p className="ask-agent__note muted">Uses your AI credits, well under a cent a question. Paper trading, not investment advice.</p>
+          <p className="ask-agent__note muted">
+            {address && credits !== null && (
+              <>
+                <span className={credits < 0.01 ? "ask-agent__credits--low" : undefined}>AI credits left: {formatCredits(credits)}</span>
+                {credits < 0.01 && (
+                  <>
+                    {" "}
+                    <Link className="text-link" href="/settings">
+                      Top up
+                    </Link>
+                  </>
+                )}
+                {" · "}
+              </>
+            )}
+            Well under a cent a question. Paper trading, not investment advice.
+          </p>
         </div>
       </aside>
     </>

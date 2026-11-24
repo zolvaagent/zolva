@@ -94,9 +94,18 @@ describe("askUserMessage", () => {
 });
 
 describe("parseAnswer", () => {
-  it("reads the JSON answer, also inside a code fence", () => {
-    expect(parseAnswer('{"answer":"I sold because the stop loss hit."}')).toBe("I sold because the stop loss hit.");
-    expect(parseAnswer('```json\n{"answer":"Yes."}\n```')).toBe("Yes.");
+  it("reads the JSON answer and its follow-ups, also inside a code fence", () => {
+    expect(parseAnswer('{"answer":"I sold because the stop loss hit.","followUps":["When do you buy again?","What is your stop now?"]}')).toEqual({
+      answer: "I sold because the stop loss hit.",
+      followUps: ["When do you buy again?", "What is your stop now?"],
+    });
+    expect(parseAnswer('```json\n{"answer":"Yes.","followUps":[]}\n```')).toEqual({ answer: "Yes.", followUps: [] });
+  });
+
+  it("drops malformed follow-ups but keeps the answer", () => {
+    const long = "x".repeat(200);
+    expect(parseAnswer(`{"answer":"Ok.","followUps":["Why?",42,"","${long}","A","Bb?","Cc?","Dd?"]}`)).toEqual({ answer: "Ok.", followUps: ["Why?", "Bb?", "Cc?"] });
+    expect(parseAnswer('{"answer":"Ok."}')).toEqual({ answer: "Ok.", followUps: [] });
   });
 
   it("is null for anything unusable", () => {

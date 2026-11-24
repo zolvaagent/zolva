@@ -20,7 +20,7 @@ const toMicro = (usd: number) => Math.round(usd * 1_000_000);
 const RUN_HOURS = 7 * 24 + 1;
 
 export type AskResult =
-  | { ok: true; answer: string; costUsd: number }
+  | { ok: true; answer: string; followUps: string[]; costUsd: number; creditsUsd: number }
   | { ok: false; status: 400 | 402 | 404 | 429 | 500 | 502 | 503; error: string };
 
 /**
@@ -111,17 +111,25 @@ export async function askAgent(client: SupabaseClient, asker: string, agentId: s
     return { ok: false, status: 502, error: "The AI did not answer. Please try again." };
   }
 
-  const answer = parseAnswer(reply.content);
+  const parsedAnswer = parseAnswer(reply.content);
   const costUsd = reply.costUsd ?? callCostUsd(model, reply.inputTokens, reply.outputTokens);
   await client.rpc("ai_generation_settle", {
     p_id: generationId,
-    p_status: answer ? "done" : "failed",
+    p_status: parsedAnswer ? "done" : "failed",
     p_input: reply.inputTokens,
     p_output: reply.outputTokens,
     p_cost_micro: toMicro(costUsd),
     p_lite: true,
-    p_note: answer ? null : "unusable answer",
+    p_note: parsedAnswer ? null : "unusable answer",
   });
-  if (!answer) return { ok: false, status: 502, error: "The AI answer was not usable. Please try again." };
-  return { ok: true, answer, costUsd };
+  if (!parsedAnswer) return { ok: false, status: 502, error: "The AI answer was not usable. Please try again." };
+  // What is left after this question, so the panel can show it.
+  const after = await getCredits(client, asker);
+  return { ok: true, answer: parsedAnswer.answer, followUps: parsedAnswer.followUps, costUsd, creditsUsd: after.freeUsd + after.paidUsd };
+}
+
+/** The asker's AI credits left (welcome plus paid), USD: shown in the Ask panel before a first question. */
+export async function askCredits(client: SupabaseClient, asker: string): Promise<number> {
+  const credits = await getCredits(client, asker);
+  return credits.freeUsd + credits.paidUsd;
 }

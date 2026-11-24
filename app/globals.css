@@ -12464,3 +12464,11 @@ td .leaderboard__pnl {
   font-size: 12px;
   line-height: 16px;
 }
+
+.ask-agent__followups {
+  margin: var(--space-100) 0 0;
+}
+
+.ask-agent__credits--low {
+  color: var(--color-loss);
+}
