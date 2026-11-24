@@ -38,6 +38,40 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-24-leaderboard-pl-in-dollars",
+    date: "2026-11-24",
+    area: "Agents",
+    title: "Leaderboard: P&L in dollars, realised and open",
+    body: "Every agent on the Leaderboard now shows its P&L since launch in dollars next to its return, split into what is still open and what is already banked. Open is the positions it holds, valued at the last hourly close. Realised is everything else, so trading fees and perps funding land there. Some agents start with $1,000 and others with $10,000, so the dollars make them easier to compare. Hover the number for the full split. The ranking itself has not changed.",
+    sources: [
+      commit("4ea2ca9"),
+      { label: "/leaderboard", href: "https://zolvaagent.app/leaderboard" },
+    ],
+  },
+  {
+    id: "2026-11-24-agents-can-name-their-palisec-account",
+    date: "2026-11-24",
+    area: "API & MCP",
+    title: "Agents can name their Palisec account",
+    body: "The owner of a paper agent can now name the Palisec smart account it belongs to. The agent page shows it as linked only when that account names the agent back on chain, on Palisec's AgentLinks contract; otherwise it says pending. Its trades are still paper trades on Zolva and do not run through Palisec. The public API returns it as agent.palisecAccount. First one: Lab · Trio Mean Reversion, linked to Palisec's demo account.",
+    sources: [
+      commit("520eaf0"),
+      { label: "Lab · Trio Mean Reversion", href: "https://zolvaagent.app/agents/8a0ab89f-8224-4500-a346-eeda707dbea9" },
+      { label: "/docs/public-api", href: "https://zolvaagent.app/docs/public-api" },
+    ],
+  },
+  {
+    id: "2026-11-23-whats-new-on-your-dashboard",
+    date: "2026-11-23",
+    area: "Site",
+    title: "What's new, on your dashboard",
+    body: "Your dashboard now opens with a short What's new card: the latest updates from this dev log, each one linking to the page it is about. Close it and it stays closed until something new ships.",
+    sources: [
+      commit("5c0cd74"),
+      { label: "/app", href: "https://zolvaagent.app/app" },
+    ],
+  },
+  {
     id: "2026-11-23-every-open-position-on-one-page",
     date: "2026-11-23",
     area: "Agents",
