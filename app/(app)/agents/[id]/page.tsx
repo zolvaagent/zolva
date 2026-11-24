@@ -6,6 +6,7 @@ import { AgentView, type Preview } from "@/components/app/AgentView";
 import { agentParams } from "@/lib/agents/plan";
 import { getSessionAddress, LOGIN_METHOD_COOKIE } from "@/lib/auth/session";
 import { getAgentDetail, type AgentDetail } from "@/lib/data/agents";
+import { palisecLinkStatus } from "@/lib/data/palisec";
 import { loadLedger } from "@/lib/data/ledger";
 import { getCredits } from "@/lib/data/credits";
 import { getMarket } from "@/lib/data/market";
@@ -73,7 +74,12 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
   }
 
   const isOwner = address === detail.agent.owner;
-  const [credits, ledger] = await Promise.all([isOwner && address ? getCredits(client, address) : Promise.resolve(null), loadLedger(client, detail, prices)]);
+  const palisec = detail.agent.mode === "paper" ? detail.agent.palisec_account : null;
+  const [credits, ledger, palisecLink] = await Promise.all([
+    isOwner && address ? getCredits(client, address) : Promise.resolve(null),
+    loadLedger(client, detail, prices),
+    palisec ? palisecLinkStatus(palisec, detail.agent.id) : Promise.resolve(null),
+  ]);
   // Display only: how to sign a manual sale on a live agent (Privy window or browser wallet).
   const method = (await cookies()).get(LOGIN_METHOD_COOKIE)?.value;
   const loginMethod = method === "privy" || method === "wallet" ? method : null;
@@ -84,5 +90,5 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
   });
   // The creator's prompt reaches the browser only for the owner, or while the agent is published.
   const shown = isOwner || detail.agent.published_at ? detail : { ...detail, agent: { ...detail.agent, strategy_prompt: null } };
-  return <AgentView detail={shown} isOwner={isOwner} ledger={ledger} credits={credits} prices={prices} preview={preview} symbols={symbols} howItTrades={howItTrades} loginMethod={loginMethod} />;
+  return <AgentView detail={shown} isOwner={isOwner} ledger={ledger} credits={credits} prices={prices} preview={preview} symbols={symbols} howItTrades={howItTrades} loginMethod={loginMethod} palisecLink={palisecLink} />;
 }

@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { dcaPlanError, maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 import { getMarket, latestCandleTime } from "@/lib/data/market";
 import { parseAiLimit, type AiLimit } from "@/lib/ai/limits";
+import { parsePalisecAccount } from "@/lib/agents/palisec";
 import { aiModel } from "@/lib/ai/models";
 import { PROMPT_MAX_LENGTH } from "@/lib/ai/strategy-writer";
 import { parseRules, rulesLookback, type Rules } from "@/lib/engine/rules";
@@ -243,6 +244,18 @@ export async function setAgentPublished(db: SupabaseClient, owner: string, id: s
     .select("id");
   if (error) throw new Error(`Updating the agent failed: ${error.message}`);
   if (!data.length) throw new AgentInputError("Agent not found.");
+}
+
+/**
+ * Name (or clear) the Palisec smart account of one of the owner's paper agents. Live agents are
+ * refused: the agent page says a linked agent's trades are paper trades.
+ */
+export async function setAgentPalisecAccount(db: SupabaseClient, owner: string, id: string, input: unknown): Promise<void> {
+  const parsed = parsePalisecAccount(input);
+  if (!parsed.ok) throw new AgentInputError(parsed.error);
+  const { data, error } = await db.from("agents").update({ palisec_account: parsed.address }).eq("id", id).eq("owner", owner).eq("mode", "paper").select("id");
+  if (error) throw new Error(`Updating the agent failed: ${error.message}`);
+  if (!data.length) throw new AgentInputError("Agent not found, or it trades real money (only paper agents can name a Palisec account).");
 }
 
 /**

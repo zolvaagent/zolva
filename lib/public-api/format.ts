@@ -10,6 +10,7 @@ import type { MarketDetail, MarketRow } from "../data/markets";
 import { STRATEGY_NAMES } from "../format";
 import { longbowListingFor, type LongbowListing } from "../longbow";
 import { agentParams } from "../agents/plan";
+import { publicPalisecAccount } from "../agents/palisec";
 import { describeAgent } from "../engine/summary";
 import { explainDecision } from "../engine/explain";
 
@@ -108,6 +109,8 @@ export function publicAgentDetail(detail: AgentDetail, nowSeconds: number) {
         rules: agent.strategy === "custom" ? (agent.params.rules ?? null) : null,
         aiCoPilot: agent.ai_model !== null,
       },
+      // The Palisec smart account the owner named, { chainId: 4663, address } or null (lib/agents/palisec.ts).
+      palisecAccount: publicPalisecAccount(agent.palisec_account),
       // The strategy in plain words, built from the settings (never AI), one sentence per item.
       howItTrades: describeAgent(params, {
         symbols: agent.token_addresses.map((address) => symbolOf.get(address) ?? address),

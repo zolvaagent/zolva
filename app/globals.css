@@ -12223,3 +12223,40 @@ li.stats-ranks__row {
   align-self: flex-start;
   font-size: 13px;
 }
+
+/* Agent page, Settings: the Palisec smart account a paper agent belongs to. */
+.palisec-account__address {
+  display: block;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+
+.palisec-account__status--linked {
+  color: var(--color-text);
+}
+
+.palisec-account__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100);
+}
+
+.palisec-account__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-75);
+  margin-top: var(--space-100);
+}
+
+.palisec-account__form .palisec-account__actions {
+  margin-top: 0;
+}
+
+.palisec-account__error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-loss);
+}

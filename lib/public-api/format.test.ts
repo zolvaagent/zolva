@@ -62,6 +62,7 @@ function detail(overrides: Partial<AgentDetail["agent"]> = {}): AgentDetail {
       ai_limit_expires_at: null,
       mode: "paper",
       trading_wallet: WALLET,
+      palisec_account: null,
       ...overrides,
     } as AgentDetail["agent"],
     aiSpentUsd: 0.42,
@@ -125,6 +126,12 @@ describe("publicAgentDetail", () => {
     expect(body.agent.howItTrades[0]).toMatch(/^Trades /);
     expect(body.agent.howItTrades.at(-1)).toBe("Paper money: virtual dollars at real prices.");
     expect(body.agent.paper).toBe(true);
+  });
+
+  it("carries the Palisec account the owner named, or null", () => {
+    expect(body.agent.palisecAccount).toBeNull();
+    const linked = publicAgentDetail(detail({ palisec_account: "0x9aEC761B2F0FdA08C683e8388478C9A2F7C9170c" }), NOW);
+    expect(linked.agent.palisecAccount).toEqual({ chainId: 4663, address: "0x9aEC761B2F0FdA08C683e8388478C9A2F7C9170c" });
   });
 
   it("never exposes wallets, AI spend, orders or transaction hashes", () => {

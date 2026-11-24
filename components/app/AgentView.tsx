@@ -26,6 +26,8 @@ import { agentParams } from "@/lib/agents/plan";
 import type { Rules } from "@/lib/engine/rules";
 import { RulesSummary } from "@/components/app/RulesSummary";
 import { VerifyAgent } from "@/components/app/VerifyAgent";
+import { PalisecAccount } from "@/components/app/PalisecAccount";
+import type { PalisecLinkStatus } from "@/lib/data/palisec";
 import { UpochBadge } from "@/components/app/UpochBadge";
 import { OrderLedger } from "@/components/app/OrderLedger";
 import { exposure } from "@/lib/agents/exposure";
@@ -69,6 +71,8 @@ type Props = {
   ledger: Ledger;
   /** How the viewer logged in, for signing a manual sale (live agents, owner only). */
   loginMethod?: "privy" | "wallet" | null;
+  /** Whether the named Palisec account names this agent back on chain; null when none is named. */
+  palisecLink?: PalisecLinkStatus | null;
 };
 
 const RANGES = { "7d": 7 * 24, "30d": 30 * 24, all: Infinity } as const;
@@ -100,6 +104,7 @@ export function AgentView({
   howItTrades,
   ledger,
   loginMethod = null,
+  palisecLink = null,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
@@ -739,6 +744,8 @@ export function AgentView({
           <p className="strategy-prompt__note">The rules above were written from this. The AI co-pilot reads it too, but can only pass on a rule&apos;s trade, never add one.</p>
         </section>
       )}
+      {/* Paper agents only: the line it shows says the trades are paper trades. */}
+      {agent.mode === "paper" && <PalisecAccount agentId={agent.id} account={agent.palisec_account} status={palisecLink} isOwner={isOwner} />}
       {agent.mode === "paper" && agent.published_at && <VerifyAgent agentId={agent.id} />}
     </div>
   );
