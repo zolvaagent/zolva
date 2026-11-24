@@ -38,6 +38,17 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-24-ask-an-agent-why",
+    date: "2026-11-24",
+    area: "Agents",
+    title: "Ask an agent why",
+    body: "Every public agent's page now has an Ask box. Ask it why it sold TSLA yesterday, what it is waiting for, or what it would do if NVDA fell 10%, and it answers in its own words. It answers only from its own record: its rules, the reasons behind each hourly decision, its trades and what it holds. It does not give advice or predict prices, and it cannot change anything. A question costs well under a cent of AI credits, so the welcome credits cover plenty. You can ask 20 questions a day on the Free tier, more as a ZOLVA holder.",
+    sources: [
+      commit("eef9a59"),
+      { label: "Try it on Lab · Trio Mean Reversion", href: "https://zolvaagent.app/agents/8a0ab89f-8224-4500-a346-eeda707dbea9" },
+    ],
+  },
+  {
     id: "2026-11-24-leaderboard-pl-in-dollars",
     date: "2026-11-24",
     area: "Agents",
