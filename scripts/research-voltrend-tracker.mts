@@ -44,6 +44,9 @@ const EXPECTED: Record<string, { drop: number; entriesPerYear: number }> = {
   // Spot paper twins of the planned real-money agents (research-preset-years.mts, spot cost 0.5%, one market).
   "BTC Vol Trend": { drop: 19, entriesPerYear: 46 / 5.1 },
   "ETH Vol Trend": { drop: 17, entriesPerYear: 59 / 5.1 },
+  // Lab · Vol Trend Portfolio 2x (6 markets, research-portfolio-momentum.mts LIST check; engine check 20.1%).
+  // Entries are per market sleeve, so the pace is the sum of the six L+S agents above plus BTC/ETH L+S.
+  "Vol Trend Portfolio 2x": { drop: 20, entriesPerYear: (175 + 177 + 194 + 211 + 119 + 139) / 5.1 },
 };
 const DROP_LIMIT = 30;
 
@@ -55,6 +58,8 @@ type StoredParams = {
   venue?: string;
   leverage?: number | string;
   sizing?: { targetPct: number | string; hours: number | string };
+  /** Lab portfolio (engine AgentParams.portfolio, Development 7c4388c): equal sleeves at an account leverage. */
+  portfolio?: { leverage: number | string; backtestDropPct?: number | string };
 };
 type Agent = { id: string; name: string; strategy: string; params: StoredParams; token_addresses: string[]; start_capital: number; created_at: string };
 
@@ -79,6 +84,9 @@ function agentParams(agent: Agent) {
     venue: p.venue,
     ...(p.leverage ? { leverage: Number(p.leverage) } : {}),
     ...(p.sizing ? { sizing: { kind: "volTarget", targetPct: Number(p.sizing.targetPct), hours: Number(p.sizing.hours) } } : {}),
+    ...(p.portfolio
+      ? { portfolio: { leverage: Number(p.portfolio.leverage), ...(p.portfolio.backtestDropPct !== undefined ? { backtestDropPct: Number(p.portfolio.backtestDropPct) } : {}) } }
+      : {}),
   };
 }
 
@@ -99,7 +107,8 @@ async function main() {
   const db = createClient(vars.SUPABASE_URL, vars.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
   const select = "id, name, strategy, params, token_addresses, start_capital, created_at";
-  const lab = await db.from("agents").select(select).like("name", "Lab · % Vol Trend%").order("name");
+  // "Lab · Vol Trend%" catches the portfolio agent, whose name has no coin before "Vol Trend".
+  const lab = await db.from("agents").select(select).or("name.like.Lab · % Vol Trend%,name.like.Lab · Vol Trend%").order("name");
   const twins = await db.from("agents").select(select).like("name", "Paper % Vol Trend%").order("name");
   if (lab.error || twins.error) throw new Error((lab.error ?? twins.error)!.message);
   const agents = [...(lab.data ?? []), ...(twins.data ?? [])];
