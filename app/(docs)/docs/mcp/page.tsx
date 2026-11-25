@@ -23,7 +23,7 @@ const SETUP: { id: string; title: string; text: string; snippets: { label?: stri
   {
     id: "setup-claude-desktop",
     title: "Claude Desktop and claude.ai",
-    text: "Without a key: Settings, Connectors, Add custom connector, and paste the URL. With a key, add it to claude_desktop_config.json (Settings, Developer, Edit Config) through mcp-remote, which needs Node.js, then restart Claude. The header is split into an env value because Claude Desktop on Windows does not escape spaces in args.",
+    text: "Without a key: Settings, Connectors, Add custom connector, and paste the URL. With a key, add the zolva package to claude_desktop_config.json (Settings, Developer, Edit Config), which needs Node.js, then restart Claude.",
     snippets: [
       { label: "Without a key", code: URL },
       {
@@ -32,8 +32,8 @@ const SETUP: { id: string; title: string; text: string; snippets: { label?: stri
   "mcpServers": {
     "zolva": {
       "command": "npx",
-      "args": ["mcp-remote", "${URL}", "--header", "Authorization:\${ZOLVA_AUTH}"],
-      "env": { "ZOLVA_AUTH": "Bearer ${KEY}" }
+      "args": ["-y", "zolva"],
+      "env": { "ZOLVA_API_KEY": "${KEY}" }
     }
   }
 }`,
@@ -99,6 +99,24 @@ bearer_token_env_var = "ZOLVA_KEY"`,
     url: "${URL}"
     headers:
       Authorization: "Bearer ${KEY}"`,
+      },
+    ],
+  },
+  {
+    id: "setup-stdio",
+    title: "Any client that runs local servers: npx zolva",
+    text: "For clients that only start local (stdio) servers. The zolva package on npm forwards every message to the URL above, so it has the same tools. Needs Node.js 18 or newer. Leave env out for read-only use.",
+    snippets: [
+      {
+        code: `{
+  "mcpServers": {
+    "zolva": {
+      "command": "npx",
+      "args": ["-y", "zolva"],
+      "env": { "ZOLVA_API_KEY": "${KEY}" }
+    }
+  }
+}`,
       },
     ],
   },
@@ -190,7 +208,7 @@ export default function Mcp() {
 
       <H2 id="prerequisites">Prerequisites</H2>
       <ul>
-        <li>An MCP client that supports remote (HTTP) servers. Claude Desktop with a key also needs Node.js, for mcp-remote.</li>
+        <li>An MCP client that supports remote (HTTP) servers, or Node.js 18 or newer to run the zolva package for clients that only start local servers (and for Claude Desktop with a key).</li>
         <li>
           For the keyed tools: a Zolva account and an API key from <Link href="/settings#api-keys">Settings, API keys</Link>. Tick only the scopes you need; the secret is shown once.
         </li>

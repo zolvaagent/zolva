@@ -9,6 +9,7 @@ import { activityBody, agentBody, agentsBody, consensusAnswer, consensusBody, ma
 import { DISCLAIMER } from "./format";
 import { cachedBody } from "./http";
 import { KEYED_INSTRUCTIONS, registerActionTools } from "./mcp-actions";
+import { MCP_VERSION } from "./mcp-version";
 import { filterAgents, filterByAssetClass, filterTrades, READ_TOOLS } from "./tools";
 
 /**
@@ -34,8 +35,6 @@ const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: 
 const json = (body: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(body) }] });
 const notFound = (message: string) => ({ content: [{ type: "text" as const, text: message }], isError: true });
 
-/** The version listed in the MCP Registry (server.json); bump both together. */
-export const MCP_VERSION = "1.2.0";
 
 export function createMcpServer(keyed?: { caller: ApiCaller; deps: ActionDeps }): McpServer {
   const instructions = keyed ? `${INSTRUCTIONS} ${KEYED_INSTRUCTIONS}` : INSTRUCTIONS;

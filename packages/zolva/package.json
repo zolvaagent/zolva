@@ -1,0 +1,43 @@
+{
+  "name": "zolva",
+  "version": "1.0.0",
+  "description": "Zolva's MCP server over stdio: trading agents on Robinhood Chain, every decision with its reason, backtests and paper agents.",
+  "mcpName": "app.zolvaagent/zolva",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "zolva": "bin/zolva.mjs"
+  },
+  "exports": {
+    ".": "./lib/bridge.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "zolva",
+    "trading-agents",
+    "robinhood-chain",
+    "paper-trading"
+  ],
+  "homepage": "https://zolvaagent.app/docs/mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zolvaagent/zolva.git",
+    "directory": "packages/zolva"
+  },
+  "bugs": {
+    "url": "https://github.com/zolvaagent/zolva/issues"
+  }
+}
