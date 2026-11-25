@@ -1035,3 +1035,12 @@ minute close after the payment, exits v1 and v2 (frozen values), costs 1x = the 
   few points at most, inside the noise.
 - The pre-registered real test stays as fixed: variant B on launches from 2026-11-19 (FROM=1795046400) once
   at least 7 days exist (from 2026-11-26), all gate lines.
+
+## Vol Trend tracker, week 2 (2026-11-25)
+`scripts/research-voltrend-tracker.mts`, latest hour 2026-11-25 01:00 UTC, 14 agents (8.7-10.8 days live).
+- All OK: the real engine replays every trade at the same hour and side, and the equity matches to 0.00%.
+- Long-only agents (SOL, XRP, NEAR, ZEC, BTC, ETH): flat in cash, 0 entries (backtest pace ~0.2-0.5 by now);
+  holding the same coin lost 8-21%.
+- L+S agents: one short each, +2.6% to +3.3% while holding lost 7-20%; worst drops 3-5%, far inside the
+  backtest's 21-30%. The OI A/B twins: -0.0% to +1.7%; too early to compare (gate after 90 days).
+- No real-money signal yet: ~11 days and one trade per agent say the engine is right, not that the edge holds.
