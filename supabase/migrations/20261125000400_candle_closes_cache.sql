@@ -41,14 +41,15 @@ declare
   hit jsonb;
   built jsonb;
 begin
-  select data into hit from public.market_price_cache where p_from = candle_closes_cached.p_from and latest_ts = newest;
+  -- Qualified names: the parameter p_from has the same name as the table column.
+  select c.data into hit from public.market_price_cache c where c.p_from = candle_closes_cached.p_from and c.latest_ts = newest;
   if hit is not null then
     return hit;
   end if;
-  built := public.candle_closes(p_from);
-  insert into public.market_price_cache (p_from, latest_ts, data)
-  values (p_from, newest, built)
-  on conflict (p_from) do update set latest_ts = excluded.latest_ts, data = excluded.data, built_at = now();
+  built := public.candle_closes(candle_closes_cached.p_from);
+  insert into public.market_price_cache as c (p_from, latest_ts, data)
+  values (candle_closes_cached.p_from, newest, built)
+  on conflict on constraint market_price_cache_pkey do update set latest_ts = excluded.latest_ts, data = excluded.data, built_at = now();
   return built;
 end;
 $$;
