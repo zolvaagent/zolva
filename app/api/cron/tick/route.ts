@@ -7,6 +7,7 @@ import { clearMarketCache } from "@/lib/data/market";
 import { refreshVerifyStatuses } from "@/lib/data/verify-status";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
+import { runGuardians } from "@/lib/guardian/runner";
 import { runLighterAgents, type LighterBinding, type PerpsLiveResult } from "@/lib/live/perps-runner";
 import { runLiveAgents, type LiveResult } from "@/lib/live/runner";
 import { hourlyMembershipUpkeep } from "@/lib/membership";
@@ -58,12 +59,15 @@ export async function POST(request: NextRequest) {
     refreshed: 0,
     note: cause instanceof Error ? cause.message : String(cause),
   }));
+  // Wallet Guardian: stop loss and take profit alerts on users' own holdings. Read only, best effort,
+  // after the agents so it never delays them.
+  const guardian = await runGuardians(client).catch((cause: unknown) => ({ error: cause instanceof Error ? cause.message.slice(0, 200) : String(cause) }));
   // README badge: re-check a few public agents with Verify, oldest result first. Best effort, last, so it
   // never delays prices or agents.
   const verify = await refreshVerifyStatuses(client).catch((cause: unknown) => ({ error: cause instanceof Error ? cause.message : String(cause) }));
   const liveOk = !("error" in live) && live.failed.length === 0;
   const perpsOk = !("error" in perps) && perps.failed.length === 0;
   const ok = ingest.failed.length === 0 && agents.failed.length === 0 && liveOk && perpsOk;
-  return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents, live, perps, membership, verify }, { status: ok ? 200 : 502 });
+  return NextResponse.json({ ok, durationMs: Date.now() - startedAt, ingest, agents, live, perps, membership, guardian, verify }, { status: ok ? 200 : 502 });
 }
 

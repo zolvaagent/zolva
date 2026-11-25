@@ -11,6 +11,7 @@ import type { Decision } from "@/lib/engine/engine";
 import { DEVLOG } from "@/lib/devlog";
 import { db } from "@/lib/supabase";
 import { whatsNewItems } from "@/lib/whats-new";
+import { unreadAlertCount } from "@/lib/guardian/data";
 
 export const metadata: Metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -33,12 +34,14 @@ export default async function DashboardPage() {
   }
 
   const client = db();
-  const [agents, everyone, symbols, credits, tier] = await Promise.all([
+  const [agents, everyone, symbols, credits, tier, guardianUnread] = await Promise.all([
     listAgentsByOwner(client, address),
     listAgents(client),
     tokenSymbols(client),
     getCredits(client, address),
     storedTier(client, address),
+    // Extra: the dashboard still loads if Guardian alerts cannot be counted.
+    unreadAlertCount(client, address).catch(() => 0),
   ]);
   const curves = await equityCurves(client, agents.map((agent) => agent.id));
 
@@ -65,5 +68,5 @@ export default async function DashboardPage() {
     : (everyone
         .filter((agent) => agent.status === "active" && agent.published && agent.venue === "spot" && agent.runs >= 72 && agent.tokens.length <= STUDIO_MAX_MARKETS && (STUDIO_STRATEGIES as readonly string[]).includes(agent.strategy))
         .sort((a, b) => b.returnPct - a.returnPct)[0] ?? null);
-  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} tier={tier} maxActive={TIERS[tier].activeAgents} starter={starter} whatsNew={whatsNewItems(DEVLOG)} />;
+  return <Dashboard address={address} agents={agents} curves={Object.fromEntries(curves)} latest={latest} top={top} credits={credits} tier={tier} maxActive={TIERS[tier].activeAgents} starter={starter} whatsNew={whatsNewItems(DEVLOG)} guardianUnread={guardianUnread} />;
 }

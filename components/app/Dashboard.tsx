@@ -27,6 +27,8 @@ type Props = {
   starter: AgentSummary | null;
   /** Latest dev log entries; the card shows the ones this browser has not closed yet. */
   whatsNew: WhatsNewItem[];
+  /** Unread Wallet Guardian alerts (stop loss or take profit hit on the user's own holdings). */
+  guardianUnread: number;
 };
 
 /** Agent cards shown before "Show more": with the Build card that fills three rows of two. */
@@ -37,7 +39,7 @@ function greeting() {
   return hour < 5 ? "Good night" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-export function Dashboard({ address, agents, curves, latest, top, credits, tier, maxActive, starter, whatsNew }: Props) {
+export function Dashboard({ address, agents, curves, latest, top, credits, tier, maxActive, starter, whatsNew, guardianUnread }: Props) {
   const active = agents.filter((agent) => agent.status === "active");
   // Paper totals leave real money agents out: their dollars are not virtual.
   const paper = agents.filter((agent) => !agent.live);
@@ -128,6 +130,18 @@ export function Dashboard({ address, agents, curves, latest, top, credits, tier,
       </div>
 
       {/* A new account sees its first launch instead: updates mean little before an agent runs. */}
+      {guardianUnread > 0 && (
+        <Link className="card guardian-callout" href="/guardian">
+          <i className="ph ph-shield-warning" aria-hidden="true" />
+          <span>
+            <strong>
+              {guardianUnread} new Guardian {guardianUnread === 1 ? "alert" : "alerts"}
+            </strong>
+            <span className="muted"> A stop loss or take profit on your own wallet was hit.</span>
+          </span>
+          <span className="text-link">View</span>
+        </Link>
+      )}
       {agents.length > 0 && <WhatsNew items={whatsNew} />}
 
       {/* A new account has nothing to total yet: point it at its first launch instead. */}

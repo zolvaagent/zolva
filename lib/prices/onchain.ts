@@ -15,7 +15,7 @@ import { createPublicClient, encodeAbiParameters, http, keccak256, parseAbi, typ
 /** Uniswap v4 PoolManager on Robinhood Chain (found 2026-10-15; holds every v4 pool's state). */
 export const POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951";
 /** Standard Multicall3, deployed on Robinhood Chain. */
-const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
+export const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11";
 export const USDG_DECIMALS = 6;
 /** Storage slot of `mapping(PoolId => Pool.State) pools` in the v4 PoolManager. */
 const V4_POOLS_SLOT = 6n;

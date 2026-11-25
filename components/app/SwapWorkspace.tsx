@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { Hex } from "viem";
 
 import { RecurringBuy, type RecurringToken } from "@/components/app/RecurringBuy";
 import { SwapDialog } from "@/components/app/SwapDialog";
@@ -35,7 +36,7 @@ function amount(value: number): string {
  * The swap page: the swap card, and beside it the chart of the token being bought and the
  * wallet's latest transactions with Zolva's tokens (refreshed after each swap).
  */
-export function SwapWorkspace({ address, loginMethod, recurringTokens }: { address: string | null; loginMethod: "privy" | "wallet" | null; recurringTokens: RecurringToken[] }) {
+export function SwapWorkspace({ address, loginMethod, recurringTokens, initialSell }: { address: string | null; loginMethod: "privy" | "wallet" | null; recurringTokens: RecurringToken[]; initialSell?: Hex }) {
   // Swap once, or DCA (recurring buys with real money, components/app/RecurringBuy.tsx), switched inside the card.
   const [mode, setMode] = useState<"swap" | "dca">("swap");
   const modeTabs = (
@@ -80,7 +81,7 @@ export function SwapWorkspace({ address, loginMethod, recurringTokens }: { addre
       <div className="swap-workspace__main">
         {/* Kept mounted so the swap card keeps its pair and amounts while DCA is open. */}
         <div className="swap-workspace__card" hidden={mode !== "swap"}>
-          <SwapDialog address={address} loginMethod={loginMethod} inline head={modeTabs} onPair={setBuy} onSwapped={() => setHistoryVersion((version) => version + 1)} />
+          <SwapDialog address={address} loginMethod={loginMethod} inline initialSell={initialSell} head={modeTabs} onPair={setBuy} onSwapped={() => setHistoryVersion((version) => version + 1)} />
         </div>
         {mode === "dca" && <RecurringBuy tokens={recurringTokens} head={modeTabs} />}
       </div>

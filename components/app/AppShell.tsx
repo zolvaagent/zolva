@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { useAuth } from "@/components/ui/Providers";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
@@ -20,6 +20,8 @@ const NAV = [
   { href: "/swap", label: "Swap", icon: "arrows-left-right", tabbar: false },
   { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
   { href: "/activity", label: "Activity", icon: "pulse" },
+  // Sidebar only: stop loss alerts on the user's own wallet (lib/guardian). Shows unread alerts.
+  { href: "/guardian", label: "Guardian", icon: "shield-check", tabbar: false },
   // Sidebar only, like Swap.
   { href: "/stats", label: "Stats", icon: "chart-bar", tabbar: false },
   // Sidebar only: memecoin agents on Rushr (docs/rushr-integration-plan.md).
@@ -49,10 +51,34 @@ function Avatar({ address }: { address: string | null }) {
   );
 }
 
+/** Unread Wallet Guardian alerts of the logged-in account; 0 logged out. Refreshes on navigation. */
+function useGuardianUnread(address: string | null, pathname: string): number {
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!address) return;
+    let cancelled = false;
+    fetch("/api/guardian/alerts")
+      .then((response) => (response.ok ? (response.json() as Promise<{ unread?: number }>) : null))
+      .then((body) => {
+        if (!cancelled) setUnread(Number(body?.unread ?? 0));
+      })
+      .catch(() => {});
+    // The Guardian page marks alerts read and says so.
+    const onRead = () => setUnread(0);
+    window.addEventListener("zolva:guardian-read", onRead);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("zolva:guardian-read", onRead);
+    };
+  }, [address, pathname]);
+  return address ? unread : 0;
+}
+
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { address, openLogin, logout } = useAuth();
+  const guardianUnread = useGuardianUnread(address, pathname);
   const loginLabel = useSyncExternalStore(noSubscription, readLoginLabel, () => "Signed in");
   return (
     <aside className="app-side" aria-label="App">
@@ -68,6 +94,11 @@ export function AppSidebar() {
               <i className={`ph ph-${item.icon}`} />
               {item.label}
               {"badge" in item && item.badge ? <span className="app-link__badge">{item.badge}</span> : null}
+              {item.href === "/guardian" && guardianUnread > 0 ? (
+                <span className="app-link__badge app-link__badge--alert" aria-label={`${guardianUnread} new alerts`}>
+                  {guardianUnread}
+                </span>
+              ) : null}
             </Link>
           </span>
         ))}

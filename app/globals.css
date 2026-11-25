@@ -12475,3 +12475,157 @@ td .leaderboard__pnl {
 .ask-agent__credits--low {
   color: var(--color-loss);
 }
+
+/* Wallet Guardian (/guardian), its sidebar badge and dashboard callout. */
+.app-link__badge--alert {
+  background: var(--color-loss);
+  color: #fff;
+}
+
+.guardian-callout {
+  display: flex;
+  align-items: center;
+  gap: var(--space-200);
+  margin-bottom: var(--space-300);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.guardian-callout > i {
+  flex: none;
+  font-size: 28px;
+  color: var(--color-loss);
+}
+
+.guardian-callout > span:nth-child(2) {
+  flex: 1;
+}
+
+.guardian-alerts__list,
+.guardian-holdings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guardian-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-100) var(--space-200);
+  padding: var(--space-200) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.guardian-alert--new .guardian-alert__body strong {
+  color: var(--color-loss);
+}
+
+.guardian-alert__body {
+  flex: 1;
+  min-width: 220px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.guardian-alert__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-75);
+  margin-top: var(--space-25);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.guardian-holding {
+  padding: var(--space-200) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.guardian-holding:first-child {
+  border-top: 0;
+}
+
+.guardian-holding__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-100) var(--space-200);
+}
+
+.guardian-holding__token {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-100);
+  min-width: 180px;
+}
+
+.guardian-holding__meta {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.guardian-guard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-75);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.guardian-actions {
+  display: flex;
+  gap: var(--space-75);
+}
+
+.guardian-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-100) var(--space-200);
+  margin-top: var(--space-200);
+  padding: var(--space-200);
+  border-radius: var(--radius-xl);
+  background: var(--color-tint);
+}
+
+.guardian-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-50);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.guardian-form__actions,
+.guardian-form__hint,
+.guardian-form__error {
+  grid-column: 1 / -1;
+}
+
+.guardian-form__actions {
+  display: flex;
+  gap: var(--space-75);
+}
+
+.guardian-form__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.guardian-form__error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-loss);
+}
+
+.guardian-note {
+  margin-top: var(--space-200);
+  font-size: 12px;
+  line-height: 16px;
+}

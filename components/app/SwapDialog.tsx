@@ -43,6 +43,8 @@ type Props = {
   /** Renders as a card on the page (/swap) instead of a dialog. */
   inline?: boolean;
   preset?: SwapPreset;
+  /** Opens with this token to sell for USDG, unlike preset still free to change (Wallet Guardian's "Sell"). */
+  initialSell?: Hex;
   /** Called with the swap's hash once it confirmed. */
   onSwapped?: (txHash: Hex) => Promise<void> | void;
   /** Told which token is being bought, whenever it changes (the swap page's chart follows it). */
@@ -102,15 +104,15 @@ function usdValue(token: SwapToken | null, raw: string | bigint | null): number 
  * USDG pool, or two through USDG), each signed by the user in Privy's window or the browser
  * wallet. Balances come from the logged in wallet.
  */
-export function SwapDialog({ address, loginMethod, open: openProp = false, onClose, preset, onSwapped, onPair, inline = false, head }: Props) {
+export function SwapDialog({ address, loginMethod, open: openProp = false, onClose, preset, initialSell, onSwapped, onPair, inline = false, head }: Props) {
   const open = inline || openProp;
   const { privy, openLogin } = useAuth();
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const picker = useRef<HTMLDialogElement>(null);
   const [listing, setListing] = useState<Listing | null>(null);
-  const [sellToken, setSellToken] = useState<Hex | null>(preset?.token ?? USDG);
-  const [buyToken, setBuyToken] = useState<Hex | null>(preset ? USDG : null);
+  const [sellToken, setSellToken] = useState<Hex | null>(preset?.token ?? initialSell ?? USDG);
+  const [buyToken, setBuyToken] = useState<Hex | null>(preset || initialSell ? USDG : null);
   const [amount, setAmount] = useState(preset?.amount ?? "");
   const [slippageBps, setSlippageBps] = useState<number>(DEFAULT_SLIPPAGE_BPS);
   const [settings, setSettings] = useState(false);

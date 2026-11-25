@@ -20,6 +20,7 @@ const ROWS: [string, (key: keyof typeof TIERS) => string][] = [
   ["Running agents at once", (key) => String(TIERS[key].activeAgents)],
   ["Strategy writer tries a day", (key) => String(TIERS[key].writerPerDay)],
   ["Questions to agents a day", (key) => String(TIERS[key].askPerDay)],
+  ["Wallet Guardian guards", (key) => String(TIERS[key].guardsMax)],
 ];
 
 export default function Token() {
