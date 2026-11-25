@@ -34,6 +34,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { inflateRawSync } from "node:zlib";
 
 import { BINANCE_FIRST_HOUR, BINANCE_SYMBOLS, binanceCloses, HOUR_MS } from "./binance-history.mts";
 
@@ -62,6 +63,35 @@ async function fundingHistory(symbol: string, until: number): Promise<[number, n
   const file = join(CACHE, `${symbol}-funding.json`);
   if (existsSync(file)) return JSON.parse(readFileSync(file, "utf8"));
   const rows: [number, number][] = [];
+  // fapi.binance.com is unreachable from some networks; data.binance.vision monthly files hold the same rates.
+  if (process.env.FUNDING_SOURCE === "vision") {
+    const first = new Date(BINANCE_FIRST_HOUR - 30 * 24 * HOUR_MS);
+    for (let y = first.getUTCFullYear(), m = first.getUTCMonth(); Date.UTC(y, m, 1) < until; m === 11 ? (y++, (m = 0)) : m++) {
+      const month = `${y}-${String(m + 1).padStart(2, "0")}`;
+      const url = `https://data.binance.vision/data/futures/um/monthly/fundingRate/${symbol}/${symbol}-fundingRate-${month}.zip`;
+      const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      if (response.status === 404) continue;
+      if (!response.ok) throw new Error(`${response.status} ${url}`);
+      const zip = Buffer.from(await response.arrayBuffer());
+      // One CSV per zip: local file header, then the deflated data (sizes read from the central directory).
+      const nameLength = zip.readUInt16LE(26);
+      const extraLength = zip.readUInt16LE(28);
+      const cd = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+      const compressedSize = zip.readUInt32LE(cd + 20);
+      const method = zip.readUInt16LE(8);
+      const body = zip.subarray(30 + nameLength + extraLength, 30 + nameLength + extraLength + compressedSize);
+      const csv = (method === 8 ? inflateRawSync(body) : body).toString("utf8");
+      for (const line of csv.split(String.fromCharCode(10))) {
+        const [time, , rate] = line.split(",");
+        if (/^\d+$/.test(time) && rate !== undefined && Number.isFinite(Number(rate))) rows.push([Number(time), Number(rate)]);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    rows.sort((a, b) => a[0] - b[0]);
+    mkdirSync(CACHE, { recursive: true });
+    writeFileSync(file, JSON.stringify(rows));
+    return rows;
+  }
   for (let from = BINANCE_FIRST_HOUR - 30 * 24 * HOUR_MS; from < until; ) {
     const url = `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${symbol}&startTime=${from}&endTime=${until}&limit=1000`;
     const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
