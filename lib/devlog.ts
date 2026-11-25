@@ -38,6 +38,29 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-25-guardian-telegram",
+    date: "2026-11-25",
+    area: "Real money",
+    title: "Wallet Guardian alerts on Telegram",
+    body: "Guardian alerts can now reach you on Telegram. On /guardian, tap Connect Telegram: it opens our bot with a one-time link that works for 15 minutes, and after you press Start, that chat gets a message whenever one of your stop losses or take profits fires, with a link that opens Swap ready to sell. It still only alerts and never sells for you. Send /stop, or tap Disconnect, to unlink. The in-app alerts stay as they were.",
+    sources: [
+      commit("de855ad"),
+      { label: "/guardian", href: "https://zolvaagent.app/guardian" },
+    ],
+  },
+  {
+    id: "2026-11-25-zolva-mcp-npx",
+    date: "2026-11-25",
+    area: "API & MCP",
+    title: "Zolva MCP in one line: npx @zolva/mcp",
+    body: "AI apps that only run local MCP servers, like Claude Desktop and Cursor, can now use Zolva with one line: npx -y @zolva/mcp. The package is a small bridge to our remote server at zolvaagent.app/mcp, so the tools are the same ones. The server is now version 1.3.0, and its MCP Registry entry lists the npm package next to the remote URL.",
+    sources: [
+      commit("40218fe"),
+      { label: "/docs/mcp", href: "https://zolvaagent.app/docs/mcp" },
+      { label: "@zolva/mcp on npm", href: "https://www.npmjs.com/package/@zolva/mcp" },
+    ],
+  },
+  {
     id: "2026-11-25-wallet-guardian",
     date: "2026-11-25",
     area: "Real money",
