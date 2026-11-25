@@ -1082,3 +1082,29 @@ equity was never written, so every 2022 return read -100% (commit with this note
 - Same lesson as the vault study: the edge in fast trading is execution (maker orders that earn the spread), not
   the signal. Our engine takes liquidity, so it pays the spread instead of earning it. Breakouts lose even at 0 cost.
 Not built. A maker-order scalper would be a different product (order placement, queue risk) and needs its own study.
+
+## Many-coin momentum portfolio (2026-11-25): Vol Trend portfolio PASSES up to 2x (3x borderline); cross-sectional NO-GO
+Owner: "go research again. jadilah ambisius ... research dari source lain". `scripts/research-portfolio-momentum.mts`,
+pre-registered in e1550e6. Literature: time-series momentum is the robust crypto effect; cross-sectional momentum
+(Liu, Tsyvinski & Wu, NBER w25882) is disputed as fragile (Springer s11408-025-00474-9). Universe: 19 Binance coins,
+2020-10 to now, including LUNA (cut 2022-05-13), FTT and SRM so dead coins count. 0.05% a fill, real funding,
+leverage on the portfolio's hourly return, liquidation at 5% (hourly, optimistic).
+**P1, Vol Trend on every coin, equal weight** (the shipped rule, unchanged):
+| | yearly compound | worst drop | years up | 2x costs | $ a week on $1,000 | pass |
+|---|---|---|---|---|---|---|
+| long 1x | +12% | 11% | 5 of 6 | +12% | 2.3 | yes |
+| long 2x | +24% | 21% | 5 of 6 | +23% | 4.7 | yes |
+| L+S 1x | +15% | 8% | 6 of 6 | +14% | 2.9 | yes |
+| **L+S 2x** | **+31%** | **15%** | 6 of 6 | +29% | **5.9** | yes |
+| L+S 3x | +47% | 22% | 6 of 6 | +43% | 9.0 | yes |
+- Check on two halves of the universe (not used for selection): L+S 2x passes on both (+34% / +27% a year, drops
+  19% / 21%); L+S 3x passes on half a (drop 27%) and fails on half b (drop 31%). So 2x is the robust ceiling; 3x
+  sits at the 30% limit.
+- Spreading the rule over many coins is what helps: one coin at 1x has drops of 20-28%; the portfolio at 2x has 15%.
+**P2, cross-sectional momentum (weekly top 3/5 by 7 or 28 day return)**: huge training returns (up to +80,000% at
+  3x in 2021) and drops of 37-100%; no rule is train-OK (every one has a training drop over 30%); many liquidate at
+  2-3x; test returns mostly negative. **NO-GO**, matching the replication papers.
+Caveats: equal weight rebalanced every hour without a cost for moving capital between coins (small, but not zero);
+  hourly closes (wicks would liquidate a leveraged account earlier); Binance spot prices and perp funding, not
+  Lighter's own. Next honest step: a paper Lab agent running this portfolio (Development: a multi-market Vol Trend
+  with an account-level leverage setting), 90 days before any real money.
