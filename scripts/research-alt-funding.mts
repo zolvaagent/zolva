@@ -22,6 +22,14 @@
  * long + short drop that failed round 2; does a crowded-long cap help.
  *
  *   node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/research-alt-funding.mts
+ *
+ * Leverage check (2026-11-25, owner "ya, jalankan tes leverage dan funding carry"; fixed before the first run):
+ *   LEV=2 or 3 multiplies the volatility-target size and its cap (size = min(LEV, LEV x 20% / vol)); rules,
+ *   stop (15% from entry), costs and real funding unchanged. Liquidation: when the account value falls to 5% of
+ *   the position's notional at an hourly close, the position is closed at that close and the account keeps what
+ *   is left (hourly closes only: real wicks would liquidate earlier, so this is optimistic). RULES=<regex> limits
+ *   the printout to matching rule names. Judged with the same pass rule; also reported: liquidations, yearly
+ *   compound return and the average $ per week on $1,000.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -38,6 +46,8 @@ const DRAWDOWN_LIMIT = 0.3;
 const VOL_HOURS = 30 * 24;
 const TARGET_VOL = 0.2;
 const STOP = 0.15;
+const LEV = Number(process.env.LEV ?? 1);
+const MAINTENANCE = 0.05;
 const CACHE = process.env.FUNDING_CACHE ?? join(tmpdir(), "zolva-binance-funding");
 
 type Rule = { base: "gate" | "breakout"; longCap: number | null; shorts: "none" | "any" | "f0" | "f10" };
@@ -99,7 +109,7 @@ function rollingVol(closes: number[], window: number): Float64Array {
 
 type Market = { closes: number[]; funding: number[]; firstReal: number };
 
-function run(rule: Rule, market: Market): { equity: Float64Array; trades: number } {
+function run(rule: Rule, market: Market): { equity: Float64Array; trades: number; liquidations: number } {
   const { closes, funding, firstReal } = market;
   const gateHours = rule.base === "gate" ? 50 * 24 : 7 * 24;
   const sma = rollingMean(closes, gateHours);
@@ -109,7 +119,7 @@ function run(rule: Rule, market: Market): { equity: Float64Array; trades: number
   const high36 = rollingExtreme(closes, 36, true);
   const vol = rollingVol(closes, VOL_HOURS);
   const f7 = rollingMean(funding, 168).map((m) => m * 168 * (365 / 7));
-  const wanted = (i: number) => Math.min(1, TARGET_VOL / vol[i]);
+  const wanted = (i: number) => Math.min(LEV, (LEV * TARGET_VOL) / vol[i]);
 
   const equity = new Float64Array(closes.length).fill(1);
   let cash = 1;
@@ -119,12 +129,21 @@ function run(rule: Rule, market: Market): { equity: Float64Array; trades: number
   let stopRef = 0;
   let margin = 0;
   let trades = 0;
+  let liquidations = 0;
   const value = (price: number) => (side === 1 ? cash + quantity * price : side === -1 ? cash + margin + quantity * (entry - price) : cash);
 
   for (let i = 1; i < closes.length; i++) {
     const price = closes[i];
     // real funding paid at this hour on the position held into it
     if (funding[i] !== 0 && side !== 0) cash -= side * quantity * price * funding[i];
+    // Liquidation (leverage check only): account value at or below 5% of the open notional.
+    if (side !== 0 && value(price) <= MAINTENANCE * quantity * price) {
+      cash = Math.max(0, value(price) - quantity * price * COST);
+      side = 0;
+      quantity = 0;
+      margin = 0;
+      liquidations++;
+    }
     const ready = i - firstReal > Math.max(gateHours, VOL_HOURS, 168) && vol[i] > 0;
     if (ready) {
       const up = price > sma[i] * 1.03;
@@ -180,9 +199,9 @@ function run(rule: Rule, market: Market): { equity: Float64Array; trades: number
         }
       }
     }
-    equity[i] = value(price);
+    equity[i] = Math.max(0, value(price));
   }
-  return { equity, trades };
+  return { equity, trades, liquidations };
 }
 
 function stats(equity: ArrayLike<number>, hours: number[], from: number, to: number) {
@@ -224,11 +243,11 @@ async function main() {
     console.log(`${coin.padEnd(5)} funding paid by longs per year ${yearly.map((v) => pct(v).padStart(6)).join("")}`);
   }
 
-  type Coin = { years: number[]; trainRet: number; trainDrop: number; wholeDrop: number; testRet: number; last30: number; trades: number };
+  type Coin = { years: number[]; trainRet: number; trainDrop: number; wholeDrop: number; testRet: number; last30: number; trades: number; liquidations: number; total: number };
   const rows = GRID.map((rule) => {
     const perCoin: Record<string, Coin> = {};
     for (const coin of COINS) {
-      const { equity, trades } = run(rule, markets[coin]);
+      const { equity, trades, liquidations } = run(rule, markets[coin]);
       const train = stats(equity, hours, START, TRAIN_END);
       perCoin[coin] = {
         years: YEARS.map((y) => stats(equity, hours, Date.UTC(y, 0, 1), Date.UTC(y + 1, 0, 1)).ret),
@@ -238,6 +257,8 @@ async function main() {
         testRet: stats(equity, hours, TRAIN_END, now + HOUR_MS).ret,
         last30: stats(equity, hours, now - 30 * 24 * HOUR_MS, now + HOUR_MS).ret,
         trades,
+        liquidations,
+        total: stats(equity, hours, START, now + HOUR_MS).ret,
       };
     }
     return { rule, perCoin };
@@ -252,12 +273,15 @@ async function main() {
   const locked = new Set(survivors.slice(0, 3));
 
   console.log(`\n${GRID.length} rules x ${COINS.length} coins, train-OK on >= ${need}: ${survivors.length}. All rules (locked marked *):`);
+  const filter = process.env.RULES ? new RegExp(process.env.RULES) : null;
+  const yearsSpan = (now - START) / (365 * 24 * HOUR_MS);
   for (const row of rows) {
+    if (filter && !filter.test(name(row.rule))) continue;
     const passed = COINS.filter((coin) => passes(row.perCoin[coin]));
     console.log(`\n${locked.has(row) ? "*" : " "} ${name(row.rule)}  -> passes on ${passed.length}/${COINS.length}${locked.has(row) ? (passed.length >= need ? "  PASS" : "  FAIL") : ""}`);
     for (const coin of COINS) {
       const c = row.perCoin[coin];
-      console.log(`    ${coin.padEnd(5)} ${c.years.map((r) => pct(r).padStart(6)).join("")}  drop ${pct(c.wholeDrop).padStart(4)}  test ${pct(c.testRet).padStart(5)}  last30d ${pct(c.last30).padStart(4)}  trades ${c.trades}`);
+      console.log(`    ${coin.padEnd(5)} ${c.years.map((r) => pct(r).padStart(6)).join("")}  drop ${pct(c.wholeDrop).padStart(4)}  test ${pct(c.testRet).padStart(5)}  last30d ${pct(c.last30).padStart(4)}  trades ${c.trades}  liq ${c.liquidations}  cagr ${pct(Math.pow(1 + c.total, 1 / yearsSpan) - 1).padStart(5)}  $/wk on $1k ${((1000 * (Math.pow(1 + c.total, 1 / yearsSpan) - 1)) / 52).toFixed(1)}`);
     }
   }
 }
