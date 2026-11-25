@@ -1067,3 +1067,18 @@ L+S f0; liquidation at 5% of notional on hourly closes, so optimistic):
 Verdict: $100 a week from $1,000 is not reachable with anything tested; the best tested rule at 1x averages about
 $2-6 a week, at 3x about $4-18 a week with half the account at risk in a bad year. A weekly figure depends on
 capital, not on finding a stronger rule.
+
+## Scalping round 2: 5 minute perps with leverage (2026-11-25): NO-GO
+Owner: "we need to scalping maybe ... a bit aggresive" and "also can use leverage". `scripts/research-scalp-lev.mts`,
+pre-registered in 2fd5268 (round 1 was docs/scalping-research.md). Binance perp 1 minute klines folded into 5 minute
+bars, 2022-01 to 2026-10, SOL and XRP; 16 rules (Bollinger mean reversion, range breakout, RSI(2) with a trend
+filter) x 1x/2x/3x; 0.03% a fill (Lighter has no fee; this is slippage). One fix after the first run: the first bar's
+equity was never written, so every 2022 return read -100% (commit with this note).
+- At 0.03% a fill every rule loses 60-100% at 1x (5,300-24,000 trades); leverage only loses faster. No rule is
+  train-OK on either coin, so nothing was locked: **NO-GO**.
+- Without any cost there is a real short-term reversal effect: RSI(2) long + short made +4,451% (SOL) and +1,082%
+  (XRP) gross over 2022-2026 with ~65% winners. But that is about 0.02% per trade, below one fill of slippage:
+  at 0.01% a fill only RSI(2) a5 stays slightly positive (+3% to +87% total, drops 29-39%); at 0.02% all lose.
+- Same lesson as the vault study: the edge in fast trading is execution (maker orders that earn the spread), not
+  the signal. Our engine takes liquidity, so it pays the spread instead of earning it. Breakouts lose even at 0 cost.
+Not built. A maker-order scalper would be a different product (order placement, queue risk) and needs its own study.

@@ -178,6 +178,7 @@ function simulate(b: Bars, ind: Indicators, rule: Rule, lev: number): Result {
   let pending = 0; // signal to enter at the next open
   let trades = 0, wins = 0, liquidations = 0;
   const curve = new Float64Array(n);
+  curve[0] = 1; // bug fix after the first run: the first bar was never written, so every 2022 return read -100%
   const close = (px: number) => {
     const pnl = side * (px / entry - 1) * notional - notional * COST;
     if (pnl > 0) wins++;
