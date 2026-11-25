@@ -77,6 +77,14 @@ export const env = {
   get privyAuthorizationKey(): string | null {
     return optional("PRIVY_AUTHORIZATION_KEY");
   },
+  /** Telegram bot (Wallet Guardian alerts). Null keeps Telegram off; alerts stay in the app. */
+  get telegramBotToken(): string | null {
+    return optional("TELEGRAM_BOT_TOKEN");
+  },
+  /** The bot's public username (without @), for the t.me link on /guardian. */
+  get telegramBotUsername(): string | null {
+    return optional("TELEGRAM_BOT_USERNAME");
+  },
   /** Shared secret for the zolva-lighter Worker (perps live); null keeps perps live off. */
   get lighterInternalToken(): string | null {
     return optional("LIGHTER_INTERNAL_TOKEN");

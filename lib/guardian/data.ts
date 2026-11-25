@@ -53,6 +53,8 @@ export type GuardianView = {
   maxGuards: number;
   /** Start of the hour of the latest close (unix seconds), or null without prices. */
   pricedAt: number | null;
+  /** Telegram alerts: whether the bot is set up, and whether this account has a chat linked. */
+  telegram: { available: boolean; connected: boolean };
 };
 
 export class GuardianInputError extends Error {}
@@ -113,13 +115,15 @@ type AlertRow = { id: number; guardian_id: string; wallet: string; token_address
 
 /** Everything the /guardian page shows: wallets, what they hold (read now), guards and the latest alerts. */
 export async function loadGuardian(db: SupabaseClient, owner: string): Promise<GuardianView> {
-  const [wallets, tokens, prices, maxGuards, guards, alerts] = await Promise.all([
+  const [wallets, tokens, prices, maxGuards, guards, alerts, link] = await Promise.all([
     watchedWallets(db, owner),
     guardianTokens(db),
     latestCloses(db),
     maxGuardsFor(db, owner),
     db.from("guardians").select("id, wallet, token_address, basis_price, stop_loss_pct, take_profit_pct, status, triggered_at, created_at").eq("owner", owner).order("created_at"),
     db.from("guardian_alerts").select("id, guardian_id, wallet, token_address, kind, hour, price, basis_price, quantity, reasoning, read_at").eq("owner", owner).order("created_at", { ascending: false }).limit(50),
+    // Extra: the page still loads before the Telegram table exists.
+    db.from("telegram_links").select("chat_id").eq("owner", owner).maybeSingle(),
   ]);
   if (guards.error) throw new Error(`Loading guards failed: ${guards.error.message}`);
   if (alerts.error) throw new Error(`Loading alerts failed: ${alerts.error.message}`);
@@ -177,6 +181,7 @@ export async function loadGuardian(db: SupabaseClient, owner: string): Promise<G
     })),
     maxGuards,
     pricedAt: prices.hour,
+    telegram: { available: Boolean(env.telegramBotToken && env.telegramBotUsername), connected: !link.error && link.data?.chat_id != null },
   };
 }
 

@@ -34,7 +34,8 @@
     "lighter:signer": "node scripts/fetch-lighter-signer.mjs",
     "lighter:dev": "wrangler dev -c workers/lighter/wrangler.jsonc",
     "lighter:deploy": "node scripts/fetch-lighter-signer.mjs && wrangler deploy -c workers/lighter/wrangler.jsonc",
-    "lighter:register": "node scripts/lighter-register-key.mjs"
+    "lighter:register": "node scripts/lighter-register-key.mjs",
+    "telegram:webhook": "node scripts/telegram-webhook.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",

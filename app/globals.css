@@ -12629,3 +12629,33 @@ td .leaderboard__pnl {
   font-size: 12px;
   line-height: 16px;
 }
+
+/* /guardian: Telegram alerts card. */
+.guardian-telegram {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-100) var(--space-200);
+  margin-bottom: var(--space-300);
+}
+
+.guardian-telegram > i {
+  flex: none;
+  font-size: 28px;
+  color: #29a9eb;
+}
+
+.guardian-telegram__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-25);
+  min-width: 220px;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.guardian-telegram__actions {
+  display: flex;
+  gap: var(--space-75);
+}

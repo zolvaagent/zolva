@@ -93,6 +93,8 @@ async function main() {
       // Optional: where USDG credit top-ups go. Without it they go to X402_PAY_TO.
       ...(dev.CREDITS_PAY_TO ? { CREDITS_PAY_TO: dev.CREDITS_PAY_TO } : {}),
       ...(dev.AI_DAILY_BUDGET_USD ? { AI_DAILY_BUDGET_USD: dev.AI_DAILY_BUDGET_USD } : {}),
+      // Optional: the Wallet Guardian Telegram bot (npm run telegram:webhook registers its webhook).
+      ...(dev.TELEGRAM_BOT_TOKEN && dev.TELEGRAM_BOT_USERNAME ? { TELEGRAM_BOT_TOKEN: dev.TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME: dev.TELEGRAM_BOT_USERNAME } : {}),
       // Optional: trench agents (lib/trench). The key encrypts each agent's Rushr API key; without it
       // Rushr sign-up is off. X_API_KEY (getxapi.com) runs the per-token X checks.
       ...(dev.TRENCH_KEY_SECRET ? { TRENCH_KEY_SECRET: dev.TRENCH_KEY_SECRET } : {}),

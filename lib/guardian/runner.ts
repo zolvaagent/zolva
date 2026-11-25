@@ -4,8 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { checkGuard } from "@/lib/guardian/check";
 import { balanceKey, guardianTokens, latestCloses, readBalances } from "@/lib/guardian/data";
+import { env } from "@/lib/env";
+import { alertMessage, sendTelegram, type GuardianAlertMessage } from "@/lib/telegram";
 
-export type GuardianRunResult = { hour: string | null; checked: number; alerts: number; failed: string[] };
+export type GuardianRunResult = { hour: string | null; checked: number; alerts: number; telegram: number; failed: string[] };
 
 type ArmedRow = { id: string; owner: string; wallet: string; token_address: string; basis_price: number; stop_loss_pct: number; take_profit_pct: number | null; checked_hour: string | null };
 
@@ -18,7 +20,7 @@ type ArmedRow = { id: string; owner: string; wallet: string; token_address: stri
  */
 export async function runGuardians(db: SupabaseClient): Promise<GuardianRunResult> {
   const prices = await latestCloses(db);
-  if (prices.hour === null) return { hour: null, checked: 0, alerts: 0, failed: [] };
+  if (prices.hour === null) return { hour: null, checked: 0, alerts: 0, telegram: 0, failed: [] };
   const hourIso = new Date(prices.hour * 1000).toISOString();
 
   const { data, error } = await db
@@ -29,7 +31,7 @@ export async function runGuardians(db: SupabaseClient): Promise<GuardianRunResul
     .limit(2000);
   if (error) throw new Error(`Loading guards failed: ${error.message}`);
   const guards = data as ArmedRow[];
-  if (!guards.length) return { hour: hourIso, checked: 0, alerts: 0, failed: [] };
+  if (!guards.length) return { hour: hourIso, checked: 0, alerts: 0, telegram: 0, failed: [] };
 
   const tokens = new Map((await guardianTokens(db)).map((token) => [token.address, token]));
   const pairs = guards.flatMap((guard) => {
@@ -40,6 +42,8 @@ export async function runGuardians(db: SupabaseClient): Promise<GuardianRunResul
 
   let alerts = 0;
   const failed: string[] = [];
+  // New alerts to also send on Telegram, by owner.
+  const outbox: { owner: string; message: GuardianAlertMessage }[] = [];
   for (const guard of guards) {
     try {
       const price = prices.closes.get(guard.token_address);
@@ -70,6 +74,10 @@ export async function runGuardians(db: SupabaseClient): Promise<GuardianRunResul
         );
         if (alertError) throw new Error(alertError.message);
         alerts += 1;
+        outbox.push({
+          owner: guard.owner,
+          message: { symbol: tokens.get(guard.token_address)?.symbol ?? "?", kind: fired.kind, price: price.close, basisPrice: Number(guard.basis_price), quantity, tokenAddress: guard.token_address },
+        });
       }
       const { error: updateError } = await db
         .from("guardians")
@@ -80,5 +88,23 @@ export async function runGuardians(db: SupabaseClient): Promise<GuardianRunResul
       failed.push(`${guard.id}: ${cause instanceof Error ? cause.message.slice(0, 120) : "unknown"}`);
     }
   }
-  return { hour: hourIso, checked: guards.length, alerts, failed };
+  return { hour: hourIso, checked: guards.length, alerts, telegram: await sendToTelegram(db, outbox), failed };
+}
+
+/** Sends new alerts to the owners' linked Telegram chats. Best effort: the in-app alert is already stored. */
+async function sendToTelegram(db: SupabaseClient, outbox: { owner: string; message: GuardianAlertMessage }[]): Promise<number> {
+  const token = env.telegramBotToken;
+  if (!token || !outbox.length) return 0;
+  const { data, error } = await db.from("telegram_links").select("owner, chat_id").in("owner", [...new Set(outbox.map((item) => item.owner))]).not("chat_id", "is", null);
+  if (error) {
+    console.error(`Loading Telegram links failed: ${error.message}`);
+    return 0;
+  }
+  const chatOf = new Map(((data ?? []) as { owner: string; chat_id: number }[]).map((row) => [row.owner, Number(row.chat_id)]));
+  let sent = 0;
+  for (const item of outbox) {
+    const chat = chatOf.get(item.owner);
+    if (chat !== undefined && (await sendTelegram(token, chat, alertMessage(item.message)))) sent += 1;
+  }
+  return sent;
 }

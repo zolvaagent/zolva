@@ -141,6 +141,8 @@ export function GuardianPanel({ data }: { data: GuardianView }) {
         </div>
       </div>
 
+      <TelegramCard telegram={data.telegram} />
+
       {data.alerts.length > 0 && (
         <section className="card guardian-alerts" aria-labelledby="guardian-alerts-title">
           <h2 className="card__title" id="guardian-alerts-title">
@@ -268,5 +270,73 @@ function AlertRow({ alert }: { alert: AlertView }) {
         Sell on Zolva Swap
       </Link>
     </li>
+  );
+}
+
+/** Connect or disconnect Telegram alerts. Opens the bot with a one-time code; the page refreshes when you come back. */
+function TelegramCard({ telegram }: { telegram: GuardianView["telegram"] }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [waiting, setWaiting] = useState(false);
+
+  // Back from Telegram: refresh so "Connected" shows.
+  useEffect(() => {
+    if (!waiting) return;
+    const onFocus = () => router.refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [waiting, router]);
+
+  if (!telegram.available) return null;
+
+  const connect = async () => {
+    setBusy(true);
+    const response = await fetch("/api/guardian/telegram", { method: "POST" }).catch(() => null);
+    const body = (await response?.json().catch(() => null)) as { url?: string; error?: string } | null;
+    setBusy(false);
+    if (!response?.ok || !body?.url) return toast(body?.error ?? "Could not create a link. Please try again.");
+    setWaiting(true);
+    window.open(body.url, "_blank", "noopener,noreferrer");
+  };
+
+  const disconnect = async () => {
+    setBusy(true);
+    const response = await fetch("/api/guardian/telegram", { method: "DELETE" }).catch(() => null);
+    setBusy(false);
+    toast(response?.ok ? "Telegram disconnected" : "Disconnecting failed. Please try again.");
+    router.refresh();
+  };
+
+  return (
+    <section className="card guardian-telegram" aria-label="Telegram alerts">
+      <i className="ph ph-telegram-logo" aria-hidden="true" />
+      <span className="guardian-telegram__text">
+        <strong>{telegram.connected ? "Telegram alerts are on" : "Get alerts on Telegram"}</strong>
+        <span className="muted">
+          {telegram.connected
+            ? "When a guard fires you get a message with a link to sell on Zolva Swap."
+            : waiting
+              ? "Press Start in Telegram, then come back here."
+              : "A message the moment a guard fires, even when Zolva is closed."}
+        </span>
+      </span>
+      {telegram.connected ? (
+        <button className="button button--ghost" type="button" disabled={busy} onClick={() => void disconnect()}>
+          Disconnect
+        </button>
+      ) : (
+        <span className="guardian-telegram__actions">
+          {waiting && (
+            <button className="button button--ghost" type="button" onClick={() => router.refresh()}>
+              I pressed Start
+            </button>
+          )}
+          <button className="button button--primary" type="button" disabled={busy} onClick={() => void connect()}>
+            Connect Telegram
+          </button>
+        </span>
+      )}
+    </section>
   );
 }
