@@ -127,24 +127,29 @@ async function main() {
   const rows: string[][] = [];
   for (const agent of agents as Agent[]) {
     const label = agent.name.replace("Lab · ", "").replace("Paper ", "");
-    const address = agent.token_addresses[0];
-    const token = byAddress.get(address)!;
-    const candles = token.candles.map(([time, close]) => ({ time: Number(time), close: Number(close) }));
-    const closes = buildCloseSeries(candles, startTs, latest).closes;
-    const fundingByTime = new Map(token.candles.map(([time, , rate]) => [Number(time), rate == null ? null : Number(rate)]));
-    const funding = hours.map((ts) => fundingByTime.get(ts) ?? null);
-    // Open interest (stored hourly from 2026-11-16 for the OI A/B agents); missing hours stay null like the runner.
-    const oiRows = await all<{ ts: string; open_interest: number | null }>((from, to) =>
-      db.from("candles").select("ts, open_interest").eq("token_address", address).gte("ts", new Date(startTs * 1000).toISOString()).not("open_interest", "is", null).order("ts").range(from, to),
-    );
-    const oiByTime = new Map(oiRows.map((r) => [Date.parse(r.ts) / 1000, Number(r.open_interest)]));
-    const openInterest = hours.map((ts) => oiByTime.get(ts) ?? null);
+    // Every market the agent trades (one for the coin agents, six for the portfolio agent).
+    const series: Record<string, number[]> = {};
+    const funding: Record<string, (number | null)[]> = {};
+    const openInterest: Record<string, (number | null)[]> = {};
+    for (const address of agent.token_addresses) {
+      const token = byAddress.get(address)!;
+      const candles = token.candles.map(([time, close]) => ({ time: Number(time), close: Number(close) }));
+      series[address] = buildCloseSeries(candles, startTs, latest).closes;
+      const fundingByTime = new Map(token.candles.map(([time, , rate]) => [Number(time), rate == null ? null : Number(rate)]));
+      funding[address] = hours.map((ts) => fundingByTime.get(ts) ?? null);
+      // Open interest (stored hourly from 2026-11-16 for the OI A/B agents); missing hours stay null like the runner.
+      const oiRows = await all<{ ts: string; open_interest: number | null }>((from, to) =>
+        db.from("candles").select("ts, open_interest").eq("token_address", address).gte("ts", new Date(startTs * 1000).toISOString()).not("open_interest", "is", null).order("ts").range(from, to),
+      );
+      const oiByTime = new Map(oiRows.map((r) => [Date.parse(r.ts) / 1000, Number(r.open_interest)]));
+      openInterest[address] = hours.map((ts) => oiByTime.get(ts) ?? null);
+    }
 
     const runs = await all<{ ts: string; equity: number; hold_equity: number | null }>((from, to) =>
       db.from("agent_runs").select("ts, equity, hold_equity").eq("agent_id", agent.id).order("ts").range(from, to),
     );
-    const trades = await all<{ ts: string; side: string; reason: string; price: number }>((from, to) =>
-      db.from("trades").select("ts, side, reason, price").eq("agent_id", agent.id).order("ts").range(from, to),
+    const trades = await all<{ ts: string; side: string; reason: string; price: number; token_address: string }>((from, to) =>
+      db.from("trades").select("ts, side, reason, price, token_address").eq("agent_id", agent.id).order("ts").range(from, to),
     );
     if (!runs.length) {
       rows.push([label, "no runs yet"]);
@@ -156,17 +161,18 @@ async function main() {
 
     // 1. Replay with the real engine.
     const replay = simulate({
-      series: { [address]: closes },
+      series,
       params: agentParams(agent),
       capital: Number(agent.start_capital),
       fromIndex,
       toIndex: lastIndex,
       times: hours,
-      funding: { [address]: funding },
-      openInterest: { [address]: openInterest },
+      funding,
+      openInterest,
     });
-    const replayTrades = replay.fills.map((f: { index: number; side: string }) => `${hours[f.index]}:${f.side}`);
-    const liveTrades = trades.map((t) => `${Date.parse(t.ts) / 1000}:${t.side}`);
+    // Trades match on hour, side and market (a portfolio agent can trade six markets in the same hour).
+    const replayTrades = replay.fills.map((f: { index: number; side: string; token?: string; address?: string }) => `${hours[f.index]}:${f.side}:${f.token ?? f.address ?? ""}`);
+    const liveTrades = trades.map((t) => `${Date.parse(t.ts) / 1000}:${t.side}:${t.token_address}`);
     const missing = replayTrades.filter((key: string) => !liveTrades.includes(key));
     const extra = liveTrades.filter((key) => !replayTrades.includes(key));
     const liveEquity = Number(runs[runs.length - 1].equity);
