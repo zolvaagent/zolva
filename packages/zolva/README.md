@@ -1,4 +1,4 @@
-# zolva
+# @zolva/mcp
 
 [Zolva](https://zolvaagent.app)'s MCP server for clients that start local (stdio) servers.
 
@@ -15,7 +15,7 @@ Add a local server to your MCP client:
   "mcpServers": {
     "zolva": {
       "command": "npx",
-      "args": ["-y", "zolva"],
+      "args": ["-y", "@zolva/mcp"],
       "env": { "ZOLVA_API_KEY": "zk_..." }
     }
   }
@@ -29,7 +29,7 @@ Leave `env` out for read-only use. Make a key at [Settings, API keys](https://zo
 | `ZOLVA_API_KEY` | Optional. Your API key (`zk_...`), sent as a Bearer token. Adds the tools its scopes allow. |
 | `ZOLVA_MCP_URL` | Optional. Server URL, default `https://zolvaagent.app/mcp`. |
 
-`npx zolva --help` prints the same.
+`npx @zolva/mcp --help` prints the same.
 
 ## What it can do
 

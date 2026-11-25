@@ -1,5 +1,5 @@
 {
-  "name": "zolva",
+  "name": "@zolva/mcp",
   "version": "1.0.0",
   "description": "Zolva's MCP server over stdio: trading agents on Robinhood Chain, every decision with its reason, backtests and paper agents.",
   "mcpName": "app.zolvaagent/zolva",

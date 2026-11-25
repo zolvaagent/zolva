@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `npx zolva`: runs Zolva's MCP server for clients that start local (stdio) servers.
+ * `npx @zolva/mcp`: runs Zolva's MCP server for clients that start local (stdio) servers.
  * Set ZOLVA_API_KEY for your own paper agents; without it the tools are read-only.
  */
 import { readFileSync } from "node:fs";
@@ -9,11 +9,11 @@ import { DEFAULT_URL, startBridge } from "../lib/bridge.mjs";
 
 const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
-const HELP = `zolva ${version}: Zolva's MCP server over stdio
+const HELP = `@zolva/mcp ${version}: Zolva's MCP server over stdio
 
 Usage: add it to your MCP client as a local server.
   command: npx
-  args:    ["-y", "zolva"]
+  args:    ["-y", "@zolva/mcp"]
   env:     ZOLVA_API_KEY=zk_...   (optional: your own paper agents, backtests, AI)
 
 Without a key the tools are read-only: published agents, markets and trades.
