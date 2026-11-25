@@ -38,6 +38,17 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-25-wallet-guardian",
+    date: "2026-11-25",
+    area: "Real money",
+    title: "Wallet Guardian: a stop loss for the stocks in your own wallet",
+    body: "Zolva can now watch the Stock Tokens you actually hold. Open Guardian, and it reads your wallet on chain (only reads, it can never move anything). Set a stop loss, and if you like a take profit, on any of them. Every hour it checks the latest close with the same engine our agents use, and when a limit is hit you get an alert in the app with a button that opens Swap with that token ready to sell. You decide and sign; Zolva never trades your wallet. Checks run on the hourly close, so a fast drop can pass your stop before the alert. Free for 3 guards, more for ZOLVA holders.",
+    sources: [
+      commit("733aef3"),
+      { label: "/guardian", href: "https://zolvaagent.app/guardian" },
+    ],
+  },
+  {
     id: "2026-11-24-tteq-listed",
     date: "2026-11-24",
     area: "Markets",
