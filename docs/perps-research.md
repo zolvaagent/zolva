@@ -1108,3 +1108,6 @@ Caveats: equal weight rebalanced every hour without a cost for moving capital be
   hourly closes (wicks would liquidate a leveraged account earlier); Binance spot prices and perp funding, not
   Lighter's own. Next honest step: a paper Lab agent running this portfolio (Development: a multi-market Vol Trend
   with an account-level leverage setting), 90 days before any real money.
+- Check on the 6 Lighter markets Zolva lists today (BTC ETH SOL XRP NEAR ZEC; LIST=..., added after the run): L+S
+  1x +21%/yr, drop 10%; **L+S 2x +45%/yr, drop 20%**, 6 of 6 years up; 3x drop 29%. These 6 include the coins the
+  Vol Trend rounds were tuned on, so this subset is less independent than the 19-coin result; use 2x, not 3x.

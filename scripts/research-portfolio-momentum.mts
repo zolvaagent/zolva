@@ -39,7 +39,8 @@ import { binanceCloses, HOUR_MS } from "./binance-history.mts";
 
 const ALL = ["BTC", "ETH", "SOL", "XRP", "NEAR", "ZEC", "ADA", "DOGE", "LINK", "AVAX", "DOT", "LTC", "BCH", "ATOM", "TRX", "UNI", "LUNA", "FTT", "SRM"];
 const HALVES: Record<string, string[]> = { a: ALL.filter((_, i) => i % 2 === 0), b: ALL.filter((_, i) => i % 2 === 1) };
-const COINS = process.env.HALF ? HALVES[process.env.HALF] : ALL;
+// Check only (added after the first run): LIST=BTC,ETH,... runs the portfolio on a chosen subset.
+const COINS = process.env.LIST ? process.env.LIST.split(",") : process.env.HALF ? HALVES[process.env.HALF] : ALL;
 const START = Date.UTC(2020, 9, 15);
 const TRAIN_END = Date.UTC(2024, 0, 1);
 const YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
