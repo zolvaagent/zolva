@@ -21,7 +21,7 @@ const NAV = [
   { href: "/leaderboard", label: "Leaderboard", icon: "trophy" },
   { href: "/activity", label: "Activity", icon: "pulse" },
   // Sidebar only: stop loss alerts on the user's own wallet (lib/guardian). Shows unread alerts.
-  { href: "/guardian", label: "Guardian", icon: "shield-check", tabbar: false },
+  { href: "/guardian", label: "Guardian", icon: "shield-check", tabbar: false, badge: "New" },
   // Sidebar only, like Swap.
   { href: "/stats", label: "Stats", icon: "chart-bar", tabbar: false },
   // Sidebar only: memecoin agents on Rushr (docs/rushr-integration-plan.md).
@@ -93,11 +93,13 @@ export function AppSidebar() {
             <Link className="app-link" href={item.href} aria-current={isCurrent(pathname, item.href) ? "page" : undefined}>
               <i className={`ph ph-${item.icon}`} />
               {item.label}
-              {"badge" in item && item.badge ? <span className="app-link__badge">{item.badge}</span> : null}
+              {/* Unread Guardian alerts take the place of its "New" label. */}
               {item.href === "/guardian" && guardianUnread > 0 ? (
                 <span className="app-link__badge app-link__badge--alert" aria-label={`${guardianUnread} new alerts`}>
                   {guardianUnread}
                 </span>
+              ) : "badge" in item && item.badge ? (
+                <span className="app-link__badge">{item.badge}</span>
               ) : null}
             </Link>
           </span>
