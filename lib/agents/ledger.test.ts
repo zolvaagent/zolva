@@ -46,6 +46,7 @@ function recorded(params: AgentParams, series: Record<string, number[]>, funding
       ? { funding: Object.fromEntries(Object.entries(funding).map(([token, rates]) => [token, rates.map((rate, i) => ({ ts: times[i], close: series[token][i], rate }))])) }
       : {}),
     ...(params.leverage ? { leverage: params.leverage } : {}),
+    ...(params.portfolio ? { portfolio: true } : {}),
   };
   return { input, result, equity: equityAt(result.state, prices) };
 }
@@ -102,6 +103,25 @@ describe("buildLedger", () => {
     const { input, result, equity } = recorded({ strategy: "bounce_short", maxPositionPct: 100, stopLossPct: 10, venue: "perps", leverage: 3 }, { AAA: fall, BBB: walk(8, 900), CCC: walk(11, 900) }, funding);
     expect(result.fills.some((fill) => fill.side === "short")).toBe(true);
     expectBalanced(input, equity);
+  });
+
+  it("balances a Lab portfolio at 2x: margined longs and shorts, resizes and funding", () => {
+    const trendRules = {
+      entry: { join: "all" as const, conditions: [{ left: { kind: "price" as const }, op: "above" as const, right: { kind: "sma" as const, hours: 120, offsetPct: 3 } }] },
+      exit: { join: "any" as const, conditions: [{ left: { kind: "price" as const }, op: "below" as const, right: { kind: "sma" as const, hours: 120 } }] },
+      shortEntry: { join: "all" as const, conditions: [{ left: { kind: "price" as const }, op: "below" as const, right: { kind: "sma" as const, hours: 120, offsetPct: -3 } }] },
+      shortExit: { join: "any" as const, conditions: [{ left: { kind: "price" as const }, op: "above" as const, right: { kind: "sma" as const, hours: 120 } }] },
+      takeProfitPct: null,
+      maxHoldHours: null,
+    };
+    const params: AgentParams = { strategy: "custom", rules: trendRules, maxPositionPct: 100, stopLossPct: 15, venue: "perps", sizing: { kind: "volTarget", targetPct: 20, hours: 72 }, portfolio: { leverage: 2 } };
+    const trending = { AAA: walk(7, 900, 0.03), BBB: walk(42, 900, 0.03), CCC: walk(99, 900, 0.03) };
+    const { input, result, equity } = recorded(params, trending, funding);
+    expect(result.fills.some((fill) => fill.side === "buy" && fill.reason === "signal")).toBe(true);
+    expect(result.fills.some((fill) => fill.side === "short" && fill.reason === "signal")).toBe(true);
+    expect(result.fills.some((fill) => fill.reason === "resize")).toBe(true);
+    const ledger = expectBalanced(input, equity);
+    expect(ledger.totals.funding).not.toBe(0);
   });
 
   it("flags a ledger that does not match the recorded cash", () => {

@@ -1,4 +1,4 @@
-import { shortValue } from "../engine/engine.ts";
+import { longValue, shortValue } from "../engine/engine.ts";
 
 /**
  * The order ledger on an agent page: every order the agent placed, the cash it moved, and running
@@ -61,6 +61,12 @@ export type LedgerInput = {
   funding?: Record<string, FundingHour[]>;
   /** Leverage of a short (bounce short on perps); 1 otherwise. */
   leverage?: number;
+  /**
+   * Lab portfolio agents (AgentParams.portfolio): every position is margined, so no order's cash
+   * follows from its own fields. Each hour's recorded cash change is shared by that hour's orders,
+   * and funding moves the margin, not the quantity.
+   */
+  portfolio?: boolean;
 };
 
 export type LedgerRow = LedgerTrade & {
@@ -130,7 +136,7 @@ export function buildLedger(input: LedgerInput): Ledger {
   const byHour = new Map<number, LedgerTrade[]>();
   for (const trade of trades) byHour.set(trade.ts, [...(byHour.get(trade.ts) ?? []), trade]);
   for (const [ts, hour] of byHour) {
-    const needsRecord = hour.filter((trade) => trade.side === "cover" || (trade.side === "short" && trade.reason === "resize"));
+    const needsRecord = input.portfolio ? hour : hour.filter((trade) => trade.side === "cover" || (trade.side === "short" && trade.reason === "resize"));
     let known = 0;
     for (const trade of hour) {
       if (needsRecord.includes(trade)) continue;
@@ -170,7 +176,8 @@ export function buildLedger(input: LedgerInput): Ledger {
         const payment = book.quantity * hour.close * hour.rate;
         if (book.side === "long") {
           funding! -= payment;
-          book.quantity *= 1 - hour.rate;
+          // A margined long (portfolio) pays from its margin; its size stays.
+          if (!input.portfolio) book.quantity *= 1 - hour.rate;
         } else funding! += payment;
       }
     }
@@ -212,7 +219,7 @@ export function buildLedger(input: LedgerInput): Ledger {
     const value =
       position.side === "short"
         ? shortValue({ quantity: position.quantity, entryPrice: position.entryPrice, side: "short", ...(position.margin !== null ? { margin: position.margin } : {}) }, price)
-        : position.quantity * price;
+        : longValue({ quantity: position.quantity, entryPrice: position.entryPrice, ...(position.margin !== null ? { margin: position.margin } : {}) }, price);
     openValue += value;
     const book = books.get(position.token);
     unrealised += value - (book?.basis ?? 0);

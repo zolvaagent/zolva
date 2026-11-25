@@ -39,7 +39,15 @@ export function describeAgent(params: AgentParams, options: SummaryOptions): str
     lines.push(`Shorts at ${leverage}x: a position is ${leverage} times the cash it puts in, and is closed once it has lost ${pct(LIQUIDATION_LOSS * 100)} of that cash (a ${pct((LIQUIDATION_LOSS / leverage) * 100)} move against it).`);
   }
 
-  if (params.strategy === "custom" && params.sizing) {
+  if (params.strategy === "custom" && params.sizing && params.portfolio && perps) {
+    const lev = Math.max(1, params.portfolio.leverage);
+    const markets = options.symbols.length;
+    lines.push(
+      `A portfolio: each of the ${markets} markets is an equal sleeve of 1/${markets} of the agent. In its sleeve a market is sized by volatility: ${pct(params.sizing.targetPct)} a year divided by its volatility over the last ${hours(params.sizing.hours)}, at most the whole sleeve.`,
+      `Positions, long and short, are ${lev}x the margin they put in, and are closed once they have lost ${pct(LIQUIDATION_LOSS * 100)} of that margin (a ${pct((LIQUIDATION_LOSS / lev) * 100)} move), if the stop loss has not closed them first.`,
+      `Once a day at 00:00 UTC every open position goes back to its target when it is more than ${pct(RESIZE_BAND * 100)} off, which keeps the markets at equal weight. The stop loss stays measured from the first entry.`,
+    );
+  } else if (params.strategy === "custom" && params.sizing) {
     lines.push(
       `Sizes each buy by volatility: ${pct(params.sizing.targetPct)} a year divided by the market's volatility over the last ${hours(params.sizing.hours)}, at most ${pct(params.maxPositionPct)} of the agent. Once a day at 00:00 UTC it buys or sells the difference when the position is more than ${pct(RESIZE_BAND * 100)} off that size.`,
     );

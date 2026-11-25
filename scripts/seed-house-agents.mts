@@ -83,6 +83,7 @@ async function main() {
         ...(config.venue ? { venue: config.venue } : {}),
         ...("leverage" in config && config.leverage ? { leverage: config.leverage } : {}),
         ...("sizing" in config && config.sizing ? { sizing: config.sizing } : {}),
+        ...("portfolio" in config && config.portfolio ? { portfolio: config.portfolio } : {}),
         // DCA: the first buy is the agent's first run, the hour after the newest close.
         ...("dca" in config && config.dca ? { dca: { ...config.dca, startTs: Date.parse(latestTs) / 1000 + 3600 } } : {}),
       },

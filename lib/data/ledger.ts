@@ -70,5 +70,6 @@ export async function loadLedger(db: SupabaseClient, detail: AgentDetail, prices
     prices,
     ...(funding ? { funding } : {}),
     leverage: Number(agent.params.leverage ?? 1),
+    portfolio: Boolean(agent.params.portfolio),
   });
 }

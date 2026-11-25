@@ -83,7 +83,22 @@ export type AgentParams = {
   sizing?: VolTargetSizing;
   /** DCA only: the buying schedule. */
   dca?: DcaPlan;
+  /**
+   * Lab portfolio (custom rules with volatility sizing, on perps): every market is an equal sleeve.
+   * A market's volatility target share is divided by the number of markets, and each position
+   * holds a margin of that share with `leverage` x the margin as its size (longs and shorts),
+   * stopped at the stop or liquidated at LIQUIDATION_LOSS of the margin, whichever comes first.
+   * The daily resize puts every open sleeve back on its target: the equal-weight rebalance.
+   */
+  portfolio?: PortfolioSettings;
 };
+
+/**
+ * Lab portfolio settings (AgentParams.portfolio). Leverage 1 to PORTFOLIO_MAX_LEVERAGE.
+ * backtestDropPct: the worst drop the research backtest showed, shown next to the live one (display only).
+ */
+export type PortfolioSettings = { leverage: number; backtestDropPct?: number };
+export const PORTFOLIO_MAX_LEVERAGE = 3;
 
 /** DCA: `buys` equal buys, the first at startTs (unix seconds, start of an hour), then every everyHours. */
 export type DcaPlan = { buys: number; everyHours: number; startTs: number };
@@ -126,8 +141,9 @@ export type Position = {
    */
   side?: "short";
   /**
-   * Set only for a leveraged short: the cash it locked after the opening cost. It is worth
-   * margin + quantity x (entryPrice - price), never below zero, instead of the 1x formula above.
+   * Set for a leveraged short, and for both sides in a Lab portfolio: the cash it locked after the
+   * opening cost. A short is worth margin + quantity x (entryPrice - price), a long
+   * margin + quantity x (price - entryPrice), never below zero (instead of the unlevered formulas).
    */
   margin?: number;
   /**
@@ -234,10 +250,23 @@ export function runHour(
   const maxShare = params.maxPositionPct / 100;
   const stopDistance = params.stopLossPct / 100;
   const cost = costRateFor(params.venue) * (options.costScale ?? 1);
-  const leverage = params.strategy === "bounce_short" && params.venue === "perps" ? Math.max(1, params.leverage ?? 1) : 1;
-  // A leveraged short is stopped at the stop, or liquidated earlier when the stop is wider than
-  // LIQUIDATION_LOSS of the margin: whichever price comes first.
+  // Lab portfolio: custom rules with volatility sizing on perps only (the database enforces it too).
+  const portfolio = rules && sizing && params.venue === "perps" ? params.portfolio : undefined;
+  const leverage = portfolio
+    ? Math.min(PORTFOLIO_MAX_LEVERAGE, Math.max(1, portfolio.leverage))
+    : params.strategy === "bounce_short" && params.venue === "perps"
+      ? Math.max(1, params.leverage ?? 1)
+      : 1;
+  // Equal sleeves: a portfolio divides each market's share of equity by the number of markets.
+  const sleeves = portfolio ? Math.max(1, tokens.length) : 1;
+  const targetShare = (window: number[]) => {
+    const wanted = wantedShare(sizing!, window, maxShare);
+    return { share: wanted.share / sleeves, volatility: wanted.volatility };
+  };
+  // A leveraged position is stopped at the stop, or liquidated earlier when the stop is wider than
+  // LIQUIDATION_LOSS of the margin: whichever price comes first. Same distance for both sides.
   const shortStop = Math.min(stopDistance, LIQUIDATION_LOSS / leverage);
+  const longStop = shortStop;
 
   let cash = state.cash;
   const positions: Record<string, Position> = { ...state.positions };
@@ -273,7 +302,8 @@ export function runHour(
       if (rate === 0) continue;
       positions[token] =
         position.margin !== undefined
-          ? { ...position, margin: position.margin + position.quantity * price * rate }
+          ? // Positive funding: longs pay shorts, so a margined long's margin shrinks and a short's grows.
+            { ...position, margin: position.margin + (position.side === "short" ? 1 : -1) * position.quantity * price * rate }
           : position.side === "short"
             ? { ...position, entryPrice: position.entryPrice + (price * rate) / 2 }
             : { ...position, quantity: position.quantity * (1 - rate) };
@@ -323,15 +353,18 @@ export function runHour(
       continue;
     }
 
-    if (position && position.side !== "short" && price <= position.entryPrice * (1 - stopDistance)) {
+    if (position && position.side !== "short" && price <= (position.stopPrice ?? position.entryPrice) * (1 - (position.margin !== undefined ? longStop : stopDistance))) {
       const fill = sellAll(token, position, price, "stop_loss", cost);
-      cash += fill.quantity * price - fill.costUsd;
+      cash += longProceeds(position, price, fill.costUsd);
       delete positions[token];
       fills.push(fill);
+      const liquidated = position.margin !== undefined && LIQUIDATION_LOSS / leverage < stopDistance;
       decisions.push({
         token,
         action: "sell",
-        reasoning: `Stop loss hit: ${formatChange(price / position.entryPrice - 1)} from entry. Selling everything.`,
+        reasoning: liquidated
+          ? `Liquidated: ${formatChange(price / position.entryPrice - 1)} from the long entry at ${leverage}x. Selling everything.`
+          : `Stop loss hit: ${formatChange(price / (position.stopPrice ?? position.entryPrice) - 1)} from entry. Selling everything.`,
       });
       continue;
     }
@@ -347,7 +380,7 @@ export function runHour(
             : null;
       if (exit) {
         const fill = sellAll(token, position, price, exit.reason, cost);
-        cash += fill.quantity * price - fill.costUsd;
+        cash += longProceeds(position, price, fill.costUsd);
         delete positions[token];
         fills.push(fill);
         decisions.push({ token, action: "sell", reasoning: exit.reasoning });
@@ -395,18 +428,19 @@ export function runHour(
     }
 
     if (signal.action === "short") {
-      const share = sizing ? wantedShare(sizing, window as number[], maxShare).share : maxShare;
+      const share = sizing ? targetShare(window as number[]).share : maxShare;
       const notional = Math.min(cash, equityBefore * share);
       if (notional < 1) {
         decisions.push({ token, action: "hold", reasoning: "Signal to short, but no cash left for the collateral. Holding." });
         continue;
       }
       cash -= notional;
-      if (leverage > 1) {
+      if (leverage > 1 || portfolio) {
         // The position is leverage x the margin put in; the opening cost is charged on the whole position.
+        // A portfolio sleeve keeps its stop at this price when a resize moves the entry.
         const exposure = notional * leverage;
         const quantity = exposure / price;
-        positions[token] = { quantity, entryPrice: price, openedAt: hourTime, side: "short", margin: notional - exposure * cost };
+        positions[token] = { quantity, entryPrice: price, openedAt: hourTime, side: "short", margin: notional - exposure * cost, ...(portfolio ? { stopPrice: price } : {}) };
         fills.push({ token, side: "short", quantity, price, costUsd: exposure * cost, reason: "signal" });
       } else {
         const quantity = (notional * (1 - cost)) / price;
@@ -420,20 +454,29 @@ export function runHour(
       delete positions[token];
       fills.push(fill);
     } else if (signal.action === "buy") {
-      const share = sizing ? wantedShare(sizing, window as number[], maxShare).share : maxShare;
+      const share = sizing ? targetShare(window as number[]).share : maxShare;
       const notional = Math.min(cash, equityBefore * share);
       if (notional < 1) {
         decisions.push({ token, action: "hold", reasoning: "Signal to buy, but no cash left. Holding." });
         continue;
       }
-      const quantity = (notional * (1 - cost)) / price;
       cash -= notional;
-      // Entry price includes the cost, so stops and PnL measure what was actually paid.
-      positions[token] = { quantity, entryPrice: notional / quantity, openedAt: hourTime };
-      fills.push({ token, side: "buy", quantity, price, costUsd: notional * cost, reason: "signal" });
+      if (portfolio) {
+        // A portfolio sleeve: leverage x the margin put in, the opening cost charged on the whole
+        // position; the stop stays at this price when a resize moves the entry.
+        const exposure = notional * leverage;
+        const quantity = exposure / price;
+        positions[token] = { quantity, entryPrice: price, openedAt: hourTime, margin: notional - exposure * cost, stopPrice: price };
+        fills.push({ token, side: "buy", quantity, price, costUsd: exposure * cost, reason: "signal" });
+      } else {
+        const quantity = (notional * (1 - cost)) / price;
+        // Entry price includes the cost, so stops and PnL measure what was actually paid.
+        positions[token] = { quantity, entryPrice: notional / quantity, openedAt: hourTime };
+        fills.push({ token, side: "buy", quantity, price, costUsd: notional * cost, reason: "signal" });
+      }
     } else if (signal.action === "sell" && position) {
       const fill = sellAll(token, position, price, "signal", cost);
-      cash += fill.quantity * price - fill.costUsd;
+      cash += longProceeds(position, price, fill.costUsd);
       delete positions[token];
       fills.push(fill);
     }
@@ -441,7 +484,37 @@ export function runHour(
 
     // Daily resize of a volatility sized position that is still open after this hour's signal.
     const open = positions[token];
-    if (resizeHour && sizing && open && open.side !== "short") {
+    // A portfolio sleeve (margined, either side) is closed and reopened at its target at this price:
+    // margin = equity x its share, size = leverage x margin. The entry (the P&L basis) moves to this
+    // price, the stop stays at the first entry, and the cost is paid on the change only. This puts
+    // every sleeve back on equal weight once a day.
+    if (resizeHour && portfolio && open && open.margin !== undefined) {
+      const { share, volatility } = targetShare(window as number[]);
+      const value = open.side === "short" ? shortValue(open, price) : longValue(open, price);
+      const free = cash + value;
+      const held = open.quantity * price;
+      let margin = equityAt({ cash, positions }, prices) * share;
+      // Growing a sleeve may not take more than the cash can carry, cost included.
+      if (margin * leverage > held) margin = Math.min(margin, (free + held * cost) / (1 + leverage * cost));
+      const wanted = margin * leverage;
+      if (wanted > 0 && Math.abs(held - wanted) > RESIZE_BAND * wanted) {
+        const why = `Daily resize: volatility is ${(volatility * 100).toFixed(0)}% a year, so this market's target is ${(share * 100).toFixed(1)}% of equity at ${leverage}x`;
+        const quantity = wanted / price;
+        const change = Math.abs(quantity - open.quantity);
+        const costUsd = change * price * cost;
+        cash = free - margin - costUsd;
+        const stopPrice = open.stopPrice ?? open.entryPrice;
+        const short = open.side === "short";
+        positions[token] = { quantity, entryPrice: price, openedAt: open.openedAt, margin, stopPrice, ...(short ? { side: "short" as const } : {}) };
+        const grows = quantity > open.quantity;
+        const side: Fill["side"] = short ? (grows ? "short" : "cover") : grows ? "buy" : "sell";
+        fills.push({ token, side, quantity: change, price, costUsd, reason: "resize", ...(grows ? {} : { entryPrice: open.entryPrice }) });
+        const verb = short ? (grows ? "shorting" : "covering") : grows ? "buying" : "selling";
+        decisions.push({ ...decision, action: side, reasoning: `${signal.reasoning} ${why}: ${verb} ${formatUsd(change * price)}${grows ? " more" : ""}.` });
+        continue;
+      }
+    }
+    if (resizeHour && sizing && open && open.side !== "short" && open.margin === undefined) {
       const { share, volatility } = wantedShare(sizing, window as number[], maxShare);
       const wanted = equityAt({ cash, positions }, prices) * share;
       const held = open.quantity * price;
@@ -602,9 +675,22 @@ export function equityAt(state: AgentState, prices: Record<string, number | null
   let equity = state.cash;
   for (const [token, position] of Object.entries(state.positions)) {
     const price = prices[token] ?? position.entryPrice;
-    equity += position.side === "short" ? shortValue(position, price) : position.quantity * price;
+    equity += position.side === "short" ? shortValue(position, price) : longValue(position, price);
   }
   return equity;
+}
+
+/**
+ * What an open long is worth: quantity x price, or for a margined long (a Lab portfolio sleeve)
+ * its margin plus its gain, never below zero.
+ */
+export function longValue(position: Position, price: number): number {
+  return position.margin === undefined ? position.quantity * price : Math.max(0, position.margin + position.quantity * (price - position.entryPrice));
+}
+
+/** Cash a long returns when it is sold whole at `price`, after the sale's cost. */
+function longProceeds(position: Position, price: number, costUsd: number): number {
+  return position.margin === undefined ? position.quantity * price - costUsd : Math.max(0, longValue(position, price) - costUsd);
 }
 
 /**

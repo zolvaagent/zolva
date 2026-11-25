@@ -290,6 +290,19 @@ export function AgentView({
     ...(rules?.takeProfitPct
       ? ([["Take profit", `${rules.takeProfitPct}%`]] as [string, string][])
       : []),
+    // Lab portfolio: account leverage, equal sleeves, and the worst drop next to the backtest's.
+    ...(engineParams.portfolio && engineParams.venue === "perps"
+      ? ([
+          ["Account leverage", `${engineParams.portfolio.leverage}x, ${summary.tokens.length} equal sleeves`],
+          [
+            "Worst drop",
+            <span key="drop">
+              {summary.maxDrawdownPct.toFixed(1)}%
+              {engineParams.portfolio.backtestDropPct !== undefined && <span className="muted"> · backtest {engineParams.portfolio.backtestDropPct}%</span>}
+            </span>,
+          ],
+        ] as [string, React.ReactNode][])
+      : []),
     ...(rules?.maxHoldHours
       ? ([["Max holding time", `${rules.maxHoldHours} hours`]] as [
           string,

@@ -5,7 +5,7 @@
  * backtests, so what visitors see matches what actually runs.
  */
 import { RULE_TEMPLATES, type Rules } from "../engine/rules.ts";
-import type { Venue, VolTargetSizing } from "../engine/engine.ts";
+import type { PortfolioSettings, Venue, VolTargetSizing } from "../engine/engine.ts";
 import type { StrategyKey } from "../engine/strategies.ts";
 
 /** Owner address of the house agents (not a real wallet; nobody can sign for it). */
@@ -25,6 +25,7 @@ export const LAB_WALLETS = [
   "0x5174000000000000000000000000000000000007",
   "0x5174000000000000000000000000000000000008",
   "0x5174000000000000000000000000000000000009",
+  "0x517400000000000000000000000000000000000a",
 ] as const;
 
 const HOUSE_OWNERS = new Set<string>([HOUSE_WALLET, ...LAB_WALLETS]);
@@ -50,6 +51,8 @@ export type HouseAgent = {
   leverage?: number;
   /** Volatility sizing (custom rules on perps only); missing means the fixed max position share. */
   sizing?: VolTargetSizing;
+  /** Lab portfolio: every market an equal sleeve at this account leverage (engine AgentParams.portfolio). */
+  portfolio?: PortfolioSettings;
   /** An AI co-pilot model id (lib/ai/models.ts); missing: rules only. */
   aiModel?: string;
   /** The co-pilot's spending limit in USD and its end date (ISO), like a user's agent. */
@@ -369,4 +372,20 @@ export const LAB_AGENTS: (HouseAgent & { owner: (typeof LAB_WALLETS)[number] })[
   // Paper only. DCA from the first priced hour; a Momentum twin once there are 48 hours of prices.
   { owner: LAB_WALLETS[8], name: "Lab · ANT IPO Day DCA", strategy: "dca", dca: { buys: 20, everyHours: 24 }, symbols: [IPO_SYMBOL], maxPositionPct: 100, stopLossPct: 8, waitForHours: 1 },
   { owner: LAB_WALLETS[8], name: "Lab · ANT IPO Momentum", strategy: "momentum", symbols: [IPO_SYMBOL], maxPositionPct: 100, stopLossPct: 15, waitForHours: 49 },
+  // Vol Trend portfolio (owner 2026-11-25; Research, docs/perps-research.md "Many-coin momentum portfolio"):
+  // the frozen L+S rule on the 6 Lighter perps Zolva lists, each an equal sleeve, 2x on the account.
+  // Backtest 2021-2026 on these 6: +45% a year, worst drop 20%; 3x is borderline (29-31% drop), so 2x is the cap.
+  // Paper only. Release gate (Research): 90 days of paper with live matching the replay before any real money.
+  {
+    owner: LAB_WALLETS[9],
+    name: "Lab · Vol Trend Portfolio 2x",
+    strategy: "custom" as const,
+    rules: VOL_TREND_1200_LS,
+    symbols: ["BTC-PERP", "ETH-PERP", "SOL-PERP", "XRP-PERP", "NEAR-PERP", "ZEC-PERP"],
+    maxPositionPct: 100,
+    stopLossPct: 15,
+    venue: "perps" as const,
+    sizing: { kind: "volTarget" as const, targetPct: 20, hours: 720 },
+    portfolio: { leverage: 2, backtestDropPct: 20 },
+  },
 ];

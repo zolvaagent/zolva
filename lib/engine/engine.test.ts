@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 
 import { describe, expect, it } from "vitest";
 
-import { buyAndHold, COST_RATE, costRateFor, equityAt, maxDrawdown, paramsLookback, PERPS_COST_RATE, realisedVolatility, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
+import { buyAndHold, COST_RATE, costRateFor, equityAt, LIQUIDATION_LOSS, longValue, maxDrawdown, paramsLookback, PERPS_COST_RATE, realisedVolatility, runHour, SHORT_BORROW_APR, simulate, type AgentParams, type AgentState } from "./engine";
 import type { Rules } from "./rules";
 import { decide, LOOKBACK_HOURS } from "./strategies";
 
@@ -897,5 +897,129 @@ describe("oiChange (Lab open interest gate)", () => {
     expect(ours.fills.length).toBeGreaterThan(0);
     expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}`)).toEqual(theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}`));
     expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+  });
+});
+
+describe("Lab portfolio: equal sleeves at account leverage", () => {
+  // The Lab long + short trend rules (short windows so tests stay small).
+  const rules: Rules = {
+    entry: { join: "all", conditions: [{ left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 120, offsetPct: 3 } }] },
+    exit: { join: "any", conditions: [{ left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 120 } }] },
+    shortEntry: {
+      join: "all",
+      conditions: [
+        { left: { kind: "price" }, op: "below", right: { kind: "sma", hours: 120, offsetPct: -3 } },
+        { left: { kind: "funding7d", hours: 168 }, op: "above", right: { kind: "value", value: -0.000001 } },
+      ],
+    },
+    shortExit: {
+      join: "any",
+      conditions: [
+        { left: { kind: "price" }, op: "above", right: { kind: "sma", hours: 120 } },
+        { left: { kind: "funding7d", hours: 168 }, op: "below", right: { kind: "value", value: 0 } },
+      ],
+    },
+    takeProfitPct: null,
+    maxHoldHours: null,
+  };
+  const sizing = { kind: "volTarget" as const, targetPct: 20, hours: 72 };
+  const base: AgentParams = { strategy: "custom", rules, maxPositionPct: 100, stopLossPct: 15, venue: "perps", sizing };
+  const portfolio = (leverage: number): AgentParams => ({ ...base, portfolio: { leverage } });
+  const rising = Array.from({ length: 200 }, (_, i) => 100 * (1 + i * 0.002) * (i % 2 ? 1.004 : 1));
+  const positive = (tokens: string[]) => Object.fromEntries(tokens.map((token) => [token, Array<number>(200).fill(0.00001)]));
+  const hourTime = 199 * 3600 + 1800;
+
+  it("gives each market its share divided by the number of markets, at leverage x the margin", () => {
+    const series = { AAA: rising, BBB: flat(200), CCC: flat(200) };
+    const hour = runHour({ cash: 9000, positions: {} }, portfolio(2), series, 199, hourTime, { funding: positive(["AAA", "BBB", "CCC"]) });
+    const share = Math.min(1, 0.2 / realisedVolatility(rising.slice(0, 200), 72)) / 3;
+    const position = hour.state.positions.AAA;
+    expect(hour.fills).toHaveLength(1);
+    expect(hour.fills[0]).toMatchObject({ side: "buy", reason: "signal" });
+    // Margin put in = equity x share; size = 2 x that; the opening cost is taken from the margin.
+    const putIn = 9000 * share;
+    expect(position.quantity * rising[199]).toBeCloseTo(2 * putIn, 6);
+    expect(position.margin).toBeCloseTo(putIn - 2 * putIn * PERPS_COST_RATE, 6);
+    expect(position.stopPrice).toBe(rising[199]);
+    expect(hour.state.cash).toBeCloseTo(9000 - putIn, 6);
+  });
+
+  it("leaves a single-market agent without portfolio settings exactly as before", () => {
+    const series = { AAA: rising };
+    const plain = runHour({ cash: 1000, positions: {} }, base, series, 199, hourTime, { funding: positive(["AAA"]) });
+    expect(plain.state.positions.AAA.margin).toBeUndefined();
+    expect(plain.state.positions.AAA.stopPrice).toBeUndefined();
+  });
+
+  it("values a margined long at its margin plus its gain, and charges it funding", () => {
+    const long = { quantity: 10, entryPrice: 100, margin: 500, stopPrice: 100 };
+    expect(longValue(long, 110)).toBe(600);
+    expect(longValue(long, 40)).toBe(0);
+    expect(equityAt({ cash: 100, positions: { AAA: long } }, { AAA: 105 })).toBe(650);
+    // Positive funding: the long pays quantity x price x rate out of its margin.
+    const flatSeries = { AAA: flat(200, 100) };
+    const funded = runHour({ cash: 0, positions: { AAA: { ...long, openedAt: 0 } } }, portfolio(2), flatSeries, 199, hourTime, { funding: { AAA: Array<number>(200).fill(0.001) } });
+    expect(funded.state.positions.AAA?.margin ?? 0).toBeCloseTo(500 - 10 * 100 * 0.001, 9);
+  });
+
+  it("stops a long at the first entry after a resize, before it can be liquidated at 2x", () => {
+    expect(LIQUIDATION_LOSS / 2).toBeGreaterThan(0.15);
+    const long = { quantity: 10, entryPrice: 120, margin: 500, stopPrice: 100, openedAt: 0 };
+    // Stop = 100 x 0.85 = 85: 86 holds, 85 sells; proceeds = margin + gain - cost.
+    const held = runHour({ cash: 0, positions: { AAA: long } }, portfolio(2), { AAA: [...flat(199, 120), 86] }, 199, hourTime);
+    expect(held.fills.some((fill) => fill.reason === "stop_loss")).toBe(false);
+    const stopped = runHour({ cash: 0, positions: { AAA: long } }, portfolio(2), { AAA: [...flat(199, 120), 85] }, 199, hourTime);
+    expect(stopped.fills[0]).toMatchObject({ side: "sell", reason: "stop_loss" });
+    expect(stopped.state.cash).toBeCloseTo(Math.max(0, 500 + 10 * (85 - 120) - 10 * 85 * PERPS_COST_RATE), 9);
+  });
+
+  it("puts sleeves back on target at midnight: entry moves to the price, the stop stays", () => {
+    const series = { AAA: rising, BBB: flat(200) };
+    const share = Math.min(1, 0.2 / realisedVolatility(rising.slice(0, 200), 72)) / 2;
+    const price = rising[199];
+    // A sleeve holding three times its target size.
+    const heavy: AgentState = { cash: 4000, positions: { AAA: { quantity: (3 * 2 * 5000 * share) / price, entryPrice: 150, margin: 3 * 5000 * share, stopPrice: 150, openedAt: 0 } } };
+    const hour = runHour(heavy, portfolio(2), series, 199, 86400 * 10, { funding: positive(["AAA", "BBB"]) });
+    const resize = hour.fills.find((fill) => fill.reason === "resize");
+    expect(resize).toMatchObject({ side: "sell", token: "AAA", entryPrice: 150 });
+    const after = hour.state.positions.AAA;
+    expect(after).toMatchObject({ entryPrice: price, stopPrice: 150 });
+    expect(after.quantity * price).toBeCloseTo(2 * after.margin!, 9);
+    expect(hour.state.cash).toBeGreaterThanOrEqual(0);
+    // Only the cost of the change leaves the equity (funding is paid before the hour's decisions).
+    expect(hour.equity).toBeCloseTo(equityAt(hour.state, { AAA: price, BBB: 100 }), 9);
+  });
+
+  it("matches the prototype engine at 2x, longs and shorts, with funding and real hour times", () => {
+    const prototype = createRequire(import.meta.url)("../../prototype/engine.js") as {
+      simulate: (options: object) => { returnPct: number; trades: { index: number; side: string; symbol: string; reason: string }[] };
+    };
+    const series: Record<string, number[]> = { AAA: walk(7, 1500), BBB: walk(42, 1500), CCC: walk(99, 1500), DDD: walk(3, 1500) };
+    const funding = Object.fromEntries(Object.keys(series).map((token, t) => [token, series[token].map((_, i) => Math.sin(i / 90 + t) * 0.00003)]));
+    const times = series.AAA.map((_, i) => 1_700_000_000 - (1_700_000_000 % 86400) + 5 * 3600 + i * 3600);
+    for (const leverage of [1, 2, 3]) {
+      const params = portfolio(leverage);
+      const ours = simulate({ series, params, capital: 10_000, fromIndex: 170, times, funding });
+      const theirs = prototype.simulate({
+        tokens: Object.entries(series).map(([symbol, closes]) => ({ symbol, closes, funding: funding[symbol] })),
+        strategy: "custom",
+        rules,
+        venue: "perps",
+        sizing,
+        portfolio: { leverage },
+        times,
+        capital: 10_000,
+        maxPositionPct: 100,
+        stopLossPct: 15,
+        fromIndex: 170,
+      });
+      expect(ours.fills.some((fill) => fill.side === "short" && fill.reason === "signal")).toBe(true);
+      expect(ours.fills.some((fill) => fill.reason === "resize")).toBe(true);
+      expect(ours.fills.map((fill) => `${fill.index}:${fill.side}:${fill.token}:${fill.reason}`)).toEqual(
+        theirs.trades.map((trade) => `${trade.index}:${trade.side}:${trade.symbol}:${trade.reason}`),
+      );
+      expect(ours.returnPct).toBeCloseTo(theirs.returnPct, 9);
+      expect(ours.runs.every((run) => run.cash >= -1e-9)).toBe(true);
+    }
   });
 });
