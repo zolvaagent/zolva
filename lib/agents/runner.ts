@@ -23,7 +23,7 @@ export type RunnerResult = {
  */
 export async function runActiveAgents(db: SupabaseClient): Promise<RunnerResult> {
   // Perps included: Lab agents trade them on paper. The longer window covers the longest rule.
-  const market = await getMarket(db, { perps: true, hours: RUNNER_MARKET_HOURS });
+  const market = await getMarket(db, { perps: true, hours: RUNNER_MARKET_HOURS, fresh: true });
   const result: RunnerResult = { agents: 0, hoursWritten: 0, hoursSkipped: 0, failed: [], copilot: [] };
   if (!market.hours) return result;
   const latestTs = market.startTs + (market.hours - 1) * 3600;

@@ -65,7 +65,7 @@ export async function runLighterAgents(db: SupabaseClient, lighter: LighterBindi
   const marketOfToken = new Map(perpTokens.map((token) => [token.address, Number(token.lighter_market_id)]));
   const symbolOf = new Map(perpTokens.map((token) => [token.address, token.symbol]));
 
-  const market = await getMarket(db, { perps: true, hours: RUNNER_MARKET_HOURS });
+  const market = await getMarket(db, { perps: true, hours: RUNNER_MARKET_HOURS, fresh: true });
   if (!market.hours) return result;
   const latestTs = market.startTs + (market.hours - 1) * HOUR;
   const latestIndex = market.hours - 1;

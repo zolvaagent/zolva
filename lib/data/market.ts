@@ -53,13 +53,17 @@ const cached = new Map<number, { at: number; market: Market }>();
  * far run only for Lab agents, so market lists, the Studio, Swap and the APIs never
  * show them. The agent runner and agent pages ask for them.
  */
-export async function getMarket(db: SupabaseClient, options: { perps?: boolean; hours?: number } = {}): Promise<Market> {
-  const market = await loadMarket(db, options.hours ?? MARKET_HOURS);
+export async function getMarket(db: SupabaseClient, options: { perps?: boolean; hours?: number; fresh?: boolean } = {}): Promise<Market> {
+  const market = await loadMarket(db, options.hours ?? MARKET_HOURS, options.fresh ?? false);
   return options.perps ? market : { ...market, tokens: market.tokens.filter((token) => token.venue !== "lighter") };
 }
 
-async function loadMarket(db: SupabaseClient, hours: number): Promise<Market> {
-  const hit = cached.get(hours);
+/**
+ * @param fresh  The hourly agent runners: skip both caches and read the candles directly, so a decision
+ *               never rests on a stored result (pages use the cached database function).
+ */
+async function loadMarket(db: SupabaseClient, hours: number, fresh: boolean): Promise<Market> {
+  const hit = fresh ? undefined : cached.get(hours);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.market;
 
   const latest = await latestCandleTime(db);
@@ -68,7 +72,11 @@ async function loadMarket(db: SupabaseClient, hours: number): Promise<Market> {
   // Load a day earlier than the window so the outlier filter starts warm.
   const from = startTs - OUTLIER_WINDOW * HOUR_SECONDS;
 
-  const { data, error } = await db.rpc("candle_closes", { p_from: new Date(from * 1000).toISOString() });
+  const pFrom = new Date(from * 1000).toISOString();
+  // Pages: candle_closes_cached (supabase/migrations/20261125000400) keeps the result while no candle
+  // changed. If that function is missing (not migrated yet) or fails, fall back to the direct one.
+  let { data, error } = fresh ? await db.rpc("candle_closes", { p_from: pFrom }) : await db.rpc("candle_closes_cached", { p_from: pFrom });
+  if (error && !fresh) ({ data, error } = await db.rpc("candle_closes", { p_from: pFrom }));
   if (error) throw new Error(`Loading prices failed: ${error.message}`);
 
   const tokens = (data as RawToken[]).map((token) => {
@@ -89,7 +97,7 @@ async function loadMarket(db: SupabaseClient, hours: number): Promise<Market> {
   });
 
   const market = { startTs, hours, tokens };
-  cached.set(hours, { at: Date.now(), market });
+  if (!fresh) cached.set(hours, { at: Date.now(), market });
   return market;
 }
 

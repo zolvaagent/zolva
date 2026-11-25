@@ -107,7 +107,7 @@ export async function runLiveAgents(db: SupabaseClient): Promise<LiveResult> {
   // 2. Decide on the newest hour and execute.
   // The same long window as the paper runner, so rules with a long look-back (the 1,200 hour Vol
   // Trend average) see their whole history.
-  const market = await getMarket(db, { hours: RUNNER_MARKET_HOURS });
+  const market = await getMarket(db, { hours: RUNNER_MARKET_HOURS, fresh: true });
   if (!market.hours) return result;
   const latestTs = market.startTs + (market.hours - 1) * HOUR;
   const closes = Object.fromEntries(market.tokens.map((token) => [token.address, token.closes]));
