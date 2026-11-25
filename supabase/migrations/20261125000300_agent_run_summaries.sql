@@ -76,3 +76,8 @@ select a.id,
        a.published_at
   from agents a
   left join agent_run_summaries s on s.agent_id = a.id;
+
+-- "Newest candle hour" (select ts from candles order by ts desc limit 1) runs on most pages and every tick;
+-- candles had only its (token_address, ts) key, so each call scanned the table (~117 ms, 59k calls).
+-- With this index it is ~0.2 ms.
+create index if not exists candles_ts_idx on candles (ts desc);
