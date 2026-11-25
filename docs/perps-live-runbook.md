@@ -53,3 +53,35 @@ Checked:
 - Everything: set `LIGHTER_ENABLED` to anything but "true" on zolva-lighter (no orders), or `live_settings.enabled = false` (no live agents at all).
 - One agent: pause it on its page.
 - Funds: withdraw from Lighter to your own wallet. An API key can only withdraw there.
+
+## Vol Trend Portfolio 2x, real money (2026-11-25)
+Owner: "Fastest but using leverage", then "Ya, bangun pakai Lighter". Research flagged skipping its 90-day paper gate; the owner accepts the risk.
+
+**Built (not live):**
+- The live perps runner handles a Lab portfolio:
+  - margined positions, each margin derived from Lighter as size x entry / 2;
+  - the stop kept at the first entry;
+  - the same engine (`runHour` + `params.portfolio`) as the paper twin "Lab · Vol Trend Portfolio 2x".
+- Hard limits in code (`lib/live/lighter.ts`):
+  - account exposure at most 2x equity;
+  - one market at most (equity x 2 / 6) x 1.1;
+  - risk-increasing orders are cut to fit;
+  - exits and downsizing are reduce-only;
+  - pause at 25% below peak equity;
+  - pause after 2 failed orders in a row;
+  - pause on any position mismatch with Lighter (hourly).
+- zolva-lighter refuses leverage above 2x. The runner sets 2x isolated on a market just before its first position there.
+- "Close all positions" on the agent page (owner only): pauses, then reduce-only market orders on every position. `pause_live_agent` over MCP also works.
+- Migration `20261125000500_perps_live_portfolio.sql` sets the final agent guard (live portfolio only with a Lighter account, at most 2x) and stores margins in `sync_lighter_agent`.
+- `scripts/create-live-portfolio.mts` creates the live twin from the paper twin's params, **paused**.
+
+**Go live, in order:**
+| # | Who | Step |
+|---|---|---|
+| 1 | Owner | Check Lighter's terms for your country. Make a **new wallet** just for this (not personal, not 0x235c). Open Lighter RH with it, create one sub-account, deposit the start size. |
+| 2 | Dev + owner | `npm run lighter:signer`, then `npm run lighter:register -- --network mainnet --address 0xNEW --account <sub-account>`. The owner signs once. |
+| 3 | Dev | `npm run lighter:deploy` with `LIGHTER_ENABLED=false`; secrets `INTERNAL_TOKEN`, `LIGHTER_KEYS`. |
+| 4 | Dev (owner's yes) | Apply `20261115000100_perps_live.sql`, then `20261125000500_perps_live_portfolio.sql`. Raise `live_settings.max_agent_capital_usd` (today $100) and `daily_volume_usd` (today $300) to fit the start size. Add the `LIGHTER` service binding to `wrangler.jsonc`, set `LIGHTER_INTERNAL_TOKEN`, deploy. |
+| 5 | Dev (owner's yes) | `node … scripts/create-live-portfolio.mts --owner 0xOWNER_LOGIN --account <idx> --capital <usd>` (dry), then with `--write`. Resume the agent. |
+| 6 | Dev + owner | Dry run: a few hours with `LIGHTER_ENABLED=false`. Every intended order is recorded as cancelled; compare them with the paper twin's trades. |
+| 7 | Owner | Approve `LIGHTER_ENABLED=true`. Watch the first ticks (tick JSON `perps`, the agent page). |

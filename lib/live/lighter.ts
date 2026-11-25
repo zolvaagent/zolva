@@ -165,6 +165,8 @@ export type EnginePositionRow = {
   opened_at: string | null;
   side: "long" | "short";
   stop_price: number | null;
+  /** Lab portfolio agents only: the margin the engine values the position on (see engineStateFromLighter). */
+  margin?: number | null;
 };
 
 /**
@@ -179,6 +181,13 @@ export function engineStateFromLighter(
   prices: Readonly<Record<string, number>>,
   previous: readonly EnginePositionRow[],
   nowIso: string,
+  /**
+   * Lab portfolio agents (engine AgentParams.portfolio): every position is margined at this leverage.
+   * Its margin is derived from Lighter each hour, |size| x entry / leverage (what an isolated position
+   * at that leverage locks), so nothing Zolva stored can drift from the exchange; it is valued like the
+   * engine's margined positions, and the stop stays at the first entry (kept from the previous rows).
+   */
+  portfolioLeverage?: number,
 ): { cash: number; positions: EnginePositionRow[]; unknownMarkets: number[] } {
   const positions: EnginePositionRow[] = [];
   const unknownMarkets: number[] = [];
@@ -193,6 +202,21 @@ export function engineStateFromLighter(
     const quantity = Math.abs(position.size);
     const before = previous.find((row) => row.token_address === token && row.side === side);
     const price = prices[token] ?? position.avgEntryPrice;
+    if (portfolioLeverage !== undefined) {
+      const margin = (quantity * position.avgEntryPrice) / portfolioLeverage;
+      const gain = side === "long" ? quantity * (price - position.avgEntryPrice) : quantity * (position.avgEntryPrice - price);
+      held += Math.max(0, margin + gain);
+      positions.push({
+        token_address: token,
+        quantity,
+        avg_entry_price: position.avgEntryPrice,
+        opened_at: before?.opened_at ?? nowIso,
+        side,
+        stop_price: before?.stop_price ?? position.avgEntryPrice,
+        margin,
+      });
+      continue;
+    }
     held += side === "long" ? quantity * price : quantity * (2 * position.avgEntryPrice - price);
     positions.push({
       token_address: token,
@@ -231,4 +255,55 @@ export function reconcile(
     if (scale > 0 && Math.abs(ours - lighter) > tolerance * scale) mismatches.push({ token, zolva: ours, lighter });
   }
   return mismatches;
+}
+
+/** Hard limits on a live Lab portfolio, enforced in code whatever the strategy wants (Research, 2026-11-25). */
+export const PORTFOLIO_LIVE_LIMITS = {
+  /** Account exposure (sum of |size| x price) may not pass leverage x equity. */
+  maxAccountLeverage: 2,
+  /** One market's exposure may not pass (equity x leverage / markets) x this. */
+  perMarketSlack: 1.1,
+  /** Pause when equity is this far below its peak (the backtest's worst was 20%). */
+  pauseDrawdown: 0.25,
+} as const;
+
+export type ExposureCheck = { allowedBase: number; reason: string | null };
+
+/**
+ * Clamps a risk-increasing order (a buy that grows a long, a short that grows a short) so that afterwards
+ * neither the market's exposure nor the account's breaks the hard limits. Risk-reducing orders are never
+ * limited. Returns the base amount that may be sent (0 when nothing fits) and why it was cut.
+ */
+export function limitPortfolioOrder(input: {
+  /** The market's signed size now (positive long, negative short). */
+  currentSize: number;
+  /** Signed size change the engine wants (positive buys, negative sells). */
+  change: number;
+  price: number;
+  equity: number;
+  leverage: number;
+  markets: number;
+  /** Sum of |size| x price over the other markets. */
+  otherExposure: number;
+}): ExposureCheck {
+  const { currentSize, change, price, equity, markets, otherExposure } = input;
+  const leverage = Math.min(input.leverage, PORTFOLIO_LIVE_LIMITS.maxAccountLeverage);
+  const wanted = Math.abs(change);
+  const grows = Math.abs(currentSize + change) > Math.abs(currentSize) + 1e-12;
+  if (!grows || !(price > 0)) return { allowedBase: wanted, reason: null };
+  if (!(equity > 0)) return { allowedBase: 0, reason: "no equity" };
+  const marketCap = ((equity * leverage) / Math.max(1, markets)) * PORTFOLIO_LIVE_LIMITS.perMarketSlack;
+  const accountCap = equity * leverage;
+  const room = Math.min(marketCap - Math.abs(currentSize) * price, accountCap - otherExposure - Math.abs(currentSize) * price);
+  const allowed = Math.max(0, Math.min(wanted, room / price));
+  if (allowed >= wanted - 1e-12) return { allowedBase: wanted, reason: null };
+  const which = marketCap - Math.abs(currentSize) * price <= accountCap - otherExposure - Math.abs(currentSize) * price ? "per-market limit" : "account leverage limit";
+  return { allowedBase: allowed, reason: `cut to the ${which}` };
+}
+
+/** Whether a live portfolio should pause: equity down PORTFOLIO_LIVE_LIMITS.pauseDrawdown or more from its peak. */
+export function drawdownPause(peak: number, equity: number): { pause: boolean; drawdown: number } {
+  const top = Math.max(peak, equity);
+  const drawdown = top > 0 ? (top - equity) / top : 0;
+  return { pause: drawdown >= PORTFOLIO_LIVE_LIMITS.pauseDrawdown, drawdown };
 }

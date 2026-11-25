@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { planAgentHours, type AgentRow, type PositionRow } from "../agents/plan.ts";
 import { getMarket, RUNNER_MARKET_HOURS } from "../data/market.ts";
-import { engineStateFromLighter, lighterOrderFor, parseAccount, reconcile, type EnginePositionRow, type LighterAccount } from "./lighter.ts";
+import { drawdownPause, engineStateFromLighter, lighterOrderFor, limitPortfolioOrder, parseAccount, reconcile, type EnginePositionRow, type LighterAccount } from "./lighter.ts";
 
 /**
  * Real money perps on Lighter RH (owner only, docs/plan-actions-perps-live.md step P). Runs every live
@@ -74,43 +74,15 @@ export async function runLighterAgents(db: SupabaseClient, lighter: LighterBindi
   const openInterest = Object.fromEntries(market.tokens.filter((token) => token.openInterest).map((token) => [token.address, token.openInterest!]));
   const prices = Object.fromEntries(market.tokens.flatMap((token) => (token.closes[latestIndex] != null ? [[token.address, token.closes[latestIndex] as number]] : [])));
 
-  const call = async (path: string, body?: unknown): Promise<Record<string, unknown>> => {
-    const response = await lighter.fetch(`${INTERNAL}${path}`, {
-      method: body === undefined ? "GET" : "POST",
-      headers: { "x-internal-token": internalToken, "content-type": "application/json" },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    return (await response.json().catch(() => ({ status: "error", detail: `zolva-lighter answered ${response.status}` }))) as Record<string, unknown>;
-  };
-  const readAccount = async (index: number): Promise<LighterAccount | null> => {
-    const body = await call(`/account?index=${index}`);
-    // zolva-lighter returns the parsed account; parseAccount wants Lighter's raw shape, so rebuild it.
-    if (!Array.isArray(body.positions)) return null;
-    return parseAccount({
-      accounts: [
-        {
-          index: body.index,
-          collateral: body.collateral,
-          available_balance: body.available,
-          total_asset_value: body.totalValue,
-          positions: (body.positions as Record<string, number>[]).map((p) => ({
-            market_id: p.marketId,
-            symbol: p.symbol,
-            sign: p.size < 0 ? -1 : 1,
-            position: Math.abs(p.size),
-            avg_entry_price: p.avgEntryPrice,
-            unrealized_pnl: p.unrealizedPnl,
-            margin_mode: p.marginMode,
-          })),
-        },
-      ],
-    });
-  };
+  const { call, readAccount } = lighterClient(lighter, internalToken);
 
   const { data: positionRows } = await db
     .from("positions")
     .select("agent_id, token_address, quantity, avg_entry_price, opened_at, side, stop_price")
     .in("agent_id", (agents as LighterAgent[]).map((agent) => agent.id));
+  // Peak equity per agent (agent_run_summaries, kept by a trigger on agent_runs), for the drawdown pause.
+  const { data: summaryRows } = await db.from("agent_run_summaries").select("agent_id, peak").in("agent_id", (agents as LighterAgent[]).map((agent) => agent.id));
+  const peakOf = new Map(((summaryRows ?? []) as { agent_id: string; peak: number }[]).map((row) => [row.agent_id, Number(row.peak)]));
 
   for (const agent of agents as LighterAgent[]) {
     try {
@@ -119,11 +91,14 @@ export async function runLighterAgents(db: SupabaseClient, lighter: LighterBindi
       const accountIndex = Number(agent.lighter_account_index);
       const own = ((positionRows ?? []) as (EnginePositionRow & { agent_id: string })[]).filter((row) => row.agent_id === agent.id);
 
+      // Lab portfolio (equal sleeves at account leverage): margined positions and the hard limits below.
+      const portfolioLeverage = agent.params.portfolio ? Number(agent.params.portfolio.leverage) : undefined;
+
       // 1. Lighter first: anything Zolva did not do pauses the agent.
       const account = await readAccount(accountIndex);
       if (!account) throw new Error(`Lighter account ${accountIndex} could not be read`);
       const mismatches = reconcile(own, account, tokenOfMarket);
-      const state = engineStateFromLighter(account, tokenOfMarket, prices, own, new Date(latestTs * 1000).toISOString());
+      const state = engineStateFromLighter(account, tokenOfMarket, prices, own, new Date(latestTs * 1000).toISOString(), portfolioLeverage);
       if (mismatches.length || state.unknownMarkets.length) {
         const reason = mismatches.length
           ? `positions differ from Lighter: ${mismatches.map((m) => `${symbolOf.get(m.token) ?? m.token} Zolva ${m.zolva} vs Lighter ${m.lighter}`).join("; ")}`
@@ -136,8 +111,18 @@ export async function runLighterAgents(db: SupabaseClient, lighter: LighterBindi
       }
       await sync(db, agent.id, state);
 
+      // Hard limit: a live portfolio pauses at a 25% drop from its peak equity (the backtest's worst was 20%).
+      if (portfolioLeverage !== undefined) {
+        const { pause, drawdown } = drawdownPause(peakOf.get(agent.id) ?? Number(agent.start_capital), account.totalValue);
+        if (pause) {
+          await db.from("agents").update({ status: "paused" }).eq("id", agent.id);
+          result.paused.push({ agentId: agent.id, reason: `equity is ${(drawdown * 100).toFixed(1)}% below its peak (limit 25%)` });
+          continue;
+        }
+      }
+
       // 2. Decide on the newest hour from Lighter's state.
-      const synced: PositionRow[] = state.positions.map((row) => ({ ...row, margin: null }));
+      const synced: PositionRow[] = state.positions.map((row) => ({ ...row, margin: row.margin ?? null }));
       const [hour] = planAgentHours(
         { ...agent, cash: state.cash, last_run_ts: new Date((latestTs - HOUR) * 1000).toISOString() },
         synced,
@@ -152,7 +137,7 @@ export async function runLighterAgents(db: SupabaseClient, lighter: LighterBindi
         p_equity: account.totalValue,
         p_hold_equity: hour.holdEquity,
         p_decisions: hour.decisions,
-        p_positions: state.positions.map((row) => ({ ...row, margin: null })),
+        p_positions: state.positions.map((row) => ({ ...row, margin: row.margin ?? null })),
         p_trades: [],
       });
       if (writeError) throw new Error(writeError.message);
@@ -160,15 +145,55 @@ export async function runLighterAgents(db: SupabaseClient, lighter: LighterBindi
 
       // 3. Orders: whatever reduces risk first (sells and covers), then buys and shorts.
       const fills = [...(hour.trades as Fill[])].sort((a, b) => Number(lighterOrderFor(b.side).reduceOnly) - Number(lighterOrderFor(a.side).reduceOnly));
+      // Signed size per market as orders go out, for the portfolio's exposure limits.
+      const sizes = new Map<string, number>();
+      for (const position of account.positions) {
+        const token = tokenOfMarket.get(position.marketId);
+        if (token) sizes.set(token, position.size);
+      }
       for (const fill of fills) {
-        const outcome = await placeFill(db, call, settings, agent, accountIndex, marketOfToken, hour.ts, fill);
-        result.orders.push({ agentId: agent.id, token: symbolOf.get(fill.token_address) ?? fill.token_address, side: fill.side, ...outcome });
+        const order = lighterOrderFor(fill.side);
+        const change = (order.side === "buy" ? 1 : -1) * fill.quantity;
+        let sent = fill;
+        if (portfolioLeverage !== undefined && !order.reduceOnly) {
+          const price = prices[fill.token_address] ?? fill.price;
+          let otherExposure = 0;
+          for (const [token, size] of sizes) if (token !== fill.token_address) otherExposure += Math.abs(size) * (prices[token] ?? 0);
+          const limit = limitPortfolioOrder({
+            currentSize: sizes.get(fill.token_address) ?? 0,
+            change,
+            price,
+            equity: account.totalValue,
+            leverage: portfolioLeverage,
+            markets: agent.token_addresses.length,
+            otherExposure,
+          });
+          if (limit.allowedBase <= 0) {
+            result.orders.push({ agentId: agent.id, token: symbolOf.get(fill.token_address) ?? fill.token_address, side: fill.side, status: "skipped", detail: limit.reason ?? "limit" });
+            continue;
+          }
+          if (limit.allowedBase < fill.quantity) sent = { ...fill, quantity: limit.allowedBase };
+        }
+        // Before a portfolio's first position in a market: set that market to its leverage, isolated.
+        if (portfolioLeverage !== undefined && !order.reduceOnly && !(sizes.get(fill.token_address) ?? 0)) {
+          const marketId = marketOfToken.get(fill.token_address);
+          const set = marketId === undefined ? { status: "rejected", detail: "no Lighter market" } : await call("/leverage", { accountIndex, marketId, leverage: portfolioLeverage });
+          // "disabled" (LIGHTER_ENABLED off, the dry run): let the order through so it is recorded as cancelled.
+          if (String(set.status) !== "accepted" && String(set.status) !== "disabled") {
+            result.orders.push({ agentId: agent.id, token: symbolOf.get(fill.token_address) ?? fill.token_address, side: fill.side, status: "skipped", detail: `leverage not set: ${String(set.detail ?? set.error ?? set.status).slice(0, 120)}` });
+            continue;
+          }
+        }
+        const outcome = await placeFill(db, call, settings, agent, accountIndex, marketOfToken, hour.ts, sent);
+        if (outcome.status === "filled" || outcome.status === "partial") sizes.set(fill.token_address, (sizes.get(fill.token_address) ?? 0) + (order.side === "buy" ? 1 : -1) * sent.quantity);
+        result.orders.push({ agentId: agent.id, token: symbolOf.get(fill.token_address) ?? fill.token_address, side: fill.side, ...outcome, ...(sent !== fill ? { detail: `${outcome.detail} (cut by the hard limits)` } : {}) });
       }
 
-      // 4. Lighter again: Zolva's positions and cash follow what really happened.
+      // 4. Lighter again: Zolva's positions and cash follow what really happened. The engine's planned
+      // rows go in as "previous", so a new position keeps the stop level the engine set.
       if (fills.length) {
         const after = await readAccount(accountIndex);
-        if (after) await sync(db, agent.id, engineStateFromLighter(after, tokenOfMarket, prices, state.positions, hour.ts));
+        if (after) await sync(db, agent.id, engineStateFromLighter(after, tokenOfMarket, prices, [...hour.positions, ...state.positions], hour.ts, portfolioLeverage));
       }
     } catch (cause) {
       result.failed.push({ agentId: agent.id, error: cause instanceof Error ? cause.message : String(cause) });
@@ -254,4 +279,75 @@ async function placeFill(
 async function pauseAfterRepeatedFailures(db: SupabaseClient, agentId: string) {
   const { data } = await db.from("executions").select("status").eq("agent_id", agentId).in("status", ["confirmed", "failed"]).order("created_at", { ascending: false }).limit(2);
   if (data?.length === 2 && data.every((row) => row.status === "failed")) await db.from("agents").update({ status: "paused" }).eq("id", agentId);
+}
+
+/** Calls to the zolva-lighter Worker (orders, leverage, accounts) through its service binding. */
+function lighterClient(lighter: LighterBinding, internalToken: string) {
+  const call = async (path: string, body?: unknown): Promise<Record<string, unknown>> => {
+    const response = await lighter.fetch(`${INTERNAL}${path}`, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "x-internal-token": internalToken, "content-type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return (await response.json().catch(() => ({ status: "error", detail: `zolva-lighter answered ${response.status}` }))) as Record<string, unknown>;
+  };
+  const readAccount = async (index: number): Promise<LighterAccount | null> => {
+    const body = await call(`/account?index=${index}`);
+    // zolva-lighter returns the parsed account; parseAccount wants Lighter's raw shape, so rebuild it.
+    if (!Array.isArray(body.positions)) return null;
+    return parseAccount({
+      accounts: [
+        {
+          index: body.index,
+          collateral: body.collateral,
+          available_balance: body.available,
+          total_asset_value: body.totalValue,
+          positions: (body.positions as Record<string, number>[]).map((p) => ({
+            market_id: p.marketId,
+            symbol: p.symbol,
+            sign: p.size < 0 ? -1 : 1,
+            position: Math.abs(p.size),
+            avg_entry_price: p.avgEntryPrice,
+            unrealized_pnl: p.unrealizedPnl,
+            margin_mode: p.marginMode,
+          })),
+        },
+      ],
+    });
+  };
+
+  return { call, readAccount };
+}
+
+export type CloseAllResult = { paused: boolean; orders: { token: string; side: string; status: string; detail: string }[]; error: string | null };
+
+/**
+ * The owner's emergency button for a live Lighter agent: pause it, then close every position on its
+ * Lighter account with reduce-only market orders (they can only shrink a position, never open or flip
+ * one). Positions Zolva does not know are closed too. Zolva's record then follows the account.
+ */
+export async function closeAllLighterPositions(db: SupabaseClient, lighter: LighterBinding, internalToken: string, agentId: string): Promise<CloseAllResult> {
+  const out: CloseAllResult = { paused: false, orders: [], error: null };
+  const { data: agent, error } = await db.from("agents").select("id, params, lighter_account_index").eq("id", agentId).single<{ id: string; params: AgentRow["params"]; lighter_account_index: number | null }>();
+  if (error || !agent || agent.lighter_account_index === null) return { ...out, error: "Not a live Lighter agent." };
+  await db.from("agents").update({ status: "paused" }).eq("id", agentId);
+  out.paused = true;
+  const { data: settings } = await db.from("live_settings").select("max_slippage_bps").eq("id", 1).single<{ max_slippage_bps: number }>();
+  const { call, readAccount } = lighterClient(lighter, internalToken);
+  const accountIndex = Number(agent.lighter_account_index);
+  const account = await readAccount(accountIndex);
+  if (!account) return { ...out, error: `Lighter account ${accountIndex} could not be read` };
+  for (const position of account.positions) {
+    const side = position.size > 0 ? "sell" : "buy";
+    const response = await call("/order", { accountIndex, marketId: position.marketId, side, base: Math.abs(position.size), reduceOnly: true, maxSlippageBps: Math.max(100, Number(settings?.max_slippage_bps ?? 100)) });
+    out.orders.push({ token: position.symbol, side, status: String(response.status), detail: String(response.detail ?? response.filledBase ?? "").slice(0, 200) });
+  }
+  const { data: tokens } = await db.from("tokens").select("address, lighter_market_id").eq("venue", "lighter");
+  const tokenOfMarket = new Map(((tokens ?? []) as { address: string; lighter_market_id: number }[]).map((token) => [Number(token.lighter_market_id), token.address]));
+  const after = await readAccount(accountIndex);
+  if (after) {
+    const leverage = agent.params.portfolio ? Number(agent.params.portfolio.leverage) : undefined;
+    await sync(db, agentId, engineStateFromLighter(after, tokenOfMarket, {}, [], new Date().toISOString(), leverage));
+  }
+  return out;
 }

@@ -425,6 +425,26 @@ export function AgentView({
             {isActive ? "Pause" : "Resume"}
           </button>
         )}
+        {/* Live perps run on Lighter: the owner's emergency stop pauses the agent and closes every position. */}
+        {isOwner && isLive && agent.params.venue === "perps" && (
+          <button
+            className="button button--ghost"
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              if (!window.confirm("Pause this agent and close every position on Lighter now, at market price? This uses real money and cannot be undone.")) return;
+              setBusy(true);
+              const response = await fetch("/api/live/close-all", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentId: agent.id }) }).catch(() => null);
+              const body = (await response?.json().catch(() => null)) as { error?: string | null; orders?: { token: string; status: string }[] } | null;
+              setBusy(false);
+              toast(response?.ok ? `Paused; ${body?.orders?.length ?? 0} positions sent to close` : (body?.error ?? "Closing failed. Check Lighter directly."));
+              router.refresh();
+            }}
+          >
+            <i className="ph ph-x-circle" aria-hidden="true" />
+            Close all positions
+          </button>
+        )}
         {isOwner && !summary.isHouse && (
           <button
             className={`button ${isPublished ? "button--ghost" : "button--primary"}`}

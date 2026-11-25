@@ -140,8 +140,8 @@ async function placeOrder(env: LighterEnv, deps: Deps, accountIndex: number, key
 async function setLeverage(env: LighterEnv, deps: Deps, accountIndex: number, key: AgentKey, body: Record<string, unknown>): Promise<Response> {
   const marketId = Number(body.marketId);
   const leverage = Number(body.leverage);
-  // Real money starts at 1x; the cap here is a second guard next to the database's.
-  if (!Number.isSafeInteger(marketId) || !(leverage >= 1 && leverage <= 3)) return json({ error: "marketId and a leverage from 1 to 3 are required" }, 400);
+  // A second guard next to the database's: real money at most 2x (Research's hard limit, 2026-11-25).
+  if (!Number.isSafeInteger(marketId) || !(leverage >= 1 && leverage <= 2)) return json({ error: "marketId and a leverage from 1 to 2 are required" }, 400);
   const nonce = await nextNonce(env, deps, accountIndex, key.apiKeyIndex);
   const signed = await deps.signer.signLeverage(key, accountIndex, { marketId, fraction: marginFractionFor(leverage), marginMode: MARGIN_MODE_ISOLATED, nonce });
   const sent = await sendTx(env, deps, LIGHTER_TX.updateLeverage, signed.txInfo);

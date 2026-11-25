@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { checkFill, clientOrderIndex, engineStateFromLighter, lighterOrderFor, marginFractionFor, parseAccount, parseMarket, planOrder, reconcile, type LighterMarket } from "./lighter";
+import { checkFill, clientOrderIndex, drawdownPause, engineStateFromLighter, lighterOrderFor, limitPortfolioOrder, marginFractionFor, parseAccount, parseMarket, planOrder, reconcile, type LighterMarket } from "./lighter";
+import { equityAt } from "../engine/engine";
 
 // Trimmed real bodies from api.rh.lighter.xyz on 2026-11-15.
 const BTC_DETAILS = {
@@ -138,5 +139,69 @@ describe("Lighter and the engine's state", () => {
     expect(reconcile(zolva, account([{ market_id: 3, sign: -1, position: "0.2", avg_entry_price: "70" }]), TOKENS)).toEqual([{ token: "sol-perp", zolva: 0.2, lighter: -0.2 }]);
     expect(reconcile(zolva, account([]), TOKENS)).toEqual([{ token: "sol-perp", zolva: 0.2, lighter: 0 }]);
     expect(reconcile([], account([{ market_id: 1, sign: 1, position: "0.001", avg_entry_price: "64000" }]), TOKENS)).toEqual([{ token: "btc-perp", zolva: 0, lighter: 0.001 }]);
+  });
+});
+
+describe("live Lab portfolio on Lighter", () => {
+  const tokenOfMarket = new Map([[1, "BTC"], [0, "ETH"]]);
+  const account = {
+    index: 5,
+    collateral: 1000,
+    available: 600,
+    totalValue: 1012,
+    positions: [
+      { marketId: 1, symbol: "BTC", size: 0.002, avgEntryPrice: 100_000, unrealizedPnl: 10, marginMode: 1 },
+      { marketId: 0, symbol: "ETH", size: -0.1, avgEntryPrice: 3000, unrealizedPnl: 2, marginMode: 1 },
+    ],
+  };
+  const prices = { BTC: 105_000, ETH: 2980 };
+
+  it("derives each margin from Lighter (size x entry / leverage) and keeps the engine's stop", () => {
+    const previous = [{ token_address: "BTC", quantity: 0.002, avg_entry_price: 98_000, opened_at: "2026-11-25T00:00:00Z", side: "long" as const, stop_price: 97_000 }];
+    const state = engineStateFromLighter(account, tokenOfMarket, prices, previous, "2026-11-25T10:00:00Z", 2);
+    const btc = state.positions.find((row) => row.token_address === "BTC")!;
+    const eth = state.positions.find((row) => row.token_address === "ETH")!;
+    expect(btc).toMatchObject({ margin: 100, stop_price: 97_000, opened_at: "2026-11-25T00:00:00Z" });
+    expect(eth).toMatchObject({ side: "short", margin: 150, stop_price: 3000 });
+    // Cash makes the engine's equity equal Lighter's account value.
+    const engine = {
+      cash: state.cash,
+      positions: Object.fromEntries(
+        state.positions.map((row) => [row.token_address, { quantity: row.quantity, entryPrice: row.avg_entry_price, margin: row.margin!, ...(row.side === "short" ? { side: "short" as const } : {}) }]),
+      ),
+    };
+    expect(equityAt(engine, prices)).toBeCloseTo(1012, 9);
+  });
+
+  it("leaves 1x agents as before (no margin)", () => {
+    const state = engineStateFromLighter(account, tokenOfMarket, prices, [], "2026-11-25T10:00:00Z");
+    expect(state.positions.every((row) => row.margin === undefined)).toBe(true);
+  });
+
+  it("cuts a growing order to the per-market limit and the account leverage limit", () => {
+    // Equity 1,000 at 2x over 6 markets: one market may hold (1000 x 2 / 6) x 1.1 = $366.67.
+    const free = limitPortfolioOrder({ currentSize: 0, change: 0.003, price: 100_000, equity: 1000, leverage: 2, markets: 6, otherExposure: 0 });
+    expect(free.allowedBase * 100_000).toBeCloseTo(300, 6);
+    expect(free.reason).toBeNull();
+    const big = limitPortfolioOrder({ currentSize: 0.002, change: 0.003, price: 100_000, equity: 1000, leverage: 2, markets: 6, otherExposure: 0 });
+    expect((0.002 + big.allowedBase) * 100_000).toBeCloseTo(366.67, 1);
+    expect(big.reason).toMatch(/per-market/);
+    // The account already holds $1,900 elsewhere: only $100 of the $2,000 cap is left.
+    const full = limitPortfolioOrder({ currentSize: 0, change: 0.003, price: 100_000, equity: 1000, leverage: 2, markets: 6, otherExposure: 1900 });
+    expect(full.allowedBase * 100_000).toBeCloseTo(100, 6);
+    expect(full.reason).toMatch(/account leverage/);
+    // Asking for more than 2x is still held to 2x.
+    expect(limitPortfolioOrder({ currentSize: 0, change: 1, price: 100_000, equity: 1000, leverage: 5, markets: 1, otherExposure: 0 }).allowedBase * 100_000).toBeCloseTo(2000, 6);
+  });
+
+  it("never limits an order that reduces risk", () => {
+    expect(limitPortfolioOrder({ currentSize: 0.01, change: -0.004, price: 100_000, equity: 100, leverage: 2, markets: 6, otherExposure: 5000 })).toEqual({ allowedBase: 0.004, reason: null });
+    expect(limitPortfolioOrder({ currentSize: -0.5, change: 0.5, price: 3000, equity: 100, leverage: 2, markets: 6, otherExposure: 5000 })).toEqual({ allowedBase: 0.5, reason: null });
+  });
+
+  it("pauses at a 25% drop from the peak", () => {
+    expect(drawdownPause(1000, 760).pause).toBe(false);
+    expect(drawdownPause(1000, 750)).toEqual({ pause: true, drawdown: 0.25 });
+    expect(drawdownPause(900, 1000).pause).toBe(false);
   });
 });
