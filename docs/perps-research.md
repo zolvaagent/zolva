@@ -1044,3 +1044,26 @@ minute close after the payment, exits v1 and v2 (frozen values), costs 1x = the 
 - L+S agents: one short each, +2.6% to +3.3% while holding lost 7-20%; worst drops 3-5%, far inside the
   backtest's 21-30%. The OI A/B twins: -0.0% to +1.7%; too early to compare (gate after 90 days).
 - No real-money signal yet: ~11 days and one trade per agent say the engine is right, not that the edge holds.
+
+## Leverage and funding carry for a $1,000 house agent (2026-11-25)
+Owner asked for a way to make $1,000 produce about $100 a week (10% a week). Both checks were fixed before their first
+runs (f2ca705, a720cdc). Funding from data.binance.vision monthly files (fapi was unreachable), through 2026-10-31.
+**Vol Trend at 2x and 3x** (`LEV=2|3 RULES=... scripts/research-alt-funding.mts`, the shipped gate rule long-only and
+L+S f0; liquidation at 5% of notional on hourly closes, so optimistic):
+| | 1x | 2x | 3x |
+|---|---|---|---|
+| L+S, BTC / ETH: yearly compound | +30% / +28% | +64% / +55% | +94% / +82% |
+| L+S, BTC / ETH: worst drop | 21% / 20% | 39% / 36% | 52% / 52% |
+| L+S, SOL XRP NEAR ZEC: yearly compound | +10% to +22% | +17% to +44% | +21% to +65% |
+| L+S, alts: worst drop | 22-28% | 39-50% | 53-68% |
+| Average $ a week on $1,000 (simple) | $2-6 | $3-12 | $4-18 |
+| Pass rule (4 of 6 years up AND drop < 30%) | pass on all 6 | fails (drop) | fails (drop) |
+- No hourly-close liquidation at 2x or 3x, but drops of 36-68% would break any "weekly payout" promise, and real
+  wicks would liquidate sooner. Only 1x passes the pass rule.
+**Funding carry** (`scripts/research-funding-carry.mts`: long coin + short perp, half the account each, 0.1% a fill):
+- About +4% to +7% a year on the whole account ($0.8-1.3 a week on $1,000), nearly all of it from 2021. 2025-2026:
+  about +0% to +2% a year. Funding is too low now for carry to matter. SOL "always" lost 17% in 2022 (negative
+  funding); the f10 filter avoids that.
+Verdict: $100 a week from $1,000 is not reachable with anything tested; the best tested rule at 1x averages about
+$2-6 a week, at 3x about $4-18 a week with half the account at risk in a bad year. A weekly figure depends on
+capital, not on finding a stronger rule.
