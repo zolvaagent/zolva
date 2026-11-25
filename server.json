@@ -3,12 +3,29 @@
   "name": "app.zolvaagent/zolva",
   "title": "Zolva",
   "description": "Trading agents on Robinhood Chain: every buy, sell and hold with its reason, plus market prices.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "websiteUrl": "https://zolvaagent.app/docs/mcp",
   "repository": {
     "url": "https://github.com/zolvaagent/zolva",
     "source": "github"
   },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@zolva/mcp",
+      "version": "1.0.0",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "ZOLVA_API_KEY",
+          "description": "Optional Zolva API key (zk_...) from https://zolvaagent.app/settings#api-keys. Without it the tools are read-only.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",

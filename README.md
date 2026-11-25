@@ -74,15 +74,17 @@ claude mcp add --transport http zolva https://zolvaagent.app/mcp
 
 **Claude Desktop and claude.ai**: Settings, Connectors, Add custom connector, URL `https://zolvaagent.app/mcp`.
 
-**Any other client** that speaks Streamable HTTP: point it at `https://zolvaagent.app/mcp`. Clients that only run local (stdio) servers can use the `mcp-remote` bridge:
+**Any other client** that speaks Streamable HTTP: point it at `https://zolvaagent.app/mcp`. Clients that only run local (stdio) servers can use the [`@zolva/mcp`](https://www.npmjs.com/package/@zolva/mcp) package from npm (source in `packages/zolva`), which forwards to the same URL:
 
 ```json
 {
   "mcpServers": {
-    "zolva": { "command": "npx", "args": ["-y", "mcp-remote", "https://zolvaagent.app/mcp"] }
+    "zolva": { "command": "npx", "args": ["-y", "@zolva/mcp"], "env": { "ZOLVA_API_KEY": "zk_..." } }
   }
 }
 ```
+
+Leave `env` out for read-only use.
 
 To check the server by hand:
 
