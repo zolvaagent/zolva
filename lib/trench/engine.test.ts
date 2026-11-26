@@ -345,6 +345,12 @@ describe("checkBuild (Lab cases)", () => {
     expect(() => checkBuild(sell, expectSell)).not.toThrow();
     const bad = { ...sell, approvals: [{ kind: "erc20", token: tokenAddress, spender: wallet, tx: tx(tokenAddress, "0", approve(wallet)) }] };
     expect(() => checkBuild(bad, expectSell)).toThrow(/approval to/);
+
+    // A sell's quote is net of Rushr's fee: ISO's real numbers (1% of the gross, 1.01% of the net) pass, more does not.
+    const isoQuote = { ...sell.quote, amountOut: "1596650249609110" };
+    const withFee = (value: string): Build => ({ ...sell, quote: isoQuote, followUp: { kind: "rushr_fee", amount: value, tx: tx(RUSHR_TREASURY, value) } });
+    expect(() => checkBuild(withFee("16127780299081"), expectSell)).not.toThrow();
+    expect(() => checkBuild(withFee("16200000000000"), expectSell)).toThrow(/over 1%/);
   });
 });
 

@@ -57,8 +57,10 @@ export function checkBuild(b: Build, expect: { side: "buy" | "sell"; token: stri
   if (b.followUp) {
     const fee = b.followUp.tx;
     if (lower(fee.to) !== RUSHR_TREASURY || (fee.data && fee.data !== "0x")) fail("fee transfer to an unknown address or with data");
-    // Rushr's fee is 0.25% (0.5% after beta); refuse anything above 1% of the trade.
-    const notional = expect.side === "buy" ? expect.amountIn : BigInt(b.quote.amountOut);
+    // Rushr's fee is 0.25% (0.5% after beta); refuse anything above 1% of the trade. A sell's quote is net of
+    // the fee, so its trade size is the quote plus the fee: ISO's sell (2026-11-25) was refused 1382 times
+    // for a fee of exactly 1% of that gross (1.01% of the net quote).
+    const notional = expect.side === "buy" ? expect.amountIn : BigInt(b.quote.amountOut) + BigInt(fee.value);
     if (BigInt(fee.value) * 100n > notional) fail(`fee ${fee.value} is over 1% of ${notional}`);
   }
 }
