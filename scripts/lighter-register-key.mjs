@@ -8,7 +8,7 @@
  * What it does:
  * 1. Finds your Lighter accounts for --address (or uses --account) and the next nonce for the key slot.
  * 2. Makes a fresh key pair with Lighter's own signer and the message Lighter wants your wallet to sign.
- * 3. Opens http://127.0.0.1:8791: a page with one button that asks your browser wallet to sign that message.
+ * 3. Opens http://127.0.0.1:8791 (or --port): a page with one button that asks your browser wallet to sign that message.
  * 4. Sends the signed ChangePubKey to Lighter, checks the key is registered, and writes the key into
  *    workers/lighter/.dev.vars (gitignored) as LIGHTER_KEYS. The private key is never printed.
  * Then: copy that LIGHTER_KEYS value into the Worker secret (the script prints the command).
@@ -26,11 +26,12 @@ const NETWORKS = {
 };
 const UA = { "user-agent": "zolva-lighter/1.0 (+https://zolvaagent.app)" };
 const TX_CHANGE_PUB_KEY = 8;
-const PORT = 8791;
-
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((pairs, value, i, all) => (value.startsWith("--") ? [...pairs, [value.slice(2), all[i + 1]]] : pairs), []),
 );
+// --port picks another local port when 8791 is busy.
+const PORT = Number(args.port ?? 8791);
+if (!Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) throw new Error("--port must be 1024-65535");
 const network = NETWORKS[args.network ?? "testnet"];
 if (!network) throw new Error("--network must be testnet or mainnet");
 const address = String(args.address ?? "").toLowerCase();

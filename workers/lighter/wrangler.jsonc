@@ -11,9 +11,9 @@
   "workers_dev": false,
   "preview_urls": false,
   "vars": {
-    // Testnet until the owner says otherwise. Mainnet RH: https://api.rh.lighter.xyz with chain id 466324.
-    "LIGHTER_API": "https://api.rh-testnet.lighter.xyz",
-    "LIGHTER_CHAIN_ID": "300",
+    // Mainnet Lighter RH (owner's yes 2026-11-26). Testnet: https://api.rh-testnet.lighter.xyz with chain id 300.
+    "LIGHTER_API": "https://api.rh.lighter.xyz",
+    "LIGHTER_CHAIN_ID": "466324",
     // The kill switch: orders only run while this is "true".
     "LIGHTER_ENABLED": "false"
   },

@@ -15,7 +15,9 @@
   },
 
   "services": [
-    { "binding": "WORKER_SELF_REFERENCE", "service": "pitwise" }
+    { "binding": "WORKER_SELF_REFERENCE", "service": "pitwise" },
+    // zolva-lighter signs Lighter RH orders for real money perps agents (workers/lighter). Its kill switch is LIGHTER_ENABLED there.
+    { "binding": "LIGHTER", "service": "zolva-lighter" }
   ],
 
   // zolvaagent.app (bought 2026-10-19 on Cloudflare Registrar, same account).
