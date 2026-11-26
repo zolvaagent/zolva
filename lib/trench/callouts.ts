@@ -18,13 +18,20 @@ export function stripLinks(text: string): string {
     .trim();
 }
 
-export function buyCallout(input: { symbol: string; usd: number; ruleFacts: string; narrative: string | null; presetName: string; stopPct: number }): string {
+/** The exit in a call: the stop for exit v2, the ladder and trail for the moonbag (which has no stop). */
+export function calloutExitNote(exit: { style: string; stopPct: number; trailingPct: number; ladder: readonly { gainPct: number; sellShareOfEntry: number }[] }): string {
+  if (exit.style !== "moonbag") return `Stop -${exit.stopPct}%.`;
+  const first = exit.ladder[0];
+  return first ? `No stop: ${Math.round(first.sellShareOfEntry * 100)}% out at +${first.gainPct}%, the rest trails ${exit.trailingPct}%.` : `No stop, trails ${exit.trailingPct}%.`;
+}
+
+export function buyCallout(input: { symbol: string; usd: number; ruleFacts: string; narrative: string | null; presetName: string; exitNote: string }): string {
   const story = input.narrative ? ` Narrative: ${stripLinks(input.narrative).replace(/\.$/, "")}.` : "";
   // Cents under $10, so a $3.65 buy is not posted as $4.
   const amount = input.usd < 10 ? input.usd.toFixed(2) : input.usd.toFixed(0);
   const text =
     `Bullish $${input.symbol}: bought $${amount} by rule (${input.presetName}). ${stripLinks(input.ruleFacts).replace(/\.$/, "")}.${story} ` +
-    `Stop -${input.stopPct}%. Runs on Zolva, not advice.`;
+    `${input.exitNote} Runs on Zolva, not advice.`;
   return text.length <= CALLOUT_MAX ? text : `${text.slice(0, CALLOUT_MAX - 1)}…`;
 }
 

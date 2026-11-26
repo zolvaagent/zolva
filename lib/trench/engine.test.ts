@@ -366,7 +366,7 @@ describe("policy", () => {
 describe("texts", () => {
   it("callouts and comments carry no links and stay within Rushr's limits", () => {
     expect(stripLinks("see https://x.com/a and token.fun now")).toBe("see and now");
-    const call = buyCallout({ symbol: "ORRY", usd: 10, ruleFacts: "bonding 44%, dev 0%", narrative: "AI payments infra", presetName: "Curve Rider", stopPct: 25 });
+    const call = buyCallout({ symbol: "ORRY", usd: 10, ruleFacts: "bonding 44%, dev 0%", narrative: "AI payments infra", presetName: "Curve Rider", exitNote: "Stop -25%." });
     expect(call).toMatch(/^Bullish \$ORRY: bought \$10 by rule \(Curve Rider\)/);
     expect(call).toMatch(/not advice/);
     expect(sellComment({ sharePct: 100, eth: 0.002, pnlUsd: -3.1, reason: "stop: -30.9% from entry" })).toBe("Sold 100% for 0.00200 ETH (-$3.10). Why: stop: -30.9% from entry.");
@@ -480,7 +480,7 @@ describe("Require X checks off", () => {
 
 describe("callout amounts", () => {
   it("shows cents under $10 so a $3.65 buy is not called $4", () => {
-    expect(buyCallout({ symbol: "HYLIT", usd: 3.65, ruleFacts: "bonding 58%", narrative: null, presetName: "Curve Rider", stopPct: 25 })).toMatch(/^Bullish \$HYLIT: bought \$3\.65 by rule/);
+    expect(buyCallout({ symbol: "HYLIT", usd: 3.65, ruleFacts: "bonding 58%", narrative: null, presetName: "Curve Rider", exitNote: "Stop -25%." })).toMatch(/^Bullish \$HYLIT: bought \$3\.65 by rule/);
   });
 });
 

@@ -167,6 +167,8 @@ export type Position = {
   entryTop10Pct: number;
   /** One-minute closes in a row at or below the stop (exit v2 confirms the stop over N minutes). */
   stopHits: number;
+  /** The token's launch (moonbag time limit). Missing on positions opened before it was stored: opening time then. */
+  launchedAtMs?: number;
 };
 
 export type Market = {
@@ -206,6 +208,7 @@ export function gainPct(position: Pick<Position, "costEth">, valueEth: number): 
  * (in a loss it still sells everything). With weakFlowTrailPct 0 (v1), top-10 selling stays a red flag.
  */
 export function decideExit(position: Position, market: Market, x: ExitRules, onCurve = true): ExitAction {
+  if (x.style === "moonbag") return decideMoonbag(position, market, x);
   const gain = gainPct(position, market.valueEth);
   const perToken = position.tokens > 0n ? market.valueEth / Number(position.tokens) : 0;
   const high = Math.max(position.highPerToken, perToken);
@@ -265,6 +268,31 @@ export function decideExit(position: Position, market: Market, x: ExitRules, onC
   }
   const waiting = closesBelow > 0 ? ` (${closesBelow} of ${x.stopConfirmMinutes} closes below the stop)` : "";
   return { kind: "hold", reason: `${gain >= 0 ? "+" : ""}${gain.toFixed(1)}%, bonding ${(market.bonding * 100).toFixed(0)}%${waiting}` };
+}
+
+/**
+ * Research's exit v3 "moonbag", as pre-registered (scripts/research-trench-backtest.mts `ride` version 3): no
+ * stop and no flow, time-stop, flat-bonding or red-flag exit; the position size is the risk limit. In order:
+ * graduation (bonding at graduateBonding, or graduated) sells everything; the time limit after launch sells
+ * everything; the ladder takes its share (50% at +100%); after it, the rest trails trailingPct from the peak.
+ */
+export function decideMoonbag(position: Position, market: Market, x: ExitRules): ExitAction {
+  const gain = gainPct(position, market.valueEth);
+  const perToken = position.tokens > 0n ? market.valueEth / Number(position.tokens) : 0;
+  const high = Math.max(position.highPerToken, perToken);
+  const all = (reason: string, exitKind: ExitKind): ExitAction => ({ kind: "sell", share: 1, reason, exitKind });
+
+  if (market.graduated || market.bonding >= x.graduateBonding) return all(`graduation: bonding ${(market.bonding * 100).toFixed(0)}%`, "graduation");
+  const launchedAtMs = position.launchedAtMs ?? position.openedAtMs;
+  const sinceLaunchHours = (market.nowMs - launchedAtMs) / 3_600_000;
+  if (sinceLaunchHours >= x.maxHoursFromLaunch) return all(`time limit: ${(x.maxHoursFromLaunch / 24).toFixed(0)} days since launch`, "time");
+  const step = x.ladder[position.laddersDone];
+  if (step && gain >= step.gainPct) {
+    const share = Math.min(1, (step.sellShareOfEntry * Number(position.tokensBought)) / Number(position.tokens));
+    return { kind: "sell", share, reason: `take profit: +${gain.toFixed(0)}%, sell ${step.sellShareOfEntry * 100}% of the entry`, ladderStep: position.laddersDone + 1, exitKind: "ladder" };
+  }
+  if (position.laddersDone > 0 && perToken <= high * (1 - x.trailingPct / 100)) return all(`trailing stop: ${x.trailingPct}% below the peak`, "trail");
+  return { kind: "hold", reason: `${gain >= 0 ? "+" : ""}${gain.toFixed(1)}%, bonding ${(market.bonding * 100).toFixed(0)}%, moonbag (no stop)` };
 }
 
 /** Update the running high, best gain and bonding clock after a minute (before deciding). */

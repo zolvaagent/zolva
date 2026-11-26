@@ -16,13 +16,14 @@ import { formatEther, parseAbi, parseEther, type Address, type PublicClient } fr
 
 import { env } from "../env.ts";
 import { createChainClient, MAX_FEED_AGE_SECONDS } from "../prices/onchain.ts";
-import { buyCallout, callOnlyCallout, CALLOUT_DELAY_MS, cleanPitch, exitSignalComment, sellComment } from "./callouts.ts";
+import { buyCallout, callOnlyCallout, calloutExitNote, CALLOUT_DELAY_MS, cleanPitch, exitSignalComment, sellComment } from "./callouts.ts";
+import { logCandidates, samplePaths } from "./candidate-log.ts";
 import { decryptSecret } from "./crypto.ts";
 import { buyOut, curveOf, readCurve, sellOut } from "./curve.ts";
 import { buySellRatio, caPosted, gainPct, listStage, runMinute, socialStage, statsStage, type CandidateInput, type ExitKind, type HeldInput, type MinuteAction, type Position, type PreviousExit, type RushrToken, type Verdict } from "./engine.ts";
 import { trade, type AgentWallet, type Signer } from "./executor.ts";
 import { noteQproofCandidate, qproofStep } from "./qproof.ts";
-import { agentRules, limitsFor, PRESET_INFO, type Limits, type Market, type PresetId, type TrenchRules } from "./rules.ts";
+import { agentRules, limitsFor, PRESET_INFO, type ExitRules, type Limits, type Market, type PresetId, type TrenchRules } from "./rules.ts";
 import { commentOn, postCallout, safetyBlocked, safetyRefusesBuy, sellQuoteWei, tokenColumn, tokenRow, tokenStats } from "./rushr-api.ts";
 import { callPitch, dexPaidMinutes, narrative, xProfile, xTweets } from "./social.ts";
 
@@ -70,6 +71,8 @@ export type TrenchAgentRow = {
   custom: boolean | null;
   /** Posts calls and tracks paper positions; never trades (see paperAct). */
   call_only: boolean | null;
+  /** Zolva's own money: trades its stored rules, which may use the moonbag exit (rules.ts agentRules). */
+  house: boolean | null;
 };
 
 type PositionRow = {
@@ -105,12 +108,13 @@ type PositionRow = {
   reentries: number | null;
   paper: boolean | null;
   call_mcap: number | null;
+  launched_at: string | null;
 };
 
 /** Every position column, plus the token amounts as exact text (see PositionRow). */
 const POSITION_SELECT = "*, tokens_exact:tokens::text, tokens_bought_exact:tokens_bought::text";
 
-export type MinuteSummary = { minute: string; ran: boolean; note?: string; agents: number; candidates: number; trades: number; errors: string[]; qproof?: string };
+export type MinuteSummary = { minute: string; ran: boolean; note?: string; agents: number; candidates: number; trades: number; errors: string[]; qproof?: string; candidateLog?: string };
 
 const toPosition = (row: PositionRow): Position => ({
   token: row.token,
@@ -127,6 +131,7 @@ const toPosition = (row: PositionRow): Position => ({
   entryDevPct: row.entry_dev_pct,
   entryTop10Pct: row.entry_top10_pct,
   stopHits: row.stop_hits ?? 0,
+  launchedAtMs: row.launched_at ? Date.parse(row.launched_at) : undefined,
 });
 
 const positionColumns = (position: Position) => ({
@@ -381,7 +386,7 @@ async function runAgent(shared: Shared, agent: TrenchAgentRow): Promise<void> {
     }
   }
 
-  if (agent.callouts && !callOnly) await postCallouts(shared, agent, wallet, rules.exit.stopPct);
+  if (agent.callouts && !callOnly) await postCallouts(shared, agent, wallet, rules.exit);
   await db.from("trench_agents").update({ last_run_at: new Date(nowMs).toISOString() }).eq("id", agent.id);
 }
 
@@ -481,6 +486,7 @@ async function execute(shared: Shared, agent: TrenchAgentRow, wallet: AgentWalle
       narrative: shared.narratives.get(token.address) ?? null,
       stop_hits: 0,
       high_mcap: token.market_cap_usd ?? null,
+      launched_at: token.created_at,
     };
     if (action.reentry) {
       // A re-entry reopens the token's row (one row per agent and token): fresh entry state, one more re-entry
@@ -578,6 +584,7 @@ async function paperAct(shared: Shared, agent: TrenchAgentRow, wallet: AgentWall
     narrative: pitch,
     stop_hits: 0,
     high_mcap: token.market_cap_usd ?? null,
+    launched_at: token.created_at,
   });
   if (error) throw new Error(`saving the paper call failed: ${error.message}`);
   calls.left -= 1;
@@ -635,7 +642,7 @@ async function alertOnFailedSells(shared: Shared, agent: TrenchAgentRow, token: 
 }
 
 /** One public call per position a few minutes after the buy, so Rushr links our entry. */
-async function postCallouts(shared: Shared, agent: TrenchAgentRow, wallet: AgentWallet, stopPct: number): Promise<void> {
+async function postCallouts(shared: Shared, agent: TrenchAgentRow, wallet: AgentWallet, exit: ExitRules): Promise<void> {
   const { db, nowMs } = shared;
   const { data } = await db.from("trench_positions").select("token, symbol, opened_at, cost_usd, narrative").eq("agent_id", agent.id).is("callout_id", null).is("closed_at", null);
   for (const row of data ?? []) {
@@ -643,7 +650,7 @@ async function postCallouts(shared: Shared, agent: TrenchAgentRow, wallet: Agent
     const { data: buy } = await db.from("trench_trades").select("usd, reason").eq("agent_id", agent.id).eq("token", row.token).eq("side", "buy").order("ts").limit(1).maybeSingle();
     if (!buy) continue;
     try {
-      const id = await postCallout(wallet.rushrKey, row.token, buyCallout({ symbol: row.symbol, usd: buy.usd, ruleFacts: buy.reason, narrative: row.narrative, presetName: PRESET_INFO[agent.preset].name, stopPct }));
+      const id = await postCallout(wallet.rushrKey, row.token, buyCallout({ symbol: row.symbol, usd: buy.usd, ruleFacts: buy.reason, narrative: row.narrative, presetName: PRESET_INFO[agent.preset].name, exitNote: calloutExitNote(exit) }));
       await db.from("trench_positions").update({ callout_id: id }).eq("agent_id", agent.id).eq("token", row.token);
     } catch (cause) {
       // Mark it so a refused call (duplicate, rate limit) is not retried every minute.
@@ -709,7 +716,7 @@ export async function runTrenchMinute(db: SupabaseClient, nowMs: number = Date.n
 
   const { data: agentRows, error: agentsError } = await db
     .from("trench_agents")
-    .select("id, owner, name, preset, rules, custom, budget_usd, status, wallet_address, privy_wallet_id, rushr_handle, rushr_key_enc, callouts, call_only")
+    .select("id, owner, name, preset, rules, custom, budget_usd, status, wallet_address, privy_wallet_id, rushr_handle, rushr_key_enc, callouts, call_only, house")
     .in("status", ["active", "paused", "halted"]);
   if (agentsError) return { ...summary, note: `agents: ${agentsError.message}` };
   const exposure = await exposureByToken(db);
@@ -767,6 +774,12 @@ export async function runTrenchMinute(db: SupabaseClient, nowMs: number = Date.n
         shared.summary.errors.push(`${agent.id.slice(0, 8)}: ${(cause as Error).message.slice(0, 200)}`);
       }
     }
+    // Candidate log and forward paths (self-improvement loop, part 1): records only, after every agent ran,
+    // and never fails the minute.
+    const curveCandidates = shared.candidates.filter((candidate) => shared.marketOf.get(candidate.token.address) === "curve");
+    shared.summary.candidateLog = await logCandidates(db, curveCandidates, nowMs)
+      .then(async (logged) => `${logged} logged, ${await samplePaths(db, nowMs, tokenRow)} paths`)
+      .catch((cause: unknown) => `candidate log: ${(cause as Error).message.slice(0, 200)}`);
     // QProof shadow log, after every agent ran: at most one free call to QHooks a minute. Never fails the minute.
     shared.summary.qproof = await qproofStep(db, nowMs).catch((cause: unknown) => `qproof: ${(cause as Error).message.slice(0, 200)}`);
     await db.from("trench_minutes").update({ finished_at: new Date().toISOString(), summary: shared.summary }).eq("minute", minute);

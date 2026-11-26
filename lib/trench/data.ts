@@ -32,7 +32,7 @@ export type TrenchPositionView = { token: string; symbol: string; costUsd: numbe
 export type TrenchTradeView = { ts: string; token: string; symbol: string; side: "buy" | "sell"; usd: number; pnlUsd: number | null; reason: string; txHash: string };
 export type TrenchDecisionView = { ts: string; symbol: string | null; action: string; reason: string };
 
-const AGENT_COLUMNS = "id, name, preset, rules, custom, budget_usd, status, wallet_address, policy_id, rushr_handle, rushr_key_enc, callouts, halted_reason, last_run_at, created_at";
+const AGENT_COLUMNS = "id, name, preset, rules, custom, budget_usd, status, wallet_address, policy_id, rushr_handle, rushr_key_enc, callouts, halted_reason, last_run_at, created_at, house";
 
 type AgentRow = {
   id: string;
@@ -40,6 +40,7 @@ type AgentRow = {
   preset: PresetId;
   rules: unknown;
   custom: boolean | null;
+  house: boolean | null;
   budget_usd: number;
   status: TrenchAgentView["status"];
   wallet_address: string | null;
@@ -56,7 +57,7 @@ const toView = (row: AgentRow): TrenchAgentView => ({
   id: row.id,
   name: row.name,
   preset: row.preset,
-  rules: agentRules({ preset: row.preset, rules: row.rules, custom: row.custom }),
+  rules: agentRules({ preset: row.preset, rules: row.rules, custom: row.custom, house: row.house }),
   custom: row.custom === true,
   budgetUsd: Number(row.budget_usd),
   status: row.status,

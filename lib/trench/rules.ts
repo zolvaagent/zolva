@@ -55,7 +55,15 @@ export type EntryRules = {
   reentryMinBuySell6h: number;
 };
 
+/**
+ * v2: Research's exit v2 (every user agent). moonbag: Research's exit v3 (pre-registered 5f2d07c, owner "ya
+ * semua" 2026-11-26): no stop, no flow / time / flat-bonding exit; the ladder, then the trail; everything at
+ * graduation or maxHoursFromLaunch after launch. Only Zolva's own house agents may use it (parseTrenchRules).
+ */
+export type ExitStyle = "v2" | "moonbag";
+
 export type ExitRules = {
+  style: ExitStyle;
   stopPct: number;
   ladder: { gainPct: number; sellShareOfEntry: number }[];
   trailingPct: number;
@@ -75,6 +83,8 @@ export type ExitRules = {
   weakFlowTrailPct: number;
   /** The stop fires after this many one-minute closes in a row below it (1 = the first). */
   stopConfirmMinutes: number;
+  /** Moonbag only: everything still held is sold this many hours after the token's launch. */
+  maxHoursFromLaunch: number;
 };
 
 /** Shares of the agent's money. */
@@ -146,6 +156,8 @@ export const PRESETS = {
       lockInPct: 3,
       weakFlowTrailPct: 10,
       stopConfirmMinutes: 2,
+      style: "v2",
+      maxHoursFromLaunch: 168,
     },
     sizing: { firstBuyShare: 0.1, addShare: 0.1, maxPerTokenShare: 0.2, maxOpenTokens: 4, dailyLossShare: 0.2, totalLossShare: 0.7 },
   },
@@ -195,6 +207,8 @@ export const PRESETS = {
       lockInPct: -100,
       weakFlowTrailPct: 0,
       stopConfirmMinutes: 1,
+      style: "v2",
+      maxHoursFromLaunch: 168,
     },
     sizing: { firstBuyShare: 0.08, addShare: 0, maxPerTokenShare: 0.08, maxOpenTokens: 5, dailyLossShare: 0.15, totalLossShare: 0.5 },
   },
@@ -233,9 +247,9 @@ const RISKS: RiskLevel[] = ["low", "medium", "high"];
 /**
  * Rules from untrusted JSON, based on a preset: every field is read, clamped to a safe range, and
  * falls back to the preset's value. The market always comes from the preset. The stop loss can be
- * tuned but never removed.
+ * tuned but never removed, except by the moonbag exit, which only Zolva's own house agents may use.
  */
-export function parseTrenchRules(raw: unknown, base: PresetId = "almost_bonded"): TrenchRules {
+export function parseTrenchRules(raw: unknown, base: PresetId = "almost_bonded", options: { house?: boolean } = {}): TrenchRules {
   const preset: TrenchRules = PRESETS[base];
   const input = (raw && typeof raw === "object" ? raw : {}) as Loose;
   const entry = (input.entry && typeof input.entry === "object" ? input.entry : {}) as Loose;
@@ -300,6 +314,9 @@ export function parseTrenchRules(raw: unknown, base: PresetId = "almost_bonded")
       lockInPct: clamp(exit.lockInPct, x.lockInPct, -100, 50),
       weakFlowTrailPct: clamp(exit.weakFlowTrailPct, x.weakFlowTrailPct, 0, 50),
       stopConfirmMinutes: Math.round(clamp(exit.stopConfirmMinutes, x.stopConfirmMinutes, 1, 10)),
+      // Locked guard: a user's agent always has the v2 exit (with its stop); only house agents may ride a moonbag.
+      style: options.house === true && exit.style === "moonbag" ? "moonbag" : "v2",
+      maxHoursFromLaunch: clamp(exit.maxHoursFromLaunch, x.maxHoursFromLaunch, 1, 168),
     },
     sizing: {
       firstBuyShare: clamp(sizing.firstBuyShare, s.firstBuyShare, 0.01, 0.5),
@@ -316,8 +333,19 @@ export function parseTrenchRules(raw: unknown, base: PresetId = "almost_bonded")
  * The rules an agent trades with: its own edited copy when custom, otherwise its preset as it is
  * today (so preset updates such as exit v2 reach every non-custom agent).
  */
-export function agentRules(agent: { preset: PresetId; rules: unknown; custom?: boolean | null }): TrenchRules {
+export function agentRules(agent: { preset: PresetId; rules: unknown; custom?: boolean | null; house?: boolean | null }): TrenchRules {
+  // A house agent (Zolva's own money) trades its stored rules, which may use the moonbag exit.
+  if (agent.house) return parseTrenchRules(agent.rules, agent.preset, { house: true });
   return agent.custom ? parseTrenchRules(agent.rules, agent.preset) : parseTrenchRules(PRESETS[agent.preset], agent.preset);
+}
+
+/** Research's frozen exit v3 "moonbag" (scripts/research-trench-backtest.mts `ride` version 3, 5f2d07c). */
+export const MOONBAG_V3 = { style: "moonbag", ladder: [{ gainPct: 100, sellShareOfEntry: 0.5 }], trailingPct: 45, graduateBonding: 0.95, maxHoursFromLaunch: 168 } as const;
+
+/** A house agent's rules: the preset's entry and sizing with the moonbag exit. */
+export function moonbagRules(base: PresetId = "almost_bonded"): TrenchRules {
+  const preset = PRESETS[base];
+  return parseTrenchRules({ ...preset, exit: { ...preset.exit, ...MOONBAG_V3 } }, base, { house: true });
 }
 
 /** True when rules differ from their preset (a custom agent). */
@@ -371,9 +399,10 @@ export function describeRules(rules: TrenchRules): { buys: string; sells: string
   const stop = x.stopConfirmMinutes > 1 ? `Stop -${x.stopPct}% after ${x.stopConfirmMinutes} one-minute closes below it` : `Stop -${x.stopPct}%`;
   const lock = x.lockInPct > -100 && x.ladder.length > 0 ? `, then the stop moves to entry +${x.lockInPct}%` : "";
   const flow = x.weakFlowTrailPct > 0 ? `; if sellers take over: out at a loss, a ${x.weakFlowTrailPct}% trail in profit` : "; at once if sellers take over";
-  const sells = `${stop}; ${ladder || "no take profit"}${lock}, the rest on a ${x.trailingPct}% trailing stop; ${timeStop}${rules.market === "curve" ? "; everything near graduation" : ""}${flow}${e.reentryEnabled ? `; one re-entry after a flow or time exit (${e.reentryCooldownMinutes} min later, buyers ${e.reentryMinBuySell6h}x)` : ""}`;
+  const moonbag = `No stop loss (Zolva's own test agent: the position size is the risk); ${ladder || "no take profit"}, the rest on a ${x.trailingPct}% trailing stop from the peak; everything at graduation (${pct(x.graduateBonding)} bonded) or ${x.maxHoursFromLaunch / 24} days after launch`;
+  const sells = x.style === "moonbag" ? moonbag : `${stop}; ${ladder || "no take profit"}${lock}, the rest on a ${x.trailingPct}% trailing stop; ${timeStop}${rules.market === "curve" ? "; everything near graduation" : ""}${flow}${e.reentryEnabled ? `; one re-entry after a flow or time exit (${e.reentryCooldownMinutes} min later, buyers ${e.reentryMinBuySell6h}x)` : ""}`;
   const sizing = `${pct(s.firstBuyShare)} of its money per new token${s.addShare > 0 ? `, one add of ${pct(s.addShare)}` : ""}, at most ${pct(s.maxPerTokenShare)} in one token and ${s.maxOpenTokens} tokens at once. Day stop after -${pct(s.dailyLossShare)}, stops for good after -${pct(s.totalLossShare)}.`;
-  const line = `${pct(s.firstBuyShare)} per token · stop -${x.stopPct}% · up to ${s.maxOpenTokens} tokens · stops for good at -${pct(s.totalLossShare)}`;
+  const line = `${pct(s.firstBuyShare)} per token · ${x.style === "moonbag" ? "no stop (moonbag)" : `stop -${x.stopPct}%`} · up to ${s.maxOpenTokens} tokens · stops for good at -${pct(s.totalLossShare)}`;
   return { buys, sells, sizing, line };
 }
 
