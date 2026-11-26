@@ -13,6 +13,7 @@ const PAGES: { path: string; changeFrequency: "hourly" | "weekly" | "monthly"; p
   { path: "/stats", changeFrequency: "hourly", priority: 0.5 },
   { path: "/trenches", changeFrequency: "hourly", priority: 0.5 },
   { path: "/devlog", changeFrequency: "weekly", priority: 0.5 },
+  { path: "/roadmap", changeFrequency: "monthly", priority: 0.5 },
   { path: "/brand", changeFrequency: "monthly", priority: 0.3 },
   { path: "/terms", changeFrequency: "monthly", priority: 0.2 },
   { path: "/privacy", changeFrequency: "monthly", priority: 0.2 },
