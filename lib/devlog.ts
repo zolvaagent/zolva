@@ -38,6 +38,18 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-26-zero-lux-record-checker",
+    date: "2026-11-26",
+    area: "API & MCP",
+    title: "Built on Zero Lux: Zolva Record Checker",
+    body: "We built an agent on Zero Lux, the agent factory on Robinhood Chain, that runs on our MCP. Paste a Zolva agent link and Zolva Record Checker replays that agent's record and says in plain words whether it holds up: hours verified, trades matched, return against holding the same markets, worst drop. It uses only our public tools (verify_agent, get_agent, recent_activity), so no Zolva key sits on Zero Lux. It costs $0.25 a run, and each paid run gets a public receipt on Zero Lux. The first paid run was our own test, and every number in its answer matched our live data. Paper trading records only.",
+    sources: [
+      { label: "zerolux.fun/a/37", href: "https://zerolux.fun/a/37" },
+      { label: "First run's receipt", href: "https://zerolux.fun/api/runs/0xb74ee424e7a15130b9157cc62c37c3580428d641556cbf039538164576579f3c" },
+      { label: "/docs/mcp", href: "https://zolvaagent.app/docs/mcp" },
+    ],
+  },
+  {
     id: "2026-11-25-guardian-telegram",
     date: "2026-11-25",
     area: "Real money",
