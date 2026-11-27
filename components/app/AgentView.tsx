@@ -24,7 +24,9 @@ import type { Decision } from "@/lib/engine/engine";
 import { explainDecision, type Explanation } from "@/lib/engine/explain";
 import { agentParams } from "@/lib/agents/plan";
 import type { Rules } from "@/lib/engine/rules";
+import { RulesFingerprint } from "@/components/app/RulesFingerprint";
 import { RulesSummary } from "@/components/app/RulesSummary";
+import type { Fingerprint } from "@/lib/agents/fingerprint";
 import { VerifyAgent } from "@/components/app/VerifyAgent";
 import { PalisecAccount } from "@/components/app/PalisecAccount";
 import { AskAgent, openAskAgent } from "@/components/app/AskAgent";
@@ -74,6 +76,8 @@ type Props = {
   loginMethod?: "privy" | "wallet" | null;
   /** Whether the named Palisec account names this agent back on chain; null when none is named. */
   palisecLink?: PalisecLinkStatus | null;
+  /** The recorded rules fingerprint (lib/agents/fingerprint.ts); null until one is recorded. */
+  fingerprint?: Fingerprint | null;
 };
 
 const RANGES = { "7d": 7 * 24, "30d": 30 * 24, all: Infinity } as const;
@@ -106,6 +110,7 @@ export function AgentView({
   ledger,
   loginMethod = null,
   palisecLink = null,
+  fingerprint = null,
 }: Props) {
   const router = useRouter();
   const toast = useToast();
@@ -773,6 +778,7 @@ export function AgentView({
       </div>
       {/* The whole strategy in plain words, from the agent's params (lib/engine/summary.ts). */}
       <RulesSummary lines={howItTrades} />
+      {fingerprint && <RulesFingerprint fingerprint={fingerprint} />}
       {/* The creator's own words (prompt mode). Shown to the owner, and to everyone once published. */}
       {agent.strategy_prompt && (isOwner || agent.published_at) && (
         <section className="rules-summary strategy-prompt" aria-label="Strategy in the creator's words">

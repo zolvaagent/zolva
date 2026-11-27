@@ -34,6 +34,7 @@ const AGENT_FIELDS: Field[] = [
 
 const AGENT_DETAIL_FIELDS: Field[] = [
   ["agent", "Every field above, plus settings: maxPositionPct, stopLossPct, rules (Custom agents only, otherwise null) and aiCoPilot (true or false), and howItTrades: the strategy in plain words, one sentence per item, built from the settings (never by AI)."],
+  ["agent.fingerprint", "The rules fingerprint, or null when none is recorded: { sha256, version, input, recordedAt, matches }. input is the exact text that was hashed (the trading settings and markets as canonical JSON, version zr1), so SHA-256 of input gives sha256 while matches is true. recordedAt is when Zolva recorded it (agents made before fingerprints got theirs later than their start). It leaves out name, capital and the AI co-pilot; a preset is recorded by name. Zolva keeps it in its own database: it is not on chain."],
   ["agent.palisecAccount", "The Palisec smart account the agent's owner named: { chainId: 4663, address } with the address checksummed, or null when none is set. Set by the owner on Zolva; it does not mean the agent's trades run through Palisec (they are paper trades). The agent page calls it linked only when that account also names the agent on Palisec's AgentLinks contract."],
   ["equity", "Hourly rows of [time, agent value USD, value of holding the same markets USD] for the last 7 days, oldest first."],
   ["positions", "Open positions: market, side (long or short), quantity, entryPrice, openedAt."],

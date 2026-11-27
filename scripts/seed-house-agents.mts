@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 
 import { createClient } from "@supabase/supabase-js";
 
+import { rulesFingerprint } from "../lib/agents/fingerprint.ts";
 import { HOUSE_AGENTS, HOUSE_WALLET, LAB_AGENTS } from "../lib/agents/house.ts";
 
 const vars = Object.fromEntries(
@@ -70,7 +71,7 @@ async function main() {
       const { data: candle } = await db.from("candles").select("close").eq("token_address", address).lte("ts", latestTs).order("ts", { ascending: false }).limit(1).single();
       startPrices[address] = Number(candle!.close);
     }
-    const { error: insertError } = await db.from("agents").insert({
+    const row = {
       published_at: new Date().toISOString(),
       owner: config.owner,
       name: config.name,
@@ -96,7 +97,8 @@ async function main() {
       status: "active",
       mode: "paper",
       last_run_ts: latestTs,
-    });
+    };
+    const { error: insertError } = await db.from("agents").insert({ ...row, rules_hash: rulesFingerprint(row as unknown as Parameters<typeof rulesFingerprint>[0]) });
     if (insertError) throw new Error(`${config.name}: ${insertError.message}`);
     console.log(`created  ${config.name}`);
   }

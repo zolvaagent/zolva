@@ -38,6 +38,14 @@ const commit = (hash: string) => ({
 
 export const DEVLOG: DevlogEntry[] = [
   {
+    id: "2026-11-27-rules-fingerprint",
+    date: "2026-11-27",
+    area: "Agents",
+    title: "Every agent now has a rules fingerprint",
+    body: "Each agent page now shows a rules fingerprint: a SHA-256 of the settings that decide how it trades, and its markets. New agents get it when they are made; older agents got theirs on the day shown, not on their start date. The public API returns the hashed text too, so anyone can check the hash, keep a copy and notice if the settings ever change. It is stored in Zolva's database and is not on chain yet; that is a later step.",
+    sources: [{ label: "/docs/public-api", href: "https://zolvaagent.app/docs/public-api" }],
+  },
+  {
     id: "2026-11-26-zero-lux-record-checker",
     date: "2026-11-26",
     area: "API & MCP",

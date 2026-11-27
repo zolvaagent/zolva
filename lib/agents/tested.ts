@@ -7,6 +7,7 @@
  */
 import type { Rules } from "../engine/rules.ts";
 
+import { canonicalJson } from "./canonical-json.ts";
 import { VOL_TREND_1200, VOL_TREND_1200_LS } from "./house.ts";
 
 type TestedRule = { venue: "spot" | "perps"; rules: Rules; markets: string[] };
@@ -23,19 +24,6 @@ export const TESTED_RULES: TestedRule[] = [
   { venue: "perps", rules: VOL_TREND_1200_LS, markets: ["SOL-PERP", "XRP-PERP", "NEAR-PERP", "ZEC-PERP", "BTC-PERP", "ETH-PERP"] },
 ];
 
-/** JSON with object keys sorted, so the database's key order never matters. */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value as Record<string, unknown>)
-      .sort()
-      .filter((key) => (value as Record<string, unknown>)[key] !== undefined)
-      .map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
 export type TestedInput = {
   strategy: string;
   venue: "spot" | "perps";
@@ -47,9 +35,9 @@ export function isTested(agent: TestedInput): boolean {
   if (agent.strategy !== "custom" || agent.symbols.length !== 1) return false;
   const { params } = agent;
   if (Number(params.stop_loss_pct) !== STOP_LOSS_PCT || Number(params.max_position_pct) !== MAX_POSITION_PCT) return false;
-  if (canonical(params.sizing) !== canonical(SIZING)) return false;
-  const rules = canonical(params.rules);
-  return TESTED_RULES.some((tested) => tested.venue === agent.venue && tested.markets.includes(agent.symbols[0]) && canonical(tested.rules) === rules);
+  if (canonicalJson(params.sizing) !== canonicalJson(SIZING)) return false;
+  const rules = canonicalJson(params.rules);
+  return TESTED_RULES.some((tested) => tested.venue === agent.venue && tested.markets.includes(agent.symbols[0]) && canonicalJson(tested.rules) === rules);
 }
 
 /** Research's minimum track record before an agent is ranked or shows risk numbers. */

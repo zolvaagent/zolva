@@ -10299,6 +10299,23 @@ li.stats-ranks__row {
   color: var(--color-text-muted);
 }
 
+/* Rules fingerprint (components/app/RulesFingerprint.tsx): a short hash with its copy button. */
+.rules-fingerprint__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-100);
+}
+
+.rules-fingerprint__hash {
+  font: 500 13px/18px var(--font-mono, ui-monospace, monospace);
+  overflow-wrap: anywhere;
+}
+
+.strategy-prompt__note.rules-fingerprint__warning {
+  color: var(--color-loss);
+}
+
 /* ---------- Landing "Every hour" rail (components/site/HourlyRail.tsx) ----------
    Approved design: prototype/hourly-rail.html. The section sits on the plain background, so the
    markers use --color-bg to cover the track. */

@@ -17,6 +17,8 @@ import { readFileSync } from "node:fs";
 import { PrivyClient } from "@privy-io/node";
 import { createClient } from "@supabase/supabase-js";
 
+import { rulesFingerprint } from "../lib/agents/fingerprint.ts";
+
 const vars = Object.fromEntries(
   readFileSync(new URL("../.dev.vars", import.meta.url), "utf8")
     .split(/\r?\n/)
@@ -61,21 +63,22 @@ async function main() {
     const { data: candle } = await db.from("candles").select("close").eq("token_address", token.address).order("ts", { ascending: false }).limit(1).single();
     startPrices[token.address] = Number(candle!.close);
   }
+  const row = {
+    owner: wallet,
+    name: `Live ${tokens.map((token) => token.symbol).join(" ")}`.slice(0, 40),
+    strategy,
+    params: { max_position_pct: maxPositionPct, stop_loss_pct: stopLossPct, start_prices: startPrices },
+    token_addresses: tokens.map((token) => token.address),
+    start_capital: capital,
+    cash: capital,
+    status: "active",
+    mode: "live",
+    trading_wallet: wallet,
+    last_run_ts: latest!.ts,
+  };
   const { data: agent, error: insertError } = await db
     .from("agents")
-    .insert({
-      owner: wallet,
-      name: `Live ${tokens.map((token) => token.symbol).join(" ")}`.slice(0, 40),
-      strategy,
-      params: { max_position_pct: maxPositionPct, stop_loss_pct: stopLossPct, start_prices: startPrices },
-      token_addresses: tokens.map((token) => token.address),
-      start_capital: capital,
-      cash: capital,
-      status: "active",
-      mode: "live",
-      trading_wallet: wallet,
-      last_run_ts: latest!.ts,
-    })
+    .insert({ ...row, rules_hash: rulesFingerprint(row as unknown as Parameters<typeof rulesFingerprint>[0]) })
     .select("id")
     .single();
   if (insertError) throw new Error(insertError.message);

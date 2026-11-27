@@ -309,6 +309,9 @@ export type AgentDetail = {
     strategy_prompt: string | null;
     /** Palisec smart account the owner named (checksummed), or null. lib/agents/palisec.ts */
     palisec_account: string | null;
+    /** Rules fingerprint recorded for this agent, and when (lib/agents/fingerprint.ts). */
+    rules_hash?: string | null;
+    rules_hash_at?: string | null;
   };
   /** What the AI co-pilot has spent on this agent so far, USD. */
   aiSpentUsd: number;
@@ -330,7 +333,7 @@ export async function getAgentDetail(db: SupabaseClient, id: string): Promise<Ag
   if (!/^[0-9a-f-]{36}$/.test(id)) return null;
   const { data: agent, error } = await db
     .from("agents")
-    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, first_published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet, strategy_prompt, palisec_account")
+    .select("id, owner, name, strategy, params, token_addresses, start_capital, cash, last_run_ts, status, created_at, ai_model, published_at, first_published_at, ai_limit_micro, ai_limit_expires_at, mode, trading_wallet, strategy_prompt, palisec_account, rules_hash, rules_hash_at")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(`Loading the agent failed: ${error.message}`);

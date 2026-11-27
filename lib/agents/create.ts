@@ -5,7 +5,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { dcaPlanError, maxMarketsFor, STUDIO_STRATEGIES, strategyNeedsPerps } from "@/lib/agents/copy";
 import { getMarket, latestCandleTime } from "@/lib/data/market";
 import { parseAiLimit, type AiLimit } from "@/lib/ai/limits";
+import { rulesFingerprint } from "@/lib/agents/fingerprint";
 import { parsePalisecAccount } from "@/lib/agents/palisec";
+import type { AgentRow } from "@/lib/agents/plan";
 import { aiModel } from "@/lib/ai/models";
 import { PROMPT_MAX_LENGTH } from "@/lib/ai/strategy-writer";
 import { parseRules, rulesLookback, type Rules } from "@/lib/engine/rules";
@@ -74,7 +76,9 @@ export type AgentDraftRow = {
 export async function createAgent(db: SupabaseClient, owner: string, input: CreateAgentInput, live?: LiveLaunch): Promise<{ id: string }> {
   const row = await checkAgentInput(db, owner, input, live);
   const mode = row.mode;
-  const { data, error } = await db.from("agents").insert(row).select("id").single();
+  // Recorded with the agent itself; the database keeps it from ever changing (rules_hash).
+  const rules_hash = rulesFingerprint(row as unknown as Pick<AgentRow, "strategy" | "params" | "token_addresses">);
+  const { data, error } = await db.from("agents").insert({ ...row, rules_hash }).select("id").single();
 
   if (error) {
     if (mode === "live" && error.message.includes("active_agent_limit")) throw new AgentInputError("You already run a real money agent. Pause it in your dashboard to launch another.");

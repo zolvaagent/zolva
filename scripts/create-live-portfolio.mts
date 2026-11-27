@@ -16,6 +16,8 @@ import { readFileSync } from "node:fs";
 
 import { createClient } from "@supabase/supabase-js";
 
+import { rulesFingerprint } from "../lib/agents/fingerprint.ts";
+
 const PAPER_TWIN = "Lab · Vol Trend Portfolio 2x";
 const LIVE_NAME = "Vol Trend Portfolio 2x (live)";
 
@@ -63,7 +65,7 @@ async function main() {
   };
   console.log(`${write ? "creating" : "would create"}: ${LIVE_NAME}, owner ${owner.slice(0, 6)}…${owner.slice(-4)}, Lighter account ${account}, $${capital}, ${twin.token_addresses.length} markets, paused`);
   if (!write) return;
-  const { data: created, error: insertError } = await db.from("agents").insert(row).select("id").single();
+  const { data: created, error: insertError } = await db.from("agents").insert({ ...row, rules_hash: rulesFingerprint(row) }).select("id").single();
   if (insertError) throw new Error(insertError.message);
   console.log(`created ${created.id}`);
 }

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { AgentView, type Preview } from "@/components/app/AgentView";
+import { readFingerprint } from "@/lib/agents/fingerprint";
 import { agentParams } from "@/lib/agents/plan";
 import { getSessionAddress, LOGIN_METHOD_COOKIE } from "@/lib/auth/session";
 import { getAgentDetail, type AgentDetail } from "@/lib/data/agents";
@@ -90,5 +91,5 @@ export default async function AgentPage({ params }: PageProps<"/agents/[id]">) {
   });
   // The creator's prompt reaches the browser only for the owner, or while the agent is published.
   const shown = isOwner || detail.agent.published_at ? detail : { ...detail, agent: { ...detail.agent, strategy_prompt: null } };
-  return <AgentView detail={shown} isOwner={isOwner} ledger={ledger} credits={credits} prices={prices} preview={preview} symbols={symbols} howItTrades={howItTrades} loginMethod={loginMethod} palisecLink={palisecLink} />;
+  return <AgentView detail={shown} isOwner={isOwner} ledger={ledger} credits={credits} prices={prices} preview={preview} symbols={symbols} howItTrades={howItTrades} loginMethod={loginMethod} palisecLink={palisecLink} fingerprint={readFingerprint(detail.agent)} />;
 }
