@@ -364,7 +364,7 @@ export default function PublicApi() {
 
       <H2 id="by-wallet">GET /agents/by-wallet/{"{address}"}</H2>
       <p>
-        Is this wallet a Zolva agent? Answers <code>{"{"}&quot;zolva&quot;: true{"}"}</code> when the address is the wallet of a Zolva trench agent registered on Rushr, and{" "}
+        Is this wallet a Zolva agent? Answers <code>{"{"}&quot;zolva&quot;: true{"}"}</code> when the address is the wallet of a Zolva agent registered on Rushr (a trench agent, or the Zolva Lab agent), and{" "}
         <code>{"{"}&quot;zolva&quot;: false{"}"}</code> for any other address. Nothing else is returned: no owner, no user wallet. The address is not case sensitive; one that is not 0x and 40 hex
         characters is a 400. Built so a listing like Rushr can show a &quot;Runs on Zolva&quot; badge.
       </p>

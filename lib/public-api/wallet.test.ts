@@ -45,6 +45,12 @@ describe("walletBody", () => {
     expect(await walletBody(fakeDb([]).client, ADDRESS)).toEqual({ zolva: false });
   });
 
+  it("is true for the Lab agent's wallet without asking the database", async () => {
+    const { client, calls } = fakeDb([]);
+    expect(await walletBody(client, "0x9dec887dc8dd6bed2b7d8d0ce4db2471c174292c")).toEqual({ zolva: true });
+    expect(calls).toEqual([]);
+  });
+
   it("throws on a database error instead of answering false", async () => {
     await expect(walletBody(fakeDb([], { message: "boom" }).client, ADDRESS)).rejects.toThrow("boom");
   });

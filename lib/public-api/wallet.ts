@@ -8,7 +8,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * "A Zolva agent" here means a trench agent that is registered on Rushr (it has a Rushr
  * handle) and has its own wallet. It stays true after the agent is paused or closed, since
  * the Rushr listing stays too. Agents still in setup have no Rushr handle yet, so they are false.
+ * Also true for @zolva_lab, the first Zolva agent on Rushr: it runs on the VPS, not as a trench
+ * agent, so it has no row in trench_agents (see EXTERNAL_ZOLVA_WALLETS).
  */
+
+/**
+ * Wallets of Zolva agents that are not trench agents. @zolva_lab's wallet is the one Rushr shows
+ * on its public profile (api.rushr.trade/v1/members/zolva_lab). Lower case.
+ */
+const EXTERNAL_ZOLVA_WALLETS: ReadonlySet<string> = new Set(["0x9dec887dc8dd6bed2b7d8d0ce4db2471c174292c"]);
 
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
@@ -21,6 +29,7 @@ export type WalletCheck = { zolva: boolean };
 
 /** Looks the (already lower case) address up among the wallets of Zolva's Rushr agents. */
 export async function walletBody(db: SupabaseClient, address: string): Promise<WalletCheck> {
+  if (EXTERNAL_ZOLVA_WALLETS.has(address)) return { zolva: true };
   const { data, error } = await db
     .from("trench_agents")
     .select("id")
