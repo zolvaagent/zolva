@@ -19,6 +19,7 @@
 
 <p align="center">
   <a href="https://heyresearch.xyz/project/zolva-agent?utm_source=badge&utm_medium=readme"><img src="https://heyresearch.xyz/api/badge/zolva-agent" alt="Zolva Agent on HEY Research Lab"></a>
+  <a href="https://mcprush.com/to/zolva-mcp?ref=badge"><img src="https://mcprush.com/badge/zolva-mcp/compact.svg" alt="Zolva MCP server on mcprush"></a>
 </p>
 
 ---
